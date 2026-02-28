@@ -170,7 +170,7 @@ pkg/audio/         pkg/network/       pkg/world/
 | V-Series API surface changes breaking imports | Low | Medium | Pin Venture to a specific module version; maintain adapter layer |
 | Open-world chunk streaming bandwidth | Medium | High | Delta compression + interest management; benchmark in Phase 2 before full NPC load |
 | NPC schedule simulation CPU cost at scale | Medium | High | Coarse-grained time steps for distant NPCs; LOD simulation tiers |
-| Deterministic PCG across Go versions | Low | High | Seed own PRNG (xoshiro256**); never use `math/rand` global state |
+| Deterministic PCG across Go versions | Low | High | Seed own PRNG (`xoshiro256**`); never use `math/rand` global state |
 | Tor latency making game feel unplayable | Medium | High | Generous client-side prediction; animate all local actions immediately |
 | Five-genre scope creep | High | Medium | Genre routing is a single `GenreID` parameter; enforce via interface; add genres incrementally |
 | Economy exploit in player trading | Medium | Medium | Server-side price bounds clamping; rate-limit transactions per player per minute |
