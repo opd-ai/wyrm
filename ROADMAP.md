@@ -36,7 +36,7 @@ pkg/audio/         pkg/network/       pkg/world/
 ### Phase 2 — Open World & First-Person Rendering (10 weeks)
 *Seamless chunk streaming, raycaster, procedural sprites/lighting, NPC schedules*
 
-5. First-person raycaster in `pkg/rendering/raycast/` using Ebiten; procedural wall/floor/ceiling textures from `pkg/rendering/texture/` (no image files). **AC:** 60 fps at 1280×720 on reference hardware; genre changes wall palette.
+5. First-person raycaster in `pkg/rendering/raycast/` using Ebiten; **consider re-using (and possibly extending) the raycasting engine from opd-ai/violence to reduce code duplication and accelerate development**; procedural wall/floor/ceiling textures from `pkg/rendering/texture/` (no image files). **AC:** 60 fps at 1280×720 on reference hardware; genre changes wall palette.
 6. Seamless chunk streaming: server sends delta-compressed chunk diffs; client pre-fetches 3×3 chunk window. **AC:** Player walks across chunk boundary with <1 frame stutter at 50 ms simulated latency.
 7. NPC schedule system (via Venture's `pkg/procgen/entity` + new `NPCScheduleSystem`): sleep/work/wander/trade/patrol cycles keyed to world clock. **AC:** 100 NPCs in a city simulate 24 h in <10 ms server tick.
 8. Procedural city generator in `pkg/procgen/city/` wrapping Venture's `pkg/procgen/building` and `pkg/procgen/station`; road network via minimum spanning tree on district centroids. **AC:** Genre-appropriate city (fantasy=stone/timber, cyberpunk=neon towers) generated in <200 ms.
