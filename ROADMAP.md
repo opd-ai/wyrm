@@ -155,7 +155,7 @@ pkg/audio/         pkg/network/       pkg/world/
 | Performance (client) | 60 fps at 1280×720 | Ebiten FPS counter in headless Xvfb CI run |
 | Multiplayer latency tolerance | Playable at 500 ms RTT | Automated test: netem 500 ms, play 60 s, assert 0 desync events |
 | Tor-mode | Functional at 2000 ms RTT | Netem 2000 ms test: movement and combat resolve correctly |
-| Zero static assets | No files in `assets/` at build time | CI: `find . -name '*.png' -o -name '*.wav' | wc -l` == 0 |
+| Zero static assets | No files in `assets/` at build time | CI: `find assets/ -type f ! -name '.gitignore' | wc -l` == 0 |
 | Single binary | `go build ./cmd/client` produces one binary | CI: binary runs without external files on clean machine |
 | Genre playthrough | All 5 genres boot and run 60 s without panic | CI matrix job: one run per genre |
 | Quest persistence | Quest flags survive server restart | Integration test: restart server, assert flag present |
