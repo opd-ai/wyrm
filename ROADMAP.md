@@ -49,7 +49,7 @@ pkg/audio/         pkg/network/       pkg/world/
 11. Quest system using Venture's `pkg/procgen/quest` + `pkg/procgen/narrative`: branching quests with consequence flags persisted per player; min 5 branch points per major quest. **AC:** Completing quest branch A locks branch B; consequence flag persists across server restart.
 12. Dynamic economy: supply/demand per city node, player-owned property (houses, shops) via Venture's `pkg/procgen/building`. **AC:** Selling 50 identical items to one vendor reduces buy price by ≥10%.
 13. Crime/law system: wanted level 0–5 stars, NPC witness reports, bounty system, jail mechanic. **AC:** Committing crime within NPC LOS raises wanted level within 2 ticks; paying bounty resets to 0.
-14. Vehicle system wrapping Venture's `pkg/procgen/vehicle`: 3 vehicle archetypes per genre (fantasy=horse/cart/ship; cyberpunk=hover/cycle/truck); physics approximated via ECS components. **AC:** All 5 genres spawn ≥3 distinct driveable vehicle types.
+14. Vehicle system wrapping Venture's `pkg/procgen/vehicle`: 3 vehicle archetypes per genre (fantasy=horse/cart/ship; cyberpunk=hover/cycle/truck); physics approximated via ECS components. **AC:** All 5 genres spawn ≥3 distinct drivable vehicle types.
 
 ### Phase 4 — Audio & Visual Polish (6 weeks)
 *Procedural audio synthesis, adaptive music, post-processing, genre visual effects*
