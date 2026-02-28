@@ -1,11 +1,15 @@
 // Package network provides client-server networking.
 package network
 
-import "net"
+import (
+	"net"
+	"sync"
+)
 
 // Server handles incoming client connections and authoritative game state.
 type Server struct {
 	Address  string
+	mu       sync.Mutex
 	listener net.Listener
 }
 
@@ -20,12 +24,16 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
+	s.mu.Lock()
 	s.listener = ln
+	s.mu.Unlock()
 	return nil
 }
 
 // Stop closes the server listener.
 func (s *Server) Stop() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.listener != nil {
 		return s.listener.Close()
 	}
@@ -35,6 +43,7 @@ func (s *Server) Stop() error {
 // Client handles the connection to a game server.
 type Client struct {
 	ServerAddress string
+	mu            sync.Mutex
 	conn          net.Conn
 }
 
@@ -49,12 +58,16 @@ func (c *Client) Connect() error {
 	if err != nil {
 		return err
 	}
+	c.mu.Lock()
 	c.conn = conn
+	c.mu.Unlock()
 	return nil
 }
 
 // Disconnect closes the connection to the server.
 func (c *Client) Disconnect() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.conn != nil {
 		return c.conn.Close()
 	}

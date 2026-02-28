@@ -1,6 +1,8 @@
 // Package chunk manages world chunk data and streaming.
 package chunk
 
+import "sync"
+
 // Chunk represents a single world chunk with a deterministic seed.
 type Chunk struct {
 	X, Y      int
@@ -24,6 +26,7 @@ func NewChunk(x, y, size int, seed int64) *Chunk {
 type ChunkManager struct {
 	ChunkSize int
 	Seed      int64
+	mu        sync.RWMutex
 	loaded    map[[2]int]*Chunk
 }
 
@@ -39,10 +42,16 @@ func NewChunkManager(chunkSize int, seed int64) *ChunkManager {
 // GetChunk returns the chunk at the given coordinates, loading it if needed.
 func (cm *ChunkManager) GetChunk(x, y int) *Chunk {
 	key := [2]int{x, y}
+	cm.mu.RLock()
 	if c, ok := cm.loaded[key]; ok {
+		cm.mu.RUnlock()
 		return c
 	}
+	cm.mu.RUnlock()
+
 	c := NewChunk(x, y, cm.ChunkSize, cm.Seed+int64(x*31+y*37))
+	cm.mu.Lock()
 	cm.loaded[key] = c
+	cm.mu.Unlock()
 	return c
 }
