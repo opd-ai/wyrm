@@ -13,7 +13,11 @@ type Texture struct {
 }
 
 // Generate creates a procedural texture of the given size.
+// Returns nil if width or height is <= 0.
 func Generate(width, height int) *Texture {
+	if width <= 0 || height <= 0 {
+		return nil
+	}
 	pixels := make([]color.RGBA, width*height)
 	for i := range pixels {
 		pixels[i] = color.RGBA{R: 64, G: 64, B: 64, A: 255}

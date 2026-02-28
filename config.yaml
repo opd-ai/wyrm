@@ -5,6 +5,7 @@ window:
 
 server:
   address: "localhost:7777"
+  protocol: "tcp"
   tick_rate: 20
 
 world:
@@ -12,7 +13,3 @@ world:
   chunk_size: 512
 
 genre: "fantasy"
-
-network:
-  protocol: "tcp"
-  port: 7777

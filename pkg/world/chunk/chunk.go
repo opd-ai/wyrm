@@ -49,9 +49,15 @@ func (cm *ChunkManager) GetChunk(x, y int) *Chunk {
 	}
 	cm.mu.RUnlock()
 
-	c := NewChunk(x, y, cm.ChunkSize, cm.Seed+int64(x*31+y*37))
 	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	// Double-check under write lock in case another goroutine populated it.
+	if c, ok := cm.loaded[key]; ok {
+		return c
+	}
+
+	c := NewChunk(x, y, cm.ChunkSize, cm.Seed+int64(x)*31+int64(y)*37)
 	cm.loaded[key] = c
-	cm.mu.Unlock()
 	return c
 }

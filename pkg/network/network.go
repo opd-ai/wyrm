@@ -35,7 +35,9 @@ func (s *Server) Stop() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.listener != nil {
-		return s.listener.Close()
+		err := s.listener.Close()
+		s.listener = nil
+		return err
 	}
 	return nil
 }
@@ -59,6 +61,9 @@ func (c *Client) Connect() error {
 		return err
 	}
 	c.mu.Lock()
+	if c.conn != nil {
+		_ = c.conn.Close()
+	}
 	c.conn = conn
 	c.mu.Unlock()
 	return nil
@@ -69,7 +74,9 @@ func (c *Client) Disconnect() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.conn != nil {
-		return c.conn.Close()
+		err := c.conn.Close()
+		c.conn = nil
+		return err
 	}
 	return nil
 }

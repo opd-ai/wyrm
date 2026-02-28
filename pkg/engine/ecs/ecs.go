@@ -1,6 +1,11 @@
 // Package ecs provides the core Entity-Component-System framework.
 package ecs
 
+import (
+	"errors"
+	"sort"
+)
+
 // Entity is a unique identifier for a game object.
 type Entity uint64
 
@@ -13,6 +18,9 @@ type Component interface {
 type System interface {
 	Update(w *World, dt float64)
 }
+
+// ErrEntityNotFound is returned when operating on a non-existent entity.
+var ErrEntityNotFound = errors.New("ecs: entity not found")
 
 // World holds all entities, their components, and the registered systems.
 type World struct {
@@ -43,11 +51,13 @@ func (w *World) DestroyEntity(e Entity) {
 }
 
 // AddComponent attaches a component to an entity.
-func (w *World) AddComponent(e Entity, c Component) {
+// Returns ErrEntityNotFound if the entity does not exist.
+func (w *World) AddComponent(e Entity, c Component) error {
 	if _, ok := w.components[e]; !ok {
-		return
+		return ErrEntityNotFound
 	}
 	w.components[e][c.Type()] = c
+	return nil
 }
 
 // GetComponent retrieves a component by type from an entity.
@@ -60,7 +70,8 @@ func (w *World) GetComponent(e Entity, typeName string) (Component, bool) {
 	return c, ok
 }
 
-// Entities returns all entities that have the given component types.
+// Entities returns all entities that have the given component types,
+// sorted by entity ID for deterministic iteration order.
 func (w *World) Entities(types ...string) []Entity {
 	var result []Entity
 	for e, comps := range w.components {
@@ -75,6 +86,7 @@ func (w *World) Entities(types ...string) []Entity {
 			result = append(result, e)
 		}
 	}
+	sort.Slice(result, func(i, j int) bool { return result[i] < result[j] })
 	return result
 }
 

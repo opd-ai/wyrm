@@ -17,12 +17,7 @@ import (
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		log.Printf("config: %v, using defaults", err)
-		cfg = &config.Config{
-			Server:  config.ServerConfig{Address: "localhost:7777", TickRate: 20},
-			World:   config.WorldConfig{Seed: 0, ChunkSize: 512},
-			Network: config.NetworkConfig{Protocol: "tcp", Port: 7777},
-		}
+		log.Fatalf("failed to load config: %v", err)
 	}
 
 	world := ecs.NewWorld()

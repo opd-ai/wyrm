@@ -3,7 +3,6 @@ package main
 
 import (
 	"fmt"
-	"image/color"
 	"log"
 	"os"
 
@@ -28,7 +27,6 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	screen.Fill(color.RGBA{R: 20, G: 12, B: 28, A: 255})
 	g.renderer.Draw(screen)
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("Wyrm [%s]", g.cfg.Genre))
 }
@@ -40,11 +38,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		log.Printf("config: %v, using defaults", err)
-		cfg = &config.Config{
-			Window: config.WindowConfig{Width: 1280, Height: 720, Title: "Wyrm"},
-			Genre:  "fantasy",
-		}
+		log.Fatalf("config: %v", err)
 	}
 
 	world := ecs.NewWorld()
