@@ -1,0 +1,18 @@
+window:
+  width: 1280
+  height: 720
+  title: "Wyrm"
+
+server:
+  address: "localhost:7777"
+  tick_rate: 20
+
+world:
+  seed: 0
+  chunk_size: 512
+
+genre: "fantasy"
+
+network:
+  protocol: "tcp"
+  port: 7777
