@@ -112,7 +112,7 @@ pkg/audio/         pkg/network/       pkg/world/
 
 **NPC authority:** Server owns all NPC state (schedule, faction, dialog). Clients render NPCs via interpolated position components. NPC AI runs server-side only.
 
-**Quest instances:** Instanced quests (dungeon runs) spin up a sub-world with a unique seed derived from `worldSeed XOR questID XOR playerGroupID`. Party members join the same instance. Completion state written back to persistent world.
+**Quest instances:** Instanced quests (dungeon runs) spin up a sub-world with a unique seed derived from a stable 64-bit hash / mixing function over `(worldSeed, questID, playerGroupID)` (instead of a simple XOR). Party members join the same instance. Completion state written back to persistent world.
 
 **PvP zones:** Regions flagged `PvPZone=true` by faction generator. Client UI shows zone boundary. Server enforces damage rules by zone flag on combat resolution.
 
