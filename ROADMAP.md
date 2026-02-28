@@ -120,7 +120,7 @@ pkg/audio/         pkg/network/       pkg/world/
 
 **Player housing:** Interior chunks linked to player `EntityID`. Furniture component layout serialized per interior chunk. Loaded on demand when any player enters.
 
-**Lag compensation:** Server maintains 500 ms entity position history ring buffer. On hit registration, server rewinds to client's reported timestamp (capped at 500 ms), checks AABB overlap, then re-advances.
+**Lag compensation:** Server maintains 500 ms entity position history ring buffer. Each client input is tagged with a monotonic tick sequence number and mapped to server time via a synchronized clock offset. On hit registration, the server rewinds to the corresponding server timestamp (clamped to the last 500 ms of history and within an allowed drift window), checks AABB overlap, then re-advances; timestamps outside the drift window are rejected and processed at current server time.
 
 **Tor/high-latency mode:** At RTT >800 ms, client increases prediction window to 1500 ms, reduces input send rate to 10 Hz, and enables aggressive visual interpolation with 300 ms blend time.
 
