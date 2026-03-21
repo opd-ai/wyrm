@@ -10,9 +10,9 @@ type City struct {
 
 // District represents a city district.
 type District struct {
-	Name     string
-	CenterX  float64
-	CenterY  float64
+	Name      string
+	CenterX   float64
+	CenterY   float64
 	Buildings int
 }
 
