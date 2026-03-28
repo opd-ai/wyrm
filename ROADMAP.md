@@ -190,30 +190,30 @@ Venture's `pkg/procgen/` (~25 sub-packages, ~399k LOC total repo) is the richest
 
 | Venture Package | Wyrm Adapter | Key Extension for Open World |
 |-----------------|-------------|------------------------------|
-| `procgen/terrain` (BSP, cellular, city, forest, composite, grammar, maze) | `pkg/world/chunk/` adapter | Tile terrain across 512×512 chunk boundaries; add open-world biome transitions; height-map for 3D raycaster |
-| `procgen/entity` (stat templates, name grammar) | NPC factory in `WorldChunkSystem` | Add `Schedule`, `Reputation`, `Memory` components; wire into `NPCScheduleSystem` for daily routines |
-| `procgen/faction` (graph relations, territory Voronoi) | `FactionPoliticsSystem` seed input | Layer dynamic war/treaty events; territory shifts at runtime driven by player actions and NPC battles |
-| `procgen/quest` (template graphs, consequence flags) | `QuestSystem` template source | Persistent consequence flags (survive server restart); cross-quest dependency chains; journal tracking |
-| `procgen/dialog` (topic graph, sentiment model) | Dialog presenter in client | NPC memory (recall previous topics); emotional state modifiers; genre-vocabulary overlays |
-| `procgen/narrative` (story arc templates) | World event seeder | Multiple concurrent arcs per player; faction-driven plot forks; environmental storytelling triggers |
-| `procgen/building` (room templates, façade grammar) | City generator + housing system | Genre-specific exteriors; player-placeable furniture; instanced interiors linked to owner EntityID |
-| `procgen/vehicle` (archetype params, genre skin) | `VehicleSystem` entity factory | First-person cockpit rendering; physics (steering, acceleration, fuel); mount/dismount transitions |
-| `procgen/magic` (spell component grammar) | Magic/ability subsystem | Cooldown system; mana/energy costs; visual effect triggers for raycaster; spell combos |
-| `procgen/skills` (skill trees across schools) | Progression system | XP-based unlocks; genre-renamed schools; multi-class hybrid picks |
-| `procgen/class` (character archetypes) | Character creation + NPC assignment | Multi-class hybrid support; genre-appropriate archetype names |
-| `procgen/companion` (personality, combat role, backstory) | Companion AI system | Follow/fight/wait commands; relationship score; dialog references to shared adventures |
-| `procgen/recipe` (affix table, material grammar) | Crafting system | First-person workbench UI; material gathering from world objects; quality tiers |
-| `procgen/station` (shop generation) | POI placement + economy | Dynamic supply/demand pricing via `EconomySystem`; shop hours keyed to world clock |
-| `procgen/story` (story events) | World event seeds | Persistent consequences (destroyed buildings stay destroyed, killed NPCs stay dead) |
-| `procgen/book` (lore text) | Interior decoration | Place generated books in building interiors via furniture system |
-| `procgen/furniture` (interior placement) | Housing system | Player-placeable furniture; interior decoration generation for NPC buildings |
-| `procgen/environment` (detail generation) | Chunk decoration pass | Trees, rocks, debris, genre-appropriate clutter seeded per chunk |
-| `procgen/item` (weapons, armor, consumables) | Loot + inventory system | Durability; enchantment; repair; weight-based carry capacity |
-| `procgen/legendary` (unique items) | Boss/quest rewards | Wire into boss drop tables and quest reward pools |
-| `procgen/puzzle` (puzzle rooms) | Dungeon puzzle encounters | Adapt from top-down interaction to first-person (lever pulling, object manipulation) |
-| `procgen/minigame` (templates) | Crafting/lockpicking/hacking | Adapt UI from top-down to first-person or overlay-screen |
-| `procgen/genre` (registry, blending) | Canonical genre source | `cfg.Genre` maps to Venture's genre registry; single source of truth |
-| `procgen/audit` (output validation) | World validation CI | Extended checks: chunk connectivity, NPC schedule coverage, economy balance |
+| `pkg/procgen/terrain` (BSP, cellular, city, forest, composite, grammar, maze) | `pkg/world/chunk/` adapter | Tile terrain across 512×512 chunk boundaries; add open-world biome transitions; height-map for 3D raycaster |
+| `pkg/procgen/entity` (stat templates, name grammar) | NPC factory in `WorldChunkSystem` | Add `Schedule`, `Reputation`, `Memory` components; wire into `NPCScheduleSystem` for daily routines |
+| `pkg/procgen/faction` (graph relations, territory Voronoi) | `FactionPoliticsSystem` seed input | Layer dynamic war/treaty events; territory shifts at runtime driven by player actions and NPC battles |
+| `pkg/procgen/quest` (template graphs, consequence flags) | `QuestSystem` template source | Persistent consequence flags (survive server restart); cross-quest dependency chains; journal tracking |
+| `pkg/procgen/dialog` (topic graph, sentiment model) | Dialog presenter in client | NPC memory (recall previous topics); emotional state modifiers; genre-vocabulary overlays |
+| `pkg/procgen/narrative` (story arc templates) | World event seeder | Multiple concurrent arcs per player; faction-driven plot forks; environmental storytelling triggers |
+| `pkg/procgen/building` (room templates, façade grammar) | City generator + housing system | Genre-specific exteriors; player-placeable furniture; instanced interiors linked to owner EntityID |
+| `pkg/procgen/vehicle` (archetype params, genre skin) | `VehicleSystem` entity factory | First-person cockpit rendering; physics (steering, acceleration, fuel); mount/dismount transitions |
+| `pkg/procgen/magic` (spell component grammar) | Magic/ability subsystem | Cooldown system; mana/energy costs; visual effect triggers for raycaster; spell combos |
+| `pkg/procgen/skills` (skill trees across schools) | Progression system | Use-based skill advancement (skills improve through use) plus XP-based meta unlocks (perks/attributes); genre-renamed schools; multi-class hybrid picks |
+| `pkg/procgen/class` (character archetypes) | Character creation + NPC assignment | Multi-class hybrid support; genre-appropriate archetype names |
+| `pkg/procgen/companion` (personality, combat role, backstory) | Companion AI system | Follow/fight/wait commands; relationship score; dialog references to shared adventures |
+| `pkg/procgen/recipe` (affix table, material grammar) | Crafting system | First-person workbench UI; material gathering from world objects; quality tiers |
+| `pkg/procgen/station` (shop generation) | POI placement + economy | Dynamic supply/demand pricing via `EconomySystem`; shop hours keyed to world clock |
+| `pkg/procgen/story` (story events) | World event seeds | Persistent consequences (destroyed buildings stay destroyed, killed NPCs stay dead) |
+| `pkg/procgen/book` (lore text) | Interior decoration | Place generated books in building interiors via furniture system |
+| `pkg/procgen/furniture` (interior placement) | Housing system | Player-placeable furniture; interior decoration generation for NPC buildings |
+| `pkg/procgen/environment` (detail generation) | Chunk decoration pass | Trees, rocks, debris, genre-appropriate clutter seeded per chunk |
+| `pkg/procgen/item` (weapons, armor, consumables) | Loot + inventory system | Durability; enchantment; repair; weight-based carry capacity |
+| `pkg/procgen/legendary` (unique items) | Boss/quest rewards | Wire into boss drop tables and quest reward pools |
+| `pkg/procgen/puzzle` (puzzle rooms) | Dungeon puzzle encounters | Adapt from top-down interaction to first-person (lever pulling, object manipulation) |
+| `pkg/procgen/minigame` (templates) | Crafting/lockpicking/hacking | Adapt UI from top-down to first-person or overlay-screen |
+| `pkg/procgen/genre` (registry, blending) | Canonical genre source | `cfg.Genre` maps to Venture's genre registry; single source of truth |
+| `pkg/procgen/audit` (output validation) | World validation CI | Extended checks: chunk connectivity, NPC schedule coverage, economy balance |
 
 ### 9.2 Violence (`opd-ai/violence`) — The First-Person Engine
 

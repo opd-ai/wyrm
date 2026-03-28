@@ -563,11 +563,14 @@ import (
 )
 
 // Wrap Venture generators with Wyrm's open-world params
-func generateChunkTerrain(seed int64, genre string, cx, cy int) *ChunkTerrain {
+func generateChunkTerrain(seed int64, genre string, cx, cy int) (*ChunkTerrain, error) {
     chunkSeed := mixSeeds(seed, fmt.Sprintf("terrain:%d:%d", cx, cy))
-    params := vterrain.GenerationParams{GenreID: genre, Seed: chunkSeed}
-    raw, _ := vterrain.Generate(params)
-    return adaptToChunk(raw, cx, cy)
+    params := vterrain.GenerationParams{GenreID: genre}
+    raw, err := vterrain.Generate(chunkSeed, params)
+    if err != nil {
+        return nil, fmt.Errorf("terrain gen at (%d,%d): %w", cx, cy, err)
+    }
+    return adaptToChunk(raw, cx, cy), nil
 }
 ```
 
@@ -600,7 +603,6 @@ Violence is the FPS sibling and the primary source for first-person rendering in
 import (
     vraycast  "github.com/opd-ai/violence/pkg/raycaster"
     vlaudio   "github.com/opd-ai/violence/pkg/audio"
-    vlagcomp  "github.com/opd-ai/violence/pkg/network"
     vcombat   "github.com/opd-ai/violence/pkg/combat"
 )
 
