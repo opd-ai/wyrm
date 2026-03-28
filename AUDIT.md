@@ -86,7 +86,7 @@ Wyrm is a 100% procedurally generated first-person open-world RPG built in Go 1.
 
 - [ ] **Network protocol is echo-only** — `pkg/network/network.go:79-94` — The server echoes received bytes back to client with no message parsing. No game state synchronization occurs. **Remediation:** Define message types (PlayerInput, WorldState, EntityUpdate) with encoding. Implement message dispatch in handleClient().
 
-- [ ] **Duplicate noise functions** — `pkg/rendering/texture/texture.go:103-125` and `pkg/world/chunk/chunk.go:68-86` — Both packages implement identical 2D noise and hash functions. Duplication ratio: 1.61%. **Remediation:** Extract shared `pkg/procgen/noise/` package with common noise functions. Update both packages to import shared code.
+- [x] **Duplicate noise functions** — `pkg/rendering/texture/texture.go:103-125` and `pkg/world/chunk/chunk.go:68-86` — Both packages implement identical 2D noise and hash functions. Duplication ratio: 1.61%. **Remediation:** Extract shared `pkg/procgen/noise/` package with common noise functions. Update both packages to import shared code.
 
 - [ ] **RenderSystem.Update does nothing useful** — `pkg/engine/systems/systems.go:165-176` — The system retrieves player position but discards it. Camera never updates. **Remediation:** Pass retrieved position to renderer: `if pos != nil { g.renderer.SetPlayerPos(pos.X, pos.Y, pos.Angle) }`.
 

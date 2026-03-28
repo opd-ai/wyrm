@@ -3,8 +3,9 @@ package texture
 
 import (
 	"image/color"
-	"math"
 	"math/rand"
+
+	"github.com/opd-ai/wyrm/pkg/procgen/noise"
 )
 
 // Texture represents a procedurally generated texture.
@@ -73,7 +74,7 @@ func GenerateWithSeed(width, height int, seed int64, genre string) *Texture {
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			// Simple value noise
-			noiseVal := noise2D(float64(x)*0.1, float64(y)*0.1, seed)
+			noiseVal := noise.Noise2D(float64(x)*0.1, float64(y)*0.1, seed)
 
 			// Map noise to palette index
 			paletteIdx := int(noiseVal * float64(len(palette)))
@@ -97,52 +98,6 @@ func GenerateWithSeed(width, height int, seed int64, genre string) *Texture {
 	}
 
 	return &Texture{Width: width, Height: height, Pixels: pixels}
-}
-
-// noise2D generates 2D value noise for the given coordinates.
-func noise2D(x, y float64, seed int64) float64 {
-	// Simple hash-based noise
-	xi := int(math.Floor(x))
-	yi := int(math.Floor(y))
-	xf := x - float64(xi)
-	yf := y - float64(yi)
-
-	// Get corner values
-	v00 := hashToFloat(xi, yi, seed)
-	v10 := hashToFloat(xi+1, yi, seed)
-	v01 := hashToFloat(xi, yi+1, seed)
-	v11 := hashToFloat(xi+1, yi+1, seed)
-
-	// Smoothstep interpolation
-	sx := smoothstep(xf)
-	sy := smoothstep(yf)
-
-	// Bilinear interpolation
-	v0 := lerp(v00, v10, sx)
-	v1 := lerp(v01, v11, sx)
-
-	return lerp(v0, v1, sy)
-}
-
-// hashToFloat converts coordinates to a pseudo-random float in [0, 1].
-func hashToFloat(x, y int, seed int64) float64 {
-	h := uint64(seed)
-	h ^= uint64(x) * 0x9E3779B97F4A7C15
-	h ^= uint64(y) * 0xBF58476D1CE4E5B9
-	h = (h ^ (h >> 30)) * 0xBF58476D1CE4E5B9
-	h = (h ^ (h >> 27)) * 0x94D049BB133111EB
-	h ^= h >> 31
-	return float64(h&0x7FFFFFFFFFFFFFFF) / float64(0x7FFFFFFFFFFFFFFF)
-}
-
-// smoothstep applies smoothstep interpolation.
-func smoothstep(t float64) float64 {
-	return t * t * (3 - 2*t)
-}
-
-// lerp performs linear interpolation.
-func lerp(a, b, t float64) float64 {
-	return a + t*(b-a)
 }
 
 // clampColor clamps a color value to [0, 255].

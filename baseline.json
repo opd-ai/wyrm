@@ -1,773 +1,22 @@
 {
   "metadata": {
     "repository": "/home/user/go/src/github.com/opd-ai/wyrm",
-    "generated_at": "2026-03-28T15:35:18.553908554-04:00",
-    "analysis_time": 70021707,
-    "files_processed": 12,
+    "generated_at": "2026-03-28T18:37:19.07822431-04:00",
+    "analysis_time": 126929002,
+    "files_processed": 13,
     "tool_version": "1.0.0",
     "go_version": ""
   },
   "overview": {
-    "total_lines_of_code": 719,
-    "total_functions": 26,
-    "total_methods": 52,
-    "total_structs": 32,
+    "total_lines_of_code": 944,
+    "total_functions": 30,
+    "total_methods": 65,
+    "total_structs": 40,
     "total_interfaces": 3,
-    "total_packages": 11,
-    "total_files": 12
+    "total_packages": 12,
+    "total_files": 13
   },
   "functions": [
-    {
-      "name": "Update",
-      "package": "main",
-      "file": "cmd/client/main.go",
-      "line": 27,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*Game",
-      "lines": {
-        "total": 3,
-        "code": 3,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 0,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": true,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.3
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": false,
-        "comment_length": 0,
-        "has_example": false,
-        "quality_score": 0
-      }
-    },
-    {
-      "name": "Draw",
-      "package": "main",
-      "file": "cmd/client/main.go",
-      "line": 33,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*Game",
-      "lines": {
-        "total": 6,
-        "code": 6,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 1,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.5
-      },
-      "complexity": {
-        "cyclomatic": 2,
-        "cognitive": 2,
-        "nesting_depth": 1,
-        "overall": 3.1
-      },
-      "documentation": {
-        "has_comment": false,
-        "comment_length": 0,
-        "has_example": false,
-        "quality_score": 0
-      }
-    },
-    {
-      "name": "Layout",
-      "package": "main",
-      "file": "cmd/client/main.go",
-      "line": 42,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*Game",
-      "lines": {
-        "total": 1,
-        "code": 1,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 1,
-        "return_count": 2,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1.1
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": false,
-        "comment_length": 0,
-        "has_example": false,
-        "quality_score": 0
-      }
-    },
-    {
-      "name": "main",
-      "package": "main",
-      "file": "cmd/client/main.go",
-      "line": 46,
-      "is_exported": false,
-      "is_method": false,
-      "lines": {
-        "total": 47,
-        "code": 36,
-        "comments": 3,
-        "blank": 8
-      },
-      "signature": {
-        "parameter_count": 0,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0
-      },
-      "complexity": {
-        "cyclomatic": 6,
-        "cognitive": 6,
-        "nesting_depth": 2,
-        "overall": 8.8
-      },
-      "documentation": {
-        "has_comment": false,
-        "comment_length": 0,
-        "has_example": false,
-        "quality_score": 0
-      }
-    },
-    {
-      "name": "Type",
-      "package": "components",
-      "file": "pkg/engine/components/components.go",
-      "line": 10,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*Position",
-      "lines": {
-        "total": 0,
-        "code": 0,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 0,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.3
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 57,
-        "has_example": false,
-        "quality_score": 0.32799999999999996
-      }
-    },
-    {
-      "name": "Type",
-      "package": "components",
-      "file": "pkg/engine/components/components.go",
-      "line": 18,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*Health",
-      "lines": {
-        "total": 0,
-        "code": 0,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 0,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.3
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 55,
-        "has_example": false,
-        "quality_score": 0.32000000000000006
-      }
-    },
-    {
-      "name": "Type",
-      "package": "components",
-      "file": "pkg/engine/components/components.go",
-      "line": 27,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*Faction",
-      "lines": {
-        "total": 0,
-        "code": 0,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 0,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.3
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 56,
-        "has_example": false,
-        "quality_score": 0.32400000000000007
-      }
-    },
-    {
-      "name": "Type",
-      "package": "components",
-      "file": "pkg/engine/components/components.go",
-      "line": 36,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*Schedule",
-      "lines": {
-        "total": 0,
-        "code": 0,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 0,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.3
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 57,
-        "has_example": false,
-        "quality_score": 0.32799999999999996
-      }
-    },
-    {
-      "name": "Type",
-      "package": "components",
-      "file": "pkg/engine/components/components.go",
-      "line": 45,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*Inventory",
-      "lines": {
-        "total": 0,
-        "code": 0,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 0,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.3
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 58,
-        "has_example": false,
-        "quality_score": 0.33199999999999996
-      }
-    },
-    {
-      "name": "Type",
-      "package": "components",
-      "file": "pkg/engine/components/components.go",
-      "line": 55,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*Vehicle",
-      "lines": {
-        "total": 0,
-        "code": 0,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 0,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.3
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 56,
-        "has_example": false,
-        "quality_score": 0.32400000000000007
-      }
-    },
-    {
-      "name": "Generate",
-      "package": "city",
-      "file": "pkg/procgen/city/city.go",
-      "line": 63,
-      "is_exported": true,
-      "is_method": false,
-      "lines": {
-        "total": 38,
-        "code": 30,
-        "comments": 3,
-        "blank": 5
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1.3
-      },
-      "complexity": {
-        "cyclomatic": 4,
-        "cognitive": 4,
-        "nesting_depth": 1,
-        "overall": 5.7
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 70,
-        "has_example": false,
-        "quality_score": 0.27999999999999997
-      }
-    },
-    {
-      "name": "Load",
-      "package": "config",
-      "file": "config/config.go",
-      "line": 39,
-      "is_exported": true,
-      "is_method": false,
-      "lines": {
-        "total": 23,
-        "code": 18,
-        "comments": 1,
-        "blank": 4
-      },
-      "signature": {
-        "parameter_count": 0,
-        "return_count": 2,
-        "has_variadic": false,
-        "returns_error": true,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.6
-      },
-      "complexity": {
-        "cyclomatic": 4,
-        "cognitive": 4,
-        "nesting_depth": 2,
-        "overall": 6.2
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 84,
-        "has_example": false,
-        "quality_score": 0.43600000000000005
-      }
-    },
-    {
-      "name": "setDefaults",
-      "package": "config",
-      "file": "config/config.go",
-      "line": 65,
-      "is_exported": false,
-      "is_method": false,
-      "lines": {
-        "total": 12,
-        "code": 9,
-        "comments": 0,
-        "blank": 3
-      },
-      "signature": {
-        "parameter_count": 0,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": false,
-        "comment_length": 0,
-        "has_example": false,
-        "quality_score": 0
-      }
-    },
-    {
-      "name": "NewWorld",
-      "package": "ecs",
-      "file": "pkg/engine/ecs/ecs.go",
-      "line": 33,
-      "is_exported": true,
-      "is_method": false,
-      "lines": {
-        "total": 4,
-        "code": 4,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 0,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.3
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 40,
-        "has_example": false,
-        "quality_score": 0.16000000000000003
-      }
-    },
-    {
-      "name": "CreateEntity",
-      "package": "ecs",
-      "file": "pkg/engine/ecs/ecs.go",
-      "line": 41,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*World",
-      "lines": {
-        "total": 4,
-        "code": 4,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 0,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.3
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 56,
-        "has_example": false,
-        "quality_score": 0.32400000000000007
-      }
-    },
-    {
-      "name": "DestroyEntity",
-      "package": "ecs",
-      "file": "pkg/engine/ecs/ecs.go",
-      "line": 49,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*World",
-      "lines": {
-        "total": 1,
-        "code": 1,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 1,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.5
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 56,
-        "has_example": false,
-        "quality_score": 0.22400000000000003
-      }
-    },
-    {
-      "name": "AddComponent",
-      "package": "ecs",
-      "file": "pkg/engine/ecs/ecs.go",
-      "line": 55,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*World",
-      "lines": {
-        "total": 5,
-        "code": 5,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": true,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1.3
-      },
-      "complexity": {
-        "cyclomatic": 2,
-        "cognitive": 2,
-        "nesting_depth": 1,
-        "overall": 3.1
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 104,
-        "has_example": false,
-        "quality_score": 0.5
-      }
-    },
-    {
-      "name": "GetComponent",
-      "package": "ecs",
-      "file": "pkg/engine/ecs/ecs.go",
-      "line": 64,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*World",
-      "lines": {
-        "total": 6,
-        "code": 6,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 2,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1.6
-      },
-      "complexity": {
-        "cyclomatic": 2,
-        "cognitive": 2,
-        "nesting_depth": 1,
-        "overall": 3.1
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 59,
-        "has_example": false,
-        "quality_score": 0.236
-      }
-    },
-    {
-      "name": "Entities",
-      "package": "ecs",
-      "file": "pkg/engine/ecs/ecs.go",
-      "line": 75,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*World",
-      "lines": {
-        "total": 15,
-        "code": 15,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 1,
-        "return_count": 1,
-        "has_variadic": true,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1.8
-      },
-      "complexity": {
-        "cyclomatic": 5,
-        "cognitive": 5,
-        "nesting_depth": 3,
-        "overall": 8
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 122,
-        "has_example": false,
-        "quality_score": 0.5
-      }
-    },
-    {
-      "name": "RegisterSystem",
-      "package": "ecs",
-      "file": "pkg/engine/ecs/ecs.go",
-      "line": 94,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*World",
-      "lines": {
-        "total": 1,
-        "code": 1,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 1,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.5
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 43,
-        "has_example": false,
-        "quality_score": 0.17200000000000001
-      }
-    },
-    {
-      "name": "Update",
-      "package": "ecs",
-      "file": "pkg/engine/ecs/ecs.go",
-      "line": 99,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*World",
-      "lines": {
-        "total": 3,
-        "code": 3,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 1,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.5
-      },
-      "complexity": {
-        "cyclomatic": 2,
-        "cognitive": 2,
-        "nesting_depth": 1,
-        "overall": 3.1
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 62,
-        "has_example": false,
-        "quality_score": 0.248
-      }
-    },
     {
       "name": "NewServer",
       "package": "network",
@@ -1199,708 +448,33 @@
       }
     },
     {
-      "name": "Generate",
-      "package": "texture",
-      "file": "pkg/rendering/texture/texture.go",
-      "line": 53,
-      "is_exported": true,
-      "is_method": false,
-      "lines": {
-        "total": 1,
-        "code": 1,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 1,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.8
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 97,
-        "has_example": false,
-        "quality_score": 0.488
-      }
-    },
-    {
-      "name": "GenerateWithSeed",
-      "package": "texture",
-      "file": "pkg/rendering/texture/texture.go",
-      "line": 58,
-      "is_exported": true,
-      "is_method": false,
-      "lines": {
-        "total": 41,
-        "code": 28,
-        "comments": 5,
-        "blank": 8
-      },
-      "signature": {
-        "parameter_count": 3,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1.8
-      },
-      "complexity": {
-        "cyclomatic": 7,
-        "cognitive": 7,
-        "nesting_depth": 3,
-        "overall": 10.6
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 78,
-        "has_example": false,
-        "quality_score": 0.31200000000000006
-      }
-    },
-    {
-      "name": "noise2D",
-      "package": "texture",
-      "file": "pkg/rendering/texture/texture.go",
-      "line": 103,
-      "is_exported": false,
-      "is_method": false,
-      "lines": {
-        "total": 21,
-        "code": 13,
-        "comments": 4,
-        "blank": 4
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1.3
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 60,
-        "has_example": false,
-        "quality_score": 0.24
-      }
-    },
-    {
-      "name": "hashToFloat",
-      "package": "texture",
-      "file": "pkg/rendering/texture/texture.go",
-      "line": 128,
-      "is_exported": false,
-      "is_method": false,
-      "lines": {
-        "total": 7,
-        "code": 7,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1.3
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 69,
-        "has_example": false,
-        "quality_score": 0.27599999999999997
-      }
-    },
-    {
-      "name": "smoothstep",
-      "package": "texture",
-      "file": "pkg/rendering/texture/texture.go",
-      "line": 139,
-      "is_exported": false,
-      "is_method": false,
-      "lines": {
-        "total": 1,
-        "code": 1,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 1,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.8
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 45,
-        "has_example": false,
-        "quality_score": 0.18000000000000002
-      }
-    },
-    {
-      "name": "lerp",
-      "package": "texture",
-      "file": "pkg/rendering/texture/texture.go",
-      "line": 144,
-      "is_exported": false,
-      "is_method": false,
-      "lines": {
-        "total": 1,
-        "code": 1,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 1,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.8
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 36,
-        "has_example": false,
-        "quality_score": 0.144
-      }
-    },
-    {
-      "name": "clampColor",
-      "package": "texture",
-      "file": "pkg/rendering/texture/texture.go",
-      "line": 149,
-      "is_exported": false,
-      "is_method": false,
-      "lines": {
-        "total": 7,
-        "code": 7,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 1,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.8
-      },
-      "complexity": {
-        "cyclomatic": 3,
-        "cognitive": 3,
-        "nesting_depth": 1,
-        "overall": 4.4
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 45,
-        "has_example": false,
-        "quality_score": 0.18000000000000002
-      }
-    },
-    {
-      "name": "NewWorldChunkSystem",
-      "package": "systems",
-      "file": "pkg/engine/systems/systems.go",
-      "line": 22,
-      "is_exported": true,
-      "is_method": false,
-      "lines": {
-        "total": 4,
-        "code": 4,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1.3
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 71,
-        "has_example": false,
-        "quality_score": 0.284
-      }
-    },
-    {
       "name": "Update",
-      "package": "systems",
-      "file": "pkg/engine/systems/systems.go",
-      "line": 30,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*WorldChunkSystem",
-      "lines": {
-        "total": 18,
-        "code": 17,
-        "comments": 1,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1
-      },
-      "complexity": {
-        "cyclomatic": 6,
-        "cognitive": 6,
-        "nesting_depth": 3,
-        "overall": 9.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 62,
-        "has_example": false,
-        "quality_score": 0.248
-      }
-    },
-    {
-      "name": "Update",
-      "package": "systems",
-      "file": "pkg/engine/systems/systems.go",
-      "line": 57,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*NPCScheduleSystem",
-      "lines": {
-        "total": 12,
-        "code": 12,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1
-      },
-      "complexity": {
-        "cyclomatic": 5,
-        "cognitive": 5,
-        "nesting_depth": 3,
-        "overall": 8
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 64,
-        "has_example": false,
-        "quality_score": 0.256
-      }
-    },
-    {
-      "name": "Update",
-      "package": "systems",
-      "file": "pkg/engine/systems/systems.go",
-      "line": 76,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*FactionPoliticsSystem",
-      "lines": {
-        "total": 2,
-        "code": 1,
-        "comments": 1,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 45,
-        "has_example": false,
-        "quality_score": 0.18000000000000002
-      }
-    },
-    {
-      "name": "Update",
-      "package": "systems",
-      "file": "pkg/engine/systems/systems.go",
-      "line": 85,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*CrimeSystem",
-      "lines": {
-        "total": 1,
-        "code": 0,
-        "comments": 1,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 63,
-        "has_example": false,
-        "quality_score": 0.252
-      }
-    },
-    {
-      "name": "Update",
-      "package": "systems",
-      "file": "pkg/engine/systems/systems.go",
-      "line": 93,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*EconomySystem",
-      "lines": {
-        "total": 1,
-        "code": 0,
-        "comments": 1,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 48,
-        "has_example": false,
-        "quality_score": 0.192
-      }
-    },
-    {
-      "name": "Update",
-      "package": "systems",
-      "file": "pkg/engine/systems/systems.go",
-      "line": 101,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*CombatSystem",
-      "lines": {
-        "total": 11,
-        "code": 10,
-        "comments": 1,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1
-      },
-      "complexity": {
-        "cyclomatic": 4,
-        "cognitive": 4,
-        "nesting_depth": 2,
-        "overall": 6.2
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 46,
-        "has_example": false,
-        "quality_score": 0.18400000000000002
-      }
-    },
-    {
-      "name": "Update",
-      "package": "systems",
-      "file": "pkg/engine/systems/systems.go",
-      "line": 119,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*VehicleSystem",
-      "lines": {
-        "total": 20,
-        "code": 19,
-        "comments": 1,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1
-      },
-      "complexity": {
-        "cyclomatic": 6,
-        "cognitive": 6,
-        "nesting_depth": 3,
-        "overall": 9.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 44,
-        "has_example": false,
-        "quality_score": 0.17600000000000002
-      }
-    },
-    {
-      "name": "Update",
-      "package": "systems",
-      "file": "pkg/engine/systems/systems.go",
-      "line": 146,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*QuestSystem",
-      "lines": {
-        "total": 1,
-        "code": 0,
-        "comments": 1,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 52,
-        "has_example": false,
-        "quality_score": 0.20800000000000002
-      }
-    },
-    {
-      "name": "Update",
-      "package": "systems",
-      "file": "pkg/engine/systems/systems.go",
-      "line": 157,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*WeatherSystem",
-      "lines": {
-        "total": 5,
-        "code": 4,
-        "comments": 1,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1
-      },
-      "complexity": {
-        "cyclomatic": 2,
-        "cognitive": 2,
-        "nesting_depth": 1,
-        "overall": 3.1
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 46,
-        "has_example": false,
-        "quality_score": 0.18400000000000002
-      }
-    },
-    {
-      "name": "Update",
-      "package": "systems",
-      "file": "pkg/engine/systems/systems.go",
-      "line": 171,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*RenderSystem",
-      "lines": {
-        "total": 4,
-        "code": 3,
-        "comments": 1,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1
-      },
-      "complexity": {
-        "cyclomatic": 2,
-        "cognitive": 2,
-        "nesting_depth": 1,
-        "overall": 3.1
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 65,
-        "has_example": false,
-        "quality_score": 0.26
-      }
-    },
-    {
-      "name": "Update",
-      "package": "systems",
-      "file": "pkg/engine/systems/systems.go",
-      "line": 184,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*AudioSystem",
-      "lines": {
-        "total": 1,
-        "code": 0,
-        "comments": 1,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 43,
-        "has_example": false,
-        "quality_score": 0.17200000000000001
-      }
-    },
-    {
-      "name": "main",
       "package": "main",
-      "file": "cmd/server/main.go",
-      "line": 19,
-      "is_exported": false,
-      "is_method": false,
+      "file": "cmd/client/main.go",
+      "line": 28,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*Game",
       "lines": {
-        "total": 46,
-        "code": 37,
-        "comments": 2,
-        "blank": 7
+        "total": 3,
+        "code": 3,
+        "comments": 0,
+        "blank": 0
       },
       "signature": {
         "parameter_count": 0,
-        "return_count": 0,
+        "return_count": 1,
         "has_variadic": false,
-        "returns_error": false,
+        "returns_error": true,
         "interface_parameters": 0,
         "generic_parameters": null,
-        "signature_complexity": 0
+        "signature_complexity": 0.3
       },
       "complexity": {
-        "cyclomatic": 7,
-        "cognitive": 7,
-        "nesting_depth": 2,
-        "overall": 10.1
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
       },
       "documentation": {
         "has_comment": false,
@@ -1910,53 +484,18 @@
       }
     },
     {
-      "name": "NewRenderer",
-      "package": "raycast",
-      "file": "pkg/rendering/raycast/raycast.go",
-      "line": 23,
-      "is_exported": true,
-      "is_method": false,
-      "lines": {
-        "total": 30,
-        "code": 26,
-        "comments": 3,
-        "blank": 1
-      },
-      "signature": {
-        "parameter_count": 1,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.8
-      },
-      "complexity": {
-        "cyclomatic": 4,
-        "cognitive": 4,
-        "nesting_depth": 3,
-        "overall": 6.7
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 47,
-        "has_example": false,
-        "quality_score": 0.188
-      }
-    },
-    {
       "name": "Draw",
-      "package": "raycast",
-      "file": "pkg/rendering/raycast/raycast.go",
-      "line": 57,
+      "package": "main",
+      "file": "cmd/client/main.go",
+      "line": 34,
       "is_exported": true,
       "is_method": true,
-      "receiver_type": "*Renderer",
+      "receiver_type": "*Game",
       "lines": {
-        "total": 49,
-        "code": 30,
-        "comments": 10,
-        "blank": 9
+        "total": 6,
+        "code": 6,
+        "comments": 0,
+        "blank": 0
       },
       "signature": {
         "parameter_count": 1,
@@ -1968,31 +507,31 @@
         "signature_complexity": 0.5
       },
       "complexity": {
-        "cyclomatic": 8,
-        "cognitive": 8,
-        "nesting_depth": 3,
-        "overall": 11.9
+        "cyclomatic": 2,
+        "cognitive": 2,
+        "nesting_depth": 1,
+        "overall": 3.1
       },
       "documentation": {
-        "has_comment": true,
-        "comment_length": 66,
+        "has_comment": false,
+        "comment_length": 0,
         "has_example": false,
-        "quality_score": 0.264
+        "quality_score": 0
       }
     },
     {
-      "name": "castRay",
-      "package": "raycast",
-      "file": "pkg/rendering/raycast/raycast.go",
-      "line": 110,
-      "is_exported": false,
+      "name": "Layout",
+      "package": "main",
+      "file": "cmd/client/main.go",
+      "line": 43,
+      "is_exported": true,
       "is_method": true,
-      "receiver_type": "*Renderer",
+      "receiver_type": "*Game",
       "lines": {
-        "total": 80,
-        "code": 66,
-        "comments": 4,
-        "blank": 10
+        "total": 1,
+        "code": 1,
+        "comments": 0,
+        "blank": 0
       },
       "signature": {
         "parameter_count": 1,
@@ -2004,31 +543,65 @@
         "signature_complexity": 1.1
       },
       "complexity": {
-        "cyclomatic": 12,
-        "cognitive": 12,
-        "nesting_depth": 3,
-        "overall": 17.1
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
       },
       "documentation": {
-        "has_comment": true,
-        "comment_length": 68,
+        "has_comment": false,
+        "comment_length": 0,
         "has_example": false,
-        "quality_score": 0.372
+        "quality_score": 0
       }
     },
     {
-      "name": "getWallColor",
-      "package": "raycast",
-      "file": "pkg/rendering/raycast/raycast.go",
-      "line": 194,
+      "name": "main",
+      "package": "main",
+      "file": "cmd/client/main.go",
+      "line": 47,
       "is_exported": false,
-      "is_method": true,
-      "receiver_type": "*Renderer",
+      "is_method": false,
       "lines": {
-        "total": 28,
-        "code": 24,
-        "comments": 2,
-        "blank": 2
+        "total": 56,
+        "code": 43,
+        "comments": 4,
+        "blank": 9
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0
+      },
+      "complexity": {
+        "cyclomatic": 8,
+        "cognitive": 8,
+        "nesting_depth": 2,
+        "overall": 11.4
+      },
+      "documentation": {
+        "has_comment": false,
+        "comment_length": 0,
+        "has_example": false,
+        "quality_score": 0
+      }
+    },
+    {
+      "name": "Generate",
+      "package": "city",
+      "file": "pkg/procgen/city/city.go",
+      "line": 63,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 38,
+        "code": 30,
+        "comments": 3,
+        "blank": 5
       },
       "signature": {
         "parameter_count": 2,
@@ -2047,45 +620,9 @@
       },
       "documentation": {
         "has_comment": true,
-        "comment_length": 62,
+        "comment_length": 70,
         "has_example": false,
-        "quality_score": 0.348
-      }
-    },
-    {
-      "name": "SetPlayerPos",
-      "package": "raycast",
-      "file": "pkg/rendering/raycast/raycast.go",
-      "line": 226,
-      "is_exported": true,
-      "is_method": true,
-      "receiver_type": "*Renderer",
-      "lines": {
-        "total": 3,
-        "code": 3,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 1,
-        "return_count": 0,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.5
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 42,
-        "has_example": false,
-        "quality_score": 0.168
+        "quality_score": 0.27999999999999997
       }
     },
     {
@@ -2376,10 +913,901 @@
       }
     },
     {
+      "name": "NewRenderer",
+      "package": "raycast",
+      "file": "pkg/rendering/raycast/raycast.go",
+      "line": 23,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 30,
+        "code": 26,
+        "comments": 3,
+        "blank": 1
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.8
+      },
+      "complexity": {
+        "cyclomatic": 4,
+        "cognitive": 4,
+        "nesting_depth": 3,
+        "overall": 6.7
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 47,
+        "has_example": false,
+        "quality_score": 0.188
+      }
+    },
+    {
+      "name": "Draw",
+      "package": "raycast",
+      "file": "pkg/rendering/raycast/raycast.go",
+      "line": 57,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*Renderer",
+      "lines": {
+        "total": 49,
+        "code": 30,
+        "comments": 10,
+        "blank": 9
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.5
+      },
+      "complexity": {
+        "cyclomatic": 8,
+        "cognitive": 8,
+        "nesting_depth": 3,
+        "overall": 11.9
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 66,
+        "has_example": false,
+        "quality_score": 0.264
+      }
+    },
+    {
+      "name": "castRay",
+      "package": "raycast",
+      "file": "pkg/rendering/raycast/raycast.go",
+      "line": 110,
+      "is_exported": false,
+      "is_method": true,
+      "receiver_type": "*Renderer",
+      "lines": {
+        "total": 80,
+        "code": 66,
+        "comments": 4,
+        "blank": 10
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 2,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1.1
+      },
+      "complexity": {
+        "cyclomatic": 12,
+        "cognitive": 12,
+        "nesting_depth": 3,
+        "overall": 17.1
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 68,
+        "has_example": false,
+        "quality_score": 0.372
+      }
+    },
+    {
+      "name": "getWallColor",
+      "package": "raycast",
+      "file": "pkg/rendering/raycast/raycast.go",
+      "line": 194,
+      "is_exported": false,
+      "is_method": true,
+      "receiver_type": "*Renderer",
+      "lines": {
+        "total": 28,
+        "code": 24,
+        "comments": 2,
+        "blank": 2
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1.3
+      },
+      "complexity": {
+        "cyclomatic": 4,
+        "cognitive": 4,
+        "nesting_depth": 1,
+        "overall": 5.7
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 62,
+        "has_example": false,
+        "quality_score": 0.348
+      }
+    },
+    {
+      "name": "SetPlayerPos",
+      "package": "raycast",
+      "file": "pkg/rendering/raycast/raycast.go",
+      "line": 226,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*Renderer",
+      "lines": {
+        "total": 3,
+        "code": 3,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.5
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 42,
+        "has_example": false,
+        "quality_score": 0.168
+      }
+    },
+    {
+      "name": "Type",
+      "package": "components",
+      "file": "pkg/engine/components/components.go",
+      "line": 10,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*Position",
+      "lines": {
+        "total": 0,
+        "code": 0,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 57,
+        "has_example": false,
+        "quality_score": 0.32799999999999996
+      }
+    },
+    {
+      "name": "Type",
+      "package": "components",
+      "file": "pkg/engine/components/components.go",
+      "line": 18,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*Health",
+      "lines": {
+        "total": 0,
+        "code": 0,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 55,
+        "has_example": false,
+        "quality_score": 0.32000000000000006
+      }
+    },
+    {
+      "name": "Type",
+      "package": "components",
+      "file": "pkg/engine/components/components.go",
+      "line": 27,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*Faction",
+      "lines": {
+        "total": 0,
+        "code": 0,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 56,
+        "has_example": false,
+        "quality_score": 0.32400000000000007
+      }
+    },
+    {
+      "name": "Type",
+      "package": "components",
+      "file": "pkg/engine/components/components.go",
+      "line": 36,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*Schedule",
+      "lines": {
+        "total": 0,
+        "code": 0,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 57,
+        "has_example": false,
+        "quality_score": 0.32799999999999996
+      }
+    },
+    {
+      "name": "Type",
+      "package": "components",
+      "file": "pkg/engine/components/components.go",
+      "line": 45,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*Inventory",
+      "lines": {
+        "total": 0,
+        "code": 0,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 58,
+        "has_example": false,
+        "quality_score": 0.33199999999999996
+      }
+    },
+    {
+      "name": "Type",
+      "package": "components",
+      "file": "pkg/engine/components/components.go",
+      "line": 56,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*Vehicle",
+      "lines": {
+        "total": 0,
+        "code": 0,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 56,
+        "has_example": false,
+        "quality_score": 0.32400000000000007
+      }
+    },
+    {
+      "name": "Type",
+      "package": "components",
+      "file": "pkg/engine/components/components.go",
+      "line": 65,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*Reputation",
+      "lines": {
+        "total": 0,
+        "code": 0,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 59,
+        "has_example": false,
+        "quality_score": 0.33599999999999997
+      }
+    },
+    {
+      "name": "Type",
+      "package": "components",
+      "file": "pkg/engine/components/components.go",
+      "line": 75,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*Crime",
+      "lines": {
+        "total": 0,
+        "code": 0,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 54,
+        "has_example": false,
+        "quality_score": 0.31600000000000006
+      }
+    },
+    {
+      "name": "Type",
+      "package": "components",
+      "file": "pkg/engine/components/components.go",
+      "line": 83,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*Witness",
+      "lines": {
+        "total": 0,
+        "code": 0,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 56,
+        "has_example": false,
+        "quality_score": 0.32400000000000007
+      }
+    },
+    {
+      "name": "Type",
+      "package": "components",
+      "file": "pkg/engine/components/components.go",
+      "line": 96,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*EconomyNode",
+      "lines": {
+        "total": 0,
+        "code": 0,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 60,
+        "has_example": false,
+        "quality_score": 0.33999999999999997
+      }
+    },
+    {
+      "name": "Type",
+      "package": "components",
+      "file": "pkg/engine/components/components.go",
+      "line": 107,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*Quest",
+      "lines": {
+        "total": 0,
+        "code": 0,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 54,
+        "has_example": false,
+        "quality_score": 0.31600000000000006
+      }
+    },
+    {
+      "name": "Type",
+      "package": "components",
+      "file": "pkg/engine/components/components.go",
+      "line": 118,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*WorldClock",
+      "lines": {
+        "total": 0,
+        "code": 0,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 59,
+        "has_example": false,
+        "quality_score": 0.33599999999999997
+      }
+    },
+    {
+      "name": "Noise2D",
+      "package": "noise",
+      "file": "pkg/procgen/noise/noise.go",
+      "line": 8,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 20,
+        "code": 13,
+        "comments": 3,
+        "blank": 4
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 93,
+        "has_example": false,
+        "quality_score": 0.4720000000000001
+      }
+    },
+    {
+      "name": "Noise2DSigned",
+      "package": "noise",
+      "file": "pkg/procgen/noise/noise.go",
+      "line": 32,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 1,
+        "code": 1,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 57,
+        "has_example": false,
+        "quality_score": 0.22799999999999998
+      }
+    },
+    {
+      "name": "HashToFloat",
+      "package": "noise",
+      "file": "pkg/procgen/noise/noise.go",
+      "line": 37,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 7,
+        "code": 7,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 69,
+        "has_example": false,
+        "quality_score": 0.27599999999999997
+      }
+    },
+    {
+      "name": "Smoothstep",
+      "package": "noise",
+      "file": "pkg/procgen/noise/noise.go",
+      "line": 48,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 1,
+        "code": 1,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.8
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 68,
+        "has_example": false,
+        "quality_score": 0.272
+      }
+    },
+    {
+      "name": "Lerp",
+      "package": "noise",
+      "file": "pkg/procgen/noise/noise.go",
+      "line": 53,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 1,
+        "code": 1,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.8
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 64,
+        "has_example": false,
+        "quality_score": 0.256
+      }
+    },
+    {
+      "name": "main",
+      "package": "main",
+      "file": "cmd/server/main.go",
+      "line": 20,
+      "is_exported": false,
+      "is_method": false,
+      "lines": {
+        "total": 57,
+        "code": 46,
+        "comments": 3,
+        "blank": 8
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0
+      },
+      "complexity": {
+        "cyclomatic": 8,
+        "cognitive": 8,
+        "nesting_depth": 2,
+        "overall": 11.4
+      },
+      "documentation": {
+        "has_comment": false,
+        "comment_length": 0,
+        "has_example": false,
+        "quality_score": 0
+      }
+    },
+    {
+      "name": "Load",
+      "package": "config",
+      "file": "config/config.go",
+      "line": 39,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 23,
+        "code": 18,
+        "comments": 1,
+        "blank": 4
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 2,
+        "has_variadic": false,
+        "returns_error": true,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.6
+      },
+      "complexity": {
+        "cyclomatic": 4,
+        "cognitive": 4,
+        "nesting_depth": 2,
+        "overall": 6.2
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 84,
+        "has_example": false,
+        "quality_score": 0.43600000000000005
+      }
+    },
+    {
+      "name": "setDefaults",
+      "package": "config",
+      "file": "config/config.go",
+      "line": 65,
+      "is_exported": false,
+      "is_method": false,
+      "lines": {
+        "total": 12,
+        "code": 9,
+        "comments": 0,
+        "blank": 3
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": false,
+        "comment_length": 0,
+        "has_example": false,
+        "quality_score": 0
+      }
+    },
+    {
       "name": "NewChunk",
       "package": "chunk",
       "file": "pkg/world/chunk/chunk.go",
-      "line": 21,
+      "line": 22,
       "is_exported": true,
       "is_method": false,
       "lines": {
@@ -2414,7 +1842,7 @@
       "name": "generateHeightMap",
       "package": "chunk",
       "file": "pkg/world/chunk/chunk.go",
-      "line": 33,
+      "line": 34,
       "is_exported": false,
       "is_method": false,
       "lines": {
@@ -2446,150 +1874,10 @@
       }
     },
     {
-      "name": "chunkNoise2D",
-      "package": "chunk",
-      "file": "pkg/world/chunk/chunk.go",
-      "line": 68,
-      "is_exported": false,
-      "is_method": false,
-      "lines": {
-        "total": 17,
-        "code": 13,
-        "comments": 0,
-        "blank": 4
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1.3
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 65,
-        "has_example": false,
-        "quality_score": 0.26
-      }
-    },
-    {
-      "name": "chunkHashToFloat",
-      "package": "chunk",
-      "file": "pkg/world/chunk/chunk.go",
-      "line": 89,
-      "is_exported": false,
-      "is_method": false,
-      "lines": {
-        "total": 7,
-        "code": 7,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 2,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 1.3
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 74,
-        "has_example": false,
-        "quality_score": 0.296
-      }
-    },
-    {
-      "name": "chunkSmoothstep",
-      "package": "chunk",
-      "file": "pkg/world/chunk/chunk.go",
-      "line": 100,
-      "is_exported": false,
-      "is_method": false,
-      "lines": {
-        "total": 1,
-        "code": 1,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 1,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.8
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 50,
-        "has_example": false,
-        "quality_score": 0.2
-      }
-    },
-    {
-      "name": "chunkLerp",
-      "package": "chunk",
-      "file": "pkg/world/chunk/chunk.go",
-      "line": 105,
-      "is_exported": false,
-      "is_method": false,
-      "lines": {
-        "total": 1,
-        "code": 1,
-        "comments": 0,
-        "blank": 0
-      },
-      "signature": {
-        "parameter_count": 1,
-        "return_count": 1,
-        "has_variadic": false,
-        "returns_error": false,
-        "interface_parameters": 0,
-        "generic_parameters": null,
-        "signature_complexity": 0.8
-      },
-      "complexity": {
-        "cyclomatic": 1,
-        "cognitive": 1,
-        "nesting_depth": 0,
-        "overall": 1.3
-      },
-      "documentation": {
-        "has_comment": true,
-        "comment_length": 41,
-        "has_example": false,
-        "quality_score": 0.164
-      }
-    },
-    {
       "name": "GetHeight",
       "package": "chunk",
       "file": "pkg/world/chunk/chunk.go",
-      "line": 110,
+      "line": 69,
       "is_exported": true,
       "is_method": true,
       "receiver_type": "*Chunk",
@@ -2625,7 +1913,7 @@
       "name": "NewChunkManager",
       "package": "chunk",
       "file": "pkg/world/chunk/chunk.go",
-      "line": 126,
+      "line": 85,
       "is_exported": true,
       "is_method": false,
       "lines": {
@@ -2660,7 +1948,7 @@
       "name": "GetChunk",
       "package": "chunk",
       "file": "pkg/world/chunk/chunk.go",
-      "line": 135,
+      "line": 94,
       "is_exported": true,
       "is_method": true,
       "receiver_type": "*ChunkManager",
@@ -2696,7 +1984,7 @@
       "name": "mixChunkSeed",
       "package": "chunk",
       "file": "pkg/world/chunk/chunk.go",
-      "line": 159,
+      "line": 118,
       "is_exported": false,
       "is_method": false,
       "lines": {
@@ -2731,7 +2019,7 @@
       "name": "UnloadChunk",
       "package": "chunk",
       "file": "pkg/world/chunk/chunk.go",
-      "line": 168,
+      "line": 127,
       "is_exported": true,
       "is_method": true,
       "receiver_type": "*ChunkManager",
@@ -2767,7 +2055,7 @@
       "name": "LoadedCount",
       "package": "chunk",
       "file": "pkg/world/chunk/chunk.go",
-      "line": 176,
+      "line": 135,
       "is_exported": true,
       "is_method": true,
       "receiver_type": "*ChunkManager",
@@ -2798,6 +2086,1326 @@
         "has_example": false,
         "quality_score": 0.33599999999999997
       }
+    },
+    {
+      "name": "NewWorld",
+      "package": "ecs",
+      "file": "pkg/engine/ecs/ecs.go",
+      "line": 33,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 4,
+        "code": 4,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 40,
+        "has_example": false,
+        "quality_score": 0.16000000000000003
+      }
+    },
+    {
+      "name": "CreateEntity",
+      "package": "ecs",
+      "file": "pkg/engine/ecs/ecs.go",
+      "line": 41,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*World",
+      "lines": {
+        "total": 4,
+        "code": 4,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 56,
+        "has_example": false,
+        "quality_score": 0.32400000000000007
+      }
+    },
+    {
+      "name": "DestroyEntity",
+      "package": "ecs",
+      "file": "pkg/engine/ecs/ecs.go",
+      "line": 49,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*World",
+      "lines": {
+        "total": 1,
+        "code": 1,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.5
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 56,
+        "has_example": false,
+        "quality_score": 0.22400000000000003
+      }
+    },
+    {
+      "name": "AddComponent",
+      "package": "ecs",
+      "file": "pkg/engine/ecs/ecs.go",
+      "line": 55,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*World",
+      "lines": {
+        "total": 5,
+        "code": 5,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": true,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1.3
+      },
+      "complexity": {
+        "cyclomatic": 2,
+        "cognitive": 2,
+        "nesting_depth": 1,
+        "overall": 3.1
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 104,
+        "has_example": false,
+        "quality_score": 0.5
+      }
+    },
+    {
+      "name": "GetComponent",
+      "package": "ecs",
+      "file": "pkg/engine/ecs/ecs.go",
+      "line": 64,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*World",
+      "lines": {
+        "total": 6,
+        "code": 6,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 2,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1.6
+      },
+      "complexity": {
+        "cyclomatic": 2,
+        "cognitive": 2,
+        "nesting_depth": 1,
+        "overall": 3.1
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 59,
+        "has_example": false,
+        "quality_score": 0.236
+      }
+    },
+    {
+      "name": "Entities",
+      "package": "ecs",
+      "file": "pkg/engine/ecs/ecs.go",
+      "line": 75,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*World",
+      "lines": {
+        "total": 15,
+        "code": 15,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 1,
+        "has_variadic": true,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1.8
+      },
+      "complexity": {
+        "cyclomatic": 5,
+        "cognitive": 5,
+        "nesting_depth": 3,
+        "overall": 8
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 122,
+        "has_example": false,
+        "quality_score": 0.5
+      }
+    },
+    {
+      "name": "RegisterSystem",
+      "package": "ecs",
+      "file": "pkg/engine/ecs/ecs.go",
+      "line": 94,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*World",
+      "lines": {
+        "total": 1,
+        "code": 1,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.5
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 43,
+        "has_example": false,
+        "quality_score": 0.17200000000000001
+      }
+    },
+    {
+      "name": "Update",
+      "package": "ecs",
+      "file": "pkg/engine/ecs/ecs.go",
+      "line": 99,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*World",
+      "lines": {
+        "total": 3,
+        "code": 3,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.5
+      },
+      "complexity": {
+        "cyclomatic": 2,
+        "cognitive": 2,
+        "nesting_depth": 1,
+        "overall": 3.1
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 62,
+        "has_example": false,
+        "quality_score": 0.248
+      }
+    },
+    {
+      "name": "Generate",
+      "package": "texture",
+      "file": "pkg/rendering/texture/texture.go",
+      "line": 54,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 1,
+        "code": 1,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.8
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 97,
+        "has_example": false,
+        "quality_score": 0.488
+      }
+    },
+    {
+      "name": "GenerateWithSeed",
+      "package": "texture",
+      "file": "pkg/rendering/texture/texture.go",
+      "line": 59,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 41,
+        "code": 28,
+        "comments": 5,
+        "blank": 8
+      },
+      "signature": {
+        "parameter_count": 3,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1.8
+      },
+      "complexity": {
+        "cyclomatic": 7,
+        "cognitive": 7,
+        "nesting_depth": 3,
+        "overall": 10.6
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 78,
+        "has_example": false,
+        "quality_score": 0.31200000000000006
+      }
+    },
+    {
+      "name": "clampColor",
+      "package": "texture",
+      "file": "pkg/rendering/texture/texture.go",
+      "line": 104,
+      "is_exported": false,
+      "is_method": false,
+      "lines": {
+        "total": 7,
+        "code": 7,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.8
+      },
+      "complexity": {
+        "cyclomatic": 3,
+        "cognitive": 3,
+        "nesting_depth": 1,
+        "overall": 4.4
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 45,
+        "has_example": false,
+        "quality_score": 0.18000000000000002
+      }
+    },
+    {
+      "name": "NewWorldChunkSystem",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 24,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 4,
+        "code": 4,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 71,
+        "has_example": false,
+        "quality_score": 0.284
+      }
+    },
+    {
+      "name": "Update",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 32,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*WorldChunkSystem",
+      "lines": {
+        "total": 18,
+        "code": 17,
+        "comments": 1,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1
+      },
+      "complexity": {
+        "cyclomatic": 6,
+        "cognitive": 6,
+        "nesting_depth": 3,
+        "overall": 9.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 62,
+        "has_example": false,
+        "quality_score": 0.248
+      }
+    },
+    {
+      "name": "Update",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 60,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*NPCScheduleSystem",
+      "lines": {
+        "total": 22,
+        "code": 20,
+        "comments": 2,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1
+      },
+      "complexity": {
+        "cyclomatic": 7,
+        "cognitive": 7,
+        "nesting_depth": 3,
+        "overall": 10.6
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 64,
+        "has_example": false,
+        "quality_score": 0.256
+      }
+    },
+    {
+      "name": "NewWorldClockSystem",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 92,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 1,
+        "code": 1,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.8
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 54,
+        "has_example": false,
+        "quality_score": 0.21600000000000003
+      }
+    },
+    {
+      "name": "Update",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 97,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*WorldClockSystem",
+      "lines": {
+        "total": 19,
+        "code": 19,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1
+      },
+      "complexity": {
+        "cyclomatic": 6,
+        "cognitive": 6,
+        "nesting_depth": 3,
+        "overall": 9.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 42,
+        "has_example": false,
+        "quality_score": 0.168
+      }
+    },
+    {
+      "name": "NewFactionPoliticsSystem",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 140,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 4,
+        "code": 4,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.8
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 64,
+        "has_example": false,
+        "quality_score": 0.256
+      }
+    },
+    {
+      "name": "SetRelation",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 148,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*FactionPoliticsSystem",
+      "lines": {
+        "total": 2,
+        "code": 2,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 63,
+        "has_example": false,
+        "quality_score": 0.252
+      }
+    },
+    {
+      "name": "GetRelation",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 154,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*FactionPoliticsSystem",
+      "lines": {
+        "total": 6,
+        "code": 6,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.8
+      },
+      "complexity": {
+        "cyclomatic": 2,
+        "cognitive": 2,
+        "nesting_depth": 1,
+        "overall": 3.1
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 66,
+        "has_example": false,
+        "quality_score": 0.364
+      }
+    },
+    {
+      "name": "factionPairKey",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 164,
+      "is_exported": false,
+      "is_method": false,
+      "lines": {
+        "total": 4,
+        "code": 4,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.8
+      },
+      "complexity": {
+        "cyclomatic": 2,
+        "cognitive": 2,
+        "nesting_depth": 1,
+        "overall": 3.1
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 64,
+        "has_example": false,
+        "quality_score": 0.356
+      }
+    },
+    {
+      "name": "Update",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 172,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*FactionPoliticsSystem",
+      "lines": {
+        "total": 28,
+        "code": 27,
+        "comments": 1,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1
+      },
+      "complexity": {
+        "cyclomatic": 10,
+        "cognitive": 10,
+        "nesting_depth": 5,
+        "overall": 15.5
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 79,
+        "has_example": false,
+        "quality_score": 0.31600000000000006
+      }
+    },
+    {
+      "name": "NewCrimeSystem",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 214,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 4,
+        "code": 4,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.8
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 70,
+        "has_example": false,
+        "quality_score": 0.27999999999999997
+      }
+    },
+    {
+      "name": "Update",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 222,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*CrimeSystem",
+      "lines": {
+        "total": 23,
+        "code": 21,
+        "comments": 2,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1
+      },
+      "complexity": {
+        "cyclomatic": 7,
+        "cognitive": 7,
+        "nesting_depth": 3,
+        "overall": 10.6
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 63,
+        "has_example": false,
+        "quality_score": 0.252
+      }
+    },
+    {
+      "name": "ReportCrime",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 249,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*CrimeSystem",
+      "lines": {
+        "total": 15,
+        "code": 12,
+        "comments": 3,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1
+      },
+      "complexity": {
+        "cyclomatic": 3,
+        "cognitive": 3,
+        "nesting_depth": 1,
+        "overall": 4.4
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 74,
+        "has_example": false,
+        "quality_score": 0.296
+      }
+    },
+    {
+      "name": "NewEconomySystem",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 278,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 5,
+        "code": 5,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 1,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.8
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 47,
+        "has_example": false,
+        "quality_score": 0.188
+      }
+    },
+    {
+      "name": "SetBasePrice",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 287,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*EconomySystem",
+      "lines": {
+        "total": 4,
+        "code": 4,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1
+      },
+      "complexity": {
+        "cyclomatic": 2,
+        "cognitive": 2,
+        "nesting_depth": 1,
+        "overall": 3.1
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 51,
+        "has_example": false,
+        "quality_score": 0.20400000000000001
+      }
+    },
+    {
+      "name": "Update",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 295,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*EconomySystem",
+      "lines": {
+        "total": 49,
+        "code": 45,
+        "comments": 4,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1
+      },
+      "complexity": {
+        "cyclomatic": 15,
+        "cognitive": 15,
+        "nesting_depth": 4,
+        "overall": 21.5
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 48,
+        "has_example": false,
+        "quality_score": 0.192
+      }
+    },
+    {
+      "name": "Update",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 351,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*CombatSystem",
+      "lines": {
+        "total": 11,
+        "code": 10,
+        "comments": 1,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1
+      },
+      "complexity": {
+        "cyclomatic": 4,
+        "cognitive": 4,
+        "nesting_depth": 2,
+        "overall": 6.2
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 46,
+        "has_example": false,
+        "quality_score": 0.18400000000000002
+      }
+    },
+    {
+      "name": "Update",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 369,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*VehicleSystem",
+      "lines": {
+        "total": 21,
+        "code": 20,
+        "comments": 1,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1
+      },
+      "complexity": {
+        "cyclomatic": 6,
+        "cognitive": 6,
+        "nesting_depth": 3,
+        "overall": 9.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 44,
+        "has_example": false,
+        "quality_score": 0.17600000000000002
+      }
+    },
+    {
+      "name": "NewQuestSystem",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 408,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 3,
+        "code": 3,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 43,
+        "has_example": false,
+        "quality_score": 0.17200000000000001
+      }
+    },
+    {
+      "name": "DefineQuest",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 415,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*QuestSystem",
+      "lines": {
+        "total": 4,
+        "code": 4,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1
+      },
+      "complexity": {
+        "cyclomatic": 2,
+        "cognitive": 2,
+        "nesting_depth": 1,
+        "overall": 3.1
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 47,
+        "has_example": false,
+        "quality_score": 0.188
+      }
+    },
+    {
+      "name": "Update",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 423,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*QuestSystem",
+      "lines": {
+        "total": 36,
+        "code": 33,
+        "comments": 3,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1
+      },
+      "complexity": {
+        "cyclomatic": 11,
+        "cognitive": 11,
+        "nesting_depth": 4,
+        "overall": 16.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 52,
+        "has_example": false,
+        "quality_score": 0.20800000000000002
+      }
+    },
+    {
+      "name": "NewWeatherSystem",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 472,
+      "is_exported": true,
+      "is_method": false,
+      "lines": {
+        "total": 5,
+        "code": 5,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1.3
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 47,
+        "has_example": false,
+        "quality_score": 0.188
+      }
+    },
+    {
+      "name": "getWeatherPool",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 481,
+      "is_exported": false,
+      "is_method": true,
+      "receiver_type": "*WeatherSystem",
+      "lines": {
+        "total": 14,
+        "code": 14,
+        "comments": 0,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 0,
+        "return_count": 1,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 0.3
+      },
+      "complexity": {
+        "cyclomatic": 2,
+        "cognitive": 2,
+        "nesting_depth": 1,
+        "overall": 3.1
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 56,
+        "has_example": false,
+        "quality_score": 0.32400000000000007
+      }
+    },
+    {
+      "name": "Update",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 499,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*WeatherSystem",
+      "lines": {
+        "total": 14,
+        "code": 13,
+        "comments": 1,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1
+      },
+      "complexity": {
+        "cyclomatic": 4,
+        "cognitive": 4,
+        "nesting_depth": 1,
+        "overall": 5.7
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 46,
+        "has_example": false,
+        "quality_score": 0.18400000000000002
+      }
+    },
+    {
+      "name": "Update",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 522,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*RenderSystem",
+      "lines": {
+        "total": 4,
+        "code": 3,
+        "comments": 1,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1
+      },
+      "complexity": {
+        "cyclomatic": 2,
+        "cognitive": 2,
+        "nesting_depth": 1,
+        "overall": 3.1
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 65,
+        "has_example": false,
+        "quality_score": 0.26
+      }
+    },
+    {
+      "name": "Update",
+      "package": "systems",
+      "file": "pkg/engine/systems/systems.go",
+      "line": 535,
+      "is_exported": true,
+      "is_method": true,
+      "receiver_type": "*AudioSystem",
+      "lines": {
+        "total": 1,
+        "code": 0,
+        "comments": 1,
+        "blank": 0
+      },
+      "signature": {
+        "parameter_count": 2,
+        "return_count": 0,
+        "has_variadic": false,
+        "returns_error": false,
+        "interface_parameters": 0,
+        "generic_parameters": null,
+        "signature_complexity": 1
+      },
+      "complexity": {
+        "cyclomatic": 1,
+        "cognitive": 1,
+        "nesting_depth": 0,
+        "overall": 1.3
+      },
+      "documentation": {
+        "has_comment": true,
+        "comment_length": 43,
+        "has_example": false,
+        "quality_score": 0.17200000000000001
+      }
     }
   ],
   "structs": null,
@@ -2814,7 +3422,7 @@
         {
           "name": "Strategy Pattern",
           "file": "pkg/engine/systems/systems.go",
-          "line": 16,
+          "line": 18,
           "confidence_score": 0.8,
           "description": "Struct with interface field(s) for strategy delegation",
           "example": "WorldChunkSystem uses strategy pattern"
@@ -2859,7 +3467,7 @@
         "instances": [
           {
             "file": "main",
-            "line": 53,
+            "line": 65,
             "function": "unknown",
             "type": "unknown",
             "is_buffered": true,
@@ -2869,7 +3477,7 @@
           },
           {
             "file": "main",
-            "line": 53,
+            "line": 65,
             "function": "unknown",
             "type": "unknown",
             "is_buffered": false,
@@ -2894,78 +3502,6 @@
       "deep_nesting": [],
       "magic_numbers": [],
       "performance_antipatterns": [
-        {
-          "type": "resource_leak",
-          "description": "Resource acquisition without defer close",
-          "severity": "critical",
-          "file": "/home/user/go/src/github.com/opd-ai/wyrm/cmd/client/main.go",
-          "line": 65,
-          "suggestion": "Use defer to ensure resource cleanup"
-        },
-        {
-          "type": "unused_receiver",
-          "description": "Method receiver is never referenced in method body",
-          "severity": "low",
-          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
-          "line": 10,
-          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
-        },
-        {
-          "type": "unused_receiver",
-          "description": "Method receiver is never referenced in method body",
-          "severity": "low",
-          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
-          "line": 18,
-          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
-        },
-        {
-          "type": "unused_receiver",
-          "description": "Method receiver is never referenced in method body",
-          "severity": "low",
-          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
-          "line": 27,
-          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
-        },
-        {
-          "type": "unused_receiver",
-          "description": "Method receiver is never referenced in method body",
-          "severity": "low",
-          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
-          "line": 36,
-          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
-        },
-        {
-          "type": "unused_receiver",
-          "description": "Method receiver is never referenced in method body",
-          "severity": "low",
-          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
-          "line": 45,
-          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
-        },
-        {
-          "type": "unused_receiver",
-          "description": "Method receiver is never referenced in method body",
-          "severity": "low",
-          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
-          "line": 55,
-          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
-        },
-        {
-          "type": "bare_error_return",
-          "description": "Error returned without context wrapping",
-          "severity": "high",
-          "file": "/home/user/go/src/github.com/opd-ai/wyrm/config/config.go",
-          "line": 59,
-          "suggestion": "Wrap error with fmt.Errorf(\"context: %w\", err) to preserve error chain"
-        },
-        {
-          "type": "memory_allocation",
-          "description": "append() in loop without pre-allocation",
-          "severity": "medium",
-          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/ecs/ecs.go",
-          "line": 86,
-          "suggestion": "Pre-allocate slice with make() for known capacity"
-        },
         {
           "type": "bare_error_return",
           "description": "Error returned without context wrapping",
@@ -3023,60 +3559,12 @@
           "suggestion": "Wrap error with fmt.Errorf(\"context: %w\", err) to preserve error chain"
         },
         {
-          "type": "unused_receiver",
-          "description": "Method receiver is never referenced in method body",
-          "severity": "low",
-          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/systems/systems.go",
-          "line": 76,
-          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
-        },
-        {
-          "type": "unused_receiver",
-          "description": "Method receiver is never referenced in method body",
-          "severity": "low",
-          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/systems/systems.go",
-          "line": 85,
-          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
-        },
-        {
-          "type": "unused_receiver",
-          "description": "Method receiver is never referenced in method body",
-          "severity": "low",
-          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/systems/systems.go",
-          "line": 93,
-          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
-        },
-        {
-          "type": "unused_receiver",
-          "description": "Method receiver is never referenced in method body",
-          "severity": "low",
-          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/systems/systems.go",
-          "line": 101,
-          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
-        },
-        {
-          "type": "unused_receiver",
-          "description": "Method receiver is never referenced in method body",
-          "severity": "low",
-          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/systems/systems.go",
-          "line": 119,
-          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
-        },
-        {
-          "type": "unused_receiver",
-          "description": "Method receiver is never referenced in method body",
-          "severity": "low",
-          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/systems/systems.go",
-          "line": 146,
-          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
-        },
-        {
-          "type": "unused_receiver",
-          "description": "Method receiver is never referenced in method body",
-          "severity": "low",
-          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/systems/systems.go",
-          "line": 184,
-          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
+          "type": "resource_leak",
+          "description": "Resource acquisition without defer close",
+          "severity": "critical",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/cmd/client/main.go",
+          "line": 75,
+          "suggestion": "Use defer to ensure resource cleanup"
         },
         {
           "type": "unused_receiver",
@@ -3084,6 +3572,142 @@
           "severity": "low",
           "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/rendering/raycast/raycast.go",
           "line": 194,
+          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
+        },
+        {
+          "type": "unused_receiver",
+          "description": "Method receiver is never referenced in method body",
+          "severity": "low",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
+          "line": 10,
+          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
+        },
+        {
+          "type": "unused_receiver",
+          "description": "Method receiver is never referenced in method body",
+          "severity": "low",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
+          "line": 18,
+          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
+        },
+        {
+          "type": "unused_receiver",
+          "description": "Method receiver is never referenced in method body",
+          "severity": "low",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
+          "line": 27,
+          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
+        },
+        {
+          "type": "unused_receiver",
+          "description": "Method receiver is never referenced in method body",
+          "severity": "low",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
+          "line": 36,
+          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
+        },
+        {
+          "type": "unused_receiver",
+          "description": "Method receiver is never referenced in method body",
+          "severity": "low",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
+          "line": 45,
+          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
+        },
+        {
+          "type": "unused_receiver",
+          "description": "Method receiver is never referenced in method body",
+          "severity": "low",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
+          "line": 56,
+          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
+        },
+        {
+          "type": "unused_receiver",
+          "description": "Method receiver is never referenced in method body",
+          "severity": "low",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
+          "line": 65,
+          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
+        },
+        {
+          "type": "unused_receiver",
+          "description": "Method receiver is never referenced in method body",
+          "severity": "low",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
+          "line": 75,
+          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
+        },
+        {
+          "type": "unused_receiver",
+          "description": "Method receiver is never referenced in method body",
+          "severity": "low",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
+          "line": 83,
+          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
+        },
+        {
+          "type": "unused_receiver",
+          "description": "Method receiver is never referenced in method body",
+          "severity": "low",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
+          "line": 96,
+          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
+        },
+        {
+          "type": "unused_receiver",
+          "description": "Method receiver is never referenced in method body",
+          "severity": "low",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
+          "line": 107,
+          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
+        },
+        {
+          "type": "unused_receiver",
+          "description": "Method receiver is never referenced in method body",
+          "severity": "low",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/components/components.go",
+          "line": 118,
+          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
+        },
+        {
+          "type": "bare_error_return",
+          "description": "Error returned without context wrapping",
+          "severity": "high",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/config/config.go",
+          "line": 59,
+          "suggestion": "Wrap error with fmt.Errorf(\"context: %w\", err) to preserve error chain"
+        },
+        {
+          "type": "memory_allocation",
+          "description": "append() in loop without pre-allocation",
+          "severity": "medium",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/ecs/ecs.go",
+          "line": 86,
+          "suggestion": "Pre-allocate slice with make() for known capacity"
+        },
+        {
+          "type": "unused_receiver",
+          "description": "Method receiver is never referenced in method body",
+          "severity": "low",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/systems/systems.go",
+          "line": 351,
+          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
+        },
+        {
+          "type": "unused_receiver",
+          "description": "Method receiver is never referenced in method body",
+          "severity": "low",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/systems/systems.go",
+          "line": 369,
+          "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
+        },
+        {
+          "type": "unused_receiver",
+          "description": "Method receiver is never referenced in method body",
+          "severity": "low",
+          "file": "/home/user/go/src/github.com/opd-ai/wyrm/pkg/engine/systems/systems.go",
+          "line": 535,
           "suggestion": "Use _ as receiver name or convert to plain function if receiver is not needed"
         }
       ]

@@ -2,6 +2,8 @@ package texture
 
 import (
 	"testing"
+
+	"github.com/opd-ai/wyrm/pkg/procgen/noise"
 )
 
 func TestGenerate(t *testing.T) {
@@ -143,8 +145,8 @@ func TestNoise2D(t *testing.T) {
 	seed := int64(12345)
 
 	// Test determinism
-	v1 := noise2D(0.5, 0.5, seed)
-	v2 := noise2D(0.5, 0.5, seed)
+	v1 := noise.Noise2D(0.5, 0.5, seed)
+	v2 := noise.Noise2D(0.5, 0.5, seed)
 	if v1 != v2 {
 		t.Error("noise2D should be deterministic")
 	}
@@ -153,7 +155,7 @@ func TestNoise2D(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		x := float64(i) * 0.1
 		y := float64(i) * 0.15
-		v := noise2D(x, y, seed)
+		v := noise.Noise2D(x, y, seed)
 		if v < 0 || v > 1 {
 			t.Errorf("noise2D value out of range: %f at (%f, %f)", v, x, y)
 		}
@@ -164,8 +166,8 @@ func TestHashToFloat(t *testing.T) {
 	seed := int64(12345)
 
 	// Test determinism
-	v1 := hashToFloat(10, 20, seed)
-	v2 := hashToFloat(10, 20, seed)
+	v1 := noise.HashToFloat(10, 20, seed)
+	v2 := noise.HashToFloat(10, 20, seed)
 	if v1 != v2 {
 		t.Error("hashToFloat should be deterministic")
 	}
@@ -173,7 +175,7 @@ func TestHashToFloat(t *testing.T) {
 	// Test range [0, 1]
 	for x := 0; x < 10; x++ {
 		for y := 0; y < 10; y++ {
-			v := hashToFloat(x, y, seed)
+			v := noise.HashToFloat(x, y, seed)
 			if v < 0 || v > 1 {
 				t.Errorf("hashToFloat value out of range: %f at (%d, %d)", v, x, y)
 			}
@@ -184,7 +186,7 @@ func TestHashToFloat(t *testing.T) {
 	seen := make(map[float64]bool)
 	for x := 0; x < 10; x++ {
 		for y := 0; y < 10; y++ {
-			v := hashToFloat(x, y, seed)
+			v := noise.HashToFloat(x, y, seed)
 			if seen[v] {
 				t.Logf("warning: duplicate hash value at (%d, %d)", x, y)
 			}
@@ -195,15 +197,15 @@ func TestHashToFloat(t *testing.T) {
 
 func TestSmoothstep(t *testing.T) {
 	// Test boundary values
-	if smoothstep(0) != 0 {
+	if noise.Smoothstep(0) != 0 {
 		t.Error("smoothstep(0) should be 0")
 	}
-	if smoothstep(1) != 1 {
+	if noise.Smoothstep(1) != 1 {
 		t.Error("smoothstep(1) should be 1")
 	}
 
 	// Test midpoint
-	mid := smoothstep(0.5)
+	mid := noise.Smoothstep(0.5)
 	if mid < 0.4 || mid > 0.6 {
 		t.Errorf("smoothstep(0.5) should be near 0.5, got %f", mid)
 	}
@@ -211,7 +213,7 @@ func TestSmoothstep(t *testing.T) {
 	// Test monotonicity
 	prev := 0.0
 	for i := 0; i <= 100; i++ {
-		v := smoothstep(float64(i) / 100.0)
+		v := noise.Smoothstep(float64(i) / 100.0)
 		if v < prev {
 			t.Error("smoothstep should be monotonically increasing")
 		}
@@ -221,15 +223,15 @@ func TestSmoothstep(t *testing.T) {
 
 func TestLerp(t *testing.T) {
 	// Test boundaries
-	if lerp(0, 10, 0) != 0 {
+	if noise.Lerp(0, 10, 0) != 0 {
 		t.Error("lerp(0, 10, 0) should be 0")
 	}
-	if lerp(0, 10, 1) != 10 {
+	if noise.Lerp(0, 10, 1) != 10 {
 		t.Error("lerp(0, 10, 1) should be 10")
 	}
 
 	// Test midpoint
-	if lerp(0, 10, 0.5) != 5 {
+	if noise.Lerp(0, 10, 0.5) != 5 {
 		t.Error("lerp(0, 10, 0.5) should be 5")
 	}
 }
@@ -262,6 +264,6 @@ func BenchmarkNoise2D(b *testing.B) {
 	seed := int64(12345)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = noise2D(float64(i%100)*0.1, float64(i/100)*0.1, seed)
+		_ = noise.Noise2D(float64(i%100)*0.1, float64(i/100)*0.1, seed)
 	}
 }
