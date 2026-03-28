@@ -61,6 +61,7 @@ func TestComponentImplementsInterface(t *testing.T) {
 		&Witness{},
 		&EconomyNode{},
 		&Quest{Flags: make(map[string]bool)},
+		&WorldClock{},
 	}
 
 	for _, c := range components {
@@ -102,5 +103,12 @@ func TestQuestType(t *testing.T) {
 	q := &Quest{ID: "main", CurrentStage: 1, Flags: map[string]bool{"start": true}}
 	if q.Type() != "Quest" {
 		t.Errorf("expected Quest, got %s", q.Type())
+	}
+}
+
+func TestWorldClockType(t *testing.T) {
+	wc := &WorldClock{Hour: 12, Day: 1, HourLength: 60.0}
+	if wc.Type() != "WorldClock" {
+		t.Errorf("expected WorldClock, got %s", wc.Type())
 	}
 }

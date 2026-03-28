@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/opd-ai/wyrm/config"
+	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 	"github.com/opd-ai/wyrm/pkg/engine/systems"
 	"github.com/opd-ai/wyrm/pkg/network"
@@ -25,16 +26,27 @@ func main() {
 	world := ecs.NewWorld()
 	cm := chunk.NewChunkManager(cfg.World.ChunkSize, cfg.World.Seed)
 
+	// Create world clock entity (60 real seconds = 1 game hour)
+	clockEntity := world.CreateEntity()
+	if err := world.AddComponent(clockEntity, &components.WorldClock{
+		Hour:       8, // Start at 8 AM
+		Day:        1,
+		HourLength: 60.0,
+	}); err != nil {
+		log.Fatalf("failed to add WorldClock component: %v", err)
+	}
+
 	// Register server-side systems
+	world.RegisterSystem(systems.NewWorldClockSystem(60.0))
 	world.RegisterSystem(systems.NewWorldChunkSystem(cm, cfg.World.ChunkSize))
 	world.RegisterSystem(&systems.NPCScheduleSystem{})
-	world.RegisterSystem(&systems.FactionPoliticsSystem{})
-	world.RegisterSystem(&systems.CrimeSystem{})
-	world.RegisterSystem(&systems.EconomySystem{})
+	world.RegisterSystem(systems.NewFactionPoliticsSystem(0.1))
+	world.RegisterSystem(systems.NewCrimeSystem(60.0, 100.0))
+	world.RegisterSystem(systems.NewEconomySystem(0.5, 0.1))
 	world.RegisterSystem(&systems.CombatSystem{})
 	world.RegisterSystem(&systems.VehicleSystem{})
-	world.RegisterSystem(&systems.QuestSystem{})
-	world.RegisterSystem(&systems.WeatherSystem{})
+	world.RegisterSystem(systems.NewQuestSystem())
+	world.RegisterSystem(systems.NewWeatherSystem(cfg.Genre, 300.0))
 
 	srv := network.NewServer(cfg.Server.Address)
 	if err := srv.Start(); err != nil {

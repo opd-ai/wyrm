@@ -149,17 +149,96 @@ func TestVehicleSystemNoFuel(t *testing.T) {
 
 func TestWeatherSystemInitialization(t *testing.T) {
 	w := ecs.NewWorld()
-	sys := &WeatherSystem{}
+	sys := NewWeatherSystem("fantasy", 300.0)
 	w.RegisterSystem(sys)
-
-	if sys.CurrentWeather != "" {
-		t.Error("initial weather should be empty")
-	}
 
 	w.Update(0.016)
 
 	if sys.CurrentWeather != "clear" {
 		t.Errorf("weather should be 'clear' after first update, got '%s'", sys.CurrentWeather)
+	}
+}
+
+func TestWeatherSystemTransition(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewWeatherSystem("fantasy", 1.0) // 1 second duration for fast test
+	w.RegisterSystem(sys)
+
+	w.Update(0.5)
+	initial := sys.CurrentWeather
+
+	// Advance past weather duration
+	w.Update(1.0)
+
+	if sys.CurrentWeather == initial {
+		t.Error("weather should have changed after duration")
+	}
+}
+
+func TestWorldClockSystemAdvancesTime(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewWorldClockSystem(1.0) // 1 second per hour for fast testing
+	w.RegisterSystem(sys)
+
+	clock := w.CreateEntity()
+	clockComp := &components.WorldClock{Hour: 0, Day: 0, HourLength: 1.0}
+	_ = w.AddComponent(clock, clockComp)
+
+	// Advance 1.5 seconds
+	w.Update(1.5)
+
+	if clockComp.Hour != 1 {
+		t.Errorf("expected hour 1, got %d", clockComp.Hour)
+	}
+	if clockComp.TimeAccum < 0.4 || clockComp.TimeAccum > 0.6 {
+		t.Errorf("expected ~0.5 accumulated time, got %f", clockComp.TimeAccum)
+	}
+}
+
+func TestWorldClockSystemDayRollover(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewWorldClockSystem(0.1)
+	w.RegisterSystem(sys)
+
+	clock := w.CreateEntity()
+	clockComp := &components.WorldClock{Hour: 23, Day: 0, HourLength: 0.1}
+	_ = w.AddComponent(clock, clockComp)
+
+	// Advance past midnight
+	w.Update(0.15)
+
+	if clockComp.Hour != 0 {
+		t.Errorf("expected hour 0 after midnight, got %d", clockComp.Hour)
+	}
+	if clockComp.Day != 1 {
+		t.Errorf("expected day 1 after midnight, got %d", clockComp.Day)
+	}
+}
+
+func TestNPCScheduleSystemReadsWorldClock(t *testing.T) {
+	w := ecs.NewWorld()
+	npcSys := &NPCScheduleSystem{}
+	w.RegisterSystem(npcSys)
+
+	// Create world clock entity
+	clock := w.CreateEntity()
+	_ = w.AddComponent(clock, &components.WorldClock{Hour: 12, Day: 0})
+
+	// Create NPC with schedule
+	npc := w.CreateEntity()
+	sched := &components.Schedule{
+		CurrentActivity: "sleep",
+		TimeSlots:       map[int]string{8: "work", 12: "eat", 18: "home"},
+	}
+	_ = w.AddComponent(npc, sched)
+
+	w.Update(0.016)
+
+	if sched.CurrentActivity != "eat" {
+		t.Errorf("expected activity 'eat' at hour 12, got '%s'", sched.CurrentActivity)
+	}
+	if npcSys.WorldHour != 12 {
+		t.Errorf("NPCScheduleSystem.WorldHour should be 12, got %d", npcSys.WorldHour)
 	}
 }
 
@@ -187,13 +266,14 @@ func TestAllSystemsImplementInterface(t *testing.T) {
 	systems := []ecs.System{
 		&WorldChunkSystem{},
 		&NPCScheduleSystem{},
+		NewWorldClockSystem(60.0),
 		NewFactionPoliticsSystem(0.1),
 		NewCrimeSystem(10.0, 100.0),
 		NewEconomySystem(0.5, 0.1),
 		&CombatSystem{},
 		&VehicleSystem{},
 		NewQuestSystem(),
-		&WeatherSystem{},
+		NewWeatherSystem("fantasy", 300.0),
 		&RenderSystem{},
 		&AudioSystem{},
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/opd-ai/wyrm/config"
+	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 	"github.com/opd-ai/wyrm/pkg/engine/systems"
 	"github.com/opd-ai/wyrm/pkg/network"
@@ -52,8 +53,17 @@ func main() {
 	world := ecs.NewWorld()
 	renderer := raycast.NewRenderer(cfg.Window.Width, cfg.Window.Height)
 
+	// Create player entity
+	player := world.CreateEntity()
+	if err := world.AddComponent(player, &components.Position{X: 8.5, Y: 8.5, Z: 0}); err != nil {
+		log.Fatalf("failed to add Position component: %v", err)
+	}
+	if err := world.AddComponent(player, &components.Health{Current: 100, Max: 100}); err != nil {
+		log.Fatalf("failed to add Health component: %v", err)
+	}
+
 	// Register client-side systems
-	world.RegisterSystem(&systems.RenderSystem{})
+	world.RegisterSystem(&systems.RenderSystem{PlayerEntity: player})
 	world.RegisterSystem(&systems.AudioSystem{Genre: cfg.Genre})
 	world.RegisterSystem(&systems.WeatherSystem{})
 

@@ -50,11 +50,22 @@ func (s *WorldChunkSystem) Update(w *ecs.World, dt float64) {
 
 // NPCScheduleSystem drives NPC daily activity cycles.
 type NPCScheduleSystem struct {
+	// WorldHour is updated externally by WorldClockSystem
 	WorldHour int
 }
 
 // Update processes NPC schedules based on the current world hour.
 func (s *NPCScheduleSystem) Update(w *ecs.World, dt float64) {
+	// First, read world clock from a WorldClock entity if it exists
+	for _, e := range w.Entities("WorldClock") {
+		comp, ok := w.GetComponent(e, "WorldClock")
+		if ok {
+			clock := comp.(*components.WorldClock)
+			s.WorldHour = clock.Hour
+			break
+		}
+	}
+	// Then update NPC schedules based on the hour
 	for _, e := range w.Entities("Schedule") {
 		comp, ok := w.GetComponent(e, "Schedule")
 		if !ok {
@@ -64,6 +75,40 @@ func (s *NPCScheduleSystem) Update(w *ecs.World, dt float64) {
 		if activity, ok := sched.TimeSlots[s.WorldHour]; ok {
 			if activity != sched.CurrentActivity {
 				sched.CurrentActivity = activity
+			}
+		}
+	}
+}
+
+// WorldClockSystem advances the in-game time.
+type WorldClockSystem struct {
+	// DefaultHourLength is seconds per game hour if no clock entity exists.
+	DefaultHourLength float64
+}
+
+// NewWorldClockSystem creates a new world clock system.
+func NewWorldClockSystem(hourLength float64) *WorldClockSystem {
+	return &WorldClockSystem{DefaultHourLength: hourLength}
+}
+
+// Update advances the game clock each tick.
+func (s *WorldClockSystem) Update(w *ecs.World, dt float64) {
+	for _, e := range w.Entities("WorldClock") {
+		comp, ok := w.GetComponent(e, "WorldClock")
+		if !ok {
+			continue
+		}
+		clock := comp.(*components.WorldClock)
+		if clock.HourLength <= 0 {
+			clock.HourLength = s.DefaultHourLength
+		}
+		clock.TimeAccum += dt
+		if clock.TimeAccum >= clock.HourLength {
+			clock.TimeAccum -= clock.HourLength
+			clock.Hour++
+			if clock.Hour >= 24 {
+				clock.Hour = 0
+				clock.Day++
 			}
 		}
 	}
@@ -413,16 +458,55 @@ func (s *QuestSystem) Update(w *ecs.World, dt float64) {
 
 // WeatherSystem controls dynamic weather and environmental hazards.
 type WeatherSystem struct {
-	CurrentWeather string
-	TimeAccum      float64
+	CurrentWeather  string
+	TimeAccum       float64
+	WeatherDuration float64 // Duration in seconds before weather change
+	Genre           string  // Affects available weather types
+	weatherIndex    int     // For deterministic cycling
+}
+
+// NewWeatherSystem creates a new weather system.
+func NewWeatherSystem(genre string, duration float64) *WeatherSystem {
+	return &WeatherSystem{
+		Genre:           genre,
+		WeatherDuration: duration,
+		CurrentWeather:  "clear",
+	}
+}
+
+// getWeatherPool returns genre-appropriate weather types.
+func (s *WeatherSystem) getWeatherPool() []string {
+	switch s.Genre {
+	case "fantasy":
+		return []string{"clear", "cloudy", "rain", "fog", "thunderstorm"}
+	case "sci-fi":
+		return []string{"clear", "dust", "ion_storm", "radiation_burst"}
+	case "horror":
+		return []string{"fog", "overcast", "rain", "blood_moon", "mist"}
+	case "cyberpunk":
+		return []string{"smog", "acid_rain", "clear", "neon_haze"}
+	case "post-apocalyptic":
+		return []string{"dust_storm", "clear", "ash_fall", "radiation_fog", "scorching"}
+	default:
+		return []string{"clear", "cloudy", "rain", "fog"}
+	}
 }
 
 // Update advances weather simulation each tick.
 func (s *WeatherSystem) Update(w *ecs.World, dt float64) {
 	s.TimeAccum += dt
-	// Weather changes occur periodically
 	if s.CurrentWeather == "" {
 		s.CurrentWeather = "clear"
+	}
+	if s.WeatherDuration <= 0 {
+		s.WeatherDuration = 300.0 // Default 5 minutes per weather
+	}
+	// Change weather after duration
+	if s.TimeAccum >= s.WeatherDuration {
+		s.TimeAccum = 0
+		pool := s.getWeatherPool()
+		s.weatherIndex = (s.weatherIndex + 1) % len(pool)
+		s.CurrentWeather = pool[s.weatherIndex]
 	}
 }
 

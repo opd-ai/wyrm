@@ -104,3 +104,14 @@ type Quest struct {
 
 // Type returns the component type identifier for Quest.
 func (q *Quest) Type() string { return "Quest" }
+
+// WorldClock represents the global game time state.
+type WorldClock struct {
+	Hour       int     // 0-23
+	Day        int     // Day count from world start
+	TimeAccum  float64 // Accumulated time toward next hour
+	HourLength float64 // Real seconds per game hour
+}
+
+// Type returns the component type identifier for WorldClock.
+func (wc *WorldClock) Type() string { return "WorldClock" }
