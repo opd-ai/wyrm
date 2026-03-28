@@ -8,6 +8,10 @@
 *.so
 *.dylib
 
+# Compiled binaries from cmd/
+/client
+/server
+
 # Test binary, built with `go test -c`
 *.test
 
@@ -16,6 +20,11 @@
 coverage.*
 *.coverprofile
 profile.cov
+
+# Build and runtime logs
+loop.log
+*.log
+
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
