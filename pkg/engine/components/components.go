@@ -53,3 +53,54 @@ type Vehicle struct {
 
 // Type returns the component type identifier for Vehicle.
 func (v *Vehicle) Type() string { return "Vehicle" }
+
+// Reputation represents an entity's standing with various factions.
+type Reputation struct {
+	// Standings maps faction ID to reputation value (-100 to 100).
+	Standings map[string]float64
+}
+
+// Type returns the component type identifier for Reputation.
+func (r *Reputation) Type() string { return "Reputation" }
+
+// Crime represents an entity's criminal status.
+type Crime struct {
+	WantedLevel   int     // 0-5 stars
+	BountyAmount  float64 // currency owed
+	LastCrimeTime float64 // game time of last offense
+}
+
+// Type returns the component type identifier for Crime.
+func (c *Crime) Type() string { return "Crime" }
+
+// Witness is a tag component marking NPCs that can report crimes.
+type Witness struct {
+	CanReport bool
+}
+
+// Type returns the component type identifier for Witness.
+func (w *Witness) Type() string { return "Witness" }
+
+// EconomyNode represents a location with supply/demand pricing.
+type EconomyNode struct {
+	// PriceTable maps item type to current price.
+	PriceTable map[string]float64
+	// Supply maps item type to available quantity.
+	Supply map[string]int
+	// Demand maps item type to desired quantity.
+	Demand map[string]int
+}
+
+// Type returns the component type identifier for EconomyNode.
+func (e *EconomyNode) Type() string { return "EconomyNode" }
+
+// Quest represents an active quest with branching state.
+type Quest struct {
+	ID           string
+	CurrentStage int
+	Flags        map[string]bool
+	Completed    bool
+}
+
+// Type returns the component type identifier for Quest.
+func (q *Quest) Type() string { return "Quest" }

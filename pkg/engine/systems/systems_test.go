@@ -187,12 +187,12 @@ func TestAllSystemsImplementInterface(t *testing.T) {
 	systems := []ecs.System{
 		&WorldChunkSystem{},
 		&NPCScheduleSystem{},
-		&FactionPoliticsSystem{},
-		&CrimeSystem{},
-		&EconomySystem{},
+		NewFactionPoliticsSystem(0.1),
+		NewCrimeSystem(10.0, 100.0),
+		NewEconomySystem(0.5, 0.1),
 		&CombatSystem{},
 		&VehicleSystem{},
-		&QuestSystem{},
+		NewQuestSystem(),
 		&WeatherSystem{},
 		&RenderSystem{},
 		&AudioSystem{},
@@ -202,5 +202,189 @@ func TestAllSystemsImplementInterface(t *testing.T) {
 	for _, s := range systems {
 		// Each system should be able to Update without panic
 		s.Update(w, 0.016)
+	}
+}
+
+func TestFactionPoliticsSystemReputationDecay(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewFactionPoliticsSystem(10.0) // Fast decay for testing
+	w.RegisterSystem(sys)
+
+	e := w.CreateEntity()
+	rep := &components.Reputation{
+		Standings: map[string]float64{
+			"guild":   50.0,
+			"bandits": -50.0,
+		},
+	}
+	_ = w.AddComponent(e, rep)
+
+	// Run several updates
+	for i := 0; i < 10; i++ {
+		w.Update(1.0)
+	}
+
+	// Reputation should have decayed toward 0
+	if rep.Standings["guild"] >= 50.0 {
+		t.Error("positive reputation should decay toward 0")
+	}
+	if rep.Standings["bandits"] <= -50.0 {
+		t.Error("negative reputation should decay toward 0")
+	}
+}
+
+func TestFactionPoliticsSystemRelations(t *testing.T) {
+	sys := NewFactionPoliticsSystem(0.1)
+
+	// Set a hostile relation
+	sys.SetRelation("knights", "bandits", RelationHostile)
+	if sys.GetRelation("knights", "bandits") != RelationHostile {
+		t.Error("expected hostile relation between knights and bandits")
+	}
+
+	// Relations should be symmetric
+	if sys.GetRelation("bandits", "knights") != RelationHostile {
+		t.Error("relations should be symmetric")
+	}
+
+	// Unset relations should be neutral
+	if sys.GetRelation("guild", "church") != RelationNeutral {
+		t.Error("unset relations should be neutral")
+	}
+}
+
+func TestCrimeSystemWantedLevelDecay(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewCrimeSystem(5.0, 100.0) // 5 second decay delay
+	w.RegisterSystem(sys)
+
+	e := w.CreateEntity()
+	crime := &components.Crime{WantedLevel: 3, BountyAmount: 300.0, LastCrimeTime: 0}
+	_ = w.AddComponent(e, crime)
+
+	// Advance time past decay delay
+	for i := 0; i < 10; i++ {
+		w.Update(1.0)
+	}
+
+	// Wanted level should have decreased
+	if crime.WantedLevel >= 3 {
+		t.Errorf("wanted level should have decayed, got %d", crime.WantedLevel)
+	}
+}
+
+func TestCrimeSystemReportCrime(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewCrimeSystem(60.0, 100.0)
+	w.RegisterSystem(sys)
+
+	criminal := w.CreateEntity()
+	crime := &components.Crime{WantedLevel: 0, BountyAmount: 0}
+	_ = w.AddComponent(criminal, crime)
+
+	// Create a witness
+	witness := w.CreateEntity()
+	_ = w.AddComponent(witness, &components.Witness{CanReport: true})
+	_ = w.AddComponent(witness, &components.Position{X: 10, Y: 10})
+
+	// Report a crime
+	sys.ReportCrime(w, criminal)
+
+	if crime.WantedLevel != 1 {
+		t.Errorf("expected wanted level 1 after crime report, got %d", crime.WantedLevel)
+	}
+	if crime.BountyAmount != 100.0 {
+		t.Errorf("expected bounty 100, got %f", crime.BountyAmount)
+	}
+}
+
+func TestCrimeSystemNoWitnesses(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewCrimeSystem(60.0, 100.0)
+	w.RegisterSystem(sys)
+
+	criminal := w.CreateEntity()
+	crime := &components.Crime{WantedLevel: 0, BountyAmount: 0}
+	_ = w.AddComponent(criminal, crime)
+
+	// Report crime with no witnesses
+	sys.ReportCrime(w, criminal)
+
+	if crime.WantedLevel != 0 {
+		t.Error("wanted level should not increase without witnesses")
+	}
+}
+
+func TestEconomySystemPricing(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewEconomySystem(0.5, 0.1)
+	sys.SetBasePrice("sword", 100.0)
+	sys.SetBasePrice("potion", 50.0)
+	w.RegisterSystem(sys)
+
+	shop := w.CreateEntity()
+	node := &components.EconomyNode{
+		PriceTable: make(map[string]float64),
+		Supply:     map[string]int{"sword": 10, "potion": 5},
+		Demand:     map[string]int{"sword": 10, "potion": 20}, // High potion demand
+	}
+	_ = w.AddComponent(shop, node)
+
+	w.Update(0.016)
+
+	// Balanced supply/demand should have base price
+	if node.PriceTable["sword"] < 90 || node.PriceTable["sword"] > 110 {
+		t.Errorf("sword price should be near base, got %f", node.PriceTable["sword"])
+	}
+
+	// High demand should increase price
+	if node.PriceTable["potion"] <= 50 {
+		t.Errorf("potion price should be above base due to demand, got %f", node.PriceTable["potion"])
+	}
+}
+
+func TestQuestSystemStageAdvancement(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewQuestSystem()
+	sys.DefineQuest("main_quest", []QuestStageCondition{
+		{FromStage: 0, RequiredFlag: "talked_to_npc", NextStage: 1},
+		{FromStage: 1, RequiredFlag: "found_artifact", NextStage: 2},
+		{FromStage: 2, RequiredFlag: "returned_artifact", Completes: true},
+	})
+	w.RegisterSystem(sys)
+
+	player := w.CreateEntity()
+	quest := &components.Quest{
+		ID:           "main_quest",
+		CurrentStage: 0,
+		Flags:        map[string]bool{},
+	}
+	_ = w.AddComponent(player, quest)
+
+	// Initially at stage 0
+	w.Update(0.016)
+	if quest.CurrentStage != 0 {
+		t.Error("quest should start at stage 0")
+	}
+
+	// Set flag to advance
+	quest.Flags["talked_to_npc"] = true
+	w.Update(0.016)
+	if quest.CurrentStage != 1 {
+		t.Errorf("quest should advance to stage 1, got %d", quest.CurrentStage)
+	}
+
+	// Set next flag
+	quest.Flags["found_artifact"] = true
+	w.Update(0.016)
+	if quest.CurrentStage != 2 {
+		t.Errorf("quest should advance to stage 2, got %d", quest.CurrentStage)
+	}
+
+	// Complete quest
+	quest.Flags["returned_artifact"] = true
+	w.Update(0.016)
+	if !quest.Completed {
+		t.Error("quest should be completed")
 	}
 }

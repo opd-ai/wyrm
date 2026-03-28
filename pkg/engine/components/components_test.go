@@ -56,11 +56,51 @@ func TestComponentImplementsInterface(t *testing.T) {
 		&Schedule{TimeSlots: make(map[int]string)},
 		&Inventory{},
 		&Vehicle{},
+		&Reputation{Standings: make(map[string]float64)},
+		&Crime{},
+		&Witness{},
+		&EconomyNode{},
+		&Quest{Flags: make(map[string]bool)},
 	}
 
 	for _, c := range components {
 		if c.Type() == "" {
 			t.Error("component Type() returned empty string")
 		}
+	}
+}
+
+func TestReputationType(t *testing.T) {
+	r := &Reputation{Standings: map[string]float64{"guild": 50.0}}
+	if r.Type() != "Reputation" {
+		t.Errorf("expected Reputation, got %s", r.Type())
+	}
+}
+
+func TestCrimeType(t *testing.T) {
+	c := &Crime{WantedLevel: 2, BountyAmount: 500.0}
+	if c.Type() != "Crime" {
+		t.Errorf("expected Crime, got %s", c.Type())
+	}
+}
+
+func TestWitnessType(t *testing.T) {
+	w := &Witness{CanReport: true}
+	if w.Type() != "Witness" {
+		t.Errorf("expected Witness, got %s", w.Type())
+	}
+}
+
+func TestEconomyNodeType(t *testing.T) {
+	e := &EconomyNode{PriceTable: map[string]float64{"sword": 100.0}}
+	if e.Type() != "EconomyNode" {
+		t.Errorf("expected EconomyNode, got %s", e.Type())
+	}
+}
+
+func TestQuestType(t *testing.T) {
+	q := &Quest{ID: "main", CurrentStage: 1, Flags: map[string]bool{"start": true}}
+	if q.Type() != "Quest" {
+		t.Errorf("expected Quest, got %s", q.Type())
 	}
 }
