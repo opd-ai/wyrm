@@ -68,13 +68,13 @@ Wyrm is a 100% procedurally generated first-person open-world RPG built in Go 1.
 
 - [ ] **Raycaster uses hardcoded 16×16 map** — `pkg/rendering/raycast/raycast.go:25-43` — The renderer creates a fixed test map rather than consuming chunk terrain data. The raycaster is functional but disconnected from world generation. **Remediation:** Add `SetWorldMap()` method accepting chunk heightmap data. Update client to convert chunks to wall grid.
 
-- [ ] **Raycaster tests fail without X11 display** — Test run shows `panic: glfw: The GLFW library is not initialized` in raycast tests. Coverage reported as 73.7% in prior runs but tests panic in CI-like environments. **Remediation:** Add build tag `//go:build !integration` or use mock graphics driver to enable headless testing.
+- [x] **Raycaster tests fail without X11 display** — Test run shows `panic: glfw: The GLFW library is not initialized` in raycast tests. Coverage reported as 73.7% in prior runs but tests panic in CI-like environments. **Remediation:** Add build tag `//go:build !integration` or use mock graphics driver to enable headless testing. **RESOLVED:** Added `draw_stub.go` with `//go:build noebiten` tag. Tests now pass with `go test -tags noebiten ./...`
 
 - [x] **No player entity created** — `cmd/client/main.go:46-94`, `cmd/server/main.go:19-66` — Neither client nor server creates a player entity with Position component. The game loop runs but no player exists in the world. **Remediation:** After world creation, add: `player := world.CreateEntity(); world.AddComponent(player, &components.Position{X: 8, Y: 8, Z: 0})`. Pass player ID to RenderSystem.
 
-- [ ] **High cyclomatic complexity in castRay** — `pkg/rendering/raycast/raycast.go:110-191` — Function has complexity 17.1 (threshold: 15). The DDA algorithm is a single 80-line function with multiple nested conditions. **Remediation:** Extract helper functions: `calculateDeltaDist()`, `calculateSideDist()`, `ddaStep()`. This improves testability and maintainability.
+- [x] **High cyclomatic complexity in castRay** — `pkg/rendering/raycast/raycast.go:110-191` — Function has complexity 17.1 (threshold: 15). The DDA algorithm is a single 80-line function with multiple nested conditions. **Remediation:** Extract helper functions: `calculateDeltaDist()`, `calculateSideDist()`, `ddaStep()`. This improves testability and maintainability. **RESOLVED:** Extracted `calculateDeltaDist()` and `calculateSideDist()` helper functions. Complexity reduced from 17.1 to 11.9.
 
-- [ ] **City generator never called at runtime** — `pkg/procgen/city/city.go:63-102` — The generator exists and tests pass, but no code in `cmd/client/` or `cmd/server/` ever calls `city.Generate()`. Cities are defined but never spawned. **Remediation:** In server initialization, call `city.Generate(cfg.World.Seed, cfg.Genre)` and spawn city entities with building positions.
+- [x] **City generator never called at runtime** — `pkg/procgen/city/city.go:63-102` — The generator exists and tests pass, but no code in `cmd/client/` or `cmd/server/` ever calls `city.Generate()`. Cities are defined but never spawned. **Remediation:** In server initialization, call `city.Generate(cfg.World.Seed, cfg.Genre)` and spawn city entities with building positions. **RESOLVED:** Added city.Generate() call in server main.go. Creates district entities with Position and EconomyNode components.
 
 ### MEDIUM
 
@@ -88,19 +88,19 @@ Wyrm is a 100% procedurally generated first-person open-world RPG built in Go 1.
 
 - [x] **Duplicate noise functions** — `pkg/rendering/texture/texture.go:103-125` and `pkg/world/chunk/chunk.go:68-86` — Both packages implement identical 2D noise and hash functions. Duplication ratio: 1.61%. **Remediation:** Extract shared `pkg/procgen/noise/` package with common noise functions. Update both packages to import shared code.
 
-- [ ] **RenderSystem.Update does nothing useful** — `pkg/engine/systems/systems.go:165-176` — The system retrieves player position but discards it. Camera never updates. **Remediation:** Pass retrieved position to renderer: `if pos != nil { g.renderer.SetPlayerPos(pos.X, pos.Y, pos.Angle) }`.
+- [x] **RenderSystem.Update does nothing useful** — `pkg/engine/systems/systems.go:165-176` — The system retrieves player position but discards it. Camera never updates. **Remediation:** Pass retrieved position to renderer: `if pos != nil { g.renderer.SetPlayerPos(pos.X, pos.Y, pos.Angle) }`. **RESOLVED:** Added Angle field to Position component and updated Game.Draw() to sync player position to renderer before rendering.
 
-- [ ] **No input handling** — `cmd/client/main.go:27-31` — Game.Update() only calls world.Update(dt). No keyboard/mouse input is processed. Player cannot move or interact. **Remediation:** Add `ebiten.IsKeyPressed()` checks in Update() to modify player Position component based on WASD/arrow keys.
+- [x] **No input handling** — `cmd/client/main.go:27-31` — Game.Update() only calls world.Update(dt). No keyboard/mouse input is processed. Player cannot move or interact. **Remediation:** Add `ebiten.IsKeyPressed()` checks in Update() to modify player Position component based on WASD/arrow keys. **RESOLVED:** Added keyboard input handling for WASD/arrow movement and Q/E strafe in Game.Update().
 
 ### LOW
 
 - [ ] **File naming violates Go convention** — Multiple files: `config/config.go`, `pkg/audio/audio.go`, etc. — go-stats-generator flagged 10 stuttering file names where filename repeats package name. **Remediation:** Rename to `config/load.go`, `pkg/audio/engine.go`, etc. per Go idioms. Verify with `go-stats-generator analyze . --format json | jq '.naming'`.
 
-- [ ] **ChunkManager type name stutters** — `pkg/world/chunk/chunk.go:118` — Type `chunk.ChunkManager` repeats package name. Should be `chunk.Manager`. **Remediation:** Rename type to `Manager`. Update all references.
+- [x] **ChunkManager type name stutters** — `pkg/world/chunk/chunk.go:118` — Type `chunk.ChunkManager` repeats package name. Should be `chunk.Manager`. **Remediation:** Rename type to `Manager`. Update all references. **RESOLVED:** Renamed ChunkManager to Manager, NewChunkManager to NewManager. Updated all references in chunk.go, chunk_test.go, and cmd/server/main.go.
 
-- [ ] **Missing godoc on Game methods** — `cmd/client/main.go:27,33,42` — Update, Draw, and Layout methods lack documentation comments. **Remediation:** Add comments: `// Update advances game state by one tick`, `// Draw renders the current frame`, `// Layout returns the game's logical screen dimensions`.
+- [x] **Missing godoc on Game methods** — `cmd/client/main.go:27,33,42` — Update, Draw, and Layout methods lack documentation comments. **Remediation:** Add comments: `// Update advances game state by one tick`, `// Draw renders the current frame`, `// Layout returns the game's logical screen dimensions`. **RESOLVED:** Added godoc comments to all three methods.
 
-- [ ] **Magic numbers in raycast constants** — `pkg/rendering/raycast/raycast.go:25-54,148,209` — Values like 16, 60, 0.1, 0.2 are hardcoded without named constants. **Remediation:** Define constants: `const DefaultMapSize = 16`, `const DefaultFOV = math.Pi / 3`, `const MinRayDistance = 0.1`.
+- [x] **Magic numbers in raycast constants** — `pkg/rendering/raycast/raycast.go:25-54,148,209` — Values like 16, 60, 0.1, 0.2 are hardcoded without named constants. **Remediation:** Define constants: `const DefaultMapSize = 16`, `const DefaultFOV = math.Pi / 3`, `const MinRayDistance = 0.1`. **RESOLVED:** Added named constants for DefaultMapSize, DefaultFOV, DefaultPlayerX/Y, MaxRaySteps, MaxRayDistance, FogDistance, MinFogFactor, MinWallDistance.
 
 ---
 

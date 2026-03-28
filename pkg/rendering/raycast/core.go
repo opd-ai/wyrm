@@ -6,6 +6,28 @@ import (
 	"math"
 )
 
+// Rendering constants for the raycaster.
+const (
+	// DefaultMapSize is the default size of the test world map.
+	DefaultMapSize = 16
+	// DefaultFOV is the default field of view (60 degrees in radians).
+	DefaultFOV = math.Pi / 3
+	// DefaultPlayerX is the default player starting X position.
+	DefaultPlayerX = 8.0
+	// DefaultPlayerY is the default player starting Y position.
+	DefaultPlayerY = 8.0
+	// MaxRaySteps is the maximum DDA steps before giving up.
+	MaxRaySteps = 64
+	// MaxRayDistance is returned when no wall is hit.
+	MaxRayDistance = 100.0
+	// FogDistance is the distance at which fog reaches maximum.
+	FogDistance = 16.0
+	// MinFogFactor prevents walls from becoming completely black.
+	MinFogFactor = 0.2
+	// MinWallDistance prevents division by zero in wall height calculation.
+	MinWallDistance = 0.1
+)
+
 // Renderer handles first-person raycasting and draws to an Ebitengine image.
 type Renderer struct {
 	Width    int
@@ -20,13 +42,13 @@ type Renderer struct {
 // NewRenderer creates a new raycasting renderer.
 func NewRenderer(width, height int) *Renderer {
 	// Create a simple default world map
-	worldMap := make([][]int, 16)
+	worldMap := make([][]int, DefaultMapSize)
 	for i := range worldMap {
-		worldMap[i] = make([]int, 16)
+		worldMap[i] = make([]int, DefaultMapSize)
 		// Create boundary walls
 		worldMap[i][0] = 1
-		worldMap[i][15] = 1
-		if i == 0 || i == 15 {
+		worldMap[i][DefaultMapSize-1] = 1
+		if i == 0 || i == DefaultMapSize-1 {
 			for j := range worldMap[i] {
 				worldMap[i][j] = 1
 			}
@@ -43,21 +65,16 @@ func NewRenderer(width, height int) *Renderer {
 	return &Renderer{
 		Width:    width,
 		Height:   height,
-		PlayerX:  8.0,
-		PlayerY:  8.0,
+		PlayerX:  DefaultPlayerX,
+		PlayerY:  DefaultPlayerY,
 		PlayerA:  0.0,
 		WorldMap: worldMap,
-		FOV:      math.Pi / 3, // 60 degrees
+		FOV:      DefaultFOV,
 	}
 }
 
-// castRay performs DDA raycasting and returns distance and wall type.
-func (r *Renderer) castRay(rayDirX, rayDirY float64) (float64, int) {
-	mapX := int(r.PlayerX)
-	mapY := int(r.PlayerY)
-
-	// Length of ray from one side to next
-	var deltaDistX, deltaDistY float64
+// calculateDeltaDist computes the ray step lengths for DDA.
+func calculateDeltaDist(rayDirX, rayDirY float64) (deltaDistX, deltaDistY float64) {
 	if rayDirX == 0 {
 		deltaDistX = 1e30
 	} else {
@@ -68,31 +85,44 @@ func (r *Renderer) castRay(rayDirX, rayDirY float64) (float64, int) {
 	} else {
 		deltaDistY = math.Abs(1 / rayDirY)
 	}
+	return deltaDistX, deltaDistY
+}
 
-	var stepX, stepY int
-	var sideDistX, sideDistY float64
-
+// calculateSideDist computes initial side distances and step directions for DDA.
+func calculateSideDist(playerX, playerY float64, mapX, mapY int, rayDirX, rayDirY, deltaDistX, deltaDistY float64) (sideDistX, sideDistY float64, stepX, stepY int) {
 	if rayDirX < 0 {
 		stepX = -1
-		sideDistX = (r.PlayerX - float64(mapX)) * deltaDistX
+		sideDistX = (playerX - float64(mapX)) * deltaDistX
 	} else {
 		stepX = 1
-		sideDistX = (float64(mapX) + 1.0 - r.PlayerX) * deltaDistX
+		sideDistX = (float64(mapX) + 1.0 - playerX) * deltaDistX
 	}
 	if rayDirY < 0 {
 		stepY = -1
-		sideDistY = (r.PlayerY - float64(mapY)) * deltaDistY
+		sideDistY = (playerY - float64(mapY)) * deltaDistY
 	} else {
 		stepY = 1
-		sideDistY = (float64(mapY) + 1.0 - r.PlayerY) * deltaDistY
+		sideDistY = (float64(mapY) + 1.0 - playerY) * deltaDistY
 	}
+	return sideDistX, sideDistY, stepX, stepY
+}
+
+// castRay performs DDA raycasting and returns distance and wall type.
+func (r *Renderer) castRay(rayDirX, rayDirY float64) (float64, int) {
+	mapX := int(r.PlayerX)
+	mapY := int(r.PlayerY)
+
+	deltaDistX, deltaDistY := calculateDeltaDist(rayDirX, rayDirY)
+	sideDistX, sideDistY, stepX, stepY := calculateSideDist(
+		r.PlayerX, r.PlayerY, mapX, mapY,
+		rayDirX, rayDirY, deltaDistX, deltaDistY,
+	)
 
 	// DDA loop
 	hit := false
 	side := 0 // 0 = NS wall, 1 = EW wall
-	maxSteps := 64
 
-	for i := 0; i < maxSteps && !hit; i++ {
+	for i := 0; i < MaxRaySteps && !hit; i++ {
 		if sideDistX < sideDistY {
 			sideDistX += deltaDistX
 			mapX += stepX
@@ -103,9 +133,7 @@ func (r *Renderer) castRay(rayDirX, rayDirY float64) (float64, int) {
 			side = 1
 		}
 
-		// Check map bounds and wall hit
-		if mapX >= 0 && mapX < len(r.WorldMap) &&
-			mapY >= 0 && mapY < len(r.WorldMap[0]) {
+		if mapX >= 0 && mapX < len(r.WorldMap) && mapY >= 0 && mapY < len(r.WorldMap[0]) {
 			if r.WorldMap[mapX][mapY] > 0 {
 				hit = true
 			}
@@ -115,7 +143,7 @@ func (r *Renderer) castRay(rayDirX, rayDirY float64) (float64, int) {
 	}
 
 	if !hit {
-		return 100.0, 0
+		return MaxRayDistance, 0
 	}
 
 	// Calculate perpendicular distance
@@ -127,8 +155,7 @@ func (r *Renderer) castRay(rayDirX, rayDirY float64) (float64, int) {
 	}
 
 	wallType := 0
-	if mapX >= 0 && mapX < len(r.WorldMap) &&
-		mapY >= 0 && mapY < len(r.WorldMap[0]) {
+	if mapX >= 0 && mapX < len(r.WorldMap) && mapY >= 0 && mapY < len(r.WorldMap[0]) {
 		wallType = r.WorldMap[mapX][mapY]
 	}
 
@@ -151,9 +178,9 @@ func (r *Renderer) getWallColor(wallType int, distance float64) color.RGBA {
 	}
 
 	// Apply distance fog
-	fogFactor := 1.0 - (distance / 16.0)
-	if fogFactor < 0.2 {
-		fogFactor = 0.2
+	fogFactor := 1.0 - (distance / FogDistance)
+	if fogFactor < MinFogFactor {
+		fogFactor = MinFogFactor
 	}
 	if fogFactor > 1.0 {
 		fogFactor = 1.0

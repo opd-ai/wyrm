@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"math"
 	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -20,20 +21,65 @@ import (
 
 // Game implements the ebiten.Game interface.
 type Game struct {
-	cfg       *config.Config
-	world     *ecs.World
-	renderer  *raycast.Renderer
-	client    *network.Client
-	connected bool
+	cfg          *config.Config
+	world        *ecs.World
+	renderer     *raycast.Renderer
+	client       *network.Client
+	connected    bool
+	playerEntity ecs.Entity
 }
 
+// Update advances game state by one tick, processing player input and ECS systems.
 func (g *Game) Update() error {
 	const dt = 1.0 / 60.0
+
+	// Handle player input
+	if g.playerEntity != 0 {
+		if comp, ok := g.world.GetComponent(g.playerEntity, "Position"); ok {
+			pos := comp.(*components.Position)
+			const moveSpeed = 3.0 // units per second
+			const turnSpeed = 2.0 // radians per second
+
+			// Movement (WASD or arrow keys)
+			if ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyUp) {
+				pos.X += math.Cos(pos.Angle) * moveSpeed * dt
+				pos.Y += math.Sin(pos.Angle) * moveSpeed * dt
+			}
+			if ebiten.IsKeyPressed(ebiten.KeyS) || ebiten.IsKeyPressed(ebiten.KeyDown) {
+				pos.X -= math.Cos(pos.Angle) * moveSpeed * dt
+				pos.Y -= math.Sin(pos.Angle) * moveSpeed * dt
+			}
+			if ebiten.IsKeyPressed(ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyLeft) {
+				pos.Angle -= turnSpeed * dt
+			}
+			if ebiten.IsKeyPressed(ebiten.KeyD) || ebiten.IsKeyPressed(ebiten.KeyRight) {
+				pos.Angle += turnSpeed * dt
+			}
+			// Strafe
+			if ebiten.IsKeyPressed(ebiten.KeyQ) {
+				pos.X += math.Cos(pos.Angle-math.Pi/2) * moveSpeed * dt
+				pos.Y += math.Sin(pos.Angle-math.Pi/2) * moveSpeed * dt
+			}
+			if ebiten.IsKeyPressed(ebiten.KeyE) {
+				pos.X += math.Cos(pos.Angle+math.Pi/2) * moveSpeed * dt
+				pos.Y += math.Sin(pos.Angle+math.Pi/2) * moveSpeed * dt
+			}
+		}
+	}
+
 	g.world.Update(dt)
 	return nil
 }
 
+// Draw renders the current frame using the raycaster and displays debug info.
 func (g *Game) Draw(screen *ebiten.Image) {
+	// Sync player position to renderer
+	if g.playerEntity != 0 {
+		if comp, ok := g.world.GetComponent(g.playerEntity, "Position"); ok {
+			pos := comp.(*components.Position)
+			g.renderer.SetPlayerPos(pos.X, pos.Y, pos.Angle)
+		}
+	}
 	g.renderer.Draw(screen)
 	status := "offline"
 	if g.connected {
@@ -42,6 +88,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	ebitenutil.DebugPrint(screen, fmt.Sprintf("Wyrm [%s] %s", g.cfg.Genre, status))
 }
 
+// Layout returns the game's logical screen dimensions.
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return g.cfg.Window.Width, g.cfg.Window.Height
 }
@@ -82,11 +129,12 @@ func main() {
 	}
 
 	game := &Game{
-		cfg:       cfg,
-		world:     world,
-		renderer:  renderer,
-		client:    client,
-		connected: connected,
+		cfg:          cfg,
+		world:        world,
+		renderer:     renderer,
+		client:       client,
+		connected:    connected,
+		playerEntity: player,
 	}
 
 	ebiten.SetWindowSize(cfg.Window.Width, cfg.Window.Height)

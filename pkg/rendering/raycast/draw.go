@@ -38,8 +38,8 @@ func (r *Renderer) Draw(screen *ebiten.Image) {
 		distance *= math.Cos(cameraX * (r.FOV / 2))
 
 		// Calculate wall height
-		if distance < 0.1 {
-			distance = 0.1
+		if distance < MinWallDistance {
+			distance = MinWallDistance
 		}
 		wallHeight := int(float64(r.Height) / distance)
 		if wallHeight > r.Height {

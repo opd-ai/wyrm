@@ -1,9 +1,10 @@
 // Package components defines all ECS component data types.
 package components
 
-// Position represents a 3D location in the world.
+// Position represents a 3D location and orientation in the world.
 type Position struct {
 	X, Y, Z float64
+	Angle   float64 // Heading angle in radians (0 = East, PI/2 = North)
 }
 
 // Type returns the component type identifier for Position.

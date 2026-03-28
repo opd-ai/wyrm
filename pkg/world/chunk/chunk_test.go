@@ -109,8 +109,8 @@ func TestChunkGetHeight(t *testing.T) {
 	}
 }
 
-func TestChunkManagerGetChunk(t *testing.T) {
-	cm := NewChunkManager(16, 12345)
+func TestManagerGetChunk(t *testing.T) {
+	cm := NewManager(16, 12345)
 
 	c1 := cm.GetChunk(0, 0)
 	if c1 == nil {
@@ -121,8 +121,8 @@ func TestChunkManagerGetChunk(t *testing.T) {
 	}
 }
 
-func TestChunkManagerCaching(t *testing.T) {
-	cm := NewChunkManager(16, 12345)
+func TestManagerCaching(t *testing.T) {
+	cm := NewManager(16, 12345)
 
 	c1 := cm.GetChunk(5, 10)
 	c2 := cm.GetChunk(5, 10)
@@ -133,8 +133,8 @@ func TestChunkManagerCaching(t *testing.T) {
 	}
 }
 
-func TestChunkManagerDifferentCoordinates(t *testing.T) {
-	cm := NewChunkManager(16, 12345)
+func TestManagerDifferentCoordinates(t *testing.T) {
+	cm := NewManager(16, 12345)
 
 	c1 := cm.GetChunk(0, 0)
 	c2 := cm.GetChunk(1, 0)
@@ -144,8 +144,8 @@ func TestChunkManagerDifferentCoordinates(t *testing.T) {
 	}
 }
 
-func TestChunkManagerSeedMixing(t *testing.T) {
-	cm := NewChunkManager(16, 12345)
+func TestManagerSeedMixing(t *testing.T) {
+	cm := NewManager(16, 12345)
 
 	c00 := cm.GetChunk(0, 0)
 	c01 := cm.GetChunk(0, 1)
@@ -163,8 +163,8 @@ func TestChunkManagerSeedMixing(t *testing.T) {
 	}
 }
 
-func TestChunkManagerUnloadChunk(t *testing.T) {
-	cm := NewChunkManager(16, 12345)
+func TestManagerUnloadChunk(t *testing.T) {
+	cm := NewManager(16, 12345)
 
 	_ = cm.GetChunk(0, 0)
 	if cm.LoadedCount() != 1 {
@@ -177,8 +177,8 @@ func TestChunkManagerUnloadChunk(t *testing.T) {
 	}
 }
 
-func TestChunkManagerLoadedCount(t *testing.T) {
-	cm := NewChunkManager(16, 12345)
+func TestManagerLoadedCount(t *testing.T) {
+	cm := NewManager(16, 12345)
 
 	if cm.LoadedCount() != 0 {
 		t.Errorf("expected 0 loaded chunks initially, got %d", cm.LoadedCount())
@@ -228,8 +228,8 @@ func BenchmarkNewChunk(b *testing.B) {
 	}
 }
 
-func BenchmarkChunkManagerGetChunk(b *testing.B) {
-	cm := NewChunkManager(64, 12345)
+func BenchmarkManagerGetChunk(b *testing.B) {
+	cm := NewManager(64, 12345)
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {

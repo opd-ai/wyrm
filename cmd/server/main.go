@@ -14,6 +14,7 @@ import (
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 	"github.com/opd-ai/wyrm/pkg/engine/systems"
 	"github.com/opd-ai/wyrm/pkg/network"
+	"github.com/opd-ai/wyrm/pkg/procgen/city"
 	"github.com/opd-ai/wyrm/pkg/world/chunk"
 )
 
@@ -24,7 +25,29 @@ func main() {
 	}
 
 	world := ecs.NewWorld()
-	cm := chunk.NewChunkManager(cfg.World.ChunkSize, cfg.World.Seed)
+	cm := chunk.NewManager(cfg.World.ChunkSize, cfg.World.Seed)
+
+	// Generate the city and spawn building entities
+	generatedCity := city.Generate(cfg.World.Seed, cfg.Genre)
+	log.Printf("generated city: %s (%s) with %d districts", generatedCity.Name, cfg.Genre, len(generatedCity.Districts))
+	for _, district := range generatedCity.Districts {
+		// Create a marker entity for each district center
+		districtEntity := world.CreateEntity()
+		if err := world.AddComponent(districtEntity, &components.Position{
+			X: district.CenterX,
+			Y: district.CenterY,
+			Z: 0,
+		}); err != nil {
+			log.Printf("warning: failed to add district position: %v", err)
+		}
+		if err := world.AddComponent(districtEntity, &components.EconomyNode{
+			PriceTable: make(map[string]float64),
+			Supply:     make(map[string]int),
+			Demand:     make(map[string]int),
+		}); err != nil {
+			log.Printf("warning: failed to add economy node: %v", err)
+		}
+	}
 
 	// Create world clock entity (60 real seconds = 1 game hour)
 	clockEntity := world.CreateEntity()
