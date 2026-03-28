@@ -78,11 +78,11 @@ Wyrm is a 100% procedurally generated first-person open-world RPG built in Go 1.
 
 ### MEDIUM
 
-- [ ] **NPCScheduleSystem.WorldHour never advances** — `pkg/engine/systems/systems.go:51-70` — The system checks `s.WorldHour` against schedules but nothing increments WorldHour. NPCs will never change activity. **Remediation:** Add a WorldClock system that increments NPCScheduleSystem.WorldHour based on elapsed time. Track accumulated dt and advance hour every N seconds of game time.
+- [x] **NPCScheduleSystem.WorldHour never advances** — `pkg/engine/systems/systems.go:51-70` — The system checks `s.WorldHour` against schedules but nothing increments WorldHour. NPCs will never change activity. **Remediation:** Add a WorldClock system that increments NPCScheduleSystem.WorldHour based on elapsed time. Track accumulated dt and advance hour every N seconds of game time.
 
-- [ ] **WeatherSystem only initializes CurrentWeather once** — `pkg/engine/systems/systems.go:150-163` — After setting `CurrentWeather = "clear"`, the system never changes weather. The claimed "Rain, snow, fog, sandstorms, thunderstorms" are absent. **Remediation:** Add weather transition logic: if `s.TimeAccum > weatherDuration`, randomly select new weather from genre-appropriate pool.
+- [x] **WeatherSystem only initializes CurrentWeather once** — `pkg/engine/systems/systems.go:150-163` — After setting `CurrentWeather = "clear"`, the system never changes weather. The claimed "Rain, snow, fog, sandstorms, thunderstorms" are absent. **Remediation:** Add weather transition logic: if `s.TimeAccum > weatherDuration`, randomly select new weather from genre-appropriate pool.
 
-- [ ] **VehicleSystem only moves along X axis** — `pkg/engine/systems/systems.go:115-140` — `pos.X += vehicle.Speed * dt` only updates X coordinate. Real vehicle physics requires direction vector and Z-axis support. **Remediation:** Add Direction component (heading angle). Update position: `pos.X += cos(dir) * speed * dt; pos.Y += sin(dir) * speed * dt`.
+- [x] **VehicleSystem only moves along X axis** — `pkg/engine/systems/systems.go:115-140` — `pos.X += vehicle.Speed * dt` only updates X coordinate. Real vehicle physics requires direction vector and Z-axis support. **Remediation:** Add Direction component (heading angle). Update position: `pos.X += cos(dir) * speed * dt; pos.Y += sin(dir) * speed * dt`.
 
 - [ ] **Network protocol is echo-only** — `pkg/network/network.go:79-94` — The server echoes received bytes back to client with no message parsing. No game state synchronization occurs. **Remediation:** Define message types (PlayerInput, WorldState, EntityUpdate) with encoding. Implement message dispatch in handleClient().
 

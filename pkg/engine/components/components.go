@@ -49,6 +49,7 @@ type Vehicle struct {
 	VehicleType string
 	Speed       float64
 	Fuel        float64
+	Direction   float64 // Heading angle in radians (0 = East, PI/2 = North)
 }
 
 // Type returns the component type identifier for Vehicle.

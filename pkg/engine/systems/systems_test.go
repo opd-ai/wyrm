@@ -106,7 +106,8 @@ func TestVehicleSystemMovement(t *testing.T) {
 
 	e := w.CreateEntity()
 	pos := &components.Position{X: 0, Y: 0, Z: 0}
-	vehicle := &components.Vehicle{VehicleType: "car", Speed: 10, Fuel: 100}
+	// Direction = 0 means facing East (positive X)
+	vehicle := &components.Vehicle{VehicleType: "car", Speed: 10, Fuel: 100, Direction: 0}
 	_ = w.AddComponent(e, pos)
 	_ = w.AddComponent(e, vehicle)
 
@@ -115,7 +116,7 @@ func TestVehicleSystemMovement(t *testing.T) {
 
 	w.Update(1.0) // 1 second update
 
-	// Position should have changed
+	// Position should have changed in X direction
 	if pos.X <= initialX {
 		t.Error("vehicle position X should have increased")
 	}
@@ -123,6 +124,28 @@ func TestVehicleSystemMovement(t *testing.T) {
 	// Fuel should have decreased
 	if vehicle.Fuel >= initialFuel {
 		t.Error("vehicle fuel should have decreased")
+	}
+}
+
+func TestVehicleSystemDirectionalMovement(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := &VehicleSystem{}
+	w.RegisterSystem(sys)
+
+	e := w.CreateEntity()
+	pos := &components.Position{X: 0, Y: 0, Z: 0}
+	// Direction = PI/2 means facing North (positive Y)
+	vehicle := &components.Vehicle{VehicleType: "car", Speed: 10, Fuel: 100, Direction: 1.5707963} // ~PI/2
+	_ = w.AddComponent(e, pos)
+	_ = w.AddComponent(e, vehicle)
+
+	initialY := pos.Y
+
+	w.Update(1.0)
+
+	// Y should have increased significantly
+	if pos.Y <= initialY {
+		t.Errorf("vehicle position Y should have increased with direction PI/2, got Y=%f", pos.Y)
 	}
 }
 

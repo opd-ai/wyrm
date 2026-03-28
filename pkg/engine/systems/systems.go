@@ -2,6 +2,8 @@
 package systems
 
 import (
+	"math"
+
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 	"github.com/opd-ai/wyrm/pkg/world/chunk"
@@ -376,9 +378,10 @@ func (s *VehicleSystem) Update(w *ecs.World, dt float64) {
 		}
 		vehicle := vComp.(*components.Vehicle)
 		pos := pComp.(*components.Position)
-		// Apply vehicle movement based on speed
+		// Apply vehicle movement based on speed and direction
 		if vehicle.Fuel > 0 && vehicle.Speed > 0 {
-			pos.X += vehicle.Speed * dt
+			pos.X += math.Cos(vehicle.Direction) * vehicle.Speed * dt
+			pos.Y += math.Sin(vehicle.Direction) * vehicle.Speed * dt
 			vehicle.Fuel -= vehicle.Speed * dt * 0.01
 			if vehicle.Fuel < 0 {
 				vehicle.Fuel = 0
