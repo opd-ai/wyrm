@@ -49,13 +49,13 @@ The project states it is in **Phase 1 (Foundation)** of a 6-phase implementation
 
 - [x] **ChunkManager created but unused** — `cmd/server/main.go:24` — `_ = chunk.NewChunkManager(...)` discards the return value. Chunk system cannot function. — **Remediation:** Store the ChunkManager and pass it to WorldChunkSystem: `cm := chunk.NewChunkManager(...); world.RegisterSystem(&systems.WorldChunkSystem{Manager: cm})`.
 
-- [ ] **City generator produces no content** — `pkg/procgen/city/city.go:19-25` — `Generate()` returns a hardcoded empty city with no districts, ignoring the seed and genre parameters. — **Remediation:** Implement deterministic city generation using the seed: create districts based on `rand.New(rand.NewSource(seed))`, name city based on genre vocabulary.
+- [x] **City generator produces no content** — `pkg/procgen/city/city.go:19-25` — `Generate()` returns a hardcoded empty city with no districts, ignoring the seed and genre parameters. — **Remediation:** Implement deterministic city generation using the seed: create districts based on `rand.New(rand.NewSource(seed))`, name city based on genre vocabulary.
 
-- [ ] **Zero test coverage** — All 12 packages report `[no test files]` — No verification of any functionality. Regressions cannot be detected. Phase 1 acceptance criteria states "go test ./pkg/engine/... passes". — **Remediation:** Create `pkg/engine/ecs/ecs_test.go` with table-driven tests for CreateEntity, AddComponent, Entities query. Target ≥40% coverage per package.
+- [x] **Zero test coverage** — All 12 packages report `[no test files]` — No verification of any functionality. Regressions cannot be detected. Phase 1 acceptance criteria states "go test ./pkg/engine/... passes". — **Remediation:** Create `pkg/engine/ecs/ecs_test.go` with table-driven tests for CreateEntity, AddComponent, Entities query. Target ≥40% coverage per package.
 
 ### HIGH
 
-- [ ] **Raycaster renders solid color only** — `pkg/rendering/raycast/raycast.go:22-24` — `Draw()` fills screen with `color.RGBA{20, 12, 28, 255}`. No wall casting, no floor/ceiling, no 3D illusion. — **Remediation:** Implement DDA raycasting algorithm referencing Violence `pkg/raycaster`. Draw vertical strips based on ray-wall intersections. Verify with visual inspection of `./client`.
+- [x] **Raycaster renders solid color only** — `pkg/rendering/raycast/raycast.go:22-24` — `Draw()` fills screen with `color.RGBA{20, 12, 28, 255}`. No wall casting, no floor/ceiling, no 3D illusion. — **Remediation:** Implement DDA raycasting algorithm referencing Violence `pkg/raycaster`. Draw vertical strips based on ray-wall intersections. Verify with visual inspection of `./client`.
 
 - [ ] **Texture generator produces uniform grey** — `pkg/rendering/texture/texture.go:17-26` — All pixels set to `{64, 64, 64, 255}`. No procedural variation, no noise, no genre palette. — **Remediation:** Implement Perlin/simplex noise for texture variation. Add genre-based palette selection. Verify output differs for different seeds.
 
