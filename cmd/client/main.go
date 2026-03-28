@@ -1,3 +1,5 @@
+//go:build !noebiten
+
 // Command client launches the Wyrm game client with an Ebitengine window.
 package main
 
