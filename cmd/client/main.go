@@ -10,6 +10,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/opd-ai/wyrm/config"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
+	"github.com/opd-ai/wyrm/pkg/engine/systems"
 	"github.com/opd-ai/wyrm/pkg/rendering/raycast"
 )
 
@@ -43,6 +44,11 @@ func main() {
 
 	world := ecs.NewWorld()
 	renderer := raycast.NewRenderer(cfg.Window.Width, cfg.Window.Height)
+
+	// Register client-side systems
+	world.RegisterSystem(&systems.RenderSystem{})
+	world.RegisterSystem(&systems.AudioSystem{Genre: cfg.Genre})
+	world.RegisterSystem(&systems.WeatherSystem{})
 
 	game := &Game{
 		cfg:      cfg,

@@ -43,11 +43,11 @@ The project states it is in **Phase 1 (Foundation)** of a 6-phase implementation
 
 ### CRITICAL
 
-- [ ] **All ECS systems non-functional** — `pkg/engine/systems/systems.go:11-61` — All 11 system `Update()` methods have empty bodies (`{}`). No game logic executes even though the ECS framework is correctly designed. — **Remediation:** Implement at least the `WorldChunkSystem.Update()` and `RenderSystem.Update()` methods with minimal working logic. Verify with `go test -run TestSystemUpdate ./pkg/engine/systems/`.
+- [x] **All ECS systems non-functional** — `pkg/engine/systems/systems.go:11-61` — All 11 system `Update()` methods have empty bodies (`{}`). No game logic executes even though the ECS framework is correctly designed. — **Remediation:** Implement at least the `WorldChunkSystem.Update()` and `RenderSystem.Update()` methods with minimal working logic. Verify with `go test -run TestSystemUpdate ./pkg/engine/systems/`.
 
-- [ ] **No systems registered in game loop** — `cmd/client/main.go:44`, `cmd/server/main.go:23` — `world.Update(dt)` is called but zero systems are registered. The ECS architecture is complete but completely disconnected. — **Remediation:** Add `world.RegisterSystem(&systems.RenderSystem{})` (client) and register WorldChunk, NPCSchedule, Economy systems (server) after `ecs.NewWorld()`. Verify with `./client` running and debug output.
+- [x] **No systems registered in game loop** — `cmd/client/main.go:44`, `cmd/server/main.go:23` — `world.Update(dt)` is called but zero systems are registered. The ECS architecture is complete but completely disconnected. — **Remediation:** Add `world.RegisterSystem(&systems.RenderSystem{})` (client) and register WorldChunk, NPCSchedule, Economy systems (server) after `ecs.NewWorld()`. Verify with `./client` running and debug output.
 
-- [ ] **ChunkManager created but unused** — `cmd/server/main.go:24` — `_ = chunk.NewChunkManager(...)` discards the return value. Chunk system cannot function. — **Remediation:** Store the ChunkManager and pass it to WorldChunkSystem: `cm := chunk.NewChunkManager(...); world.RegisterSystem(&systems.WorldChunkSystem{Manager: cm})`.
+- [x] **ChunkManager created but unused** — `cmd/server/main.go:24` — `_ = chunk.NewChunkManager(...)` discards the return value. Chunk system cannot function. — **Remediation:** Store the ChunkManager and pass it to WorldChunkSystem: `cm := chunk.NewChunkManager(...); world.RegisterSystem(&systems.WorldChunkSystem{Manager: cm})`.
 
 - [ ] **City generator produces no content** — `pkg/procgen/city/city.go:19-25` — `Generate()` returns a hardcoded empty city with no districts, ignoring the seed and genre parameters. — **Remediation:** Implement deterministic city generation using the seed: create districts based on `rand.New(rand.NewSource(seed))`, name city based on genre vocabulary.
 
