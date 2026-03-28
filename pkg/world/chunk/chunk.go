@@ -4,6 +4,8 @@ package chunk
 import (
 	"encoding/binary"
 	"hash/fnv"
+	"math"
+	"math/rand"
 	"sync"
 )
 
@@ -15,15 +17,101 @@ type Chunk struct {
 	HeightMap []float64
 }
 
-// NewChunk creates a new chunk at the given coordinates.
+// NewChunk creates a new chunk at the given coordinates with generated terrain.
 func NewChunk(x, y, size int, seed int64) *Chunk {
+	heightMap := generateHeightMap(size, seed)
 	return &Chunk{
 		X:         x,
 		Y:         y,
 		Size:      size,
 		Seed:      seed,
-		HeightMap: make([]float64, size*size),
+		HeightMap: heightMap,
 	}
+}
+
+// generateHeightMap creates a procedural heightmap using noise.
+func generateHeightMap(size int, seed int64) []float64 {
+	heightMap := make([]float64, size*size)
+	rng := rand.New(rand.NewSource(seed))
+
+	// Generate base offset for this chunk
+	offsetX := rng.Float64() * 1000
+	offsetY := rng.Float64() * 1000
+
+	for y := 0; y < size; y++ {
+		for x := 0; x < size; x++ {
+			// Multi-octave noise for terrain
+			nx := (float64(x) + offsetX) * 0.01
+			ny := (float64(y) + offsetY) * 0.01
+
+			height := 0.0
+			amplitude := 1.0
+			frequency := 1.0
+
+			// 4 octaves of noise
+			for oct := 0; oct < 4; oct++ {
+				height += chunkNoise2D(nx*frequency, ny*frequency, seed+int64(oct)) * amplitude
+				amplitude *= 0.5
+				frequency *= 2.0
+			}
+
+			// Normalize to [0, 1]
+			height = (height + 1.0) / 2.0
+			heightMap[y*size+x] = height
+		}
+	}
+
+	return heightMap
+}
+
+// chunkNoise2D generates 2D value noise for the given coordinates.
+func chunkNoise2D(x, y float64, seed int64) float64 {
+	xi := int(math.Floor(x))
+	yi := int(math.Floor(y))
+	xf := x - float64(xi)
+	yf := y - float64(yi)
+
+	v00 := chunkHashToFloat(xi, yi, seed)
+	v10 := chunkHashToFloat(xi+1, yi, seed)
+	v01 := chunkHashToFloat(xi, yi+1, seed)
+	v11 := chunkHashToFloat(xi+1, yi+1, seed)
+
+	sx := chunkSmoothstep(xf)
+	sy := chunkSmoothstep(yf)
+
+	v0 := chunkLerp(v00, v10, sx)
+	v1 := chunkLerp(v01, v11, sx)
+
+	return chunkLerp(v0, v1, sy)*2 - 1 // Return in [-1, 1] range
+}
+
+// chunkHashToFloat converts coordinates to a pseudo-random float in [0, 1].
+func chunkHashToFloat(x, y int, seed int64) float64 {
+	h := uint64(seed)
+	h ^= uint64(x) * 0x9E3779B97F4A7C15
+	h ^= uint64(y) * 0xBF58476D1CE4E5B9
+	h = (h ^ (h >> 30)) * 0xBF58476D1CE4E5B9
+	h = (h ^ (h >> 27)) * 0x94D049BB133111EB
+	h ^= h >> 31
+	return float64(h&0x7FFFFFFFFFFFFFFF) / float64(0x7FFFFFFFFFFFFFFF)
+}
+
+// chunkSmoothstep applies smoothstep interpolation.
+func chunkSmoothstep(t float64) float64 {
+	return t * t * (3 - 2*t)
+}
+
+// chunkLerp performs linear interpolation.
+func chunkLerp(a, b, t float64) float64 {
+	return a + t*(b-a)
+}
+
+// GetHeight returns the height at the given local coordinates.
+func (c *Chunk) GetHeight(localX, localY int) float64 {
+	if localX < 0 || localX >= c.Size || localY < 0 || localY >= c.Size {
+		return 0
+	}
+	return c.HeightMap[localY*c.Size+localX]
 }
 
 // ChunkManager handles loading, caching, and streaming of chunks.
