@@ -1,7 +1,11 @@
 // Package chunk manages world chunk data and streaming.
 package chunk
 
-import "sync"
+import (
+	"encoding/binary"
+	"hash/fnv"
+	"sync"
+)
 
 // Chunk represents a single world chunk with a deterministic seed.
 type Chunk struct {
@@ -57,7 +61,32 @@ func (cm *ChunkManager) GetChunk(x, y int) *Chunk {
 		return c
 	}
 
-	c := NewChunk(x, y, cm.ChunkSize, cm.Seed+int64(x)*31+int64(y)*37)
+	chunkSeed := mixChunkSeed(cm.Seed, x, y)
+	c := NewChunk(x, y, cm.ChunkSize, chunkSeed)
 	cm.loaded[key] = c
 	return c
+}
+
+// mixChunkSeed derives a deterministic chunk seed using FNV-1a hashing.
+func mixChunkSeed(baseSeed int64, x, y int) int64 {
+	h := fnv.New64a()
+	_ = binary.Write(h, binary.LittleEndian, baseSeed)
+	_ = binary.Write(h, binary.LittleEndian, int64(x))
+	_ = binary.Write(h, binary.LittleEndian, int64(y))
+	return int64(h.Sum64())
+}
+
+// UnloadChunk removes a chunk from the cache.
+func (cm *ChunkManager) UnloadChunk(x, y int) {
+	key := [2]int{x, y}
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	delete(cm.loaded, key)
+}
+
+// LoadedCount returns the number of chunks currently loaded.
+func (cm *ChunkManager) LoadedCount() int {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return len(cm.loaded)
 }

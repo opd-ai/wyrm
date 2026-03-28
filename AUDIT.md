@@ -59,21 +59,21 @@ The project states it is in **Phase 1 (Foundation)** of a 6-phase implementation
 
 - [x] **Texture generator produces uniform grey** — `pkg/rendering/texture/texture.go:17-26` — All pixels set to `{64, 64, 64, 255}`. No procedural variation, no noise, no genre palette. — **Remediation:** Implement Perlin/simplex noise for texture variation. Add genre-based palette selection. Verify output differs for different seeds.
 
-- [ ] **Audio engine has no synthesis** — `pkg/audio/audio.go:11-19` — `Engine` stores genre but `Update()` is empty. No oscillators, no envelopes, no Ebitengine audio context. — **Remediation:** Implement basic oscillator (sine wave) with ADSR envelope using Ebitengine's `audio.NewContext()`. Verify audio plays with `./client`.
+- [x] **Audio engine has no synthesis** — `pkg/audio/audio.go:11-19` — `Engine` stores genre but `Update()` is empty. No oscillators, no envelopes, no Ebitengine audio context. — **Remediation:** Implement basic oscillator (sine wave) with ADSR envelope using Ebitengine's `audio.NewContext()`. Verify audio plays with `./client`.
 
-- [ ] **Server has no tick loop** — `cmd/server/main.go:26-40` — Server starts listener then blocks on signal. No game tick, no world updates, no client handling. — **Remediation:** Add goroutine with `time.Ticker` at `cfg.Server.TickRate` Hz that calls `world.Update(dt)`. Verify with logging tick counts.
+- [x] **Server has no tick loop** — `cmd/server/main.go:26-40` — Server starts listener then blocks on signal. No game tick, no world updates, no client handling. — **Remediation:** Add goroutine with `time.Ticker` at `cfg.Server.TickRate` Hz that calls `world.Update(dt)`. Verify with logging tick counts.
 
-- [ ] **Network server accepts no connections** — `pkg/network/network.go:22-30` — `Start()` creates listener but no `Accept()` goroutine. Clients cannot connect. — **Remediation:** Add `go s.acceptLoop()` that calls `s.listener.Accept()` and handles connections. Verify with `nc localhost 7777`.
+- [x] **Network server accepts no connections** — `pkg/network/network.go:22-30` — `Start()` creates listener but no `Accept()` goroutine. Clients cannot connect. — **Remediation:** Add `go s.acceptLoop()` that calls `s.listener.Accept()` and handles connections. Verify with `nc localhost 7777`.
 
-- [ ] **V-Series generators not imported** — `go.mod:1-35` — No dependency on `github.com/opd-ai/venture`. All 25+ procgen packages unavailable. — **Remediation:** Add `require github.com/opd-ai/venture v0.x.x` to go.mod. Run `go mod tidy`. Wrap Venture generators in Wyrm adapters.
+- [x] **V-Series generators not imported** — `go.mod:1-35` — No dependency on `github.com/opd-ai/venture`. All 25+ procgen packages unavailable. — **Remediation:** Add `require github.com/opd-ai/venture v0.x.x` to go.mod. Run `go mod tidy`. Wrap Venture generators in Wyrm adapters.
 
 ### MEDIUM
 
-- [ ] **Chunk seed derivation uses weak mixing** — `pkg/world/chunk/chunk.go:60` — `cm.Seed+int64(x)*31+int64(y)*37` is linear and predictable. Can produce seed collisions. — **Remediation:** Use FNV-1a hash mixing: `h := fnv.New64a(); binary.Write(h, binary.LittleEndian, seed); binary.Write(h, binary.LittleEndian, int64(x)); binary.Write(h, binary.LittleEndian, int64(y)); chunkSeed := int64(h.Sum64())`.
+- [x] **Chunk seed derivation uses weak mixing** — `pkg/world/chunk/chunk.go:60` — `cm.Seed+int64(x)*31+int64(y)*37` is linear and predictable. Can produce seed collisions. — **Remediation:** Use FNV-1a hash mixing: `h := fnv.New64a(); binary.Write(h, binary.LittleEndian, seed); binary.Write(h, binary.LittleEndian, int64(x)); binary.Write(h, binary.LittleEndian, int64(y)); chunkSeed := int64(h.Sum64())`.
 
-- [ ] **Method documentation coverage 38.2%** — `pkg/engine/systems/systems.go`, `pkg/engine/components/components.go` — 21 undocumented `Update()` and `Type()` methods. — **Remediation:** Add godoc comments to all exported methods: `// Update processes [system description] each tick.` and `// Type returns the component type identifier.`.
+- [x] **Method documentation coverage 38.2%** — `pkg/engine/systems/systems.go`, `pkg/engine/components/components.go` — 21 undocumented `Update()` and `Type()` methods. — **Remediation:** Add godoc comments to all exported methods: `// Update processes [system description] each tick.` and `// Type returns the component type identifier.`.
 
-- [ ] **Genre parameter ignored by most code** — Only `pkg/audio/audio.go:12` uses `Genre`. City generator, texture generator, systems ignore it. — **Remediation:** Pass `cfg.Genre` to all generator constructors. Add genre-based branching in Generate functions.
+- [x] **Genre parameter ignored by most code** — Only `pkg/audio/audio.go:12` uses `Genre`. City generator, texture generator, systems ignore it. — **Remediation:** Pass `cfg.Genre` to all generator constructors. Add genre-based branching in Generate functions.
 
 - [ ] **Client does not connect to server** — `cmd/client/main.go:38-60` — No network client instantiation or connection attempt. Client and server are completely disconnected. — **Remediation:** Add `client := network.NewClient(cfg.Server.Address); client.Connect()` in client main. Wire state sync to ECS world.
 

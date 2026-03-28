@@ -34,7 +34,7 @@ func (e *Engine) Update() {
 }
 
 // GenerateSineWave generates a sine wave buffer at the given frequency.
-func (e *Engine) GenerateSineWave(frequency float64, duration float64) []float64 {
+func (e *Engine) GenerateSineWave(frequency, duration float64) []float64 {
 	numSamples := int(duration * float64(e.SampleRate))
 	samples := make([]float64, numSamples)
 	phaseIncrement := 2 * math.Pi * frequency / float64(e.SampleRate)
