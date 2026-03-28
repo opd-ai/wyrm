@@ -57,7 +57,7 @@ The project states it is in **Phase 1 (Foundation)** of a 6-phase implementation
 
 - [x] **Raycaster renders solid color only** — `pkg/rendering/raycast/raycast.go:22-24` — `Draw()` fills screen with `color.RGBA{20, 12, 28, 255}`. No wall casting, no floor/ceiling, no 3D illusion. — **Remediation:** Implement DDA raycasting algorithm referencing Violence `pkg/raycaster`. Draw vertical strips based on ray-wall intersections. Verify with visual inspection of `./client`.
 
-- [ ] **Texture generator produces uniform grey** — `pkg/rendering/texture/texture.go:17-26` — All pixels set to `{64, 64, 64, 255}`. No procedural variation, no noise, no genre palette. — **Remediation:** Implement Perlin/simplex noise for texture variation. Add genre-based palette selection. Verify output differs for different seeds.
+- [x] **Texture generator produces uniform grey** — `pkg/rendering/texture/texture.go:17-26` — All pixels set to `{64, 64, 64, 255}`. No procedural variation, no noise, no genre palette. — **Remediation:** Implement Perlin/simplex noise for texture variation. Add genre-based palette selection. Verify output differs for different seeds.
 
 - [ ] **Audio engine has no synthesis** — `pkg/audio/audio.go:11-19` — `Engine` stores genre but `Update()` is empty. No oscillators, no envelopes, no Ebitengine audio context. — **Remediation:** Implement basic oscillator (sine wave) with ADSR envelope using Ebitengine's `audio.NewContext()`. Verify audio plays with `./client`.
 
