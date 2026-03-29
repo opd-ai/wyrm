@@ -14,6 +14,7 @@ import (
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 	"github.com/opd-ai/wyrm/pkg/engine/systems"
 	"github.com/opd-ai/wyrm/pkg/network"
+	"github.com/opd-ai/wyrm/pkg/procgen/adapters"
 	"github.com/opd-ai/wyrm/pkg/procgen/city"
 	"github.com/opd-ai/wyrm/pkg/world/chunk"
 )
@@ -27,9 +28,10 @@ func main() {
 	world := ecs.NewWorld()
 	cm := chunk.NewManager(cfg.World.ChunkSize, cfg.World.Seed)
 
-	initializeCity(world, cfg)
+	fps := initializeFactions(world, cfg)
+	initializeCity(world, cfg, fps)
 	initializeWorldClock(world)
-	registerServerSystems(world, cm, cfg)
+	registerServerSystems(world, cm, cfg, fps)
 
 	srv := network.NewServer(cfg.Server.Address)
 	if err := srv.Start(); err != nil {
@@ -42,12 +44,65 @@ func main() {
 	runServerLoop(world, cfg, srv)
 }
 
+// initializeFactions generates factions using V-Series generators.
+func initializeFactions(world *ecs.World, cfg *config.Config) *systems.FactionPoliticsSystem {
+	factionAdapter := adapters.NewFactionAdapter()
+	factions, err := factionAdapter.GenerateFactions(cfg.World.Seed, cfg.Genre, 20)
+	if err != nil {
+		log.Printf("warning: faction generation failed: %v", err)
+		return systems.NewFactionPoliticsSystem(0.1)
+	}
+
+	log.Printf("generated %d factions for genre %s", len(factions), cfg.Genre)
+	for _, f := range factions {
+		log.Printf("  - %s (%s): %d members", f.Name, f.Type, f.MemberCount)
+	}
+
+	fps := systems.NewFactionPoliticsSystem(0.1)
+	adapters.RegisterFactionsWithPoliticsSystem(fps, factions)
+	return fps
+}
+
 // initializeCity generates the city and spawns district entities.
-func initializeCity(world *ecs.World, cfg *config.Config) {
+func initializeCity(world *ecs.World, cfg *config.Config, fps *systems.FactionPoliticsSystem) {
 	generatedCity := city.Generate(cfg.World.Seed, cfg.Genre)
 	log.Printf("generated city: %s (%s) with %d districts", generatedCity.Name, cfg.Genre, len(generatedCity.Districts))
-	for _, district := range generatedCity.Districts {
+
+	// Generate NPCs using V-Series entity generator
+	entityAdapter := adapters.NewEntityAdapter()
+	factionAdapter := adapters.NewFactionAdapter()
+	factions, _ := factionAdapter.GenerateFactions(cfg.World.Seed, cfg.Genre, 20)
+
+	for i, district := range generatedCity.Districts {
 		createDistrictEntity(world, district)
+
+		// Spawn NPCs in each district using V-Series generator
+		factionID := "neutral"
+		if len(factions) > 0 {
+			factionID = factions[i%len(factions)].ID
+		}
+
+		districtSeed := cfg.World.Seed + int64(i)*10000
+		npcsPerDistrict := 5 + (district.Buildings / 10)
+		if npcsPerDistrict > 20 {
+			npcsPerDistrict = 20
+		}
+
+		entities, err := entityAdapter.GenerateAndSpawnNPCs(
+			world,
+			districtSeed,
+			cfg.Genre,
+			factionID,
+			npcsPerDistrict,
+			district.CenterX,
+			district.CenterY,
+			100.0,
+		)
+		if err != nil {
+			log.Printf("warning: NPC spawn failed for district %s: %v", district.Name, err)
+			continue
+		}
+		log.Printf("  spawned %d NPCs in district %s", len(entities), district.Name)
 	}
 }
 
@@ -83,11 +138,11 @@ func initializeWorldClock(world *ecs.World) {
 }
 
 // registerServerSystems registers all server-side ECS systems.
-func registerServerSystems(world *ecs.World, cm *chunk.Manager, cfg *config.Config) {
+func registerServerSystems(world *ecs.World, cm *chunk.Manager, cfg *config.Config, fps *systems.FactionPoliticsSystem) {
 	world.RegisterSystem(systems.NewWorldClockSystem(60.0))
 	world.RegisterSystem(systems.NewWorldChunkSystem(cm, cfg.World.ChunkSize))
 	world.RegisterSystem(&systems.NPCScheduleSystem{})
-	world.RegisterSystem(systems.NewFactionPoliticsSystem(0.1))
+	world.RegisterSystem(fps) // Use the pre-initialized faction politics system
 	world.RegisterSystem(systems.NewCrimeSystem(60.0, 100.0))
 	world.RegisterSystem(systems.NewEconomySystem(0.5, 0.1))
 	world.RegisterSystem(&systems.CombatSystem{})

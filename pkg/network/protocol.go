@@ -98,29 +98,53 @@ func (m *PlayerInput) encodeTimestamps(w io.Writer) error {
 // DecodePlayerInput reads a PlayerInput from a reader.
 func DecodePlayerInput(r io.Reader) (*PlayerInput, error) {
 	m := &PlayerInput{}
+	if err := m.decodeMovement(r); err != nil {
+		return nil, err
+	}
+	if err := m.decodeFlags(r); err != nil {
+		return nil, err
+	}
+	if err := m.decodeTimestamps(r); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// decodeMovement reads movement fields from the reader.
+func (m *PlayerInput) decodeMovement(r io.Reader) error {
 	if err := binary.Read(r, binary.LittleEndian, &m.MoveForward); err != nil {
-		return nil, fmt.Errorf("decode MoveForward: %w", err)
+		return fmt.Errorf("decode MoveForward: %w", err)
 	}
 	if err := binary.Read(r, binary.LittleEndian, &m.MoveRight); err != nil {
-		return nil, fmt.Errorf("decode MoveRight: %w", err)
+		return fmt.Errorf("decode MoveRight: %w", err)
 	}
 	if err := binary.Read(r, binary.LittleEndian, &m.Turn); err != nil {
-		return nil, fmt.Errorf("decode Turn: %w", err)
+		return fmt.Errorf("decode Turn: %w", err)
 	}
+	return nil
+}
+
+// decodeFlags reads and unpacks boolean flags from a byte.
+func (m *PlayerInput) decodeFlags(r io.Reader) error {
 	var flags uint8
 	if err := binary.Read(r, binary.LittleEndian, &flags); err != nil {
-		return nil, fmt.Errorf("decode flags: %w", err)
+		return fmt.Errorf("decode flags: %w", err)
 	}
 	m.Jump = flags&1 != 0
 	m.Attack = flags&2 != 0
 	m.Use = flags&4 != 0
+	return nil
+}
+
+// decodeTimestamps reads sequence number and client timestamp.
+func (m *PlayerInput) decodeTimestamps(r io.Reader) error {
 	if err := binary.Read(r, binary.LittleEndian, &m.SequenceNum); err != nil {
-		return nil, fmt.Errorf("decode SequenceNum: %w", err)
+		return fmt.Errorf("decode SequenceNum: %w", err)
 	}
 	if err := binary.Read(r, binary.LittleEndian, &m.ClientTimeMs); err != nil {
-		return nil, fmt.Errorf("decode ClientTimeMs: %w", err)
+		return fmt.Errorf("decode ClientTimeMs: %w", err)
 	}
-	return m, nil
+	return nil
 }
 
 // EntityState represents a single entity's state in a world update.

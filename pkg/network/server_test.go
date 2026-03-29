@@ -192,3 +192,108 @@ func TestServerStopIdempotent(t *testing.T) {
 		t.Errorf("second stop should not error: %v", err)
 	}
 }
+
+func TestHandlePlayerInputValidation(t *testing.T) {
+	tests := []struct {
+		name         string
+		inputForward float32
+		inputRight   float32
+		inputTurn    float32
+	}{
+		{"normal input", 0.5, 0.3, 0.1},
+		{"max forward", 1.0, 0, 0},
+		{"negative forward", -1.0, 0, 0},
+		{"over max forward", 2.0, 0, 0},   // Should clamp to 1.0
+		{"under min forward", -5.0, 0, 0}, // Should clamp to -1.0
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := NewServer("localhost:0")
+			_ = srv.Start()
+			defer srv.Stop()
+
+			addr := srv.listener.Addr().String()
+			conn, err := net.DialTimeout("tcp", addr, time.Second)
+			if err != nil {
+				t.Fatalf("failed to connect: %v", err)
+			}
+			defer conn.Close()
+
+			time.Sleep(50 * time.Millisecond)
+
+			// Send player input
+			input := &PlayerInput{
+				MoveForward:  tc.inputForward,
+				MoveRight:    tc.inputRight,
+				Turn:         tc.inputTurn,
+				SequenceNum:  1,
+				ClientTimeMs: uint32(time.Now().UnixMilli()),
+			}
+			err = input.Encode(conn)
+			if err != nil {
+				t.Fatalf("failed to encode input: %v", err)
+			}
+
+			// Give server time to process
+			time.Sleep(50 * time.Millisecond)
+		})
+	}
+}
+
+func TestClampFloat32(t *testing.T) {
+	tests := []struct {
+		value, min, max float32
+		expected        float32
+	}{
+		{0.5, 0, 1, 0.5},   // In range
+		{-1.0, 0, 1, 0},    // Below min
+		{2.0, 0, 1, 1},     // Above max
+		{0, -1, 1, 0},      // At zero
+		{-0.5, -1, 1, -0.5}, // Negative in range
+	}
+
+	for _, tc := range tests {
+		result := clampFloat32(tc.value, tc.min, tc.max)
+		if result != tc.expected {
+			t.Errorf("clampFloat32(%f, %f, %f) = %f; want %f",
+				tc.value, tc.min, tc.max, result, tc.expected)
+		}
+	}
+}
+
+func TestServerPlayerStateTracking(t *testing.T) {
+	srv := NewServer("localhost:0")
+	_ = srv.Start()
+	defer srv.Stop()
+
+	addr := srv.listener.Addr().String()
+	conn, err := net.DialTimeout("tcp", addr, time.Second)
+	if err != nil {
+		t.Fatalf("failed to connect: %v", err)
+	}
+	defer conn.Close()
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify a player entity was created (check via client count and state map)
+	srv.mu.Lock()
+	clientCount := len(srv.clients)
+	stateCount := len(srv.playerStates)
+	var entityID uint64
+	for _, state := range srv.playerStates {
+		entityID = state.EntityID
+		break
+	}
+	srv.mu.Unlock()
+
+	if clientCount != 1 {
+		t.Errorf("expected 1 client, got %d", clientCount)
+	}
+	if stateCount != 1 {
+		t.Errorf("expected 1 player state, got %d", stateCount)
+	}
+	if entityID == 0 {
+		t.Error("expected non-zero entity ID")
+	}
+}

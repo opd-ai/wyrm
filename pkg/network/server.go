@@ -3,6 +3,7 @@ package network
 
 import (
 	"log"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -10,18 +11,32 @@ import (
 
 // Server handles incoming client connections and authoritative game state.
 type Server struct {
-	Address  string
-	mu       sync.Mutex
-	listener net.Listener
-	clients  []net.Conn
-	running  bool
+	Address       string
+	mu            sync.Mutex
+	listener      net.Listener
+	clients       []net.Conn
+	clientPlayers map[net.Conn]uint64 // Connection to player entity ID
+	playerStates  map[uint64]*PlayerState
+	lastAck       map[net.Conn]uint32 // Last acknowledged input sequence per client
+	running       bool
+}
+
+// PlayerState stores authoritative player state.
+type PlayerState struct {
+	EntityID uint64
+	X, Y, Z  float32
+	Angle    float32
+	Health   float32
 }
 
 // NewServer creates a new network server.
 func NewServer(address string) *Server {
 	return &Server{
-		Address: address,
-		clients: make([]net.Conn, 0),
+		Address:       address,
+		clients:       make([]net.Conn, 0),
+		clientPlayers: make(map[net.Conn]uint64),
+		playerStates:  make(map[uint64]*PlayerState),
+		lastAck:       make(map[net.Conn]uint32),
 	}
 }
 
@@ -43,81 +58,219 @@ func (s *Server) Start() error {
 // acceptLoop continuously accepts incoming connections.
 func (s *Server) acceptLoop() {
 	for {
-		s.mu.Lock()
-		if !s.running {
-			s.mu.Unlock()
+		if !s.isRunning() {
 			return
 		}
-		listener := s.listener
-		s.mu.Unlock()
-
+		listener := s.getListener()
 		if listener == nil {
 			return
 		}
 
 		conn, err := listener.Accept()
 		if err != nil {
-			s.mu.Lock()
-			running := s.running
-			s.mu.Unlock()
-			if !running {
+			if !s.isRunning() {
 				return
 			}
 			log.Printf("accept error: %v", err)
 			continue
 		}
 
-		s.mu.Lock()
-		s.clients = append(s.clients, conn)
-		s.mu.Unlock()
-		log.Printf("client connected: %s", conn.RemoteAddr())
-
+		s.registerClient(conn)
 		go s.handleClient(conn)
 	}
 }
 
+// isRunning checks if the server is still running.
+func (s *Server) isRunning() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.running
+}
+
+// getListener returns the current listener.
+func (s *Server) getListener() net.Listener {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.listener
+}
+
+// nextEntityID generates a unique entity ID for a new player.
+var entityIDCounter uint64 = 1000
+
+func nextEntityID() uint64 {
+	entityIDCounter++
+	return entityIDCounter
+}
+
+// registerClient adds a new client connection and creates a player entity.
+func (s *Server) registerClient(conn net.Conn) {
+	entityID := nextEntityID()
+
+	s.mu.Lock()
+	s.clients = append(s.clients, conn)
+	s.clientPlayers[conn] = entityID
+	s.playerStates[entityID] = &PlayerState{
+		EntityID: entityID,
+		X:        0,
+		Y:        0,
+		Z:        0,
+		Angle:    0,
+		Health:   100,
+	}
+	s.lastAck[conn] = 0
+	s.mu.Unlock()
+	log.Printf("client connected: %s (entity %d)", conn.RemoteAddr(), entityID)
+}
+
 // handleClient manages a single client connection.
 func (s *Server) handleClient(conn net.Conn) {
-	defer func() {
-		conn.Close()
-		s.removeClient(conn)
-		log.Printf("client disconnected: %s", conn.RemoteAddr())
-	}()
+	defer s.cleanupClient(conn)
 
 	for {
-		msgType, err := ReadMessageType(conn)
-		if err != nil {
+		if err := s.processClientMessage(conn); err != nil {
 			return
-		}
-
-		switch msgType {
-		case MsgTypePlayerInput:
-			input, err := DecodePlayerInput(conn)
-			if err != nil {
-				log.Printf("decode PlayerInput: %v", err)
-				return
-			}
-			s.handlePlayerInput(conn, input)
-
-		case MsgTypePing:
-			ping, err := DecodePing(conn)
-			if err != nil {
-				log.Printf("decode Ping: %v", err)
-				return
-			}
-			s.handlePing(conn, ping)
-
-		default:
-			log.Printf("unknown message type: %d", msgType)
 		}
 	}
 }
 
+// cleanupClient closes a connection and removes it from tracking.
+func (s *Server) cleanupClient(conn net.Conn) {
+	s.mu.Lock()
+	entityID := s.clientPlayers[conn]
+	delete(s.clientPlayers, conn)
+	delete(s.playerStates, entityID)
+	delete(s.lastAck, conn)
+	s.mu.Unlock()
+
+	conn.Close()
+	s.removeClient(conn)
+	log.Printf("client disconnected: %s (entity %d)", conn.RemoteAddr(), entityID)
+}
+
+// processClientMessage reads and handles a single message from a client.
+func (s *Server) processClientMessage(conn net.Conn) error {
+	msgType, err := ReadMessageType(conn)
+	if err != nil {
+		return err
+	}
+	return s.dispatchMessage(conn, msgType)
+}
+
+// dispatchMessage routes a message to the appropriate handler.
+func (s *Server) dispatchMessage(conn net.Conn, msgType uint8) error {
+	switch msgType {
+	case MsgTypePlayerInput:
+		return s.handlePlayerInputMessage(conn)
+	case MsgTypePing:
+		return s.handlePingMessage(conn)
+	default:
+		log.Printf("unknown message type: %d", msgType)
+		return nil
+	}
+}
+
+// handlePlayerInputMessage decodes and processes player input.
+func (s *Server) handlePlayerInputMessage(conn net.Conn) error {
+	input, err := DecodePlayerInput(conn)
+	if err != nil {
+		log.Printf("decode PlayerInput: %v", err)
+		return err
+	}
+	s.handlePlayerInput(conn, input)
+	return nil
+}
+
+// handlePingMessage decodes and responds to a ping.
+func (s *Server) handlePingMessage(conn net.Conn) error {
+	ping, err := DecodePing(conn)
+	if err != nil {
+		log.Printf("decode Ping: %v", err)
+		return err
+	}
+	s.handlePing(conn, ping)
+	return nil
+}
+
 // handlePlayerInput processes player input from a client.
 func (s *Server) handlePlayerInput(conn net.Conn, input *PlayerInput) {
-	// For now, just acknowledge receipt with a world state
-	// Future: apply to player entity, validate, broadcast
-	_ = input
+	s.mu.Lock()
+	entityID, ok := s.clientPlayers[conn]
+	if !ok {
+		s.mu.Unlock()
+		return
+	}
+	state, ok := s.playerStates[entityID]
+	if !ok {
+		s.mu.Unlock()
+		return
+	}
+
+	// Validate and clamp input values
+	input.MoveForward = clampFloat32(input.MoveForward, -1.0, 1.0)
+	input.MoveRight = clampFloat32(input.MoveRight, -1.0, 1.0)
+	input.Turn = clampFloat32(input.Turn, -3.14159, 3.14159)
+
+	// Apply movement to player state (simplified physics)
+	const moveSpeed = 5.0
+	const turnSpeed = 1.0
+
+	state.Angle += input.Turn * turnSpeed
+	state.X += input.MoveForward * moveSpeed * float32(cos64(float64(state.Angle)))
+	state.Y += input.MoveForward * moveSpeed * float32(sin64(float64(state.Angle)))
+	state.X += input.MoveRight * moveSpeed * float32(cos64(float64(state.Angle)+1.5708))
+	state.Y += input.MoveRight * moveSpeed * float32(sin64(float64(state.Angle)+1.5708))
+
+	// Update last acknowledged sequence
+	s.lastAck[conn] = input.SequenceNum
+	s.mu.Unlock()
+
+	// Send acknowledgement with world state
+	s.sendWorldState(conn, entityID, input.SequenceNum)
+}
+
+// clampFloat32 clamps a value between min and max.
+func clampFloat32(v, min, max float32) float32 {
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
+	}
+	return v
+}
+
+// cos64 is a helper for math.Cos with float64.
+func cos64(x float64) float64 {
+	return math.Cos(x)
+}
+
+// sin64 is a helper for math.Sin with float64.
+func sin64(x float64) float64 {
+	return math.Sin(x)
+}
+
+// sendWorldState sends the current world state to a client.
+func (s *Server) sendWorldState(conn net.Conn, playerID uint64, ackSeq uint32) {
+	s.mu.Lock()
+	entities := make([]EntityState, 0, len(s.playerStates))
+	for _, ps := range s.playerStates {
+		entities = append(entities, EntityState{
+			EntityID: ps.EntityID,
+			X:        ps.X,
+			Y:        ps.Y,
+			Z:        ps.Z,
+			Angle:    ps.Angle,
+			Health:   ps.Health,
+		})
+	}
+	s.mu.Unlock()
+
+	state := &WorldState{
+		ServerTimeMs: uint32(serverTimeMs()),
+		AckSequence:  ackSeq,
+		Entities:     entities,
+	}
+	_ = state.Encode(conn)
 }
 
 // handlePing responds to a ping with a pong.

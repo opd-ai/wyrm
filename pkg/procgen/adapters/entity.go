@@ -122,17 +122,13 @@ func (a *EntityAdapter) GenerateAndSpawnNPCs(world *ecs.World, seed int64, genre
 			continue // Skip failed generations
 		}
 
-		// Place NPC at random position within radius
-		angle := rng.Float64() * 6.283185307 // 2*pi
-		dist := rng.Float64() * radius
-		x := centerX + dist*float64(rng.Intn(2)*2-1)*0.5
-		y := centerY + dist*float64(rng.Intn(2)*2-1)*0.5
-		x = centerX + dist*0.7071*float64(rng.Intn(3)-1)
-		y = centerY + dist*0.7071*float64(rng.Intn(3)-1)
+		// Use deterministic grid-based placement within radius
+		// Consume RNG values for reproducibility
+		_ = rng.Float64() // Reserved for future random offset
+		_ = rng.Float64() // Reserved for future random offset
 
-		// Use deterministic placement
-		x = centerX + float64(i%5-2)*radius/5
-		y = centerY + float64(i/5-count/10)*radius/5
+		x := centerX + float64(i%5-2)*radius/5
+		y := centerY + float64(i/5-count/10)*radius/5
 
 		e, err := SpawnNPC(world, data, x, y, factionID)
 		if err != nil {

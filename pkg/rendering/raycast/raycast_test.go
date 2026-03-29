@@ -249,3 +249,179 @@ func BenchmarkNewRenderer(b *testing.B) {
 		_ = NewRenderer(1280, 720)
 	}
 }
+
+func TestNewRendererWithGenre(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+	for _, genre := range genres {
+		t.Run(genre, func(t *testing.T) {
+			r := NewRendererWithGenre(640, 480, genre, 12345)
+			if r == nil {
+				t.Fatal("NewRendererWithGenre returned nil")
+			}
+			if r.Genre != genre {
+				t.Errorf("expected Genre=%s, got %s", genre, r.Genre)
+			}
+			if r.WallTextures == nil {
+				t.Error("WallTextures should not be nil")
+			}
+			if len(r.WallTextures) != 4 {
+				t.Errorf("expected 4 wall textures, got %d", len(r.WallTextures))
+			}
+			if r.FloorTexture == nil {
+				t.Error("FloorTexture should not be nil")
+			}
+			if r.CeilTexture == nil {
+				t.Error("CeilTexture should not be nil")
+			}
+		})
+	}
+}
+
+func TestSetGenre(t *testing.T) {
+	r := NewRendererWithGenre(640, 480, "fantasy", 12345)
+	originalTexture := r.WallTextures[0]
+
+	// Change genre
+	r.SetGenre("cyberpunk", 12345)
+
+	if r.Genre != "cyberpunk" {
+		t.Errorf("expected Genre=cyberpunk, got %s", r.Genre)
+	}
+
+	// Textures should be regenerated (different genre = different colors)
+	// Note: The texture object itself changes
+	if r.WallTextures[0] == originalTexture {
+		t.Error("expected textures to be regenerated")
+	}
+}
+
+func TestGetWallTextureColor(t *testing.T) {
+	r := NewRendererWithGenre(640, 480, "fantasy", 12345)
+
+	tests := []struct {
+		wallType int
+		texX     float64
+		texY     float64
+		distance float64
+	}{
+		{0, 0.0, 0.0, 1.0},
+		{1, 0.5, 0.5, 5.0},
+		{2, 0.25, 0.75, 10.0},
+		{3, 0.9, 0.1, 15.0},
+	}
+
+	for _, tc := range tests {
+		color := r.GetWallTextureColor(tc.wallType, tc.texX, tc.texY, tc.distance)
+		if color.A != 255 {
+			t.Errorf("wallType=%d: alpha should be 255, got %d", tc.wallType, color.A)
+		}
+	}
+}
+
+func TestGetFloorTextureColor(t *testing.T) {
+	r := NewRendererWithGenre(640, 480, "fantasy", 12345)
+
+	nearColor := r.GetFloorTextureColor(0.5, 0.5, 1.0)
+	farColor := r.GetFloorTextureColor(0.5, 0.5, 15.0)
+
+	if nearColor.A != 255 || farColor.A != 255 {
+		t.Error("alpha should be 255")
+	}
+
+	// Near should be brighter
+	nearBrightness := int(nearColor.R) + int(nearColor.G) + int(nearColor.B)
+	farBrightness := int(farColor.R) + int(farColor.G) + int(farColor.B)
+	if farBrightness > nearBrightness && nearBrightness > 0 {
+		t.Error("near floor should be brighter than far")
+	}
+}
+
+func TestGetCeilingTextureColor(t *testing.T) {
+	r := NewRendererWithGenre(640, 480, "fantasy", 12345)
+
+	nearColor := r.GetCeilingTextureColor(0.5, 0.5, 1.0)
+	farColor := r.GetCeilingTextureColor(0.5, 0.5, 15.0)
+
+	if nearColor.A != 255 || farColor.A != 255 {
+		t.Error("alpha should be 255")
+	}
+
+	// Near should be brighter
+	nearBrightness := int(nearColor.R) + int(nearColor.G) + int(nearColor.B)
+	farBrightness := int(farColor.R) + int(farColor.G) + int(farColor.B)
+	if farBrightness > nearBrightness && nearBrightness > 0 {
+		t.Error("near ceiling should be brighter than far")
+	}
+}
+
+func TestTextureDeterminism(t *testing.T) {
+	r1 := NewRendererWithGenre(640, 480, "fantasy", 42)
+	r2 := NewRendererWithGenre(640, 480, "fantasy", 42)
+
+	// Same seed should produce identical textures
+	for wallType := 0; wallType < 4; wallType++ {
+		for i := 0; i < 100; i++ {
+			c1 := r1.GetWallTextureColor(wallType, float64(i)/100, float64(i)/100, 5.0)
+			c2 := r2.GetWallTextureColor(wallType, float64(i)/100, float64(i)/100, 5.0)
+			if c1 != c2 {
+				t.Errorf("wallType=%d, idx=%d: colors differ (%v vs %v)", wallType, i, c1, c2)
+				break
+			}
+		}
+	}
+}
+
+func TestGenrePaletteDifference(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+	colors := make(map[string][]uint32)
+
+	for _, genre := range genres {
+		r := NewRendererWithGenre(640, 480, genre, 12345)
+		// Sample some colors from wall texture
+		var samples []uint32
+		for i := 0; i < 10; i++ {
+			c := r.GetWallTextureColor(1, float64(i)/10, float64(i)/10, 3.0)
+			samples = append(samples, uint32(c.R)<<16|uint32(c.G)<<8|uint32(c.B))
+		}
+		colors[genre] = samples
+	}
+
+	// Each genre should have at least some different colors
+	distinctGenres := 0
+	for i := 0; i < len(genres); i++ {
+		for j := i + 1; j < len(genres); j++ {
+			different := false
+			for k := 0; k < len(colors[genres[i]]); k++ {
+				if colors[genres[i]][k] != colors[genres[j]][k] {
+					different = true
+					break
+				}
+			}
+			if different {
+				distinctGenres++
+			}
+		}
+	}
+
+	// At least 80% of genre pairs should have different colors
+	totalPairs := len(genres) * (len(genres) - 1) / 2
+	if distinctGenres < totalPairs*8/10 {
+		t.Errorf("expected most genres to have distinct colors, got %d/%d different", distinctGenres, totalPairs)
+	}
+}
+
+func BenchmarkGetWallTextureColor(b *testing.B) {
+	r := NewRendererWithGenre(1280, 720, "fantasy", 12345)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = r.GetWallTextureColor(1, 0.5, 0.5, 5.0)
+	}
+}
+
+func BenchmarkGetFloorTextureColor(b *testing.B) {
+	r := NewRendererWithGenre(1280, 720, "fantasy", 12345)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = r.GetFloorTextureColor(0.5, 0.5, 5.0)
+	}
+}

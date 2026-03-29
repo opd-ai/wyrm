@@ -4,6 +4,8 @@ package raycast
 import (
 	"image/color"
 	"math"
+
+	"github.com/opd-ai/wyrm/pkg/rendering/texture"
 )
 
 // Rendering constants for the raycaster.
@@ -30,17 +32,27 @@ const (
 
 // Renderer handles first-person raycasting and draws to an Ebitengine image.
 type Renderer struct {
-	Width    int
-	Height   int
-	PlayerX  float64
-	PlayerY  float64
-	PlayerA  float64 // angle in radians
-	WorldMap [][]int // 2D map: 0=empty, >0=wall type
-	FOV      float64 // field of view in radians
+	Width        int
+	Height       int
+	PlayerX      float64
+	PlayerY      float64
+	PlayerA      float64 // angle in radians
+	WorldMap     [][]int // 2D map: 0=empty, >0=wall type
+	FOV          float64 // field of view in radians
+	Genre        string  // current genre for texture palette
+	WallTextures []*texture.Texture
+	FloorTexture *texture.Texture
+	CeilTexture  *texture.Texture
+	textureSeed  int64
 }
 
 // NewRenderer creates a new raycasting renderer.
 func NewRenderer(width, height int) *Renderer {
+	return NewRendererWithGenre(width, height, "fantasy", 0)
+}
+
+// NewRendererWithGenre creates a renderer with specified genre and seed.
+func NewRendererWithGenre(width, height int, genre string, seed int64) *Renderer {
 	// Create a simple default world map
 	worldMap := make([][]int, DefaultMapSize)
 	for i := range worldMap {
@@ -62,15 +74,19 @@ func NewRenderer(width, height int) *Renderer {
 	worldMap[8][9] = 3
 	worldMap[9][8] = 3
 
-	return &Renderer{
-		Width:    width,
-		Height:   height,
-		PlayerX:  DefaultPlayerX,
-		PlayerY:  DefaultPlayerY,
-		PlayerA:  0.0,
-		WorldMap: worldMap,
-		FOV:      DefaultFOV,
+	r := &Renderer{
+		Width:       width,
+		Height:      height,
+		PlayerX:     DefaultPlayerX,
+		PlayerY:     DefaultPlayerY,
+		PlayerA:     0.0,
+		WorldMap:    worldMap,
+		FOV:         DefaultFOV,
+		Genre:       genre,
+		textureSeed: seed,
 	}
+	r.initTextures()
+	return r
 }
 
 // calculateDeltaDist computes the ray step lengths for DDA.
@@ -118,7 +134,7 @@ func (r *Renderer) castRay(rayDirX, rayDirY float64) (float64, int) {
 		rayDirX, rayDirY, deltaDistX, deltaDistY,
 	)
 
-	hit, side, mapX, mapY := r.performDDA(sideDistX, sideDistY, deltaDistX, deltaDistY, stepX, stepY, mapX, mapY)
+	hit, side, sideDistX, sideDistY, mapX, mapY := r.performDDA(sideDistX, sideDistY, deltaDistX, deltaDistY, stepX, stepY, mapX, mapY)
 
 	if !hit {
 		return MaxRayDistance, 0
@@ -128,7 +144,8 @@ func (r *Renderer) castRay(rayDirX, rayDirY float64) (float64, int) {
 }
 
 // performDDA executes the DDA algorithm to find wall intersections.
-func (r *Renderer) performDDA(sideDistX, sideDistY, deltaDistX, deltaDistY float64, stepX, stepY, mapX, mapY int) (bool, int, int, int) {
+// Returns: hit, side, updated sideDistX, updated sideDistY, mapX, mapY
+func (r *Renderer) performDDA(sideDistX, sideDistY, deltaDistX, deltaDistY float64, stepX, stepY, mapX, mapY int) (bool, int, float64, float64, int, int) {
 	side := 0
 	for i := 0; i < MaxRaySteps; i++ {
 		if sideDistX < sideDistY {
@@ -142,13 +159,13 @@ func (r *Renderer) performDDA(sideDistX, sideDistY, deltaDistX, deltaDistY float
 		}
 
 		if !r.isValidMapPosition(mapX, mapY) {
-			return false, side, mapX, mapY
+			return false, side, sideDistX, sideDistY, mapX, mapY
 		}
 		if r.WorldMap[mapX][mapY] > 0 {
-			return true, side, mapX, mapY
+			return true, side, sideDistX, sideDistY, mapX, mapY
 		}
 	}
-	return false, side, mapX, mapY
+	return false, side, sideDistX, sideDistY, mapX, mapY
 }
 
 // isValidMapPosition checks if coordinates are within map bounds.
@@ -260,4 +277,109 @@ func heightToWallType(height, wallThreshold float64) int {
 // SetWorldMapDirect sets the world map directly (for pre-computed maps).
 func (r *Renderer) SetWorldMapDirect(worldMap [][]int) {
 	r.WorldMap = worldMap
+}
+
+// TextureSize is the size of generated wall textures.
+const TextureSize = 64
+
+// initTextures generates procedural textures for walls, floor, and ceiling.
+func (r *Renderer) initTextures() {
+	// Generate 4 wall textures (one per wall type 1-3 plus default)
+	r.WallTextures = make([]*texture.Texture, 4)
+	for i := 0; i < 4; i++ {
+		texSeed := r.textureSeed + int64(i)*1000
+		r.WallTextures[i] = texture.GenerateWithSeed(TextureSize, TextureSize, texSeed, r.Genre)
+	}
+
+	// Generate floor and ceiling textures
+	r.FloorTexture = texture.GenerateWithSeed(TextureSize, TextureSize, r.textureSeed+10000, r.Genre)
+	r.CeilTexture = texture.GenerateWithSeed(TextureSize, TextureSize, r.textureSeed+20000, r.Genre)
+}
+
+// SetGenre updates the renderer genre and regenerates textures.
+func (r *Renderer) SetGenre(genre string, seed int64) {
+	if r.Genre == genre && r.textureSeed == seed {
+		return
+	}
+	r.Genre = genre
+	r.textureSeed = seed
+	r.initTextures()
+}
+
+// GetWallTextureColor samples a color from the wall texture at the given coordinates.
+func (r *Renderer) GetWallTextureColor(wallType int, texX, texY float64, distance float64) color.RGBA {
+	if wallType < 0 || wallType >= len(r.WallTextures) || r.WallTextures[wallType] == nil {
+		return r.getWallColor(wallType, distance)
+	}
+
+	tex := r.WallTextures[wallType]
+	// Wrap texture coordinates
+	tx := int(texX*float64(tex.Width)) % tex.Width
+	ty := int(texY*float64(tex.Height)) % tex.Height
+	if tx < 0 {
+		tx += tex.Width
+	}
+	if ty < 0 {
+		ty += tex.Height
+	}
+
+	idx := ty*tex.Width + tx
+	if idx < 0 || idx >= len(tex.Pixels) {
+		return r.getWallColor(wallType, distance)
+	}
+
+	baseColor := tex.Pixels[idx]
+	return applyDistanceFog(baseColor, distance)
+}
+
+// sampleTextureColor samples a color from a texture at the given coordinates.
+// Returns fallback color if texture is nil or coordinates are out of bounds.
+func sampleTextureColor(tex *texture.Texture, texX, texY, distance float64, fallback color.RGBA) color.RGBA {
+	if tex == nil {
+		return fallback
+	}
+
+	tx := int(texX*float64(tex.Width)) % tex.Width
+	ty := int(texY*float64(tex.Height)) % tex.Height
+	if tx < 0 {
+		tx += tex.Width
+	}
+	if ty < 0 {
+		ty += tex.Height
+	}
+
+	idx := ty*tex.Width + tx
+	if idx < 0 || idx >= len(tex.Pixels) {
+		return fallback
+	}
+
+	return applyDistanceFog(tex.Pixels[idx], distance)
+}
+
+// GetFloorTextureColor samples a color from the floor texture.
+func (r *Renderer) GetFloorTextureColor(texX, texY, distance float64) color.RGBA {
+	return sampleTextureColor(r.FloorTexture, texX, texY, distance, color.RGBA{R: 40, G: 35, B: 45, A: 255})
+}
+
+// GetCeilingTextureColor samples a color from the ceiling texture.
+func (r *Renderer) GetCeilingTextureColor(texX, texY, distance float64) color.RGBA {
+	return sampleTextureColor(r.CeilTexture, texX, texY, distance, color.RGBA{R: 20, G: 12, B: 28, A: 255})
+}
+
+// applyDistanceFog applies fog based on distance to a color.
+func applyDistanceFog(c color.RGBA, distance float64) color.RGBA {
+	fogFactor := 1.0 - (distance / FogDistance)
+	if fogFactor < MinFogFactor {
+		fogFactor = MinFogFactor
+	}
+	if fogFactor > 1.0 {
+		fogFactor = 1.0
+	}
+
+	return color.RGBA{
+		R: uint8(float64(c.R) * fogFactor),
+		G: uint8(float64(c.G) * fogFactor),
+		B: uint8(float64(c.B) * fogFactor),
+		A: 255,
+	}
 }

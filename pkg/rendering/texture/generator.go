@@ -63,41 +63,60 @@ func GenerateWithSeed(width, height int, seed int64, genre string) *Texture {
 
 	rng := rand.New(rand.NewSource(seed))
 	pixels := make([]color.RGBA, width*height)
+	palette := getGenrePalette(genre)
 
-	// Get palette for genre
+	generateNoiseTexture(pixels, width, height, seed, rng, palette)
+
+	return &Texture{Width: width, Height: height, Pixels: pixels}
+}
+
+// getGenrePalette returns the color palette for the given genre.
+func getGenrePalette(genre string) []color.RGBA {
 	palette, ok := GenrePalette[genre]
 	if !ok {
 		palette = GenrePalette["fantasy"]
 	}
+	return palette
+}
 
-	// Generate noise-based texture
+// generateNoiseTexture fills the pixel array with noise-based colors.
+func generateNoiseTexture(pixels []color.RGBA, width, height int, seed int64, rng *rand.Rand, palette []color.RGBA) {
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
-			// Simple value noise
-			noiseVal := noise.Noise2D(float64(x)*0.1, float64(y)*0.1, seed)
-
-			// Map noise to palette index
-			paletteIdx := int(noiseVal * float64(len(palette)))
-			if paletteIdx >= len(palette) {
-				paletteIdx = len(palette) - 1
-			}
-			if paletteIdx < 0 {
-				paletteIdx = 0
-			}
-
-			baseColor := palette[paletteIdx]
-
-			// Add subtle variation
-			variation := int(rng.Intn(21)) - 10
-			r := clampColor(int(baseColor.R) + variation)
-			g := clampColor(int(baseColor.G) + variation)
-			b := clampColor(int(baseColor.B) + variation)
-
-			pixels[y*width+x] = color.RGBA{R: r, G: g, B: b, A: 255}
+			pixels[y*width+x] = generatePixelColor(x, y, seed, rng, palette)
 		}
 	}
+}
 
-	return &Texture{Width: width, Height: height, Pixels: pixels}
+// generatePixelColor computes the color for a single pixel using noise.
+func generatePixelColor(x, y int, seed int64, rng *rand.Rand, palette []color.RGBA) color.RGBA {
+	noiseVal := noise.Noise2D(float64(x)*0.1, float64(y)*0.1, seed)
+	paletteIdx := mapNoiseToIndex(noiseVal, len(palette))
+	baseColor := palette[paletteIdx]
+	return applyColorVariation(baseColor, rng)
+}
+
+// mapNoiseToIndex maps a noise value [0,1] to a palette index.
+func mapNoiseToIndex(noiseVal float64, paletteLen int) int {
+	idx := int(noiseVal * float64(paletteLen))
+	if idx >= paletteLen {
+		idx = paletteLen - 1
+	}
+	if idx < 0 {
+		idx = 0
+	}
+	return idx
+}
+
+// applyColorVariation adds subtle random variation to a base color.
+func applyColorVariation(baseColor color.RGBA, rng *rand.Rand) color.RGBA {
+	variation := int(rng.Intn(21)) - 10
+	return color.RGBA{
+		R: clampColor(int(baseColor.R) + variation),
+		G: clampColor(int(baseColor.G) + variation),
+		B: clampColor(int(baseColor.B) + variation),
+		A: 255,
+	}
 }
 
 // clampColor clamps a color value to [0, 255].

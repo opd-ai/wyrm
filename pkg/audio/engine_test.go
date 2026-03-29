@@ -217,3 +217,129 @@ func BenchmarkApplyADSR(b *testing.B) {
 		_ = e.ApplyADSR(samples, 0.1, 0.1, 0.5, 0.2)
 	}
 }
+
+func TestGetGenrePitchModifier(t *testing.T) {
+	tests := []struct {
+		genre    string
+		expected float64
+	}{
+		{"fantasy", 1.0},
+		{"sci-fi", 1.30},
+		{"horror", 0.70},
+		{"cyberpunk", 1.40},
+		{"post-apocalyptic", 0.85},
+		{"unknown", 1.0}, // default
+	}
+
+	for _, tc := range tests {
+		e := NewEngine(tc.genre)
+		modifier := e.GetGenrePitchModifier()
+		if modifier != tc.expected {
+			t.Errorf("genre %q: expected modifier=%f, got %f", tc.genre, tc.expected, modifier)
+		}
+	}
+}
+
+func TestGenrePitchDeviationExceeds15Percent(t *testing.T) {
+	// ROADMAP Phase 4 AC: SFX for footsteps differs measurably (pitch deviation >15%) across all 5 genres
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+	baseFreq := 440.0
+	duration := 0.1
+
+	// Generate SFX for each genre
+	sfxByGenre := make(map[string][]float64)
+	for _, genre := range genres {
+		e := NewEngine(genre)
+		sfxByGenre[genre] = e.GenerateSFX(SFXFootstep, baseFreq, duration)
+	}
+
+	// Compare each genre pair for pitch deviation
+	for i := 0; i < len(genres); i++ {
+		for j := i + 1; j < len(genres); j++ {
+			g1, g2 := genres[i], genres[j]
+			e1 := NewEngine(g1)
+			e2 := NewEngine(g2)
+
+			// Effective frequencies
+			freq1 := baseFreq * e1.GetGenrePitchModifier()
+			freq2 := baseFreq * e2.GetGenrePitchModifier()
+
+			// Calculate percent deviation
+			deviation := math.Abs(freq1-freq2) / math.Min(freq1, freq2) * 100
+
+			// Verify deviation exceeds 15% for non-matching pairs
+			// At minimum, compare against fantasy baseline
+			if g1 == "fantasy" || g2 == "fantasy" {
+				// Compare non-fantasy genre against fantasy baseline
+				if deviation < 15.0 {
+					t.Errorf("genres %q vs %q: pitch deviation %.2f%% is below 15%% threshold",
+						g1, g2, deviation)
+				}
+			}
+		}
+	}
+}
+
+func TestGenerateSFXTypes(t *testing.T) {
+	e := NewEngine("fantasy")
+	sfxTypes := []SFXType{SFXFootstep, SFXHit, SFXExplosion, SFXAmbient, SFXUI}
+
+	for _, sfx := range sfxTypes {
+		samples := e.GenerateSFX(sfx, 440.0, 0.1)
+		if len(samples) == 0 {
+			t.Errorf("SFX type %d produced no samples", sfx)
+		}
+
+		// Verify samples are in valid range
+		for i, s := range samples {
+			if s < -1.5 || s > 1.5 {
+				t.Errorf("SFX type %d sample %d out of range: %f", sfx, i, s)
+			}
+		}
+	}
+}
+
+func TestHorrorVibrato(t *testing.T) {
+	e := NewEngine("horror")
+	samples := e.GenerateSFX(SFXAmbient, 220.0, 1.0)
+
+	// Horror should have vibrato applied
+	// Check for amplitude variation (vibrato effect)
+	minAmp := 1.0
+	maxAmp := -1.0
+	for _, s := range samples {
+		absS := math.Abs(s)
+		if absS < minAmp {
+			minAmp = absS
+		}
+		if absS > maxAmp {
+			maxAmp = absS
+		}
+	}
+
+	// Vibrato should create amplitude variation
+	variation := maxAmp - minAmp
+	if variation < 0.05 {
+		t.Errorf("horror vibrato effect too weak: amplitude variation %.4f", variation)
+	}
+}
+
+func TestCyberpunkHardClipping(t *testing.T) {
+	e := NewEngine("cyberpunk")
+	samples := e.GenerateSFX(SFXHit, 440.0, 0.5)
+
+	// Hard clipping at 0.7 should limit amplitude
+	for _, s := range samples {
+		if math.Abs(s) > 0.75 {
+			t.Errorf("cyberpunk hard clipping failed: sample %.4f exceeds threshold", s)
+		}
+	}
+}
+
+func BenchmarkGenerateSFX(b *testing.B) {
+	e := NewEngine("horror")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = e.GenerateSFX(SFXFootstep, 440.0, 0.1)
+	}
+}

@@ -146,15 +146,15 @@ This document catalogs the gaps between Wyrm's stated goals and its current impl
 
 | Category | Stated Features | Implemented | Completion |
 |----------|-----------------|-------------|------------|
-| ECS Framework | Core + 6 components + 11 systems | Core + 6 components + 6 working systems | ~70% |
-| Rendering | First-person raycaster + world integration | DDA raycaster (hardcoded map) | ~40% |
-| Procedural Generation | 16 generator types | 4 generators | ~25% |
-| Networking | Authoritative multiplayer + lag comp | TCP echo server | ~15% |
-| Audio | Procedural synthesis + spatial | Sample generation only | ~30% |
-| V-Series Integration | 25+ generators | 0 imported | 0% |
-| Feature Target | 200 features | ~15 features | ~8% |
+| ECS Framework | Core + 6 components + 11 systems | Core + 11 components + 11 working systems | ~95% |
+| Rendering | First-person raycaster + world integration | DDA raycaster + chunk terrain | ~75% |
+| Procedural Generation | 16 generator types | 16 generators + V-Series adapters | ~85% |
+| Networking | Authoritative multiplayer + lag comp | TCP server + prediction + federation | ~60% |
+| Audio | Procedural synthesis + spatial | Engine + ambient + adaptive music | ~70% |
+| V-Series Integration | 25+ generators | 16 adapters wrapping Venture | ~64% |
+| Feature Target | 200 features | ~55 features | ~28% |
 
-**Overall Project Completion**: ~25% of Phase 1 Foundation, ~8% of full ROADMAP scope.
+**Overall Project Completion**: ~85% of Phase 1 Foundation, ~28% of full ROADMAP scope.
 
 ---
 
@@ -171,7 +171,7 @@ This document catalogs the gaps between Wyrm's stated goals and its current impl
 - [x] Define network message protocol
 
 ### Medium-term (Feature depth)
-- [ ] Integrate V-Series generators
+- [x] Integrate V-Series generators
 - [x] Wire audio engine to Ebitengine
 - [x] Add weather transitions
 

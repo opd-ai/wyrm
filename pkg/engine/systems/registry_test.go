@@ -299,6 +299,7 @@ func TestAllSystemsImplementInterface(t *testing.T) {
 		NewWeatherSystem("fantasy", 300.0),
 		&RenderSystem{},
 		&AudioSystem{},
+		NewSkillProgressionSystem(100, 100),
 	}
 
 	w := ecs.NewWorld()
@@ -353,6 +354,108 @@ func TestFactionPoliticsSystemRelations(t *testing.T) {
 	// Unset relations should be neutral
 	if sys.GetRelation("guild", "church") != RelationNeutral {
 		t.Error("unset relations should be neutral")
+	}
+}
+
+func TestFactionTerritoryKillTracking(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewFactionPoliticsSystem(0.1)
+	sys.KillsForHostility = 3
+	sys.ReputationPerKill = -25.0
+	w.RegisterSystem(sys)
+
+	// Create player with reputation
+	player := w.CreateEntity()
+	rep := &components.Reputation{Standings: map[string]float64{"guards": 50.0}}
+	_ = w.AddComponent(player, rep)
+
+	// Create faction territory
+	territory := w.CreateEntity()
+	ft := &components.FactionTerritory{
+		FactionID: "guards",
+		Vertices: []components.Point2D{
+			{X: 0, Y: 0}, {X: 100, Y: 0}, {X: 100, Y: 100}, {X: 0, Y: 100},
+		},
+	}
+	_ = w.AddComponent(territory, ft)
+
+	// First kill - should not trigger hostility
+	result := sys.ReportKill(w, player, "guards")
+	if result {
+		t.Error("first kill should not trigger hostility")
+	}
+	if rep.Standings["guards"] != 25.0 { // 50 - 25
+		t.Errorf("expected reputation 25, got %f", rep.Standings["guards"])
+	}
+
+	// Second kill
+	result = sys.ReportKill(w, player, "guards")
+	if result {
+		t.Error("second kill should not trigger hostility")
+	}
+
+	// Third kill - should trigger hostility
+	result = sys.ReportKill(w, player, "guards")
+	if !result {
+		t.Error("third kill should trigger hostility")
+	}
+	if rep.Standings["guards"] != -100 {
+		t.Errorf("expected reputation -100 (hostile), got %f", rep.Standings["guards"])
+	}
+}
+
+func TestFactionTreatyReducesHostility(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewFactionPoliticsSystem(0.1)
+	w.RegisterSystem(sys)
+
+	// Create hostile player
+	player := w.CreateEntity()
+	rep := &components.Reputation{Standings: map[string]float64{"guards": -100.0}}
+	_ = w.AddComponent(player, rep)
+
+	// Create territory with kill history
+	territory := w.CreateEntity()
+	ft := &components.FactionTerritory{
+		FactionID:   "guards",
+		KillTracker: map[uint64]int{uint64(player): 5},
+	}
+	_ = w.AddComponent(territory, ft)
+
+	// Sign treaty
+	result := sys.SignTreaty(w, player, "guards")
+	if !result {
+		t.Error("SignTreaty should succeed")
+	}
+	if rep.Standings["guards"] != 0 {
+		t.Errorf("expected reputation 0 after treaty, got %f", rep.Standings["guards"])
+	}
+	if ft.KillTracker[uint64(player)] != 0 {
+		t.Errorf("expected kill tracker reset, got %d", ft.KillTracker[uint64(player)])
+	}
+}
+
+func TestFactionTerritoryContainsPoint(t *testing.T) {
+	ft := &components.FactionTerritory{
+		FactionID: "guards",
+		Vertices: []components.Point2D{
+			{X: 0, Y: 0}, {X: 100, Y: 0}, {X: 100, Y: 100}, {X: 0, Y: 100},
+		},
+	}
+
+	// Point inside
+	if !ft.ContainsPoint(50, 50) {
+		t.Error("point (50,50) should be inside")
+	}
+
+	// Point outside
+	if ft.ContainsPoint(150, 50) {
+		t.Error("point (150,50) should be outside")
+	}
+
+	// Point on boundary edge case
+	if ft.ContainsPoint(-10, -10) {
+		t.Error("point (-10,-10) should be outside")
 	}
 }
 
@@ -418,6 +521,95 @@ func TestCrimeSystemNoWitnesses(t *testing.T) {
 	}
 }
 
+func TestCrimeSystemPayBounty(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewCrimeSystem(60.0, 100.0)
+	w.RegisterSystem(sys)
+
+	criminal := w.CreateEntity()
+	crime := &components.Crime{WantedLevel: 3, BountyAmount: 300.0}
+	_ = w.AddComponent(criminal, crime)
+
+	// Pay bounty
+	result := sys.PayBounty(w, criminal)
+	if !result {
+		t.Error("PayBounty should succeed")
+	}
+	if crime.WantedLevel != 0 {
+		t.Errorf("wanted level should be 0 after paying bounty, got %d", crime.WantedLevel)
+	}
+	if crime.BountyAmount != 0 {
+		t.Errorf("bounty should be 0 after paying, got %f", crime.BountyAmount)
+	}
+}
+
+func TestCrimeSystemJailMechanic(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewCrimeSystem(60.0, 100.0)
+	w.RegisterSystem(sys)
+
+	criminal := w.CreateEntity()
+	crime := &components.Crime{WantedLevel: 3, BountyAmount: 300.0}
+	_ = w.AddComponent(criminal, crime)
+
+	// Send to jail for 10 seconds
+	result := sys.GoToJail(w, criminal, 10.0)
+	if !result {
+		t.Error("GoToJail should succeed")
+	}
+	if !crime.InJail {
+		t.Error("criminal should be in jail")
+	}
+	if crime.WantedLevel != 0 {
+		t.Error("wanted level should be 0 while in jail")
+	}
+
+	// Advance time and check release
+	for i := 0; i < 15; i++ {
+		w.Update(1.0) // Advance 1 second per tick
+	}
+	sys.CheckJailRelease(w)
+
+	if crime.InJail {
+		t.Error("criminal should be released from jail after serving time")
+	}
+}
+
+func TestCrimeSystemWitnessLOS(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewCrimeSystem(60.0, 100.0)
+	sys.WitnessRange = 50.0
+	w.RegisterSystem(sys)
+
+	// Create criminal at position (0, 0)
+	criminal := w.CreateEntity()
+	crime := &components.Crime{WantedLevel: 0, BountyAmount: 0}
+	_ = w.AddComponent(criminal, crime)
+	_ = w.AddComponent(criminal, &components.Position{X: 0, Y: 0})
+
+	// Create witness far away (100, 100) - out of range
+	witness := w.CreateEntity()
+	_ = w.AddComponent(witness, &components.Witness{CanReport: true})
+	_ = w.AddComponent(witness, &components.Position{X: 100, Y: 100})
+
+	// Report crime - should not be witnessed (out of range)
+	sys.ReportCrime(w, criminal)
+	if crime.WantedLevel != 0 {
+		t.Errorf("crime should not be witnessed from far away, got wanted level %d", crime.WantedLevel)
+	}
+
+	// Move witness close (10, 10) - in range
+	wPos, _ := w.GetComponent(witness, "Position")
+	wPos.(*components.Position).X = 10
+	wPos.(*components.Position).Y = 10
+
+	// Report crime - should be witnessed now
+	sys.ReportCrime(w, criminal)
+	if crime.WantedLevel != 1 {
+		t.Errorf("crime should be witnessed from close by, expected wanted level 1, got %d", crime.WantedLevel)
+	}
+}
+
 func TestEconomySystemPricing(t *testing.T) {
 	w := ecs.NewWorld()
 	sys := NewEconomySystem(0.5, 0.1)
@@ -443,6 +635,39 @@ func TestEconomySystemPricing(t *testing.T) {
 	// High demand should increase price
 	if node.PriceTable["potion"] <= 50 {
 		t.Errorf("potion price should be above base due to demand, got %f", node.PriceTable["potion"])
+	}
+}
+
+func TestEconomySellReducesPrice(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewEconomySystem(0.5, 0.1)
+	sys.SetBasePrice("iron_ore", 10.0)
+	w.RegisterSystem(sys)
+
+	shop := w.CreateEntity()
+	node := &components.EconomyNode{
+		PriceTable: make(map[string]float64),
+		Supply:     map[string]int{"iron_ore": 10},
+		Demand:     map[string]int{"iron_ore": 10},
+	}
+	_ = w.AddComponent(shop, node)
+
+	// Get initial price
+	w.Update(0.016)
+	initialPrice := sys.GetBuyPrice(w, shop, "iron_ore")
+	t.Logf("Initial price: %f", initialPrice)
+
+	// Sell 50 items (flooding market with supply)
+	sys.SellItem(w, shop, "iron_ore", 50)
+	w.Update(0.016)
+	newPrice := sys.GetBuyPrice(w, shop, "iron_ore")
+	t.Logf("Price after selling 50: %f", newPrice)
+
+	// Price should have reduced by at least 10%
+	reduction := (initialPrice - newPrice) / initialPrice
+	if reduction < 0.10 {
+		t.Errorf("selling 50 items should reduce price by ≥10%%, got %.2f%% reduction (initial=%f, new=%f)",
+			reduction*100, initialPrice, newPrice)
 	}
 }
 
@@ -489,5 +714,389 @@ func TestQuestSystemStageAdvancement(t *testing.T) {
 	w.Update(0.016)
 	if !quest.Completed {
 		t.Error("quest should be completed")
+	}
+}
+
+func TestQuestSystemBranchLocking(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewQuestSystem()
+	// Define a quest with branching paths
+	sys.DefineQuest("branch_quest", []QuestStageCondition{
+		{FromStage: 0, RequiredFlag: "choose_path", NextStage: 1},
+		// Branch A: help the rebels
+		{FromStage: 1, RequiredFlag: "help_rebels", NextStage: 10, BranchID: "branch_a", LocksBranch: "branch_b"},
+		// Branch B: help the empire
+		{FromStage: 1, RequiredFlag: "help_empire", NextStage: 20, BranchID: "branch_b", LocksBranch: "branch_a"},
+		// Branch A continuation
+		{FromStage: 10, RequiredFlag: "rebels_win", Completes: true},
+		// Branch B continuation
+		{FromStage: 20, RequiredFlag: "empire_wins", Completes: true},
+	})
+	w.RegisterSystem(sys)
+
+	player := w.CreateEntity()
+	quest := &components.Quest{
+		ID:           "branch_quest",
+		CurrentStage: 0,
+		Flags:        map[string]bool{},
+	}
+	_ = w.AddComponent(player, quest)
+
+	// Advance to branch choice
+	quest.Flags["choose_path"] = true
+	w.Update(0.016)
+	if quest.CurrentStage != 1 {
+		t.Errorf("expected stage 1, got %d", quest.CurrentStage)
+	}
+
+	// Choose branch A (help rebels)
+	quest.Flags["help_rebels"] = true
+	w.Update(0.016)
+	if quest.CurrentStage != 10 {
+		t.Errorf("expected stage 10, got %d", quest.CurrentStage)
+	}
+
+	// Branch B should be locked
+	if !quest.IsBranchLocked("branch_b") {
+		t.Error("branch_b should be locked after choosing branch_a")
+	}
+
+	// Reset to stage 1 to test that branch B is blocked
+	quest.CurrentStage = 1
+	quest.Flags["help_empire"] = true
+	w.Update(0.016)
+	// Should NOT advance to stage 20 because branch_b is locked
+	if quest.CurrentStage == 20 {
+		t.Error("should not be able to take branch_b after it was locked")
+	}
+}
+
+func TestSkillProgressionSystemCreation(t *testing.T) {
+	sys := NewSkillProgressionSystem(100, 100)
+	if sys.XPPerLevel != 100 {
+		t.Errorf("expected XPPerLevel=100, got %f", sys.XPPerLevel)
+	}
+	if sys.LevelCap != 100 {
+		t.Errorf("expected LevelCap=100, got %d", sys.LevelCap)
+	}
+}
+
+func TestSkillProgressionSystemDefaults(t *testing.T) {
+	sys := NewSkillProgressionSystem(0, 0)
+	if sys.XPPerLevel != 100 {
+		t.Errorf("expected default XPPerLevel=100, got %f", sys.XPPerLevel)
+	}
+	if sys.LevelCap != 100 {
+		t.Errorf("expected default LevelCap=100, got %d", sys.LevelCap)
+	}
+}
+
+func TestSkillProgressionSystemLevelUp(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewSkillProgressionSystem(100, 100)
+	w.RegisterSystem(sys)
+
+	player := w.CreateEntity()
+	skills := components.NewSkills("fantasy")
+	_ = w.AddComponent(player, skills)
+
+	// Grant enough XP to level up (slightly more than 110 to handle floating point)
+	sys.GrantSkillXP(w, player, "fire_magic", 115)
+
+	w.Update(0.016)
+
+	// Should have leveled up
+	if skills.Levels["fire_magic"] != 2 {
+		t.Errorf("expected fire_magic level 2, got %d", skills.Levels["fire_magic"])
+	}
+	// Excess XP should carry over
+	if skills.Experience["fire_magic"] <= 0 {
+		t.Error("excess XP should carry over")
+	}
+}
+
+func TestSkillProgressionSystemMultipleLevelUps(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewSkillProgressionSystem(100, 100)
+	w.RegisterSystem(sys)
+
+	player := w.CreateEntity()
+	skills := components.NewSkills("fantasy")
+	_ = w.AddComponent(player, skills)
+
+	// Grant XP over multiple updates
+	sys.GrantSkillXP(w, player, "fire_magic", 110)
+	w.Update(0.016)
+	sys.GrantSkillXP(w, player, "fire_magic", 120) // More XP for level 2->3
+	w.Update(0.016)
+
+	// Should have leveled up twice
+	if skills.Levels["fire_magic"] < 2 {
+		t.Errorf("expected fire_magic level >= 2, got %d", skills.Levels["fire_magic"])
+	}
+}
+
+func TestSkillProgressionSystemLevelCap(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewSkillProgressionSystem(100, 5) // Low cap for testing
+	w.RegisterSystem(sys)
+
+	player := w.CreateEntity()
+	skills := components.NewSkills("fantasy")
+	skills.Levels["fire_magic"] = 5 // At cap
+	skills.Experience["fire_magic"] = 1000
+	_ = w.AddComponent(player, skills)
+
+	w.Update(0.016)
+
+	// Should not exceed cap
+	if skills.Levels["fire_magic"] > 5 {
+		t.Errorf("skill level should not exceed cap, got %d", skills.Levels["fire_magic"])
+	}
+}
+
+func TestSkillProgressionSystemGrantXP(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewSkillProgressionSystem(100, 100)
+
+	player := w.CreateEntity()
+	skills := components.NewSkills("fantasy")
+	_ = w.AddComponent(player, skills)
+
+	// Grant XP
+	result := sys.GrantSkillXP(w, player, "fire_magic", 50)
+	if !result {
+		t.Error("GrantSkillXP should return true for valid skill")
+	}
+	if skills.Experience["fire_magic"] != 50 {
+		t.Errorf("expected 50 XP, got %f", skills.Experience["fire_magic"])
+	}
+
+	// Invalid skill should fail
+	result = sys.GrantSkillXP(w, player, "nonexistent_skill", 50)
+	if result {
+		t.Error("GrantSkillXP should return false for nonexistent skill")
+	}
+}
+
+func TestSkillProgressionSystemGetSkillLevel(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewSkillProgressionSystem(100, 100)
+
+	player := w.CreateEntity()
+	skills := components.NewSkills("fantasy")
+	skills.Levels["fire_magic"] = 25
+	_ = w.AddComponent(player, skills)
+
+	level := sys.GetSkillLevel(w, player, "fire_magic")
+	if level != 25 {
+		t.Errorf("expected level 25, got %d", level)
+	}
+
+	// Unknown entity should return 0
+	unknownLevel := sys.GetSkillLevel(w, 99999, "fire_magic")
+	if unknownLevel != 0 {
+		t.Errorf("expected level 0 for unknown entity, got %d", unknownLevel)
+	}
+}
+
+func TestSkillProgressionSystemXPScaling(t *testing.T) {
+	sys := NewSkillProgressionSystem(100, 100)
+
+	// XP required should scale with level
+	xp1 := sys.calculateXPRequired(1)
+	xp10 := sys.calculateXPRequired(10)
+	xp50 := sys.calculateXPRequired(50)
+
+	if xp10 <= xp1 {
+		t.Error("XP required at level 10 should be more than level 1")
+	}
+	if xp50 <= xp10 {
+		t.Error("XP required at level 50 should be more than level 10")
+	}
+}
+
+// TestNewAudioSystem verifies constructor defaults.
+func TestNewAudioSystem(t *testing.T) {
+	tests := []struct {
+		genre string
+	}{
+		{"fantasy"},
+		{"sci-fi"},
+		{"horror"},
+		{"cyberpunk"},
+		{"post-apocalyptic"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.genre, func(t *testing.T) {
+			sys := NewAudioSystem(tc.genre)
+			if sys.Genre != tc.genre {
+				t.Errorf("expected genre %q, got %q", tc.genre, sys.Genre)
+			}
+			if sys.CombatDetectionRange != 50.0 {
+				t.Errorf("expected combat range 50.0, got %f", sys.CombatDetectionRange)
+			}
+			if sys.AmbientUpdateInterval != 5.0 {
+				t.Errorf("expected ambient interval 5.0, got %f", sys.AmbientUpdateInterval)
+			}
+		})
+	}
+}
+
+// TestAudioSystemUpdateWithListener verifies spatial audio processing.
+func TestAudioSystemUpdateWithListener(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewAudioSystem("fantasy")
+	w.RegisterSystem(sys)
+
+	// Create listener entity
+	listener := w.CreateEntity()
+	_ = w.AddComponent(listener, &components.Position{X: 0, Y: 0, Z: 0})
+	_ = w.AddComponent(listener, &components.AudioListener{Enabled: true})
+
+	// Create audio source at known distance
+	source := w.CreateEntity()
+	_ = w.AddComponent(source, &components.Position{X: 10, Y: 0, Z: 0})
+	_ = w.AddComponent(source, &components.AudioSource{
+		Playing: true,
+		Volume:  1.0,
+		Range:   50.0,
+	})
+
+	// Create audio state to track updates
+	stateEntity := w.CreateEntity()
+	_ = w.AddComponent(stateEntity, &components.AudioState{})
+
+	// Run update
+	w.Update(0.016)
+
+	// Verify state was updated (listener position recorded)
+	comp, ok := w.GetComponent(stateEntity, "AudioState")
+	if !ok {
+		t.Fatal("AudioState component not found")
+	}
+	state := comp.(*components.AudioState)
+	if state.LastPositionX != 0 || state.LastPositionY != 0 {
+		t.Errorf("expected position (0,0), got (%f,%f)", state.LastPositionX, state.LastPositionY)
+	}
+}
+
+// TestAudioSystemCombatIntensity verifies combat intensity calculation.
+func TestAudioSystemCombatIntensity(t *testing.T) {
+	tests := []struct {
+		name            string
+		hostileCount    int
+		expectedMin     float64
+		expectedMax     float64
+	}{
+		{"no hostiles", 0, 0.0, 0.0},
+		{"one hostile", 1, 0.09, 0.11},
+		{"five hostiles", 5, 0.49, 0.51},
+		{"max hostiles", 10, 1.0, 1.0},
+		{"over max hostiles", 15, 1.0, 1.0},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := ecs.NewWorld()
+			sys := NewAudioSystem("fantasy")
+
+			// Create listener
+			listener := w.CreateEntity()
+			_ = w.AddComponent(listener, &components.Position{X: 0, Y: 0, Z: 0})
+			_ = w.AddComponent(listener, &components.AudioListener{Enabled: true})
+
+			// Create hostile entities within range
+			for i := 0; i < tc.hostileCount; i++ {
+				hostile := w.CreateEntity()
+				_ = w.AddComponent(hostile, &components.Position{X: float64(i * 5), Y: 0, Z: 0})
+				_ = w.AddComponent(hostile, &components.Health{Current: 100, Max: 100})
+				_ = w.AddComponent(hostile, &components.Faction{ID: "enemy", Reputation: -100})
+			}
+
+			// Calculate intensity
+			intensity := sys.calculateCombatIntensity(w, [2]float64{0, 0})
+			if intensity < tc.expectedMin || intensity > tc.expectedMax {
+				t.Errorf("expected intensity in [%f, %f], got %f", tc.expectedMin, tc.expectedMax, intensity)
+			}
+		})
+	}
+}
+
+// TestAudioSystemAmbientSelection verifies genre-based ambient selection.
+func TestAudioSystemAmbientSelection(t *testing.T) {
+	tests := []struct {
+		genre             string
+		expectedCity      string
+		expectedWilderness string
+	}{
+		{"fantasy", "city_medieval", "wilderness_forest"},
+		{"sci-fi", "city_station", "wilderness_alien"},
+		{"horror", "city_abandoned", "wilderness_dark"},
+		{"cyberpunk", "city_neon", "wilderness_industrial"},
+		{"post-apocalyptic", "city_ruins", "wilderness_wasteland"},
+		{"unknown", "city_generic", "wilderness_generic"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.genre, func(t *testing.T) {
+			sys := NewAudioSystem(tc.genre)
+
+			city := sys.getCityAmbient()
+			if city != tc.expectedCity {
+				t.Errorf("expected city ambient %q, got %q", tc.expectedCity, city)
+			}
+
+			wilderness := sys.getWildernessAmbient()
+			if wilderness != tc.expectedWilderness {
+				t.Errorf("expected wilderness ambient %q, got %q", tc.expectedWilderness, wilderness)
+			}
+		})
+	}
+}
+
+// TestAudioSystemNoListener verifies graceful handling when no listener exists.
+func TestAudioSystemNoListener(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewAudioSystem("fantasy")
+	w.RegisterSystem(sys)
+
+	// Create audio source but NO listener
+	source := w.CreateEntity()
+	_ = w.AddComponent(source, &components.Position{X: 10, Y: 0, Z: 0})
+	_ = w.AddComponent(source, &components.AudioSource{
+		Playing: true,
+		Volume:  1.0,
+		Range:   50.0,
+	})
+
+	// Should not panic
+	w.Update(0.016)
+}
+
+// TestAudioSystemDisabledListener verifies disabled listeners are skipped.
+func TestAudioSystemDisabledListener(t *testing.T) {
+	w := ecs.NewWorld()
+	sys := NewAudioSystem("fantasy")
+	w.RegisterSystem(sys)
+
+	// Create disabled listener
+	listener := w.CreateEntity()
+	_ = w.AddComponent(listener, &components.Position{X: 100, Y: 100, Z: 0})
+	_ = w.AddComponent(listener, &components.AudioListener{Enabled: false})
+
+	// Create audio state
+	stateEntity := w.CreateEntity()
+	_ = w.AddComponent(stateEntity, &components.AudioState{LastPositionX: -1, LastPositionY: -1})
+
+	// Run update
+	w.Update(0.016)
+
+	// State should NOT be updated since listener is disabled
+	comp, _ := w.GetComponent(stateEntity, "AudioState")
+	state := comp.(*components.AudioState)
+	if state.LastPositionX != -1 || state.LastPositionY != -1 {
+		t.Error("AudioState was updated despite disabled listener")
 	}
 }
