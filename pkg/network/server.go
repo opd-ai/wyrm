@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 )
 
 // Server handles incoming client connections and authoritative game state.
@@ -83,15 +84,54 @@ func (s *Server) handleClient(conn net.Conn) {
 		log.Printf("client disconnected: %s", conn.RemoteAddr())
 	}()
 
-	buf := make([]byte, 4096)
 	for {
-		n, err := conn.Read(buf)
+		msgType, err := ReadMessageType(conn)
 		if err != nil {
 			return
 		}
-		// Echo for now - future: process game messages
-		_, _ = conn.Write(buf[:n])
+
+		switch msgType {
+		case MsgTypePlayerInput:
+			input, err := DecodePlayerInput(conn)
+			if err != nil {
+				log.Printf("decode PlayerInput: %v", err)
+				return
+			}
+			s.handlePlayerInput(conn, input)
+
+		case MsgTypePing:
+			ping, err := DecodePing(conn)
+			if err != nil {
+				log.Printf("decode Ping: %v", err)
+				return
+			}
+			s.handlePing(conn, ping)
+
+		default:
+			log.Printf("unknown message type: %d", msgType)
+		}
 	}
+}
+
+// handlePlayerInput processes player input from a client.
+func (s *Server) handlePlayerInput(conn net.Conn, input *PlayerInput) {
+	// For now, just acknowledge receipt with a world state
+	// Future: apply to player entity, validate, broadcast
+	_ = input
+}
+
+// handlePing responds to a ping with a pong.
+func (s *Server) handlePing(conn net.Conn, ping *Ping) {
+	pong := &Pong{
+		ClientTimeMs: ping.ClientTimeMs,
+		ServerTimeMs: uint32(serverTimeMs()),
+	}
+	_ = pong.Encode(conn)
+}
+
+// serverTimeMs returns the current server time in milliseconds.
+func serverTimeMs() int64 {
+	return time.Now().UnixMilli()
 }
 
 // removeClient removes a client from the tracked connections.

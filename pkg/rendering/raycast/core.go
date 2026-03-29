@@ -118,11 +118,19 @@ func (r *Renderer) castRay(rayDirX, rayDirY float64) (float64, int) {
 		rayDirX, rayDirY, deltaDistX, deltaDistY,
 	)
 
-	// DDA loop
-	hit := false
-	side := 0 // 0 = NS wall, 1 = EW wall
+	hit, side, mapX, mapY := r.performDDA(sideDistX, sideDistY, deltaDistX, deltaDistY, stepX, stepY, mapX, mapY)
 
-	for i := 0; i < MaxRaySteps && !hit; i++ {
+	if !hit {
+		return MaxRayDistance, 0
+	}
+
+	return r.calculateWallDistance(side, sideDistX, sideDistY, deltaDistX, deltaDistY, mapX, mapY)
+}
+
+// performDDA executes the DDA algorithm to find wall intersections.
+func (r *Renderer) performDDA(sideDistX, sideDistY, deltaDistX, deltaDistY float64, stepX, stepY, mapX, mapY int) (bool, int, int, int) {
+	side := 0
+	for i := 0; i < MaxRaySteps; i++ {
 		if sideDistX < sideDistY {
 			sideDistX += deltaDistX
 			mapX += stepX
@@ -133,20 +141,23 @@ func (r *Renderer) castRay(rayDirX, rayDirY float64) (float64, int) {
 			side = 1
 		}
 
-		if mapX >= 0 && mapX < len(r.WorldMap) && mapY >= 0 && mapY < len(r.WorldMap[0]) {
-			if r.WorldMap[mapX][mapY] > 0 {
-				hit = true
-			}
-		} else {
-			break
+		if !r.isValidMapPosition(mapX, mapY) {
+			return false, side, mapX, mapY
+		}
+		if r.WorldMap[mapX][mapY] > 0 {
+			return true, side, mapX, mapY
 		}
 	}
+	return false, side, mapX, mapY
+}
 
-	if !hit {
-		return MaxRayDistance, 0
-	}
+// isValidMapPosition checks if coordinates are within map bounds.
+func (r *Renderer) isValidMapPosition(x, y int) bool {
+	return x >= 0 && x < len(r.WorldMap) && y >= 0 && y < len(r.WorldMap[0])
+}
 
-	// Calculate perpendicular distance
+// calculateWallDistance computes the perpendicular wall distance.
+func (r *Renderer) calculateWallDistance(side int, sideDistX, sideDistY, deltaDistX, deltaDistY float64, mapX, mapY int) (float64, int) {
 	var perpWallDist float64
 	if side == 0 {
 		perpWallDist = sideDistX - deltaDistX
@@ -155,10 +166,9 @@ func (r *Renderer) castRay(rayDirX, rayDirY float64) (float64, int) {
 	}
 
 	wallType := 0
-	if mapX >= 0 && mapX < len(r.WorldMap) && mapY >= 0 && mapY < len(r.WorldMap[0]) {
+	if r.isValidMapPosition(mapX, mapY) {
 		wallType = r.WorldMap[mapX][mapY]
 	}
-
 	return perpWallDist, wallType
 }
 
@@ -199,4 +209,55 @@ func (r *Renderer) SetPlayerPos(x, y, angle float64) {
 	r.PlayerX = x
 	r.PlayerY = y
 	r.PlayerA = angle
+}
+
+// SetWorldMap sets the world map from chunk heightmap data.
+// The threshold determines height values that become walls.
+func (r *Renderer) SetWorldMap(heightMap []float64, mapSize int, wallThreshold float64) {
+	if mapSize <= 0 {
+		return
+	}
+	worldMap := createEmptyWorldMap(mapSize)
+	populateWorldMap(worldMap, heightMap, mapSize, wallThreshold)
+	r.WorldMap = worldMap
+}
+
+// createEmptyWorldMap allocates a 2D map grid of the given size.
+func createEmptyWorldMap(mapSize int) [][]int {
+	worldMap := make([][]int, mapSize)
+	for i := range worldMap {
+		worldMap[i] = make([]int, mapSize)
+	}
+	return worldMap
+}
+
+// populateWorldMap converts heightmap values to wall types.
+func populateWorldMap(worldMap [][]int, heightMap []float64, mapSize int, wallThreshold float64) {
+	for y := 0; y < mapSize; y++ {
+		for x := 0; x < mapSize; x++ {
+			idx := y*mapSize + x
+			if idx < len(heightMap) {
+				worldMap[y][x] = heightToWallType(heightMap[idx], wallThreshold)
+			}
+		}
+	}
+}
+
+// heightToWallType converts a height value to a wall type.
+func heightToWallType(height, wallThreshold float64) int {
+	if height <= wallThreshold {
+		return 0 // No wall
+	}
+	if height > 0.8 {
+		return 3 // High wall (blue)
+	}
+	if height > 0.6 {
+		return 2 // Medium wall (green)
+	}
+	return 1 // Low wall (red-brown)
+}
+
+// SetWorldMapDirect sets the world map directly (for pre-computed maps).
+func (r *Renderer) SetWorldMapDirect(worldMap [][]int) {
+	r.WorldMap = worldMap
 }

@@ -179,25 +179,35 @@ func (s *FactionPoliticsSystem) Update(w *ecs.World, dt float64) {
 			continue
 		}
 		rep := comp.(*components.Reputation)
-		if rep.Standings == nil {
-			continue
+		s.decayReputationStandings(rep, dt)
+	}
+}
+
+// decayReputationStandings drifts all faction standings toward neutral.
+func (s *FactionPoliticsSystem) decayReputationStandings(rep *components.Reputation, dt float64) {
+	if rep.Standings == nil {
+		return
+	}
+	for factionID, standing := range rep.Standings {
+		rep.Standings[factionID] = s.decayStanding(standing, dt)
+	}
+}
+
+// decayStanding decays a single standing value toward neutral (0).
+func (s *FactionPoliticsSystem) decayStanding(standing, dt float64) float64 {
+	decay := s.DecayRate * dt
+	if standing > 0 {
+		standing -= decay
+		if standing < 0 {
+			return 0
 		}
-		// Decay each faction standing toward neutral (0)
-		for factionID, standing := range rep.Standings {
-			if standing > 0 {
-				standing -= s.DecayRate * dt
-				if standing < 0 {
-					standing = 0
-				}
-			} else if standing < 0 {
-				standing += s.DecayRate * dt
-				if standing > 0 {
-					standing = 0
-				}
-			}
-			rep.Standings[factionID] = standing
+	} else if standing < 0 {
+		standing += decay
+		if standing > 0 {
+			return 0
 		}
 	}
+	return standing
 }
 
 // CrimeSystem tracks crimes, wanted levels, witnesses, and bounties.
@@ -302,46 +312,66 @@ func (s *EconomySystem) Update(w *ecs.World, dt float64) {
 			continue
 		}
 		node := comp.(*components.EconomyNode)
-		if node.PriceTable == nil {
-			node.PriceTable = make(map[string]float64)
-		}
-		if node.Supply == nil {
-			node.Supply = make(map[string]int)
-		}
-		if node.Demand == nil {
-			node.Demand = make(map[string]int)
-		}
-		// Update prices based on supply vs demand
-		for itemType, basePrice := range s.BasePrices {
-			supply := float64(node.Supply[itemType])
-			demand := float64(node.Demand[itemType])
-			// Price goes up when demand > supply, down when supply > demand
-			ratio := 1.0
-			if supply > 0 {
-				ratio = demand / supply
-			} else if demand > 0 {
-				ratio = 2.0 // High demand, no supply = double price
-			}
-			// Apply fluctuation with clamping
-			priceMod := 1.0 + (ratio-1.0)*s.PriceFluctuation
-			if priceMod < 0.5 {
-				priceMod = 0.5 // Minimum 50% of base price
-			}
-			if priceMod > 2.0 {
-				priceMod = 2.0 // Maximum 200% of base price
-			}
-			node.PriceTable[itemType] = basePrice * priceMod
-		}
-		// Normalize supply and demand toward equilibrium over time
-		for itemType := range node.Supply {
-			target := node.Demand[itemType]
-			if node.Supply[itemType] < target {
-				node.Supply[itemType]++
-			} else if node.Supply[itemType] > target {
-				node.Supply[itemType]--
-			}
+		s.initializeNodeMaps(node)
+		s.updateNodePrices(node)
+		s.normalizeSupplyDemand(node)
+	}
+}
+
+// initializeNodeMaps ensures all economy node maps are initialized.
+func (s *EconomySystem) initializeNodeMaps(node *components.EconomyNode) {
+	if node.PriceTable == nil {
+		node.PriceTable = make(map[string]float64)
+	}
+	if node.Supply == nil {
+		node.Supply = make(map[string]int)
+	}
+	if node.Demand == nil {
+		node.Demand = make(map[string]int)
+	}
+}
+
+// calculatePriceModifier computes the price modifier based on supply and demand.
+func (s *EconomySystem) calculatePriceModifier(supply, demand int) float64 {
+	ratio := 1.0
+	if supply > 0 {
+		ratio = float64(demand) / float64(supply)
+	} else if demand > 0 {
+		ratio = 2.0 // High demand, no supply = double price
+	}
+	priceMod := 1.0 + (ratio-1.0)*s.PriceFluctuation
+	return clampFloat(priceMod, 0.5, 2.0)
+}
+
+// updateNodePrices updates all item prices based on supply vs demand.
+func (s *EconomySystem) updateNodePrices(node *components.EconomyNode) {
+	for itemType, basePrice := range s.BasePrices {
+		priceMod := s.calculatePriceModifier(node.Supply[itemType], node.Demand[itemType])
+		node.PriceTable[itemType] = basePrice * priceMod
+	}
+}
+
+// normalizeSupplyDemand drifts supply toward demand over time.
+func (s *EconomySystem) normalizeSupplyDemand(node *components.EconomyNode) {
+	for itemType := range node.Supply {
+		target := node.Demand[itemType]
+		if node.Supply[itemType] < target {
+			node.Supply[itemType]++
+		} else if node.Supply[itemType] > target {
+			node.Supply[itemType]--
 		}
 	}
+}
+
+// clampFloat clamps a value between min and max.
+func clampFloat(value, min, max float64) float64 {
+	if value < min {
+		return min
+	}
+	if value > max {
+		return max
+	}
+	return value
 }
 
 // CombatSystem handles combat resolution and damage.
@@ -430,32 +460,44 @@ func (s *QuestSystem) Update(w *ecs.World, dt float64) {
 			continue
 		}
 		quest := comp.(*components.Quest)
-		if quest.Completed {
+		s.processQuestStage(quest)
+	}
+}
+
+// processQuestStage checks and advances a single quest's stage.
+func (s *QuestSystem) processQuestStage(quest *components.Quest) {
+	if quest.Completed {
+		return
+	}
+	if quest.Flags == nil {
+		quest.Flags = make(map[string]bool)
+	}
+	stages, ok := s.QuestStages[quest.ID]
+	if !ok {
+		return
+	}
+	s.checkStageConditions(quest, stages)
+}
+
+// checkStageConditions evaluates stage conditions and advances the quest.
+func (s *QuestSystem) checkStageConditions(quest *components.Quest, stages []QuestStageCondition) {
+	for _, cond := range stages {
+		if cond.FromStage != quest.CurrentStage {
 			continue
 		}
-		if quest.Flags == nil {
-			quest.Flags = make(map[string]bool)
+		if quest.Flags[cond.RequiredFlag] {
+			s.advanceQuest(quest, cond)
+			break
 		}
-		// Check if current stage conditions are met
-		stages, ok := s.QuestStages[quest.ID]
-		if !ok {
-			continue
-		}
-		for _, cond := range stages {
-			// Only check conditions for current stage
-			if cond.FromStage != quest.CurrentStage {
-				continue
-			}
-			// Check if required flag is set
-			if quest.Flags[cond.RequiredFlag] {
-				if cond.Completes {
-					quest.Completed = true
-				} else {
-					quest.CurrentStage = cond.NextStage
-				}
-				break
-			}
-		}
+	}
+}
+
+// advanceQuest moves the quest to the next stage or completes it.
+func (s *QuestSystem) advanceQuest(quest *components.Quest, cond QuestStageCondition) {
+	if cond.Completes {
+		quest.Completed = true
+	} else {
+		quest.CurrentStage = cond.NextStage
 	}
 }
 

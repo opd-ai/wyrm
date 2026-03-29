@@ -11,53 +11,53 @@ import (
 
 // Draw renders the current view to the screen using DDA raycasting.
 func (r *Renderer) Draw(screen *ebiten.Image) {
-	// Fill background (ceiling and floor)
-	screen.Fill(color.RGBA{R: 20, G: 12, B: 28, A: 255})
+	r.drawBackground(screen)
+	r.drawWalls(screen)
+}
 
-	// Draw floor (bottom half)
+// drawBackground fills the ceiling and floor.
+func (r *Renderer) drawBackground(screen *ebiten.Image) {
+	screen.Fill(color.RGBA{R: 20, G: 12, B: 28, A: 255})
 	floorColor := color.RGBA{R: 40, G: 35, B: 45, A: 255}
 	for y := r.Height / 2; y < r.Height; y++ {
 		for x := 0; x < r.Width; x++ {
 			screen.Set(x, y, floorColor)
 		}
 	}
+}
 
-	// Cast rays for each screen column
+// drawWalls casts rays and renders wall columns.
+func (r *Renderer) drawWalls(screen *ebiten.Image) {
 	for x := 0; x < r.Width; x++ {
-		// Calculate ray direction
-		cameraX := 2.0*float64(x)/float64(r.Width) - 1.0
-		rayAngle := r.PlayerA + cameraX*(r.FOV/2)
+		r.drawWallColumn(screen, x)
+	}
+}
 
-		rayDirX := math.Cos(rayAngle)
-		rayDirY := math.Sin(rayAngle)
+// drawWallColumn renders a single vertical wall strip.
+func (r *Renderer) drawWallColumn(screen *ebiten.Image, x int) {
+	cameraX := 2.0*float64(x)/float64(r.Width) - 1.0
+	rayAngle := r.PlayerA + cameraX*(r.FOV/2)
+	rayDirX := math.Cos(rayAngle)
+	rayDirY := math.Sin(rayAngle)
 
-		// Perform DDA
-		distance, wallType := r.castRay(rayDirX, rayDirY)
+	distance, wallType := r.castRay(rayDirX, rayDirY)
+	distance *= math.Cos(cameraX * (r.FOV / 2)) // Fix fisheye
 
-		// Fix fisheye effect
-		distance *= math.Cos(cameraX * (r.FOV / 2))
+	if distance < MinWallDistance {
+		distance = MinWallDistance
+	}
+	wallHeight := int(float64(r.Height) / distance)
+	if wallHeight > r.Height {
+		wallHeight = r.Height
+	}
 
-		// Calculate wall height
-		if distance < MinWallDistance {
-			distance = MinWallDistance
-		}
-		wallHeight := int(float64(r.Height) / distance)
-		if wallHeight > r.Height {
-			wallHeight = r.Height
-		}
+	drawStart := (r.Height - wallHeight) / 2
+	drawEnd := drawStart + wallHeight
+	wallColor := r.getWallColor(wallType, distance)
 
-		// Calculate draw bounds
-		drawStart := (r.Height - wallHeight) / 2
-		drawEnd := drawStart + wallHeight
-
-		// Get wall color based on type and distance
-		wallColor := r.getWallColor(wallType, distance)
-
-		// Draw wall strip
-		for y := drawStart; y < drawEnd; y++ {
-			if y >= 0 && y < r.Height {
-				screen.Set(x, y, wallColor)
-			}
+	for y := drawStart; y < drawEnd; y++ {
+		if y >= 0 && y < r.Height {
+			screen.Set(x, y, wallColor)
 		}
 	}
 }

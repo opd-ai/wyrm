@@ -161,19 +161,19 @@ This document catalogs the gaps between Wyrm's stated goals and its current impl
 ## Prioritized Remediation Order
 
 ### Immediate (Blocks basic gameplay)
-1. Create player entity with Position component
-2. Add input handling (WASD movement, mouse look)
-3. Connect raycaster to chunk terrain data
+- [x] Create player entity with Position component
+- [x] Add input handling (WASD movement, mouse look)
+- [x] Connect raycaster to chunk terrain data
 
 ### Short-term (Core systems)
-4. Implement stub systems (Crime, Economy, Quest, Faction)
-5. Add world clock for time progression
-6. Define network message protocol
+- [x] Implement stub systems (Crime, Economy, Quest, Faction)
+- [x] Add world clock for time progression
+- [x] Define network message protocol
 
 ### Medium-term (Feature depth)
-7. Integrate V-Series generators
-8. Wire audio engine to Ebitengine
-9. Add weather transitions
+- [ ] Integrate V-Series generators
+- [x] Wire audio engine to Ebitengine
+- [x] Add weather transitions
 
 ### Long-term (Full scope)
-10. Implement remaining 185 features per ROADMAP.md phases
+- [ ] Implement remaining 185 features per ROADMAP.md phases

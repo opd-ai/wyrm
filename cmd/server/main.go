@@ -27,29 +27,51 @@ func main() {
 	world := ecs.NewWorld()
 	cm := chunk.NewManager(cfg.World.ChunkSize, cfg.World.Seed)
 
-	// Generate the city and spawn building entities
+	initializeCity(world, cfg)
+	initializeWorldClock(world)
+	registerServerSystems(world, cm, cfg)
+
+	srv := network.NewServer(cfg.Server.Address)
+	if err := srv.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "server start: %v\n", err)
+		os.Exit(1)
+	}
+	defer srv.Stop()
+
+	log.Printf("server listening on %s (tick_rate=%d)", cfg.Server.Address, cfg.Server.TickRate)
+	runServerLoop(world, cfg, srv)
+}
+
+// initializeCity generates the city and spawns district entities.
+func initializeCity(world *ecs.World, cfg *config.Config) {
 	generatedCity := city.Generate(cfg.World.Seed, cfg.Genre)
 	log.Printf("generated city: %s (%s) with %d districts", generatedCity.Name, cfg.Genre, len(generatedCity.Districts))
 	for _, district := range generatedCity.Districts {
-		// Create a marker entity for each district center
-		districtEntity := world.CreateEntity()
-		if err := world.AddComponent(districtEntity, &components.Position{
-			X: district.CenterX,
-			Y: district.CenterY,
-			Z: 0,
-		}); err != nil {
-			log.Printf("warning: failed to add district position: %v", err)
-		}
-		if err := world.AddComponent(districtEntity, &components.EconomyNode{
-			PriceTable: make(map[string]float64),
-			Supply:     make(map[string]int),
-			Demand:     make(map[string]int),
-		}); err != nil {
-			log.Printf("warning: failed to add economy node: %v", err)
-		}
+		createDistrictEntity(world, district)
 	}
+}
 
-	// Create world clock entity (60 real seconds = 1 game hour)
+// createDistrictEntity creates an entity for a single district.
+func createDistrictEntity(world *ecs.World, district city.District) {
+	districtEntity := world.CreateEntity()
+	if err := world.AddComponent(districtEntity, &components.Position{
+		X: district.CenterX,
+		Y: district.CenterY,
+		Z: 0,
+	}); err != nil {
+		log.Printf("warning: failed to add district position: %v", err)
+	}
+	if err := world.AddComponent(districtEntity, &components.EconomyNode{
+		PriceTable: make(map[string]float64),
+		Supply:     make(map[string]int),
+		Demand:     make(map[string]int),
+	}); err != nil {
+		log.Printf("warning: failed to add economy node: %v", err)
+	}
+}
+
+// initializeWorldClock creates the world clock entity.
+func initializeWorldClock(world *ecs.World) {
 	clockEntity := world.CreateEntity()
 	if err := world.AddComponent(clockEntity, &components.WorldClock{
 		Hour:       8, // Start at 8 AM
@@ -58,8 +80,10 @@ func main() {
 	}); err != nil {
 		log.Fatalf("failed to add WorldClock component: %v", err)
 	}
+}
 
-	// Register server-side systems
+// registerServerSystems registers all server-side ECS systems.
+func registerServerSystems(world *ecs.World, cm *chunk.Manager, cfg *config.Config) {
 	world.RegisterSystem(systems.NewWorldClockSystem(60.0))
 	world.RegisterSystem(systems.NewWorldChunkSystem(cm, cfg.World.ChunkSize))
 	world.RegisterSystem(&systems.NPCScheduleSystem{})
@@ -70,17 +94,10 @@ func main() {
 	world.RegisterSystem(&systems.VehicleSystem{})
 	world.RegisterSystem(systems.NewQuestSystem())
 	world.RegisterSystem(systems.NewWeatherSystem(cfg.Genre, 300.0))
+}
 
-	srv := network.NewServer(cfg.Server.Address)
-	if err := srv.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "server start: %v\n", err)
-		os.Exit(1)
-	}
-	defer srv.Stop()
-
-	log.Printf("server listening on %s (tick_rate=%d)", cfg.Server.Address, cfg.Server.TickRate)
-
-	// Start tick loop
+// runServerLoop runs the main server tick loop until shutdown.
+func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server) {
 	tickInterval := time.Second / time.Duration(cfg.Server.TickRate)
 	ticker := time.NewTicker(tickInterval)
 	defer ticker.Stop()
