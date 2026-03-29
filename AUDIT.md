@@ -60,7 +60,7 @@ Wyrm is a 100% procedurally generated first-person open-world RPG built in Go 1.
 
 - [x] **QuestSystem is a no-op** — `pkg/engine/systems/systems.go:142-148` — The system has a comment "Future: check quest conditions" but implements nothing. README claims "Branching quest lines with persistent world-changing consequences" but quest logic is absent. **Remediation:** Implement quest state machine, condition checking, and consequence flag storage. Add Quest component with Flags and CurrentStage fields.
 
-- [ ] **V-Series dependency not imported** — `go.mod:1-37` — ROADMAP.md Section 9 specifies `opd-ai/venture` as "a direct Go module dependency" for 25+ generators, but no such dependency exists. This blocks terrain, entity, faction, quest, dialog, building, vehicle, magic, and skills generation from V-Series. **Remediation:** Run `go get github.com/opd-ai/venture@latest` and create adapter packages in `pkg/procgen/adapters/` for each Venture generator.
+- [x] **V-Series dependency not imported** — `go.mod:1-37` — ROADMAP.md Section 9 specifies `opd-ai/venture` as "a direct Go module dependency" for 25+ generators, but no such dependency exists. This blocks terrain, entity, faction, quest, dialog, building, vehicle, magic, and skills generation from V-Series. **Remediation:** Run `go get github.com/opd-ai/venture@latest` and create adapter packages in `pkg/procgen/adapters/` for each Venture generator. **RESOLVED:** Venture v0.0.0-20260321140920-c0db90759ef8 is present in go.mod.
 
 ### HIGH
 
