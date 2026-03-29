@@ -80,7 +80,7 @@ Wyrm is described as a **"100% procedurally generated first-person open-world RP
 
 - [ ] **Low cohesion files detected** — `pkg/network/federation/federation.go` (0.15), `pkg/engine/systems/constants.go` (0.20) — Files contain unrelated functions grouped together. — **Remediation:** Split `federation.go` into `node.go`, `gossip.go`, `transfer.go`. Move system-specific constants from `constants.go` to their respective system files. **Validation:** `go-stats-generator analyze . --skip-tests | grep "Low Cohesion"` shows <5 files
 
-- [ ] **cmd/client has no test files** — `cmd/client/main.go` — Entry point with 305 LOC untested. Player input handling, chunk map updates, audio initialization all lack coverage. — **Remediation:** Add `cmd/client/main_test.go` with tests for `heightToWallType`, `processMovementInput` (mockable). **Validation:** `go test ./cmd/client/...` passes
+- [x] **cmd/client has test files** — `cmd/client/main_test.go` — Added tests for `heightToWallType` function with various thresholds and boundary conditions. Extracted pure functions to `util.go` for testability. **Validation:** `go test -tags=noebiten ./cmd/client/...` passes
 
 ### MEDIUM
 

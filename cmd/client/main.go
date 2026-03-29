@@ -105,20 +105,6 @@ func (g *Game) sampleChunkIntoMap(worldMap [][]int, c *chunk.Chunk, dx, dy, chun
 	}
 }
 
-// heightToWallType converts a height value to a wall type.
-func heightToWallType(height, threshold float64) int {
-	if height <= threshold {
-		return 0 // No wall
-	}
-	if height > 0.8 {
-		return 3 // High wall (blue)
-	}
-	if height > 0.6 {
-		return 2 // Medium wall (green)
-	}
-	return 1 // Low wall (red-brown)
-}
-
 // handlePlayerInput processes keyboard input for player movement.
 func (g *Game) handlePlayerInput(dt float64) {
 	if g.playerEntity == 0 {
