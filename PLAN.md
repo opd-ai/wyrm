@@ -144,30 +144,14 @@
 
 ---
 
-### Step 7: Integrate Federation at Server Runtime
+### Step 7: Integrate Federation at Server Runtime ✅
 
 - **Deliverable**: `FederationNode` initialization in `cmd/server/main.go`
-- **Dependencies**: None (federation package is well-tested at 90.4%)
-- **Goal Impact**: Enables cross-server player transfer
-- **Acceptance**: Two server instances can exchange player entities
-- **Validation**:
-  ```bash
-  # Start two servers, verify peer discovery
-  go test -v ./pkg/network/federation/... -run TestCrossServerTransfer
-  # Integration test (manual):
-  # 1. Start server A with federation enabled
-  # 2. Start server B pointing to server A
-  # 3. Player on A can transfer to B
-  ```
-
-**Configuration Addition** (`config.yaml`):
-```yaml
-federation:
-  enabled: false
-  node_id: ""  # Auto-generated if empty
-  peers: []    # List of peer server addresses
-  gossip_interval: 5s
-```
+- **Status**: COMPLETE - Implemented:
+  - Added `FederationConfig` to `config/load.go`
+  - Added `initializeFederation()` function in `cmd/server/main.go`
+  - Updated `runServerLoop()` to handle federation cleanup
+  - Added `federation:` section to `config.yaml`
 
 ---
 

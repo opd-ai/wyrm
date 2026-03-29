@@ -186,38 +186,43 @@ func initializeFederation(cfg *config.Config) *federation.Federation {
 }
 
 // runServerLoop runs the main server tick loop until shutdown.
+// runFederationCleanup handles periodic federation cleanup in a separate goroutine.
+func runFederationCleanup(fed *federation.Federation, stopCh <-chan struct{}) {
+	if fed == nil {
+		return
+	}
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			fed.CleanupExpired()
+		case <-stopCh:
+			return
+		}
+	}
+}
+
 func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server, fed *federation.Federation) {
 	tickInterval := time.Second / time.Duration(cfg.Server.TickRate)
 	ticker := time.NewTicker(tickInterval)
 	defer ticker.Stop()
 
-	// Federation cleanup ticker (every 30 seconds)
-	var fedCleanupTicker *time.Ticker
-	if fed != nil {
-		fedCleanupTicker = time.NewTicker(30 * time.Second)
-		defer fedCleanupTicker.Stop()
-	}
-
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	// Start federation cleanup goroutine
+	fedStopCh := make(chan struct{})
+	go runFederationCleanup(fed, fedStopCh)
+	defer close(fedStopCh)
 
 	for {
 		select {
 		case <-ticker.C:
-			dt := tickInterval.Seconds()
-			world.Update(dt)
+			world.Update(tickInterval.Seconds())
 		case <-sigCh:
 			log.Println("shutting down")
 			return
-		default:
-			// Non-blocking federation cleanup check
-			if fedCleanupTicker != nil {
-				select {
-				case <-fedCleanupTicker.C:
-					fed.CleanupExpired()
-				default:
-				}
-			}
 		}
 	}
 }
