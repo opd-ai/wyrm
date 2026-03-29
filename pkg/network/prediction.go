@@ -6,6 +6,31 @@ import (
 	"time"
 )
 
+// TorModeThreshold is the RTT threshold above which Tor-mode activates.
+// Per ROADMAP: When RTT exceeds 800ms, adaptive prediction engages.
+const TorModeThreshold = 800 * time.Millisecond
+
+// TorModePredictionWindow is the increased prediction window in Tor-mode.
+// Per ROADMAP: Increase client prediction window to 1500ms.
+const TorModePredictionWindow = 1500 * time.Millisecond
+
+// NormalPredictionWindow is the standard prediction window for low-latency connections.
+const NormalPredictionWindow = 500 * time.Millisecond
+
+// TorModeInputRate is the reduced input send rate in Tor-mode (Hz).
+// Per ROADMAP: Reduce input send rate to 10 Hz.
+const TorModeInputRate = 10
+
+// NormalInputRate is the standard input send rate (Hz).
+const NormalInputRate = 60
+
+// TorModeBlendTime is the interpolation blend time in Tor-mode.
+// Per ROADMAP: Enable aggressive visual interpolation with 300ms blend time.
+const TorModeBlendTime = 300 * time.Millisecond
+
+// NormalBlendTime is the standard interpolation blend time.
+const NormalBlendTime = 100 * time.Millisecond
+
 // PredictedInput stores input and the predicted state resulting from it.
 type PredictedInput struct {
 	SequenceNum uint32
@@ -43,18 +68,26 @@ type ClientPredictor struct {
 	moveSpeed float32
 	turnSpeed float32
 
-	// RTT tracking
-	smoothedRTT time.Duration
-	rttAlpha    float64 // Smoothing factor
+	// RTT tracking for Tor-mode adaptation
+	smoothedRTT         time.Duration
+	rttAlpha            float64 // Smoothing factor
+	lastInputTime       time.Time
+	torModeActive       bool
+	predictionWindow    time.Duration
+	interpolationBlend  time.Duration
+	inputRateHz         int
 }
 
 // NewClientPredictor creates a new client-side predictor.
 func NewClientPredictor() *ClientPredictor {
 	return &ClientPredictor{
-		pendingInputs: make([]PredictedInput, 0, 64),
-		moveSpeed:     5.0,  // Units per second
-		turnSpeed:     90.0, // Degrees per second
-		rttAlpha:      0.125,
+		pendingInputs:      make([]PredictedInput, 0, 64),
+		moveSpeed:          5.0,  // Units per second
+		turnSpeed:          90.0, // Degrees per second
+		rttAlpha:           0.125,
+		predictionWindow:   NormalPredictionWindow,
+		interpolationBlend: NormalBlendTime,
+		inputRateHz:        NormalInputRate,
 	}
 }
 
@@ -181,7 +214,7 @@ func (cp *ClientPredictor) replayPendingInputs() {
 	}
 }
 
-// updateRTT updates the smoothed RTT estimate.
+// updateRTT updates the smoothed RTT estimate and adapts Tor-mode settings.
 func (cp *ClientPredictor) updateRTT(serverState *WorldState) {
 	// Find the input that was acknowledged
 	for _, pi := range cp.pendingInputs {
@@ -196,9 +229,75 @@ func (cp *ClientPredictor) updateRTT(serverState *WorldState) {
 						float64(rtt)*cp.rttAlpha,
 				)
 			}
+			// Adapt prediction parameters based on RTT
+			cp.adaptToLatency()
 			break
 		}
 	}
+}
+
+// adaptToLatency adjusts prediction parameters based on current RTT.
+// Per ROADMAP: When RTT > 800ms, activate Tor-mode adaptations.
+func (cp *ClientPredictor) adaptToLatency() {
+	wasTorMode := cp.torModeActive
+	cp.torModeActive = cp.smoothedRTT > TorModeThreshold
+
+	if cp.torModeActive {
+		cp.predictionWindow = TorModePredictionWindow
+		cp.interpolationBlend = TorModeBlendTime
+		cp.inputRateHz = TorModeInputRate
+	} else {
+		cp.predictionWindow = NormalPredictionWindow
+		cp.interpolationBlend = NormalBlendTime
+		cp.inputRateHz = NormalInputRate
+	}
+
+	// Log mode changes (will be visible in debug output)
+	if wasTorMode != cp.torModeActive {
+		// Mode changed - client code can check IsTorMode() for UI feedback
+	}
+}
+
+// IsTorMode returns whether Tor-mode is currently active.
+func (cp *ClientPredictor) IsTorMode() bool {
+	cp.mu.Lock()
+	defer cp.mu.Unlock()
+	return cp.torModeActive
+}
+
+// ShouldSendInput returns true if enough time has passed to send another input.
+// This enforces the adaptive input rate (10 Hz in Tor-mode, 60 Hz normally).
+func (cp *ClientPredictor) ShouldSendInput() bool {
+	cp.mu.Lock()
+	defer cp.mu.Unlock()
+
+	interval := time.Second / time.Duration(cp.inputRateHz)
+	if time.Since(cp.lastInputTime) >= interval {
+		cp.lastInputTime = time.Now()
+		return true
+	}
+	return false
+}
+
+// GetPredictionWindow returns the current prediction window duration.
+func (cp *ClientPredictor) GetPredictionWindow() time.Duration {
+	cp.mu.Lock()
+	defer cp.mu.Unlock()
+	return cp.predictionWindow
+}
+
+// GetInterpolationBlend returns the current interpolation blend time.
+func (cp *ClientPredictor) GetInterpolationBlend() time.Duration {
+	cp.mu.Lock()
+	defer cp.mu.Unlock()
+	return cp.interpolationBlend
+}
+
+// GetInputRateHz returns the current input send rate in Hz.
+func (cp *ClientPredictor) GetInputRateHz() int {
+	cp.mu.Lock()
+	defer cp.mu.Unlock()
+	return cp.inputRateHz
 }
 
 // GetPredictedPosition returns the current predicted position.

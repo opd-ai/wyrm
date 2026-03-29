@@ -75,7 +75,7 @@ _No critical findings. The codebase builds, tests pass, and core functionality w
 
 - [x] **No CI/CD pipeline** — `.github/workflows/` does not exist — No automated quality gates; regressions can merge undetected. — **Remediation:** Create `.github/workflows/ci.yml` with: `go build ./cmd/...`, `go test -race ./...`, `go vet ./...`, and coverage reporting.
 
-- [ ] **Federation not integrated at runtime** — `cmd/server/main.go` — `pkg/network/federation/` has 90.4% test coverage but `FederationNode` is never instantiated in the server. — **Remediation:** Add federation initialization in `cmd/server/main.go` when config enables it; add `federation:` section to `config.yaml`.
+- [x] **Federation not integrated at runtime** — `cmd/server/main.go` — `pkg/network/federation/` has 90.4% test coverage but `FederationNode` is never instantiated in the server. — **Remediation:** Add federation initialization in `cmd/server/main.go` when config enables it; add `federation:` section to `config.yaml`.
 
 - [ ] **Tor-mode adaptive prediction incomplete** — `pkg/network/prediction.go:26-59` — README claims "200–5000ms latency tolerance (designed for Tor-routed connections)". `IsTorMode()` exists in `lagcomp.go:192` but prediction window doesn't adapt when RTT > 800ms. — **Remediation:** Add RTT-based prediction window scaling in `ClientPredictor`: increase window to 1500ms when `IsTorMode()` returns true; reduce input send rate to 10 Hz.
 

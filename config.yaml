@@ -12,4 +12,10 @@ world:
   seed: 0
   chunk_size: 512
 
+federation:
+  enabled: false
+  node_id: ""           # Auto-generated from server address if empty
+  peers: []             # List of peer server addresses
+  gossip_interval: 5    # Seconds between gossip messages
+
 genre: "fantasy"
