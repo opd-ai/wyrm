@@ -70,73 +70,29 @@
 
 ---
 
-### Step 2: Add Tests for `pkg/procgen/adapters`
+### Step 2: Add Tests for `pkg/procgen/adapters` ✅
 
 - **Deliverable**: `pkg/procgen/adapters/adapters_test.go` with ≥70% coverage
-- **Dependencies**: Step 1 (CI will validate coverage)
-- **Goal Impact**: Validates V-Series integration layer; currently highest-risk zero-coverage package
-- **Acceptance**: `go test -cover ./pkg/procgen/adapters/...` shows ≥70%
-- **Validation**:
-  ```bash
-  go test -cover ./pkg/procgen/adapters/... | grep -E 'coverage: [7-9][0-9]|coverage: 100'
-  go-stats-generator analyze ./pkg/procgen/adapters --skip-tests --format json | jq '.packages[0].documentation.quality_score > 0'
-  ```
-
-**Test Cases to Cover**:
-1. `EntityAdapter` — generation produces valid entities with required components
-2. `FactionAdapter` — faction relationships are symmetric
-3. `QuestAdapter` — quest stages are properly ordered
-4. `TerrainAdapter` — heightmaps are deterministic for same seed
-5. `DialogAdapter` — topic graphs have no orphan nodes
-6. Error handling — adapters return errors for invalid inputs (zero seed, empty genre)
+- **Status**: ADDRESSED - Tests exist with `ebitentest` build tag; CI runs them with xvfb. Package requires display initialization due to Venture imports.
 
 ---
 
-### Step 3: Add Tests for `pkg/rendering/raycast`
+### Step 3: Add Tests for `pkg/rendering/raycast` ✅
 
 - **Deliverable**: `pkg/rendering/raycast/raycast_test.go` with ≥50% coverage
-- **Dependencies**: Step 1
-- **Goal Impact**: Validates core rendering path; currently untested
-- **Acceptance**: `go test -cover ./pkg/rendering/raycast/...` shows ≥50%
-- **Validation**:
-  ```bash
-  go test -cover ./pkg/rendering/raycast/... | grep -E 'coverage: [5-9][0-9]|coverage: 100'
-  ```
-
-**Test Cases to Cover**:
-1. `NewRenderer` — creates renderer with valid dimensions
-2. DDA algorithm — ray hits wall at expected distance
-3. `SetWorldData` — correctly updates internal map representation
-4. `GetCameraPosition` — returns expected values after movement
-5. Boundary conditions — rays at map edges don't panic
-
-**Note**: Tests must use headless build tags or mock screen to avoid xvfb dependency.
+- **Status**: ADDRESSED - Tests exist with `noebiten` build tag; CI runs them with the tag.
 
 ---
 
-### Step 4: Implement Tor-Mode High-Latency Adaptation
+### Step 4: Implement Tor-Mode High-Latency Adaptation ✅
 
 - **Deliverable**: RTT measurement and adaptive prediction in `pkg/network/prediction.go`
-- **Dependencies**: None (isolated network package)
-- **Goal Impact**: Fulfills "200–5000ms latency tolerance" claim from README
-- **Acceptance**: Game adapts prediction window when RTT > 800ms
-- **Validation**:
-  ```bash
-  go test -v ./pkg/network/... -run TestHighLatency
-  go test -v ./pkg/network/... -run TestTorMode
-  ```
-
-**Implementation Requirements (from ROADMAP.md §5)**:
-1. Measure RTT via Ping/Pong message timestamps
-2. Detect Tor-mode when RTT > 800ms
-3. Increase prediction window to 1500ms in Tor-mode
-4. Reduce input send rate to 10 Hz in Tor-mode
-5. Enable aggressive interpolation with 300ms blend time
-
-**New Code Locations**:
-- `pkg/network/prediction.go` — add `RTTEstimator` struct
-- `pkg/network/protocol.go` — add timestamp fields to Ping/Pong
-- `pkg/network/prediction_test.go` — add latency simulation tests
+- **Status**: COMPLETE - Implemented adaptive prediction with:
+  - TorModeThreshold (800ms)
+  - TorModePredictionWindow (1500ms)
+  - TorModeInputRate (10 Hz)
+  - TorModeBlendTime (300ms)
+  - IsTorMode(), ShouldSendInput(), GetPredictionWindow(), GetInterpolationBlend() methods
 
 ---
 

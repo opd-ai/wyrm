@@ -267,6 +267,62 @@ func TestIsTorMode(t *testing.T) {
 	}
 }
 
+func TestClientPredictorTorMode(t *testing.T) {
+	cp := NewClientPredictor()
+
+	// Initially not in Tor mode
+	if cp.IsTorMode() {
+		t.Error("should not start in Tor mode")
+	}
+
+	// Normal mode settings
+	if cp.GetInputRateHz() != NormalInputRate {
+		t.Errorf("normal input rate should be %d, got %d", NormalInputRate, cp.GetInputRateHz())
+	}
+	if cp.GetPredictionWindow() != NormalPredictionWindow {
+		t.Errorf("normal prediction window should be %v, got %v", NormalPredictionWindow, cp.GetPredictionWindow())
+	}
+	if cp.GetInterpolationBlend() != NormalBlendTime {
+		t.Errorf("normal blend time should be %v, got %v", NormalBlendTime, cp.GetInterpolationBlend())
+	}
+}
+
+func TestTorModeThresholds(t *testing.T) {
+	// Verify threshold constants
+	if TorModeThreshold != 800*time.Millisecond {
+		t.Errorf("TorModeThreshold should be 800ms, got %v", TorModeThreshold)
+	}
+	if TorModePredictionWindow != 1500*time.Millisecond {
+		t.Errorf("TorModePredictionWindow should be 1500ms, got %v", TorModePredictionWindow)
+	}
+	if TorModeInputRate != 10 {
+		t.Errorf("TorModeInputRate should be 10 Hz, got %d", TorModeInputRate)
+	}
+	if TorModeBlendTime != 300*time.Millisecond {
+		t.Errorf("TorModeBlendTime should be 300ms, got %v", TorModeBlendTime)
+	}
+}
+
+func TestShouldSendInput(t *testing.T) {
+	cp := NewClientPredictor()
+
+	// First call should always return true (initialize lastInputTime)
+	if !cp.ShouldSendInput() {
+		t.Error("first ShouldSendInput should return true")
+	}
+
+	// Immediate second call should return false (rate limited)
+	if cp.ShouldSendInput() {
+		t.Error("immediate second ShouldSendInput should return false (rate limited)")
+	}
+
+	// After waiting for the interval, should return true
+	time.Sleep(time.Second/time.Duration(NormalInputRate) + 2*time.Millisecond)
+	if !cp.ShouldSendInput() {
+		t.Error("ShouldSendInput should return true after waiting for interval")
+	}
+}
+
 func TestStateHistoryRingBuffer(t *testing.T) {
 	sh := NewStateHistory()
 
