@@ -8,9 +8,9 @@ import (
 
 func TestPlayerTransferValidate(t *testing.T) {
 	tests := []struct {
-		name    string
+		name     string
 		transfer *PlayerTransfer
-		wantErr bool
+		wantErr  bool
 	}{
 		{
 			name: "valid transfer",
@@ -281,21 +281,21 @@ func TestFederationCleanupExpired(t *testing.T) {
 
 func TestEncodeDecodeTransfer(t *testing.T) {
 	original := &PlayerTransfer{
-		PlayerID:      1,
-		AccountID:     "acc1",
-		DisplayName:   "TestPlayer",
-		DestX:         100,
-		DestY:         0,
-		DestZ:         200,
-		HealthCurrent: 80,
-		HealthMax:     100,
-		Inventory:     []string{"sword", "shield"},
-		SkillLevels:   map[string]int{"combat": 25},
+		PlayerID:        1,
+		AccountID:       "acc1",
+		DisplayName:     "TestPlayer",
+		DestX:           100,
+		DestY:           0,
+		DestZ:           200,
+		HealthCurrent:   80,
+		HealthMax:       100,
+		Inventory:       []string{"sword", "shield"},
+		SkillLevels:     map[string]int{"combat": 25},
 		SkillExperience: map[string]float64{"combat": 500.5},
-		QuestFlags:    map[string]map[string]bool{"quest1": {"done": true}},
-		Standings:     map[string]float64{"faction1": 50},
-		TransferTime:  time.Now(),
-		SourceServer:  "server1",
+		QuestFlags:      map[string]map[string]bool{"quest1": {"done": true}},
+		Standings:       map[string]float64{"faction1": 50},
+		TransferTime:    time.Now(),
+		SourceServer:    "server1",
 	}
 
 	var buf bytes.Buffer

@@ -121,7 +121,7 @@ func (p *Persister) SetAutoSave(enabled bool, interval time.Duration) {
 
 // EnsureDataDir creates the data directory if it doesn't exist.
 func (p *Persister) EnsureDataDir() error {
-	return os.MkdirAll(p.dataDir, 0755)
+	return os.MkdirAll(p.dataDir, 0o755)
 }
 
 // snapshotPath returns the path for a world snapshot file.

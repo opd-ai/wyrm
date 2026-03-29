@@ -47,7 +47,7 @@ type PlacedObjectData struct {
 }
 
 // GenerateEnvironmentObject generates a single environment object.
-func (a *EnvironmentAdapter) GenerateEnvironmentObject(seed int64, genre string, subType string) (*EnvironmentObjectData, error) {
+func (a *EnvironmentAdapter) GenerateEnvironmentObject(seed int64, genre, subType string) (*EnvironmentObjectData, error) {
 	config := environment.Config{
 		GenreID: mapGenreID(genre),
 		Seed:    seed,
@@ -68,7 +68,7 @@ func (a *EnvironmentAdapter) GenerateEnvironmentObject(seed int64, genre string,
 }
 
 // GenerateChunkDecorations generates decorations for a world chunk.
-func (a *EnvironmentAdapter) GenerateChunkDecorations(seed int64, genre string, biomeType string) ([]*PlacedObjectData, error) {
+func (a *EnvironmentAdapter) GenerateChunkDecorations(seed int64, genre, biomeType string) ([]*PlacedObjectData, error) {
 	config := environment.PlacementConfig{
 		RoomWidth:  64, // Chunk size in units
 		RoomHeight: 64,
@@ -126,7 +126,7 @@ func (a *EnvironmentAdapter) GenerateRoomDecorations(seed int64, genre string, r
 }
 
 // GenerateBiomeObjects generates biome-appropriate objects for wilderness areas.
-func (a *EnvironmentAdapter) GenerateBiomeObjects(seed int64, genre string, biomeType string, count int) ([]*EnvironmentObjectData, error) {
+func (a *EnvironmentAdapter) GenerateBiomeObjects(seed int64, genre, biomeType string, count int) ([]*EnvironmentObjectData, error) {
 	subTypes := getBiomeObjectTypes(biomeType)
 	if len(subTypes) == 0 {
 		return nil, fmt.Errorf("unknown biome type: %s", biomeType)

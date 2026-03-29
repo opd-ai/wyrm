@@ -41,7 +41,7 @@ func (z *Zone) ContainsPoint(x, zPos float64) bool {
 type ZoneManager struct {
 	mu           sync.RWMutex
 	zones        map[string]*Zone
-	playerFlags  map[uint64]bool // EntityID -> PvP flagged
+	playerFlags  map[uint64]bool  // EntityID -> PvP flagged
 	flagCooldown map[uint64]int64 // EntityID -> Unix timestamp when flag expires
 }
 
@@ -141,11 +141,11 @@ func (m *ZoneManager) ClearExpiredFlags(currentUnix int64) {
 
 // CombatResult contains the outcome of a PvP damage check.
 type CombatResult struct {
-	DamageAllowed bool
-	DamageAmount  float64
+	DamageAllowed   bool
+	DamageAmount    float64
 	AttackerFlagged bool
 	DefenderFlagged bool
-	Zone         *Zone
+	Zone            *Zone
 }
 
 // CheckCombat determines if damage should be applied between two players.

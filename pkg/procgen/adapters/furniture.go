@@ -48,7 +48,7 @@ type FurnitureData struct {
 }
 
 // GenerateFurniture generates a single furniture piece.
-func (a *FurnitureAdapter) GenerateFurniture(seed int64, genre string, subType string) (*FurnitureData, error) {
+func (a *FurnitureAdapter) GenerateFurniture(seed int64, genre, subType string) (*FurnitureData, error) {
 	params := procgen.GenerationParams{
 		GenreID:    mapGenreID(genre),
 		Difficulty: 0.5,
@@ -73,7 +73,7 @@ func (a *FurnitureAdapter) GenerateFurniture(seed int64, genre string, subType s
 }
 
 // GenerateRoomFurniture generates appropriate furniture for a room type.
-func (a *FurnitureAdapter) GenerateRoomFurniture(seed int64, genre string, roomType string, count int) ([]*FurnitureData, error) {
+func (a *FurnitureAdapter) GenerateRoomFurniture(seed int64, genre, roomType string, count int) ([]*FurnitureData, error) {
 	subTypes := getRoomFurnitureTypes(roomType)
 	if len(subTypes) == 0 {
 		return nil, fmt.Errorf("unknown room type: %s", roomType)

@@ -50,10 +50,10 @@ type TopicMemory struct {
 
 // NPCMemory tracks conversation history with a specific NPC.
 type NPCMemory struct {
-	NPCID         uint64
-	PlayerID      uint64
-	Topics        []TopicMemory
-	EmotionShift  float64 // Cumulative emotional modifier
+	NPCID           uint64
+	PlayerID        uint64
+	Topics          []TopicMemory
+	EmotionShift    float64 // Cumulative emotional modifier
 	LastInteraction time.Time
 }
 
@@ -191,40 +191,47 @@ func (dm *DialogManager) GetEmotionalState(npcID, playerID uint64, baseState Emo
 	dm.mu.RLock()
 	defer dm.mu.RUnlock()
 
-	if dm.memories[npcID] == nil {
-		return baseState
-	}
-	memory := dm.memories[npcID][playerID]
+	memory := dm.getMemory(npcID, playerID)
 	if memory == nil {
 		return baseState
 	}
+	return dm.computeEmotionalState(memory.EmotionShift, baseState)
+}
 
-	// Modify base state based on emotional shift
-	if memory.EmotionShift >= 30 {
+// getMemory retrieves the memory for an NPC-player pair, or nil if none exists.
+func (dm *DialogManager) getMemory(npcID, playerID uint64) *NPCMemory {
+	if dm.memories[npcID] == nil {
+		return nil
+	}
+	return dm.memories[npcID][playerID]
+}
+
+// computeEmotionalState determines emotional state based on shift value.
+func (dm *DialogManager) computeEmotionalState(shift float64, baseState EmotionalState) EmotionalState {
+	if shift >= 30 {
 		return EmotionFriendly
 	}
-	if memory.EmotionShift <= -50 {
-		return EmotionHostile
-	}
-	if memory.EmotionShift <= -30 {
-		return EmotionSuspicious
-	}
-	if memory.EmotionShift <= -70 {
+	if shift <= -70 {
 		return EmotionFearful
 	}
-
+	if shift <= -50 {
+		return EmotionHostile
+	}
+	if shift <= -30 {
+		return EmotionSuspicious
+	}
 	return baseState
 }
 
 // GenreVocabulary defines genre-specific common words.
 type GenreVocabulary struct {
-	Greetings  []string
-	Farewells  []string
+	Greetings    []string
+	Farewells    []string
 	Affirmatives []string
-	Negatives  []string
-	Expletives []string
-	Titles     []string
-	CommonWords []string
+	Negatives    []string
+	Expletives   []string
+	Titles       []string
+	CommonWords  []string
 }
 
 // GenreVocabularies maps genre to vocabulary sets.
@@ -371,7 +378,7 @@ func GetGreeting(genre string, emotion EmotionalState, rng *rand.Rand) string {
 	mods := EmotionModifiers[emotion]
 
 	greeting := vocab.Greetings[rng.Intn(len(vocab.Greetings))]
-	
+
 	if len(mods.Prefixes) > 0 && mods.Prefixes[0] != "" {
 		prefix := mods.Prefixes[rng.Intn(len(mods.Prefixes))]
 		return prefix + " " + greeting

@@ -215,7 +215,7 @@ func TestGenerateResponseWithTopicRecall(t *testing.T) {
 
 	// Per AC: NPC recalls player's previous interaction topic in follow-up
 	response := dm.GenerateResponse(1, 100, "fantasy", "new_topic", EmotionNeutral)
-	
+
 	if response.RecalledTopic != "treasure" {
 		t.Errorf("RecalledTopic = %s, want 'treasure'", response.RecalledTopic)
 	}
@@ -225,7 +225,7 @@ func TestClearOldMemories(t *testing.T) {
 	dm := NewDialogManager(12345)
 
 	dm.RecordTopic(1, 100, "old_topic", "action", "response")
-	
+
 	// Manually set old timestamp
 	dm.mu.Lock()
 	dm.memories[1][100].LastInteraction = time.Now().Add(-48 * time.Hour)

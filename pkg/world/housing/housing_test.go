@@ -52,9 +52,9 @@ func TestPlaceFurniture(t *testing.T) {
 	m.RegisterHouse(&House{ID: "house1", OwnerID: 1})
 
 	item := FurnitureItem{
-		ID:       "bed1",
-		Type:     "bed",
-		X:        5, Y: 0, Z: 5,
+		ID:   "bed1",
+		Type: "bed",
+		X:    5, Y: 0, Z: 5,
 		Rotation: 0,
 	}
 

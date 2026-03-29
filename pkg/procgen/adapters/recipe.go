@@ -46,7 +46,7 @@ type MaterialData struct {
 }
 
 // GenerateRecipes generates a batch of recipes for a crafting station or shop.
-func (a *RecipeAdapter) GenerateRecipes(seed int64, genre string, depth int, count int, recipeType string) ([]*RecipeData, error) {
+func (a *RecipeAdapter) GenerateRecipes(seed int64, genre string, depth, count int, recipeType string) ([]*RecipeData, error) {
 	params := procgen.GenerationParams{
 		GenreID:    mapGenreID(genre),
 		Difficulty: float64(depth) / 100.0,
@@ -71,17 +71,17 @@ func (a *RecipeAdapter) GenerateRecipes(seed int64, genre string, depth int, cou
 }
 
 // GeneratePotionRecipes generates potion/consumable recipes.
-func (a *RecipeAdapter) GeneratePotionRecipes(seed int64, genre string, depth int, count int) ([]*RecipeData, error) {
+func (a *RecipeAdapter) GeneratePotionRecipes(seed int64, genre string, depth, count int) ([]*RecipeData, error) {
 	return a.GenerateRecipes(seed, genre, depth, count, "potion")
 }
 
 // GenerateEnchantingRecipes generates enchanting recipes.
-func (a *RecipeAdapter) GenerateEnchantingRecipes(seed int64, genre string, depth int, count int) ([]*RecipeData, error) {
+func (a *RecipeAdapter) GenerateEnchantingRecipes(seed int64, genre string, depth, count int) ([]*RecipeData, error) {
 	return a.GenerateRecipes(seed, genre, depth, count, "enchanting")
 }
 
 // GenerateMagicItemRecipes generates magic item recipes.
-func (a *RecipeAdapter) GenerateMagicItemRecipes(seed int64, genre string, depth int, count int) ([]*RecipeData, error) {
+func (a *RecipeAdapter) GenerateMagicItemRecipes(seed int64, genre string, depth, count int) ([]*RecipeData, error) {
 	return a.GenerateRecipes(seed, genre, depth, count, "magic_item")
 }
 
@@ -162,7 +162,7 @@ func GetEffectiveSuccessChance(recipe *RecipeData, skillLevel int) float64 {
 }
 
 // CanCraft checks if a player has the requirements to craft a recipe.
-func CanCraft(recipe *RecipeData, playerSkill int, playerGold int, inventory map[string]int) (bool, string) {
+func CanCraft(recipe *RecipeData, playerSkill, playerGold int, inventory map[string]int) (bool, string) {
 	if playerSkill < recipe.SkillRequired-3 {
 		return false, "skill too low"
 	}

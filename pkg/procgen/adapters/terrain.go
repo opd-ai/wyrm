@@ -22,12 +22,12 @@ func NewTerrainAdapter() *TerrainAdapter {
 
 // ChunkTerrainData holds generated terrain for a chunk.
 type ChunkTerrainData struct {
-	Width      int
-	Height     int
-	Tiles      [][]int  // TileType as int for portability
-	HeightMap  [][]int  // Height values for 3D rendering
-	Rooms      []RoomData
-	Seed       int64
+	Width     int
+	Height    int
+	Tiles     [][]int // TileType as int for portability
+	HeightMap [][]int // Height values for 3D rendering
+	Rooms     []RoomData
+	Seed      int64
 }
 
 // RoomData holds room information from generation.

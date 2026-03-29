@@ -35,7 +35,7 @@ func (r *Renderer) calculateFOVRayDirections() (rayDirX0, rayDirY0, rayDirX1, ra
 	rayDirY0 = math.Sin(r.PlayerA - r.FOV/2)
 	rayDirX1 = math.Cos(r.PlayerA + r.FOV/2)
 	rayDirY1 = math.Sin(r.PlayerA + r.FOV/2)
-	return
+	return rayDirX0, rayDirY0, rayDirX1, rayDirY1
 }
 
 // calculateRowDistance computes the horizontal distance from camera to floor for a row.
@@ -56,14 +56,14 @@ func (r *Renderer) calculateRowDistance(y, halfHeight int) float64 {
 func (r *Renderer) calculateFloorStep(rowDistance, rayDirX0, rayDirY0, rayDirX1, rayDirY1 float64) (stepX, stepY float64) {
 	stepX = rowDistance * (rayDirX1 - rayDirX0) / float64(r.Width)
 	stepY = rowDistance * (rayDirY1 - rayDirY0) / float64(r.Width)
-	return
+	return stepX, stepY
 }
 
 // calculateFloorStart computes the starting floor position for a row.
 func (r *Renderer) calculateFloorStart(rowDistance, rayDirX0, rayDirY0 float64) (floorX, floorY float64) {
 	floorX = r.PlayerX + rowDistance*rayDirX0
 	floorY = r.PlayerY + rowDistance*rayDirY0
-	return
+	return floorX, floorY
 }
 
 // renderFloorCeilingRow renders a single row of floor and ceiling pixels.

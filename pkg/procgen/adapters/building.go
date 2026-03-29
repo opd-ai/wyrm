@@ -22,16 +22,16 @@ func NewBuildingAdapter() *BuildingAdapter {
 
 // BuildingData holds generated building data for Wyrm integration.
 type BuildingData struct {
-	Type       string
-	Style      string
-	GenreID    string
-	Width      int
-	Height     int
-	Floors     int
-	Rooms      []BuildingRoomData
-	Doors      []BuildingDoorData
-	Windows    []BuildingWindowData
-	RoofType   string
+	Type     string
+	Style    string
+	GenreID  string
+	Width    int
+	Height   int
+	Floors   int
+	Rooms    []BuildingRoomData
+	Doors    []BuildingDoorData
+	Windows  []BuildingWindowData
+	RoofType string
 }
 
 // BuildingRoomData holds room information from generated buildings.
@@ -54,7 +54,7 @@ type BuildingWindowData struct {
 }
 
 // GenerateBuilding creates a building using Venture's generator.
-func (a *BuildingAdapter) GenerateBuilding(seed int64, genre string, buildingType int, floors int) (*BuildingData, error) {
+func (a *BuildingAdapter) GenerateBuilding(seed int64, genre string, buildingType, floors int) (*BuildingData, error) {
 	params := procgen.GenerationParams{
 		GenreID:    mapGenreID(genre),
 		Difficulty: 0.5,

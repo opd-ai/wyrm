@@ -55,7 +55,7 @@ type ItemStatsData struct {
 }
 
 // GenerateItems generates a batch of items for loot drops or shops.
-func (a *ItemAdapter) GenerateItems(seed int64, genre string, depth int, count int, itemType string) ([]*ItemData, error) {
+func (a *ItemAdapter) GenerateItems(seed int64, genre string, depth, count int, itemType string) ([]*ItemData, error) {
 	params := procgen.GenerationParams{
 		GenreID:    mapGenreID(genre),
 		Difficulty: float64(depth) / 100.0,

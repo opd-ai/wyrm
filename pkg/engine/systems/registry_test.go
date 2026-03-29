@@ -985,10 +985,10 @@ func TestAudioSystemUpdateWithListener(t *testing.T) {
 // TestAudioSystemCombatIntensity verifies combat intensity calculation.
 func TestAudioSystemCombatIntensity(t *testing.T) {
 	tests := []struct {
-		name            string
-		hostileCount    int
-		expectedMin     float64
-		expectedMax     float64
+		name         string
+		hostileCount int
+		expectedMin  float64
+		expectedMax  float64
 	}{
 		{"no hostiles", 0, 0.0, 0.0},
 		{"one hostile", 1, 0.09, 0.11},
@@ -1027,8 +1027,8 @@ func TestAudioSystemCombatIntensity(t *testing.T) {
 // TestAudioSystemAmbientSelection verifies genre-based ambient selection.
 func TestAudioSystemAmbientSelection(t *testing.T) {
 	tests := []struct {
-		genre             string
-		expectedCity      string
+		genre              string
+		expectedCity       string
 		expectedWilderness string
 	}{
 		{"fantasy", "city_medieval", "wilderness_forest"},

@@ -6,6 +6,7 @@ import (
 	"math"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -58,25 +59,37 @@ func (s *Server) Start() error {
 // acceptLoop continuously accepts incoming connections.
 func (s *Server) acceptLoop() {
 	for {
-		if !s.isRunning() {
+		if s.shouldStopAccepting() {
 			return
 		}
-		listener := s.getListener()
-		if listener == nil {
-			return
-		}
+		s.acceptConnection()
+	}
+}
 
-		conn, err := listener.Accept()
-		if err != nil {
-			if !s.isRunning() {
-				return
-			}
-			log.Printf("accept error: %v", err)
-			continue
-		}
+// shouldStopAccepting checks if the accept loop should terminate.
+func (s *Server) shouldStopAccepting() bool {
+	return !s.isRunning() || s.getListener() == nil
+}
 
-		s.registerClient(conn)
-		go s.handleClient(conn)
+// acceptConnection attempts to accept a single incoming connection.
+func (s *Server) acceptConnection() {
+	listener := s.getListener()
+	if listener == nil {
+		return
+	}
+	conn, err := listener.Accept()
+	if err != nil {
+		s.handleAcceptError(err)
+		return
+	}
+	s.registerClient(conn)
+	go s.handleClient(conn)
+}
+
+// handleAcceptError logs accept errors unless the server is shutting down.
+func (s *Server) handleAcceptError(err error) {
+	if s.isRunning() {
+		log.Printf("accept error: %v", err)
 	}
 }
 
@@ -98,8 +111,7 @@ func (s *Server) getListener() net.Listener {
 var entityIDCounter uint64 = 1000
 
 func nextEntityID() uint64 {
-	entityIDCounter++
-	return entityIDCounter
+	return atomic.AddUint64(&entityIDCounter, 1)
 }
 
 // registerClient adds a new client connection and creates a player entity.

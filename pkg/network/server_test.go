@@ -246,10 +246,10 @@ func TestClampFloat32(t *testing.T) {
 		value, min, max float32
 		expected        float32
 	}{
-		{0.5, 0, 1, 0.5},   // In range
-		{-1.0, 0, 1, 0},    // Below min
-		{2.0, 0, 1, 1},     // Above max
-		{0, -1, 1, 0},      // At zero
+		{0.5, 0, 1, 0.5},    // In range
+		{-1.0, 0, 1, 0},     // Below min
+		{2.0, 0, 1, 1},      // Above max
+		{0, -1, 1, 0},       // At zero
 		{-0.5, -1, 1, -0.5}, // Negative in range
 	}
 

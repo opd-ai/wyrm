@@ -26,21 +26,21 @@ const (
 
 // Layer represents a music layer that can be mixed in/out.
 type Layer struct {
-	Name      string
-	Samples   []float64
-	Volume    float64    // Current volume (0.0 to 1.0)
-	Target    float64    // Target volume for crossfade
-	Active    bool
-	Position  int
+	Name     string
+	Samples  []float64
+	Volume   float64 // Current volume (0.0 to 1.0)
+	Target   float64 // Target volume for crossfade
+	Active   bool
+	Position int
 }
 
 // Motif represents a musical phrase tied to a faction or region.
 type Motif struct {
-	Name       string
-	BaseFreq   float64
-	Notes      []float64  // Frequency multipliers
-	Durations  []float64  // Duration in seconds for each note
-	Genre      string
+	Name      string
+	BaseFreq  float64
+	Notes     []float64 // Frequency multipliers
+	Durations []float64 // Duration in seconds for each note
+	Genre     string
 }
 
 // AdaptiveMusic manages dynamic music based on game state.
@@ -52,14 +52,14 @@ type AdaptiveMusic struct {
 	previousState State
 	layers        map[string]*Layer
 	motifs        map[string]*Motif
-	
+
 	// Timing for transitions (per ROADMAP AC)
 	combatEntryTime time.Time
 	lastEnemyDeath  time.Time
-	
+
 	// Crossfade settings
 	crossfadeDuration float64 // seconds
-	
+
 	rng *rand.Rand
 }
 
@@ -75,13 +75,13 @@ func NewAdaptiveMusic(genre string, seed int64) *AdaptiveMusic {
 		crossfadeDuration: 2.0, // 2 second transition per AC
 		rng:               rand.New(rand.NewSource(seed)),
 	}
-	
+
 	// Initialize genre-specific motifs
 	am.initializeMotifs()
-	
+
 	// Initialize layers
 	am.initializeLayers()
-	
+
 	return am
 }
 
@@ -191,7 +191,7 @@ func (am *AdaptiveMusic) initializeLayers() {
 		Target: 1.0,
 		Active: true,
 	}
-	
+
 	// Combat intensity layer
 	am.layers["combat"] = &Layer{
 		Name:   "combat",
@@ -199,7 +199,7 @@ func (am *AdaptiveMusic) initializeLayers() {
 		Target: 0.0,
 		Active: false,
 	}
-	
+
 	// Tension layer
 	am.layers["tension"] = &Layer{
 		Name:   "tension",
@@ -213,12 +213,12 @@ func (am *AdaptiveMusic) initializeLayers() {
 func (am *AdaptiveMusic) EnterCombat() {
 	am.mu.Lock()
 	defer am.mu.Unlock()
-	
+
 	if am.currentState != StateCombat {
 		am.previousState = am.currentState
 		am.currentState = StateCombat
 		am.combatEntryTime = time.Now()
-		
+
 		// Set layer targets for crossfade
 		am.layers["exploration"].Target = 0.3 // Reduce exploration
 		am.layers["combat"].Target = 1.0
@@ -237,10 +237,10 @@ func (am *AdaptiveMusic) EnemyDied() {
 func (am *AdaptiveMusic) ExitCombat() {
 	am.mu.Lock()
 	defer am.mu.Unlock()
-	
+
 	if am.currentState == StateCombat {
 		am.currentState = StateExploration
-		
+
 		// Set layer targets for crossfade back to exploration
 		am.layers["exploration"].Target = 1.0
 		am.layers["combat"].Target = 0.0
@@ -358,17 +358,17 @@ func (am *AdaptiveMusic) generateMotifSamples(motif *Motif, numSamples int) []fl
 	samples := make([]float64, numSamples)
 	position := 0
 	noteIndex := 0
-	
+
 	for position < numSamples && noteIndex < len(motif.Notes) {
 		freq := motif.BaseFreq * motif.Notes[noteIndex]
 		dur := motif.Durations[noteIndex]
 		noteSamples := int(dur * float64(am.sampleRate))
-		
+
 		// Generate note with envelope
 		for i := 0; i < noteSamples && position+i < numSamples; i++ {
 			t := float64(i) / float64(am.sampleRate)
 			sample := math.Sin(2 * math.Pi * freq * t)
-			
+
 			// Simple ADSR envelope
 			env := 1.0
 			attack := 0.02
@@ -378,14 +378,14 @@ func (am *AdaptiveMusic) generateMotifSamples(motif *Motif, numSamples int) []fl
 			} else if t > dur-release {
 				env = (dur - t) / release
 			}
-			
+
 			samples[position+i] = sample * env
 		}
-		
+
 		position += noteSamples
 		noteIndex = (noteIndex + 1) % len(motif.Notes)
 	}
-	
+
 	return samples
 }
 

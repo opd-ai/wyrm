@@ -167,36 +167,53 @@ func (s *Soundscape) generateRustleAtPosition(samples []float64, startPos, rustl
 // generateCaveSamples creates cave ambience (drips, echoes).
 func (s *Soundscape) generateCaveSamples(numSamples int) []float64 {
 	samples := make([]float64, numSamples)
-	
-	// Deep ambient drone
+	s.generateCaveDrone(samples, numSamples)
+	s.generateWaterDrips(samples, numSamples)
+	s.applyCaveReverb(samples, numSamples)
+	return samples
+}
+
+// generateCaveDrone adds a low ambient drone to the samples.
+func (s *Soundscape) generateCaveDrone(samples []float64, numSamples int) {
+	const droneFreq = 40.0
+	const droneAmplitude = 0.05
 	for i := 0; i < numSamples; i++ {
 		t := float64(i) / float64(s.sampleRate)
-		drone := math.Sin(2*math.Pi*40*t) * 0.05 // Very low drone
-		samples[i] = drone
+		samples[i] = math.Sin(2*math.Pi*droneFreq*t) * droneAmplitude
 	}
-	
-	// Water drips
+}
+
+// generateWaterDrips adds random water drip sounds to the samples.
+func (s *Soundscape) generateWaterDrips(samples []float64, numSamples int) {
+	const dripProbability = 0.00003
+	dripLen := int(0.05 * float64(s.sampleRate))
 	for i := 0; i < numSamples; i++ {
-		if s.rng.Float64() < 0.00003 {
-			dripLen := int(0.05 * float64(s.sampleRate))
+		if s.rng.Float64() < dripProbability {
 			freq := 1500 + s.rng.Float64()*500
-			for j := 0; j < dripLen && i+j < numSamples; j++ {
-				t := float64(j) / float64(s.sampleRate)
-				// Drip sound: fast attack, quick decay
-				env := math.Exp(-t * 50)
-				drip := math.Sin(2*math.Pi*freq*t) * env * 0.2
-				samples[i+j] += drip
-			}
+			s.generateDripAtPosition(samples, i, dripLen, freq, numSamples)
 		}
 	}
-	
-	// Add reverb simulation (simple delay)
-	delayLen := int(0.3 * float64(s.sampleRate))
-	for i := delayLen; i < numSamples; i++ {
-		samples[i] += samples[i-delayLen] * 0.3
+}
+
+// generateDripAtPosition generates a single drip sound starting at position i.
+func (s *Soundscape) generateDripAtPosition(samples []float64, startPos, dripLen int, freq float64, numSamples int) {
+	const dripAmplitude = 0.2
+	const decayRate = 50.0
+	for j := 0; j < dripLen && startPos+j < numSamples; j++ {
+		t := float64(j) / float64(s.sampleRate)
+		env := math.Exp(-t * decayRate)
+		drip := math.Sin(2*math.Pi*freq*t) * env * dripAmplitude
+		samples[startPos+j] += drip
 	}
-	
-	return samples
+}
+
+// applyCaveReverb applies a simple delay-based reverb simulation.
+func (s *Soundscape) applyCaveReverb(samples []float64, numSamples int) {
+	delayLen := int(0.3 * float64(s.sampleRate))
+	const reverbAmount = 0.3
+	for i := delayLen; i < numSamples; i++ {
+		samples[i] += samples[i-delayLen] * reverbAmount
+	}
 }
 
 // generateCitySamples creates city ambience (crowd murmur, distant traffic).
@@ -231,12 +248,12 @@ func (s *Soundscape) generateCitySamples(numSamples int) []float64 {
 // generateWaterSamples creates water ambience (flowing, lapping).
 func (s *Soundscape) generateWaterSamples(numSamples int) []float64 {
 	samples := make([]float64, numSamples)
-	
+
 	// Flowing water (modulated noise)
 	cutoff := 600.0
 	alpha := 2 * math.Pi * cutoff / float64(s.sampleRate)
 	alpha = alpha / (alpha + 1)
-	
+
 	prevSample := 0.0
 	for i := 0; i < numSamples; i++ {
 		t := float64(i) / float64(s.sampleRate)
@@ -246,7 +263,7 @@ func (s *Soundscape) generateWaterSamples(numSamples int) []float64 {
 		prevSample = sample
 		samples[i] = sample
 	}
-	
+
 	// Occasional splash
 	for i := 0; i < numSamples; i++ {
 		if s.rng.Float64() < 0.00002 {
@@ -259,19 +276,19 @@ func (s *Soundscape) generateWaterSamples(numSamples int) []float64 {
 			}
 		}
 	}
-	
+
 	return samples
 }
 
 // generateDesertSamples creates desert ambience (wind, sand).
 func (s *Soundscape) generateDesertSamples(numSamples int) []float64 {
 	samples := s.generateWindSamples(numSamples, 0.25)
-	
+
 	// Add high-frequency sand hiss
 	cutoffHigh := 3000.0
 	alpha := 2 * math.Pi * cutoffHigh / float64(s.sampleRate)
 	alpha = alpha / (alpha + 1)
-	
+
 	prevSand := 0.0
 	for i := 0; i < numSamples; i++ {
 		sandNoise := (s.rng.Float64()*2 - 1) * 0.05
@@ -279,27 +296,27 @@ func (s *Soundscape) generateDesertSamples(numSamples int) []float64 {
 		prevSand = sandSample
 		samples[i] += sandSample
 	}
-	
+
 	return samples
 }
 
 // generateMountainSamples creates mountain ambience (strong wind, echo).
 func (s *Soundscape) generateMountainSamples(numSamples int) []float64 {
 	samples := s.generateWindSamples(numSamples, 0.4)
-	
+
 	// Add echo effect
 	delayLen := int(0.5 * float64(s.sampleRate))
 	for i := delayLen; i < numSamples; i++ {
 		samples[i] += samples[i-delayLen] * 0.2
 	}
-	
+
 	return samples
 }
 
 // generateDungeonSamples creates dungeon ambience (drips, echoes, distant sounds).
 func (s *Soundscape) generateDungeonSamples(numSamples int) []float64 {
 	samples := s.generateCaveSamples(numSamples)
-	
+
 	// Add occasional distant metallic clang
 	for i := 0; i < numSamples; i++ {
 		if s.rng.Float64() < 0.00001 {
@@ -309,14 +326,14 @@ func (s *Soundscape) generateDungeonSamples(numSamples int) []float64 {
 				t := float64(j) / float64(s.sampleRate)
 				env := math.Exp(-t * 10)
 				// Metallic sound: multiple harmonics
-				clang := (math.Sin(2*math.Pi*freq*t) + 
-				         0.5*math.Sin(2*math.Pi*freq*2.3*t) +
-				         0.3*math.Sin(2*math.Pi*freq*3.7*t)) * env * 0.1
+				clang := (math.Sin(2*math.Pi*freq*t) +
+					0.5*math.Sin(2*math.Pi*freq*2.3*t) +
+					0.3*math.Sin(2*math.Pi*freq*3.7*t)) * env * 0.1
 				samples[i+j] += clang
 			}
 		}
 	}
-	
+
 	return samples
 }
 
@@ -392,25 +409,25 @@ func (s *Soundscape) RegionType() RegionType {
 
 // AmbientManager handles transitions between ambient soundscapes.
 type AmbientManager struct {
-	mu               sync.Mutex
-	currentRegion    RegionType
-	previousRegion   RegionType
-	currentSoundscape *Soundscape
-	genre            string
-	seed             int64
-	transitionTime   float64 // seconds
+	mu                 sync.Mutex
+	currentRegion      RegionType
+	previousRegion     RegionType
+	currentSoundscape  *Soundscape
+	genre              string
+	seed               int64
+	transitionTime     float64 // seconds
 	transitionProgress float64
 }
 
 // NewAmbientManager creates a new ambient sound manager.
 func NewAmbientManager(genre string, seed int64) *AmbientManager {
 	return &AmbientManager{
-		currentRegion:    RegionPlains,
-		previousRegion:   RegionPlains,
-		genre:            genre,
-		seed:             seed,
-		currentSoundscape: NewSoundscape(RegionPlains, genre, seed),
-		transitionTime:   1.0, // 1 second transition per AC
+		currentRegion:      RegionPlains,
+		previousRegion:     RegionPlains,
+		genre:              genre,
+		seed:               seed,
+		currentSoundscape:  NewSoundscape(RegionPlains, genre, seed),
+		transitionTime:     1.0, // 1 second transition per AC
 		transitionProgress: 1.0,
 	}
 }
@@ -419,7 +436,7 @@ func NewAmbientManager(genre string, seed int64) *AmbientManager {
 func (am *AmbientManager) SetRegion(region RegionType) {
 	am.mu.Lock()
 	defer am.mu.Unlock()
-	
+
 	if region != am.currentRegion {
 		am.previousRegion = am.currentRegion
 		am.currentRegion = region
@@ -432,7 +449,7 @@ func (am *AmbientManager) SetRegion(region RegionType) {
 func (am *AmbientManager) Update(dt float64) {
 	am.mu.Lock()
 	defer am.mu.Unlock()
-	
+
 	if am.transitionProgress < 1.0 {
 		am.transitionProgress += dt / am.transitionTime
 		if am.transitionProgress > 1.0 {
@@ -445,7 +462,7 @@ func (am *AmbientManager) Update(dt float64) {
 func (am *AmbientManager) GenerateSamples(duration float64) []float64 {
 	am.mu.Lock()
 	defer am.mu.Unlock()
-	
+
 	return am.currentSoundscape.GenerateSamples(duration)
 }
 

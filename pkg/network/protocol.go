@@ -203,9 +203,25 @@ func (m *WorldState) encodeEntities(w io.Writer) error {
 
 // encodeEntityState writes a single entity state to the writer.
 func encodeEntityState(w io.Writer, e *EntityState) error {
-	if err := binary.Write(w, binary.LittleEndian, e.EntityID); err != nil {
+	if err := encodeEntityID(w, e.EntityID); err != nil {
+		return err
+	}
+	if err := encodeEntityPosition(w, e); err != nil {
+		return err
+	}
+	return encodeEntityAttributes(w, e)
+}
+
+// encodeEntityID writes the entity's ID to the writer.
+func encodeEntityID(w io.Writer, id uint64) error {
+	if err := binary.Write(w, binary.LittleEndian, id); err != nil {
 		return fmt.Errorf("encode EntityID: %w", err)
 	}
+	return nil
+}
+
+// encodeEntityPosition writes entity X, Y, Z coordinates.
+func encodeEntityPosition(w io.Writer, e *EntityState) error {
 	if err := binary.Write(w, binary.LittleEndian, e.X); err != nil {
 		return fmt.Errorf("encode X: %w", err)
 	}
@@ -215,6 +231,11 @@ func encodeEntityState(w io.Writer, e *EntityState) error {
 	if err := binary.Write(w, binary.LittleEndian, e.Z); err != nil {
 		return fmt.Errorf("encode Z: %w", err)
 	}
+	return nil
+}
+
+// encodeEntityAttributes writes entity angle and health.
+func encodeEntityAttributes(w io.Writer, e *EntityState) error {
 	if err := binary.Write(w, binary.LittleEndian, e.Angle); err != nil {
 		return fmt.Errorf("encode Angle: %w", err)
 	}
@@ -264,9 +285,25 @@ func (m *WorldState) decodeEntities(r io.Reader) error {
 
 // decodeEntityState reads a single entity state from the reader.
 func decodeEntityState(r io.Reader, e *EntityState) error {
+	if err := decodeEntityID(r, e); err != nil {
+		return err
+	}
+	if err := decodeEntityPosition(r, e); err != nil {
+		return err
+	}
+	return decodeEntityAttributes(r, e)
+}
+
+// decodeEntityID reads the entity's ID from the reader.
+func decodeEntityID(r io.Reader, e *EntityState) error {
 	if err := binary.Read(r, binary.LittleEndian, &e.EntityID); err != nil {
 		return fmt.Errorf("decode EntityID: %w", err)
 	}
+	return nil
+}
+
+// decodeEntityPosition reads entity X, Y, Z coordinates.
+func decodeEntityPosition(r io.Reader, e *EntityState) error {
 	if err := binary.Read(r, binary.LittleEndian, &e.X); err != nil {
 		return fmt.Errorf("decode X: %w", err)
 	}
@@ -276,6 +313,11 @@ func decodeEntityState(r io.Reader, e *EntityState) error {
 	if err := binary.Read(r, binary.LittleEndian, &e.Z); err != nil {
 		return fmt.Errorf("decode Z: %w", err)
 	}
+	return nil
+}
+
+// decodeEntityAttributes reads entity angle and health.
+func decodeEntityAttributes(r io.Reader, e *EntityState) error {
 	if err := binary.Read(r, binary.LittleEndian, &e.Angle); err != nil {
 		return fmt.Errorf("decode Angle: %w", err)
 	}

@@ -29,7 +29,7 @@ type FurnitureItem struct {
 // House represents a player-owned house with interior layout.
 type House struct {
 	ID          string
-	OwnerID     uint64 // Player entity ID
+	OwnerID     uint64  // Player entity ID
 	WorldX      float64 // World position
 	WorldZ      float64
 	InteriorID  string // Interior instance ID
@@ -40,7 +40,7 @@ type House struct {
 // HouseManager manages player housing.
 type HouseManager struct {
 	mu         sync.RWMutex
-	houses     map[string]*House // ID -> House
+	houses     map[string]*House   // ID -> House
 	ownerIndex map[uint64][]string // OwnerID -> House IDs
 }
 

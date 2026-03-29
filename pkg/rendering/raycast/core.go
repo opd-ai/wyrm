@@ -307,7 +307,7 @@ func (r *Renderer) SetGenre(genre string, seed int64) {
 }
 
 // GetWallTextureColor samples a color from the wall texture at the given coordinates.
-func (r *Renderer) GetWallTextureColor(wallType int, texX, texY float64, distance float64) color.RGBA {
+func (r *Renderer) GetWallTextureColor(wallType int, texX, texY, distance float64) color.RGBA {
 	if wallType < 0 || wallType >= len(r.WallTextures) || r.WallTextures[wallType] == nil {
 		return r.getWallColor(wallType, distance)
 	}

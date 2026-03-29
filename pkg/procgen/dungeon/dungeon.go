@@ -23,16 +23,16 @@ const (
 
 // Room represents a dungeon room.
 type Room struct {
-	ID          int
-	X, Y        int // Top-left position in dungeon grid
-	Width       int
-	Height      int
-	Type        RoomType
-	Connected   []int // Connected room IDs
-	HasTrap     bool
-	HasPuzzle   bool
-	IsBossRoom  bool
-	Genre       string
+	ID         int
+	X, Y       int // Top-left position in dungeon grid
+	Width      int
+	Height     int
+	Type       RoomType
+	Connected  []int // Connected room IDs
+	HasTrap    bool
+	HasPuzzle  bool
+	IsBossRoom bool
+	Genre      string
 }
 
 // RoomType categorizes room purposes.
@@ -474,28 +474,35 @@ func (g *Generator) markEntranceExit(d *Dungeon) {
 	if len(d.Rooms) < 2 {
 		return
 	}
+	g.markEntranceRoom(d)
+	g.markExitRoom(d)
+}
 
-	// First room is entrance
+// markEntranceRoom marks the first room as entrance.
+func (g *Generator) markEntranceRoom(d *Dungeon) {
 	entrance := d.Rooms[0]
 	entrance.Type = RoomEntrance
-	ex := entrance.X + entrance.Width/2
-	ey := entrance.Y + entrance.Height/2
-	if ex >= 0 && ex < d.Width && ey >= 0 && ey < d.Height {
-		d.Tiles[ey][ex] = TileEntrance
+	cx, cy := entrance.X+entrance.Width/2, entrance.Y+entrance.Height/2
+	if g.isValidTilePosition(d, cx, cy) {
+		d.Tiles[cy][cx] = TileEntrance
 	}
+}
 
-	// Last room (or boss room) is exit
+// markExitRoom marks the last room as exit (unless it's a boss room).
+func (g *Generator) markExitRoom(d *Dungeon) {
 	exit := d.Rooms[len(d.Rooms)-1]
 	if exit.Type != RoomBoss {
 		exit.Type = RoomExit
 	}
-	exx := exit.X + exit.Width/2
-	exy := exit.Y + exit.Height/2
-	if exx >= 0 && exx < d.Width && exy >= 0 && exy < d.Height {
-		if d.Tiles[exy][exx] != TileBossArena {
-			d.Tiles[exy][exx] = TileExit
-		}
+	cx, cy := exit.X+exit.Width/2, exit.Y+exit.Height/2
+	if g.isValidTilePosition(d, cx, cy) && d.Tiles[cy][cx] != TileBossArena {
+		d.Tiles[cy][cx] = TileExit
 	}
+}
+
+// isValidTilePosition checks if coordinates are within dungeon bounds.
+func (g *Generator) isValidTilePosition(d *Dungeon, x, y int) bool {
+	return x >= 0 && x < d.Width && y >= 0 && y < d.Height
 }
 
 // getPalette returns the genre-appropriate tile palette.
@@ -512,28 +519,36 @@ func (d *Dungeon) ValidateConnectivity() bool {
 	if len(d.Rooms) == 0 {
 		return true
 	}
+	visited := d.traverseRooms()
+	return len(visited) == len(d.Rooms)
+}
 
+// traverseRooms performs BFS from entrance room and returns visited room IDs.
+func (d *Dungeon) traverseRooms() map[int]bool {
 	visited := make(map[int]bool)
 	queue := []int{0} // Start from entrance (room 0)
 
 	for len(queue) > 0 {
 		current := queue[0]
 		queue = queue[1:]
-
 		if visited[current] {
 			continue
 		}
 		visited[current] = true
+		queue = d.enqueueConnectedRooms(queue, visited, current)
+	}
+	return visited
+}
 
-		room := d.Rooms[current]
-		for _, connectedID := range room.Connected {
-			if !visited[connectedID] {
-				queue = append(queue, connectedID)
-			}
+// enqueueConnectedRooms adds unvisited connected rooms to the queue.
+func (d *Dungeon) enqueueConnectedRooms(queue []int, visited map[int]bool, roomIndex int) []int {
+	room := d.Rooms[roomIndex]
+	for _, connectedID := range room.Connected {
+		if !visited[connectedID] {
+			queue = append(queue, connectedID)
 		}
 	}
-
-	return len(visited) == len(d.Rooms)
+	return queue
 }
 
 // CountRoomsByType returns the count of rooms with a given type.

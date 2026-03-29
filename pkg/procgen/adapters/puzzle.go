@@ -92,7 +92,7 @@ func (a *PuzzleAdapter) GeneratePuzzleOfType(seed int64, genre string, difficult
 }
 
 // GenerateDungeonPuzzles generates a set of puzzles for a dungeon level.
-func (a *PuzzleAdapter) GenerateDungeonPuzzles(seed int64, genre string, dungeonDepth int, roomCount int) ([]*PuzzleData, error) {
+func (a *PuzzleAdapter) GenerateDungeonPuzzles(seed int64, genre string, dungeonDepth, roomCount int) ([]*PuzzleData, error) {
 	// Number of puzzles scales with room count and depth
 	puzzleCount := roomCount/5 + dungeonDepth/3
 	if puzzleCount < 1 {

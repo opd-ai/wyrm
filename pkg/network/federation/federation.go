@@ -87,9 +87,9 @@ type PriceSignal struct {
 
 // GlobalEvent represents a world event broadcast to all servers.
 type GlobalEvent struct {
-	EventID     string
-	EventType   string
-	Description string
+	EventID      string
+	EventType    string
+	Description  string
 	AffectedArea struct {
 		CenterX, CenterZ float64
 		Radius           float64
@@ -123,7 +123,7 @@ type Federation struct {
 	nodes         map[string]*FederationNode
 
 	// Transfer tracking
-	pendingTransfers map[uint64]*PlayerTransfer
+	pendingTransfers   map[uint64]*PlayerTransfer
 	completedTransfers map[uint64]time.Time
 
 	// Price aggregation from other servers
@@ -245,7 +245,7 @@ func (f *Federation) ProcessPriceSignal(signal *PriceSignal) {
 
 	key := signal.ServerID + ":" + signal.CityID
 	existing := f.remotePrices[key]
-	
+
 	// Only accept newer signals
 	if existing == nil || signal.Timestamp.After(existing.Timestamp) {
 		f.remotePrices[key] = signal

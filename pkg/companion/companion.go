@@ -205,10 +205,10 @@ var RoleAbilities = map[CombatRole][]Ability{
 
 // CompanionManager handles companion NPCs.
 type CompanionManager struct {
-	mu         sync.RWMutex
-	companions map[uint64]*Companion // CompanionID -> Companion
-	playerComps map[uint64]uint64    // PlayerID -> CompanionID
-	rng        *rand.Rand
+	mu          sync.RWMutex
+	companions  map[uint64]*Companion // CompanionID -> Companion
+	playerComps map[uint64]uint64     // PlayerID -> CompanionID
+	rng         *rand.Rand
 }
 
 // NewCompanionManager creates a new companion manager.
@@ -397,7 +397,7 @@ func selectTankAbility(abilities []Ability) *Ability {
 
 // SelectAbility chooses an appropriate ability based on combat situation.
 // Per AC: Companion uses class-appropriate abilities.
-func (cm *CompanionManager) SelectAbility(compID uint64, targetLowHealth bool, allyLowHealth bool) *Ability {
+func (cm *CompanionManager) SelectAbility(compID uint64, targetLowHealth, allyLowHealth bool) *Ability {
 	cm.mu.RLock()
 	comp := cm.companions[compID]
 	cm.mu.RUnlock()

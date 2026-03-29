@@ -31,7 +31,7 @@ func TestCompanionAbilitiesMatchRole(t *testing.T) {
 	cm := NewCompanionManager(12345)
 
 	testCases := []struct {
-		role CombatRole
+		role            CombatRole
 		expectedAbility string
 	}{
 		{RoleTank, "shield_wall"},
@@ -43,7 +43,7 @@ func TestCompanionAbilitiesMatchRole(t *testing.T) {
 
 	for _, tc := range testCases {
 		comp := cm.CreateCompanion(uint64(tc.role), "fantasy", tc.role)
-		
+
 		found := false
 		for _, ability := range comp.Abilities {
 			if ability.ID == tc.expectedAbility {

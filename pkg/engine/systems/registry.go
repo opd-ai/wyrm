@@ -34,18 +34,27 @@ func (s *WorldChunkSystem) Update(w *ecs.World, dt float64) {
 		return
 	}
 	for _, e := range w.Entities("Position") {
-		comp, ok := w.GetComponent(e, "Position")
-		if !ok {
-			continue
-		}
-		pos := comp.(*components.Position)
-		chunkX := int(pos.X) / s.chunkSize
-		chunkY := int(pos.Y) / s.chunkSize
-		// Load the 3x3 chunk window around the entity
-		for dx := -1; dx <= 1; dx++ {
-			for dy := -1; dy <= 1; dy++ {
-				_ = s.Manager.GetChunk(chunkX+dx, chunkY+dy)
-			}
+		s.loadChunksForEntity(w, e)
+	}
+}
+
+// loadChunksForEntity loads the 3x3 chunk window around a positioned entity.
+func (s *WorldChunkSystem) loadChunksForEntity(w *ecs.World, e ecs.Entity) {
+	comp, ok := w.GetComponent(e, "Position")
+	if !ok {
+		return
+	}
+	pos := comp.(*components.Position)
+	chunkX := int(pos.X) / s.chunkSize
+	chunkY := int(pos.Y) / s.chunkSize
+	s.loadChunkWindow(chunkX, chunkY)
+}
+
+// loadChunkWindow loads the 3x3 chunk window centered on the given chunk coordinates.
+func (s *WorldChunkSystem) loadChunkWindow(centerX, centerY int) {
+	for dx := -1; dx <= 1; dx++ {
+		for dy := -1; dy <= 1; dy++ {
+			_ = s.Manager.GetChunk(centerX+dx, centerY+dy)
 		}
 	}
 }
@@ -107,22 +116,37 @@ func NewWorldClockSystem(hourLength float64) *WorldClockSystem {
 // Update advances the game clock each tick.
 func (s *WorldClockSystem) Update(w *ecs.World, dt float64) {
 	for _, e := range w.Entities("WorldClock") {
-		comp, ok := w.GetComponent(e, "WorldClock")
-		if !ok {
-			continue
-		}
-		clock := comp.(*components.WorldClock)
-		if clock.HourLength <= 0 {
-			clock.HourLength = s.DefaultHourLength
-		}
-		clock.TimeAccum += dt
-		if clock.TimeAccum >= clock.HourLength {
-			clock.TimeAccum -= clock.HourLength
-			clock.Hour++
-			if clock.Hour >= 24 {
-				clock.Hour = 0
-				clock.Day++
-			}
+		s.updateClock(w, e, dt)
+	}
+}
+
+// updateClock updates a single world clock component.
+func (s *WorldClockSystem) updateClock(w *ecs.World, e ecs.Entity, dt float64) {
+	comp, ok := w.GetComponent(e, "WorldClock")
+	if !ok {
+		return
+	}
+	clock := comp.(*components.WorldClock)
+	s.ensureHourLength(clock)
+	s.advanceTime(clock, dt)
+}
+
+// ensureHourLength sets a default hour length if not configured.
+func (s *WorldClockSystem) ensureHourLength(clock *components.WorldClock) {
+	if clock.HourLength <= 0 {
+		clock.HourLength = s.DefaultHourLength
+	}
+}
+
+// advanceTime accumulates delta time and advances hours/days when needed.
+func (s *WorldClockSystem) advanceTime(clock *components.WorldClock, dt float64) {
+	clock.TimeAccum += dt
+	if clock.TimeAccum >= clock.HourLength {
+		clock.TimeAccum -= clock.HourLength
+		clock.Hour++
+		if clock.Hour >= 24 {
+			clock.Hour = 0
+			clock.Day++
 		}
 	}
 }
@@ -187,17 +211,27 @@ func factionPairKey(f1, f2 string) [2]string {
 
 // Update processes faction politics each tick: decays reputation toward neutral.
 func (s *FactionPoliticsSystem) Update(w *ecs.World, dt float64) {
+	s.ensureRelationsInitialized()
+	for _, e := range w.Entities("Reputation") {
+		s.processReputationEntity(w, e, dt)
+	}
+}
+
+// ensureRelationsInitialized initializes the Relations map if nil.
+func (s *FactionPoliticsSystem) ensureRelationsInitialized() {
 	if s.Relations == nil {
 		s.Relations = make(map[[2]string]FactionRelation)
 	}
-	for _, e := range w.Entities("Reputation") {
-		comp, ok := w.GetComponent(e, "Reputation")
-		if !ok {
-			continue
-		}
-		rep := comp.(*components.Reputation)
-		s.decayReputationStandings(rep, dt)
+}
+
+// processReputationEntity decays reputation standings for a single entity.
+func (s *FactionPoliticsSystem) processReputationEntity(w *ecs.World, e ecs.Entity, dt float64) {
+	comp, ok := w.GetComponent(e, "Reputation")
+	if !ok {
+		return
 	}
+	rep := comp.(*components.Reputation)
+	s.decayReputationStandings(rep, dt)
 }
 
 // decayReputationStandings drifts all faction standings toward neutral.
@@ -511,19 +545,29 @@ func (s *EconomySystem) SetBasePrice(itemType string, price float64) {
 
 // Update processes economic simulation each tick.
 func (s *EconomySystem) Update(w *ecs.World, dt float64) {
+	s.ensureBasePricesInitialized()
+	for _, e := range w.Entities("EconomyNode") {
+		s.processEconomyEntity(w, e)
+	}
+}
+
+// ensureBasePricesInitialized initializes the BasePrices map if nil.
+func (s *EconomySystem) ensureBasePricesInitialized() {
 	if s.BasePrices == nil {
 		s.BasePrices = make(map[string]float64)
 	}
-	for _, e := range w.Entities("EconomyNode") {
-		comp, ok := w.GetComponent(e, "EconomyNode")
-		if !ok {
-			continue
-		}
-		node := comp.(*components.EconomyNode)
-		s.initializeNodeMaps(node)
-		s.updateNodePrices(node)
-		s.normalizeSupplyDemand(node)
+}
+
+// processEconomyEntity updates a single economy node entity.
+func (s *EconomySystem) processEconomyEntity(w *ecs.World, e ecs.Entity) {
+	comp, ok := w.GetComponent(e, "EconomyNode")
+	if !ok {
+		return
 	}
+	node := comp.(*components.EconomyNode)
+	s.initializeNodeMaps(node)
+	s.updateNodePrices(node)
+	s.normalizeSupplyDemand(node)
 }
 
 // initializeNodeMaps ensures all economy node maps are initialized.
@@ -661,25 +705,41 @@ type VehicleSystem struct{}
 // Update processes vehicle physics each tick.
 func (s *VehicleSystem) Update(w *ecs.World, dt float64) {
 	for _, e := range w.Entities("Vehicle", "Position") {
-		vComp, ok := w.GetComponent(e, "Vehicle")
-		if !ok {
-			continue
-		}
-		pComp, ok := w.GetComponent(e, "Position")
-		if !ok {
-			continue
-		}
-		vehicle := vComp.(*components.Vehicle)
-		pos := pComp.(*components.Position)
-		// Apply vehicle movement based on speed and direction
-		if vehicle.Fuel > 0 && vehicle.Speed > 0 {
-			pos.X += math.Cos(vehicle.Direction) * vehicle.Speed * dt
-			pos.Y += math.Sin(vehicle.Direction) * vehicle.Speed * dt
-			vehicle.Fuel -= vehicle.Speed * dt * 0.01
-			if vehicle.Fuel < 0 {
-				vehicle.Fuel = 0
-			}
-		}
+		s.updateVehicle(w, e, dt)
+	}
+}
+
+// updateVehicle updates a single vehicle's position based on its physics.
+func (s *VehicleSystem) updateVehicle(w *ecs.World, e ecs.Entity, dt float64) {
+	vehicle, pos := s.getVehicleComponents(w, e)
+	if vehicle == nil || pos == nil {
+		return
+	}
+	if vehicle.Fuel > 0 && vehicle.Speed > 0 {
+		s.applyVehicleMovement(vehicle, pos, dt)
+	}
+}
+
+// getVehicleComponents retrieves vehicle and position components for an entity.
+func (s *VehicleSystem) getVehicleComponents(w *ecs.World, e ecs.Entity) (*components.Vehicle, *components.Position) {
+	vComp, ok := w.GetComponent(e, "Vehicle")
+	if !ok {
+		return nil, nil
+	}
+	pComp, ok := w.GetComponent(e, "Position")
+	if !ok {
+		return nil, nil
+	}
+	return vComp.(*components.Vehicle), pComp.(*components.Position)
+}
+
+// applyVehicleMovement updates position and consumes fuel.
+func (s *VehicleSystem) applyVehicleMovement(vehicle *components.Vehicle, pos *components.Position, dt float64) {
+	pos.X += math.Cos(vehicle.Direction) * vehicle.Speed * dt
+	pos.Y += math.Sin(vehicle.Direction) * vehicle.Speed * dt
+	vehicle.Fuel -= vehicle.Speed * dt * 0.01
+	if vehicle.Fuel < 0 {
+		vehicle.Fuel = 0
 	}
 }
 

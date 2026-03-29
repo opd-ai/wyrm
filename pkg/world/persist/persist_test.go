@@ -151,10 +151,10 @@ func TestPersisterDelete(t *testing.T) {
 
 func TestCalculateStateDiff(t *testing.T) {
 	tests := []struct {
-		name     string
-		before   *WorldSnapshot
-		after    *WorldSnapshot
-		maxDiff  float64 // Maximum acceptable diff percentage
+		name    string
+		before  *WorldSnapshot
+		after   *WorldSnapshot
+		maxDiff float64 // Maximum acceptable diff percentage
 	}{
 		{
 			name:    "nil before",

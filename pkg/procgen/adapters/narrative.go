@@ -126,7 +126,7 @@ func (a *NarrativeAdapter) GetActiveArcForRegion(worldSeed int64, regionX, regio
 }
 
 // GetWorldEventArc generates a world-scale event arc (sieges, plagues, etc.).
-func (a *NarrativeAdapter) GetWorldEventArc(worldSeed int64, eventID string, genre string, difficulty float64) (*StoryArcData, error) {
+func (a *NarrativeAdapter) GetWorldEventArc(worldSeed int64, eventID, genre string, difficulty float64) (*StoryArcData, error) {
 	// Derive event seed from world seed and event ID
 	eventSeed := worldSeed
 	for _, c := range eventID {

@@ -142,7 +142,7 @@ type HitResult struct {
 }
 
 // HitTest performs a lag-compensated hit test.
-func (lc *LagCompensator) HitTest(shooterID uint64, targetID uint64, shotOrigin, shotDirection Position3D, clientTime time.Time, rtt time.Duration) *HitResult {
+func (lc *LagCompensator) HitTest(shooterID, targetID uint64, shotOrigin, shotDirection Position3D, clientTime time.Time, rtt time.Duration) *HitResult {
 	lc.mu.RLock()
 	targetHistory := lc.entities[targetID]
 	lc.mu.RUnlock()

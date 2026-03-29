@@ -181,10 +181,10 @@ func TestCheckCombatHostileZone(t *testing.T) {
 func TestCalculateDeathLoot(t *testing.T) {
 	m := NewZoneManager()
 	m.AddZone(&Zone{
-		ID:           "pvp",
-		Type:         ZoneHostile,
-		MinX:         0, MaxX: 100,
-		MinZ:         0, MaxZ: 100,
+		ID:   "pvp",
+		Type: ZoneHostile,
+		MinX: 0, MaxX: 100,
+		MinZ: 0, MaxZ: 100,
 		LootDropRate: 0.5,
 	})
 
@@ -211,10 +211,10 @@ func TestCalculateDeathLoot(t *testing.T) {
 func TestCalculateDeathLootMinimumOne(t *testing.T) {
 	m := NewZoneManager()
 	m.AddZone(&Zone{
-		ID:           "pvp",
-		Type:         ZoneHostile,
-		MinX:         0, MaxX: 100,
-		MinZ:         0, MaxZ: 100,
+		ID:   "pvp",
+		Type: ZoneHostile,
+		MinX: 0, MaxX: 100,
+		MinZ: 0, MaxZ: 100,
 		LootDropRate: 0.01, // Very low rate
 	})
 
@@ -249,10 +249,10 @@ func TestCalculateDeathLootSafeZone(t *testing.T) {
 func TestRespawnPoint(t *testing.T) {
 	m := NewZoneManager()
 	m.AddZone(&Zone{
-		ID:       "pvp",
-		Type:     ZoneHostile,
-		MinX:     0, MaxX: 100,
-		MinZ:     0, MaxZ: 100,
+		ID:   "pvp",
+		Type: ZoneHostile,
+		MinX: 0, MaxX: 100,
+		MinZ: 0, MaxZ: 100,
 		RespawnX: 10,
 		RespawnZ: 20,
 	})
