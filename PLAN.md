@@ -215,24 +215,25 @@
 
 ---
 
-### Step 10: Add Stealth Mechanics
+### Step 10: Add Stealth Mechanics ✅
 
 - **Deliverable**: `Stealth` component, `StealthSystem`, sneak movement
 - **Dependencies**: Step 9 (combat provides foundation)
 - **Goal Impact**: Fulfills "Stealth system with sneak, pickpocket, and backstab"
 - **Acceptance**: Player can sneak past NPCs without detection
+- **Status**: COMPLETE - Added Stealth and Awareness components, StealthSystem with sight cone detection, backstab multiplier, and pickpocket with skill checks
 - **Validation**:
   ```bash
   go test -v ./pkg/engine/systems/... -run TestStealth
   go test -v ./pkg/engine/systems/... -run TestBackstab
   ```
 
-**Implementation Requirements**:
-1. Add `Stealth` component: `{Visibility float64, Sneaking bool, DetectionRadius float64}`
-2. Add `StealthSystem` that checks NPC sight cones
-3. Implement sneak movement (crouch key reduces speed, lowers visibility)
-4. Implement backstab multiplier (2x damage when attacking unaware NPC)
-5. Pickpocket action with skill check against NPC awareness
+**Implementation Requirements**: (COMPLETED)
+1. ✅ Add `Stealth` component: `{Visibility float64, Sneaking bool, DetectionRadius float64}`
+2. ✅ Add `StealthSystem` that checks NPC sight cones
+3. ✅ Implement sneak movement (crouch key reduces speed, lowers visibility)
+4. ✅ Implement backstab multiplier (2x damage when attacking unaware NPC)
+5. ✅ Pickpocket action with skill check against NPC awareness
 
 ---
 
