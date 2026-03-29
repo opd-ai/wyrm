@@ -60,6 +60,7 @@ func (a *NarrativeAdapter) GenerateStoryArc(seed int64, genre string, difficulty
 	params := procgen.GenerationParams{
 		GenreID:    mapGenreID(genre),
 		Difficulty: difficulty,
+		Depth:      int(difficulty*10) + 1, // Ensure Depth >= 1
 		Custom:     map[string]interface{}{},
 	}
 

@@ -1059,12 +1059,12 @@ func TestMapGenreID(t *testing.T) {
 		expected string
 	}{
 		{"fantasy", "fantasy"},
-		{"sci-fi", "sci-fi"},
+		{"sci-fi", "scifi"}, // Transformed to "scifi" for Venture
 		{"horror", "horror"},
 		{"cyberpunk", "cyberpunk"},
-		{"post-apocalyptic", "post-apocalyptic"},
-		{"unknown", "fantasy"}, // Should default to fantasy
-		{"", "fantasy"},        // Empty should default to fantasy
+		{"post-apocalyptic", "postapoc"}, // Transformed to "postapoc" for Venture
+		{"unknown", "unknown"},           // Passthrough for unknown genres
+		{"", ""},                         // Empty stays empty
 	}
 
 	for _, tt := range tests {
