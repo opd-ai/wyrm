@@ -351,37 +351,56 @@ func TestRegisterQuestWithSystem(t *testing.T) {
 // Dialog Adapter Tests
 // =========================================================================
 
-func TestDialogAdapter_GenerateDialog(t *testing.T) {
+func TestDialogAdapter_GenerateDialogLine(t *testing.T) {
 	adapter := NewDialogAdapter()
 
 	tests := []struct {
-		name      string
-		seed      int64
-		genre     string
-		npcType   string
-		sentiment float64
-		wantErr   bool
+		name    string
+		seed    int64
+		genre   string
+		wantErr bool
 	}{
-		{"fantasy merchant", 12345, "fantasy", "merchant", 0.5, false},
-		{"sci-fi scientist", 12345, "sci-fi", "scientist", 0.8, false},
-		{"horror cultist", 12345, "horror", "cultist", -0.5, false},
-		{"cyberpunk hacker", 12345, "cyberpunk", "hacker", 0.0, false},
-		{"post-apoc trader", 12345, "post-apocalyptic", "trader", 0.3, false},
+		{"fantasy dialog", 12345, "fantasy", false},
+		{"sci-fi dialog", 12345, "sci-fi", false},
+		{"horror dialog", 12345, "horror", false},
+		{"cyberpunk dialog", 12345, "cyberpunk", false},
+		{"post-apoc dialog", 12345, "post-apocalyptic", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dialog, err := adapter.GenerateDialog(tt.seed, tt.genre, tt.npcType, tt.sentiment)
+			line, err := adapter.GenerateDialogLine(tt.seed, tt.genre)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("GenerateDialog() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("GenerateDialogLine() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if dialog != nil {
-				if len(dialog.Topics) == 0 {
-					t.Error("Dialog has no topics")
+			if line != nil {
+				if line.Text == "" {
+					t.Error("Dialog line has empty text")
 				}
 			}
 		})
+	}
+}
+
+func TestDialogAdapter_GenerateDialogLines(t *testing.T) {
+	adapter := NewDialogAdapter()
+	seed := int64(42)
+	genre := "fantasy"
+
+	lines, err := adapter.GenerateDialogLines(seed, genre, 5)
+	if err != nil {
+		t.Fatalf("GenerateDialogLines failed: %v", err)
+	}
+
+	if len(lines) == 0 {
+		t.Error("GenerateDialogLines returned empty")
+	}
+
+	for _, line := range lines {
+		if line.Text == "" {
+			t.Error("Dialog line has empty text")
+		}
 	}
 }
 
@@ -390,19 +409,18 @@ func TestDialogAdapter_Deterministic(t *testing.T) {
 	seed := int64(42)
 	genre := "fantasy"
 
-	dialog1, err := adapter.GenerateDialog(seed, genre, "merchant", 0.5)
+	line1, err := adapter.GenerateDialogLine(seed, genre)
 	if err != nil {
 		t.Fatalf("First generation failed: %v", err)
 	}
 
-	dialog2, err := adapter.GenerateDialog(seed, genre, "merchant", 0.5)
+	line2, err := adapter.GenerateDialogLine(seed, genre)
 	if err != nil {
 		t.Fatalf("Second generation failed: %v", err)
 	}
 
-	if len(dialog1.Topics) != len(dialog2.Topics) {
-		t.Fatalf("Determinism failed: topic count differs (%d vs %d)",
-			len(dialog1.Topics), len(dialog2.Topics))
+	if line1.Text != line2.Text {
+		t.Errorf("Determinism failed: dialog differs (%s vs %s)", line1.Text, line2.Text)
 	}
 }
 
@@ -418,19 +436,18 @@ func TestMagicAdapter_GenerateSpells(t *testing.T) {
 		seed    int64
 		genre   string
 		count   int
-		school  string
 		wantErr bool
 	}{
-		{"fantasy destruction", 12345, "fantasy", 5, "destruction", false},
-		{"sci-fi tech", 12345, "sci-fi", 3, "tech", false},
-		{"horror dark", 12345, "horror", 4, "dark", false},
-		{"cyberpunk netrunner", 12345, "cyberpunk", 6, "hacking", false},
-		{"post-apoc mutation", 12345, "post-apocalyptic", 2, "mutation", false},
+		{"fantasy spells", 12345, "fantasy", 5, false},
+		{"sci-fi spells", 12345, "sci-fi", 3, false},
+		{"horror spells", 12345, "horror", 4, false},
+		{"cyberpunk spells", 12345, "cyberpunk", 6, false},
+		{"post-apoc spells", 12345, "post-apocalyptic", 2, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			spells, err := adapter.GenerateSpells(tt.seed, tt.genre, tt.count, tt.school)
+			spells, err := adapter.GenerateSpells(tt.seed, tt.genre, tt.count)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GenerateSpells() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -453,12 +470,12 @@ func TestMagicAdapter_Deterministic(t *testing.T) {
 	adapter := NewMagicAdapter()
 	seed := int64(42)
 
-	spells1, err := adapter.GenerateSpells(seed, "fantasy", 5, "destruction")
+	spells1, err := adapter.GenerateSpells(seed, "fantasy", 5)
 	if err != nil {
 		t.Fatalf("First generation failed: %v", err)
 	}
 
-	spells2, err := adapter.GenerateSpells(seed, "fantasy", 5, "destruction")
+	spells2, err := adapter.GenerateSpells(seed, "fantasy", 5)
 	if err != nil {
 		t.Fatalf("Second generation failed: %v", err)
 	}
@@ -486,31 +503,50 @@ func TestSkillsAdapter_GenerateSkillTree(t *testing.T) {
 		name    string
 		seed    int64
 		genre   string
-		school  string
 		wantErr bool
 	}{
-		{"fantasy combat", 12345, "fantasy", "combat", false},
-		{"sci-fi engineering", 12345, "sci-fi", "engineering", false},
-		{"horror survival", 12345, "horror", "survival", false},
-		{"cyberpunk hacking", 12345, "cyberpunk", "hacking", false},
-		{"post-apoc scavenge", 12345, "post-apocalyptic", "scavenging", false},
+		{"fantasy skills", 12345, "fantasy", false},
+		{"sci-fi skills", 12345, "sci-fi", false},
+		{"horror skills", 12345, "horror", false},
+		{"cyberpunk skills", 12345, "cyberpunk", false},
+		{"post-apoc skills", 12345, "post-apocalyptic", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tree, err := adapter.GenerateSkillTree(tt.seed, tt.genre, tt.school)
+			tree, err := adapter.GenerateSkillTree(tt.seed, tt.genre)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GenerateSkillTree() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if tree != nil && len(tree.Skills) > 0 {
-				for _, skill := range tree.Skills {
-					if skill.Name == "" {
+			if tree != nil && len(tree.Nodes) > 0 {
+				for _, node := range tree.Nodes {
+					if node.Skill != nil && node.Skill.Name == "" {
 						t.Error("Skill has empty name")
 					}
 				}
 			}
 		})
+	}
+}
+
+func TestSkillsAdapter_GenerateSkillTrees(t *testing.T) {
+	adapter := NewSkillsAdapter()
+	seed := int64(42)
+
+	trees, err := adapter.GenerateSkillTrees(seed, "fantasy", 3)
+	if err != nil {
+		t.Fatalf("GenerateSkillTrees failed: %v", err)
+	}
+
+	if len(trees) == 0 {
+		t.Error("GenerateSkillTrees returned empty")
+	}
+
+	for _, tree := range trees {
+		if tree.Name == "" {
+			t.Error("Skill tree has empty name")
+		}
 	}
 }
 
@@ -522,23 +558,24 @@ func TestRecipeAdapter_GenerateRecipes(t *testing.T) {
 	adapter := NewRecipeAdapter()
 
 	tests := []struct {
-		name     string
-		seed     int64
-		genre    string
-		category string
-		count    int
-		wantErr  bool
+		name       string
+		seed       int64
+		genre      string
+		depth      int
+		count      int
+		recipeType string
+		wantErr    bool
 	}{
-		{"fantasy weapons", 12345, "fantasy", "weapons", 5, false},
-		{"sci-fi tech", 12345, "sci-fi", "tech", 3, false},
-		{"horror potions", 12345, "horror", "potions", 4, false},
-		{"cyberpunk cyberware", 12345, "cyberpunk", "cyberware", 6, false},
-		{"post-apoc survival", 12345, "post-apocalyptic", "survival", 2, false},
+		{"fantasy weapons", 12345, "fantasy", 5, 5, "weapons", false},
+		{"sci-fi tech", 12345, "sci-fi", 10, 3, "tech", false},
+		{"horror potions", 12345, "horror", 15, 4, "potions", false},
+		{"cyberpunk cyberware", 12345, "cyberpunk", 20, 6, "cyberware", false},
+		{"post-apoc survival", 12345, "post-apocalyptic", 25, 2, "survival", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			recipes, err := adapter.GenerateRecipes(tt.seed, tt.genre, tt.category, tt.count)
+			recipes, err := adapter.GenerateRecipes(tt.seed, tt.genre, tt.depth, tt.count, tt.recipeType)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GenerateRecipes() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -548,8 +585,8 @@ func TestRecipeAdapter_GenerateRecipes(t *testing.T) {
 					if r.Name == "" {
 						t.Error("Recipe has empty name")
 					}
-					if len(r.Ingredients) == 0 {
-						t.Error("Recipe has no ingredients")
+					if len(r.Materials) == 0 {
+						t.Error("Recipe has no materials")
 					}
 				}
 			}
@@ -560,10 +597,12 @@ func TestRecipeAdapter_GenerateRecipes(t *testing.T) {
 func TestCanCraft(t *testing.T) {
 	recipe := &RecipeData{
 		Name: "Test Weapon",
-		Ingredients: []IngredientData{
-			{Name: "iron", Required: 3},
-			{Name: "wood", Required: 1},
+		Materials: []MaterialData{
+			{ItemName: "iron", Quantity: 3},
+			{ItemName: "wood", Quantity: 1},
 		},
+		SkillRequired: 5,
+		GoldCost:      100,
 	}
 
 	inventory := map[string]int{
@@ -571,12 +610,14 @@ func TestCanCraft(t *testing.T) {
 		"wood": 2,
 	}
 
-	if !CanCraft(recipe, inventory) {
-		t.Error("CanCraft should return true with sufficient materials")
+	canCraft, reason := CanCraft(recipe, 10, 200, inventory)
+	if !canCraft {
+		t.Errorf("CanCraft should return true with sufficient materials, got: %s", reason)
 	}
 
 	inventory["iron"] = 1
-	if CanCraft(recipe, inventory) {
+	canCraft, _ = CanCraft(recipe, 10, 200, inventory)
+	if canCraft {
 		t.Error("CanCraft should return false with insufficient materials")
 	}
 }
@@ -589,23 +630,22 @@ func TestVehicleAdapter_GenerateVehicles(t *testing.T) {
 	adapter := NewVehicleAdapter()
 
 	tests := []struct {
-		name        string
-		seed        int64
-		genre       string
-		vehicleType string
-		count       int
-		wantErr     bool
+		name    string
+		seed    int64
+		genre   string
+		count   int
+		wantErr bool
 	}{
-		{"fantasy horses", 12345, "fantasy", "mount", 3, false},
-		{"sci-fi hovercrafts", 12345, "sci-fi", "hovercraft", 2, false},
-		{"horror carriages", 12345, "horror", "carriage", 2, false},
-		{"cyberpunk bikes", 12345, "cyberpunk", "motorcycle", 4, false},
-		{"post-apoc buggies", 12345, "post-apocalyptic", "buggy", 3, false},
+		{"fantasy vehicles", 12345, "fantasy", 3, false},
+		{"sci-fi vehicles", 12345, "sci-fi", 2, false},
+		{"horror vehicles", 12345, "horror", 2, false},
+		{"cyberpunk vehicles", 12345, "cyberpunk", 4, false},
+		{"post-apoc vehicles", 12345, "post-apocalyptic", 3, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			vehicles, err := adapter.GenerateVehicles(tt.seed, tt.genre, tt.vehicleType, tt.count)
+			vehicles, err := adapter.GenerateVehicles(tt.seed, tt.genre, tt.count)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GenerateVehicles() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -627,18 +667,15 @@ func TestVehicleAdapter_GenerateVehicles(t *testing.T) {
 func TestSpawnVehicleEntity(t *testing.T) {
 	world := ecs.NewWorld()
 	data := &VehicleData{
-		Name:         "Test Car",
-		Type:         "buggy",
-		MaxSpeed:     100.0,
-		Acceleration: 20.0,
-		FuelCapacity: 50.0,
-		Health:       200,
+		Name:          "Test Car",
+		VehicleType:   "buggy",
+		MaxSpeed:      100.0,
+		Acceleration:  20.0,
+		FuelCapacity:  50.0,
+		MaxDurability: 200,
 	}
 
-	entity, err := SpawnVehicleEntity(world, data, 10.0, 20.0)
-	if err != nil {
-		t.Fatalf("SpawnVehicleEntity failed: %v", err)
-	}
+	entity := SpawnVehicleEntity(world, data, 10.0, 20.0, 0.0)
 
 	if entity == 0 {
 		t.Error("SpawnVehicleEntity returned zero entity ID")
@@ -663,39 +700,51 @@ func TestSpawnVehicleEntity(t *testing.T) {
 // Building Adapter Tests
 // =========================================================================
 
-func TestBuildingAdapter_GenerateBuildings(t *testing.T) {
+func TestBuildingAdapter_GenerateCityBuildings(t *testing.T) {
 	adapter := NewBuildingAdapter()
 
 	tests := []struct {
-		name         string
-		seed         int64
-		genre        string
-		buildingType string
-		count        int
-		wantErr      bool
+		name    string
+		seed    int64
+		genre   string
+		count   int
+		wantErr bool
 	}{
-		{"fantasy taverns", 12345, "fantasy", "tavern", 3, false},
-		{"sci-fi labs", 12345, "sci-fi", "lab", 2, false},
-		{"horror mansions", 12345, "horror", "mansion", 2, false},
-		{"cyberpunk clubs", 12345, "cyberpunk", "club", 4, false},
-		{"post-apoc shelters", 12345, "post-apocalyptic", "shelter", 3, false},
+		{"fantasy buildings", 12345, "fantasy", 3, false},
+		{"sci-fi buildings", 12345, "sci-fi", 2, false},
+		{"horror buildings", 12345, "horror", 2, false},
+		{"cyberpunk buildings", 12345, "cyberpunk", 4, false},
+		{"post-apoc buildings", 12345, "post-apocalyptic", 3, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			buildings, err := adapter.GenerateBuildings(tt.seed, tt.genre, tt.buildingType, tt.count)
+			buildings, err := adapter.GenerateCityBuildings(tt.seed, tt.genre, tt.count)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("GenerateBuildings() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("GenerateCityBuildings() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if buildings != nil {
 				for _, b := range buildings {
-					if b.Name == "" {
-						t.Error("Building has empty name")
+					if b.Type == "" {
+						t.Error("Building has empty type")
 					}
 				}
 			}
 		})
+	}
+}
+
+func TestBuildingAdapter_GenerateBuilding(t *testing.T) {
+	adapter := NewBuildingAdapter()
+
+	building, err := adapter.GenerateBuilding(12345, "fantasy", 1, 2)
+	if err != nil {
+		t.Fatalf("GenerateBuilding failed: %v", err)
+	}
+
+	if building.Type == "" {
+		t.Error("Building has empty type")
 	}
 }
 
@@ -710,21 +759,21 @@ func TestItemAdapter_GenerateItems(t *testing.T) {
 		name     string
 		seed     int64
 		genre    string
-		itemType string
-		quality  float64
+		depth    int
 		count    int
+		itemType string
 		wantErr  bool
 	}{
-		{"fantasy weapons", 12345, "fantasy", "weapon", 0.5, 5, false},
-		{"sci-fi gadgets", 12345, "sci-fi", "gadget", 0.8, 3, false},
-		{"horror artifacts", 12345, "horror", "artifact", 0.3, 4, false},
-		{"cyberpunk implants", 12345, "cyberpunk", "implant", 0.6, 6, false},
-		{"post-apoc scrap", 12345, "post-apocalyptic", "scrap", 1.0, 2, false},
+		{"fantasy weapons", 12345, "fantasy", 5, 5, "weapon", false},
+		{"sci-fi gadgets", 12345, "sci-fi", 10, 3, "gadget", false},
+		{"horror artifacts", 12345, "horror", 15, 4, "artifact", false},
+		{"cyberpunk implants", 12345, "cyberpunk", 20, 6, "implant", false},
+		{"post-apoc scrap", 12345, "post-apocalyptic", 25, 2, "scrap", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			items, err := adapter.GenerateItems(tt.seed, tt.genre, tt.itemType, tt.quality, tt.count)
+			items, err := adapter.GenerateItems(tt.seed, tt.genre, tt.depth, tt.count, tt.itemType)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GenerateItems() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -744,12 +793,12 @@ func TestItemAdapter_Deterministic(t *testing.T) {
 	adapter := NewItemAdapter()
 	seed := int64(42)
 
-	items1, err := adapter.GenerateItems(seed, "fantasy", "weapon", 0.5, 5)
+	items1, err := adapter.GenerateItems(seed, "fantasy", 5, 5, "weapon")
 	if err != nil {
 		t.Fatalf("First generation failed: %v", err)
 	}
 
-	items2, err := adapter.GenerateItems(seed, "fantasy", "weapon", 0.5, 5)
+	items2, err := adapter.GenerateItems(seed, "fantasy", 5, 5, "weapon")
 	if err != nil {
 		t.Fatalf("Second generation failed: %v", err)
 	}
@@ -781,18 +830,18 @@ func TestPuzzleAdapter_GeneratePuzzles(t *testing.T) {
 		count      int
 		wantErr    bool
 	}{
-		{"fantasy puzzles", 12345, "fantasy", 0.5, 3, false},
-		{"sci-fi puzzles", 12345, "sci-fi", 0.8, 2, false},
-		{"horror puzzles", 12345, "horror", 0.3, 4, false},
-		{"cyberpunk puzzles", 12345, "cyberpunk", 0.6, 3, false},
-		{"post-apoc puzzles", 12345, "post-apocalyptic", 1.0, 2, false},
+		{"fantasy puzzles", 12345, "fantasy", 5, 3, false},
+		{"sci-fi puzzles", 12345, "sci-fi", 8, 2, false},
+		{"horror puzzles", 12345, "horror", 3, 4, false},
+		{"cyberpunk puzzles", 12345, "cyberpunk", 6, 3, false},
+		{"post-apoc puzzles", 12345, "post-apocalyptic", 10, 2, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			puzzles, err := adapter.GeneratePuzzles(tt.seed, tt.genre, tt.difficulty, tt.count)
+			puzzles, err := adapter.GenerateDungeonPuzzles(tt.seed, tt.genre, int(tt.difficulty), tt.count)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("GeneratePuzzles() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("GenerateDungeonPuzzles() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if puzzles != nil {
@@ -806,11 +855,24 @@ func TestPuzzleAdapter_GeneratePuzzles(t *testing.T) {
 	}
 }
 
+func TestPuzzleAdapter_GeneratePuzzle(t *testing.T) {
+	adapter := NewPuzzleAdapter()
+
+	puzzle, err := adapter.GeneratePuzzle(12345, "fantasy", 5)
+	if err != nil {
+		t.Fatalf("GeneratePuzzle failed: %v", err)
+	}
+
+	if puzzle.Type == "" {
+		t.Error("Puzzle has empty type")
+	}
+}
+
 // =========================================================================
 // Environment Adapter Tests
 // =========================================================================
 
-func TestEnvironmentAdapter_GenerateEnvironment(t *testing.T) {
+func TestEnvironmentAdapter_GenerateBiomeObjects(t *testing.T) {
 	adapter := NewEnvironmentAdapter()
 
 	tests := []struct {
@@ -818,36 +880,46 @@ func TestEnvironmentAdapter_GenerateEnvironment(t *testing.T) {
 		seed    int64
 		genre   string
 		biome   string
+		count   int
 		wantErr bool
 	}{
-		{"fantasy forest", 12345, "fantasy", "forest", false},
-		{"sci-fi crater", 12345, "sci-fi", "crater", false},
-		{"horror swamp", 12345, "horror", "swamp", false},
-		{"cyberpunk urban", 12345, "cyberpunk", "urban", false},
-		{"post-apoc wasteland", 12345, "post-apocalyptic", "wasteland", false},
+		{"fantasy forest", 12345, "fantasy", "forest", 10, false},
+		{"sci-fi crater", 12345, "sci-fi", "crater", 8, false},
+		{"horror swamp", 12345, "horror", "swamp", 6, false},
+		{"cyberpunk urban", 12345, "cyberpunk", "urban", 12, false},
+		{"post-apoc wasteland", 12345, "post-apocalyptic", "wasteland", 5, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			env, err := adapter.GenerateEnvironment(tt.seed, tt.genre, tt.biome, 512)
+			objs, err := adapter.GenerateBiomeObjects(tt.seed, tt.genre, tt.biome, tt.count)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("GenerateEnvironment() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("GenerateBiomeObjects() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if env != nil {
-				if len(env.Details) == 0 {
-					t.Log("Environment has no details (may be expected)")
-				}
+			if objs != nil {
+				t.Logf("Generated %d environment objects for %s", len(objs), tt.biome)
 			}
 		})
 	}
+}
+
+func TestEnvironmentAdapter_GenerateChunkDecorations(t *testing.T) {
+	adapter := NewEnvironmentAdapter()
+
+	decorations, err := adapter.GenerateChunkDecorations(12345, "fantasy", "forest")
+	if err != nil {
+		t.Fatalf("GenerateChunkDecorations failed: %v", err)
+	}
+
+	t.Logf("Generated %d decorations", len(decorations))
 }
 
 // =========================================================================
 // Furniture Adapter Tests
 // =========================================================================
 
-func TestFurnitureAdapter_GenerateFurniture(t *testing.T) {
+func TestFurnitureAdapter_GenerateRoomFurniture(t *testing.T) {
 	adapter := NewFurnitureAdapter()
 
 	tests := []struct {
@@ -867,9 +939,9 @@ func TestFurnitureAdapter_GenerateFurniture(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			furniture, err := adapter.GenerateFurniture(tt.seed, tt.genre, tt.roomType, tt.count)
+			furniture, err := adapter.GenerateRoomFurniture(tt.seed, tt.genre, tt.roomType, tt.count)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("GenerateFurniture() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("GenerateRoomFurniture() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if furniture != nil {
@@ -891,29 +963,29 @@ func TestNarrativeAdapter_GenerateStoryArc(t *testing.T) {
 	adapter := NewNarrativeAdapter()
 
 	tests := []struct {
-		name    string
-		seed    int64
-		genre   string
-		arcType string
-		wantErr bool
+		name       string
+		seed       int64
+		genre      string
+		difficulty float64
+		wantErr    bool
 	}{
-		{"fantasy hero arc", 12345, "fantasy", "hero", false},
-		{"sci-fi mystery arc", 12345, "sci-fi", "mystery", false},
-		{"horror survival arc", 12345, "horror", "survival", false},
-		{"cyberpunk heist arc", 12345, "cyberpunk", "heist", false},
-		{"post-apoc redemption arc", 12345, "post-apocalyptic", "redemption", false},
+		{"fantasy story arc", 12345, "fantasy", 0.5, false},
+		{"sci-fi story arc", 12345, "sci-fi", 0.8, false},
+		{"horror story arc", 12345, "horror", 0.3, false},
+		{"cyberpunk story arc", 12345, "cyberpunk", 0.6, false},
+		{"post-apoc story arc", 12345, "post-apocalyptic", 1.0, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			arc, err := adapter.GenerateStoryArc(tt.seed, tt.genre, tt.arcType)
+			arc, err := adapter.GenerateStoryArc(tt.seed, tt.genre, tt.difficulty)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GenerateStoryArc() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if arc != nil {
-				if arc.Name == "" {
-					t.Error("Story arc has empty name")
+				if arc.Title == "" {
+					t.Error("Story arc has empty title")
 				}
 			}
 		})
