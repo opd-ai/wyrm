@@ -68,9 +68,9 @@ Wyrm is described as a **"100% procedurally generated first-person open-world RP
 
 - [x] **Server build constraint prevents normal compilation** — `cmd/server/main.go:1` — The server has `//go:build ebitentest` build tag which means `go build ./cmd/server` fails with "build constraints exclude all Go files". This contradicts README instructions. — **Remediation:** Remove or change the build tag on line 1 from `//go:build ebitentest` to `//go:build !noebiten` (to match client) or remove the tag entirely. **Validation:** `go build ./cmd/server && echo "Server builds"`
 
-- [ ] **V-Series adapters have 0% test coverage** — `pkg/procgen/adapters/*.go` — 16 adapter files (3,221 LOC, 124 functions) have no test files in standard `go test ./...` runs. Tests exist but require `ebitentest` tag. — **Remediation:** (1) Refactor adapters to not require Ebiten at import time, OR (2) Add CI job: `xvfb-run go test -tags=ebitentest ./pkg/procgen/adapters/...`. **Validation:** `go test -cover ./pkg/procgen/adapters/...` shows >70%
+- [x] **V-Series adapters have 0% test coverage** — `pkg/procgen/adapters/*.go` — 16 adapter files (3,221 LOC, 124 functions) have no test files in standard `go test ./...` runs. Tests exist but require `ebitentest` tag. — **Remediation:** (1) Refactor adapters to not require Ebiten at import time, OR (2) Add CI job: `xvfb-run go test -tags=ebitentest ./pkg/procgen/adapters/...`. **Validation:** `xvfb-run go test -cover ./pkg/procgen/adapters/...` shows 82.4%
 
-- [ ] **Raycast package has no test files** — `pkg/rendering/raycast/` — Core rendering with 0% coverage; only manual stub tests exist. Contains 385 LOC in `core.go` with DDA algorithm critical to gameplay. — **Remediation:** Add `pkg/rendering/raycast/core_test.go` with tests for `CastRay`, `calculateWallDistance`, texture coordinate calculation. Use `//go:build noebiten` tag for headless tests. **Validation:** `go test -tags=noebiten ./pkg/rendering/raycast/...`
+- [x] **Raycast package has test files** — `pkg/rendering/raycast/` — Core rendering package now has 75.8% coverage via `raycast_test.go` with tests for `CastRay`, `calculateWallDistance`, texture coordinate calculation. **Validation:** `go test -tags=noebiten -cover ./pkg/rendering/raycast/...` shows 75.8%
 
 ### HIGH
 

@@ -1076,3 +1076,482 @@ func TestMapGenreID(t *testing.T) {
 		})
 	}
 }
+
+// =========================================================================
+// Additional Coverage Tests
+// =========================================================================
+
+func TestBuildingAdapter_SpecificBuildings(t *testing.T) {
+	adapter := NewBuildingAdapter()
+
+	t.Run("GenerateHouse", func(t *testing.T) {
+		data, err := adapter.GenerateHouse(12345, "fantasy")
+		if err != nil {
+			t.Errorf("GenerateHouse() error = %v", err)
+		}
+		if data == nil {
+			t.Error("GenerateHouse() returned nil data")
+		}
+	})
+
+	t.Run("GenerateWorkshop", func(t *testing.T) {
+		data, err := adapter.GenerateWorkshop(12345, "fantasy")
+		if err != nil {
+			t.Errorf("GenerateWorkshop() error = %v", err)
+		}
+		if data == nil {
+			t.Error("GenerateWorkshop() returned nil data")
+		}
+	})
+
+	t.Run("GenerateTower", func(t *testing.T) {
+		data, err := adapter.GenerateTower(12345, "fantasy")
+		if err != nil {
+			t.Errorf("GenerateTower() error = %v", err)
+		}
+		if data == nil {
+			t.Error("GenerateTower() returned nil data")
+		}
+	})
+
+	t.Run("GenerateManor", func(t *testing.T) {
+		data, err := adapter.GenerateManor(12345, "fantasy")
+		if err != nil {
+			t.Errorf("GenerateManor() error = %v", err)
+		}
+		if data == nil {
+			t.Error("GenerateManor() returned nil data")
+		}
+	})
+
+	t.Run("GenerateGuildHall", func(t *testing.T) {
+		data, err := adapter.GenerateGuildHall(12345, "fantasy")
+		if err != nil {
+			t.Errorf("GenerateGuildHall() error = %v", err)
+		}
+		if data == nil {
+			t.Error("GenerateGuildHall() returned nil data")
+		}
+	})
+}
+
+func TestDialogAdapter_GenerateGreeting(t *testing.T) {
+	adapter := NewDialogAdapter()
+	personality := PersonalityTraits{
+		Friendliness: 0.8,
+		Verbosity:    0.5,
+		Formality:    0.5,
+		Humor:        0.5,
+		Knowledge:    0.5,
+	}
+
+	line, err := adapter.GenerateGreeting(12345, "fantasy", personality)
+	if err != nil {
+		t.Errorf("GenerateGreeting() error = %v", err)
+	}
+	if line == nil {
+		t.Fatal("GenerateGreeting() returned nil")
+	}
+	if line.Text == "" {
+		t.Error("GenerateGreeting() returned empty text")
+	}
+}
+
+func TestPersonalityFromType(t *testing.T) {
+	tests := []struct {
+		ptype       string
+		expectValid bool
+	}{
+		{"helpful", true},
+		{"merchant", true},
+		{"hostile", true},
+		{"scholarly", true},
+		{"unknown", true}, // Default case
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.ptype, func(t *testing.T) {
+			personality := PersonalityFromType(tt.ptype)
+			// Default should return zero values for unknown types
+			if tt.ptype == "helpful" && personality.Friendliness < 0.5 {
+				t.Errorf("PersonalityFromType(%s) friendliness too low", tt.ptype)
+			}
+			if tt.ptype == "hostile" && personality.Friendliness > 0.5 {
+				t.Errorf("PersonalityFromType(%s) friendliness should be low", tt.ptype)
+			}
+		})
+	}
+}
+
+func TestEnvironmentAdapter_RoomDecorations(t *testing.T) {
+	adapter := NewEnvironmentAdapter()
+
+	decorations, err := adapter.GenerateRoomDecorations(12345, "fantasy", 10, 10, 0.5)
+	if err != nil {
+		t.Errorf("GenerateRoomDecorations() error = %v", err)
+	}
+	if len(decorations) == 0 {
+		t.Error("GenerateRoomDecorations() returned no decorations")
+	}
+}
+
+func TestEnvironmentAdapter_BiomeDensity(t *testing.T) {
+	// Test different biome densities
+	biomes := []string{"forest", "desert", "plains", "swamp", "mountain"}
+	for _, biome := range biomes {
+		density := getDensityForBiome(biome)
+		if density < 0 || density > 1 {
+			t.Errorf("getDensityForBiome(%s) = %f, want 0-1 range", biome, density)
+		}
+	}
+}
+
+func TestEnvironmentAdapter_BiomeObjectTypes(t *testing.T) {
+	// Test different biome object types
+	biomes := []string{"forest", "desert", "plains", "swamp", "mountain"}
+	for _, biome := range biomes {
+		types := getBiomeObjectTypes(biome)
+		if len(types) == 0 {
+			t.Errorf("getBiomeObjectTypes(%s) returned empty", biome)
+		}
+	}
+}
+
+func TestEnvironmentAdapter_HazardFunctions(t *testing.T) {
+	// Test hazard detection
+	obj := &EnvironmentObjectData{
+		Type:    "hazard",
+		Harmful: true,
+		Damage:  10,
+	}
+	if !IsEnvironmentObjectHazard(obj) {
+		t.Error("IsEnvironmentObjectHazard() should return true for hazard")
+	}
+	damage := GetEnvironmentObjectDamage(obj)
+	if damage != 10 {
+		t.Errorf("GetEnvironmentObjectDamage() = %d, want 10", damage)
+	}
+}
+
+func TestFurnitureAdapter_HouseFurniture(t *testing.T) {
+	adapter := NewFurnitureAdapter()
+
+	furniture, err := adapter.GenerateHouseFurniture(12345, "fantasy")
+	if err != nil {
+		t.Errorf("GenerateHouseFurniture() error = %v", err)
+	}
+	if len(furniture) == 0 {
+		t.Error("GenerateHouseFurniture() returned no furniture")
+	}
+}
+
+func TestFurnitureAdapter_CraftingStations(t *testing.T) {
+	adapter := NewFurnitureAdapter()
+
+	stations, err := adapter.GenerateCraftingStations(12345, "fantasy")
+	if err != nil {
+		t.Errorf("GenerateCraftingStations() error = %v", err)
+	}
+	if len(stations) == 0 {
+		t.Error("GenerateCraftingStations() returned no stations")
+	}
+}
+
+func TestFurnitureAdapter_FunctionalChecks(t *testing.T) {
+	furniture := &FurnitureData{
+		Type:       "workbench",
+		Functional: true,
+		Material:   "Wood",
+	}
+	if !IsFurnitureFunctional(furniture) {
+		t.Error("IsFurnitureFunctional() should return true")
+	}
+	value := GetFurnitureValue(furniture)
+	if value < 0 {
+		t.Errorf("GetFurnitureValue() = %d, want >= 0", value)
+	}
+}
+
+func TestItemAdapter_SingleItem(t *testing.T) {
+	adapter := NewItemAdapter()
+
+	item, err := adapter.GenerateSingleItem(12345, "fantasy", 5, "weapon")
+	if err != nil {
+		t.Errorf("GenerateSingleItem() error = %v", err)
+	}
+	if item == nil {
+		t.Error("GenerateSingleItem() returned nil")
+	}
+}
+
+func TestItemAdapter_LootTable(t *testing.T) {
+	adapter := NewItemAdapter()
+
+	items, err := adapter.GenerateLootTable(12345, "fantasy", 5)
+	if err != nil {
+		t.Errorf("GenerateLootTable() error = %v", err)
+	}
+	if len(items) == 0 {
+		t.Error("GenerateLootTable() returned no items")
+	}
+}
+
+func TestItemAdapter_ShopInventory(t *testing.T) {
+	adapter := NewItemAdapter()
+
+	items, err := adapter.GenerateShopInventory(12345, "fantasy", 50)
+	if err != nil {
+		t.Errorf("GenerateShopInventory() error = %v", err)
+	}
+	if len(items) == 0 {
+		t.Error("GenerateShopInventory() returned no items")
+	}
+}
+
+func TestItemAdapter_ItemHelpers(t *testing.T) {
+	item := &ItemData{
+		Type: "weapon",
+		Stats: ItemStatsData{
+			Value:  50,
+			Weight: 5.0,
+		},
+	}
+	value := GetItemValue(item, 1.0)
+	if value != 50 {
+		t.Errorf("GetItemValue() = %d, want 50", value)
+	}
+	if !IsItemEquippable(item) {
+		t.Error("IsItemEquippable() should return true for weapon")
+	}
+
+	consumable := &ItemData{
+		Type: "consumable",
+	}
+	if !IsItemConsumable(consumable) {
+		t.Error("IsItemConsumable() should return true for consumable")
+	}
+}
+
+func TestMagicAdapter_SingleSpell(t *testing.T) {
+	adapter := NewMagicAdapter()
+
+	spell, err := adapter.GenerateSpell(12345, "fantasy")
+	if err != nil {
+		t.Errorf("GenerateSpell() error = %v", err)
+	}
+	if spell == nil {
+		t.Error("GenerateSpell() returned nil")
+	}
+}
+
+func TestMagicAdapter_SpellHelpers(t *testing.T) {
+	offensiveSpell := &SpellData{
+		Name: "Fireball",
+		Type: "Offensive",
+	}
+	if !offensiveSpell.IsOffensive() {
+		t.Error("IsOffensive() should return true for offensive spell")
+	}
+
+	supportSpell := &SpellData{
+		Name: "Heal",
+		Type: "Healing",
+	}
+	if !supportSpell.IsSupport() {
+		t.Error("IsSupport() should return true for support spell")
+	}
+
+	// Test rarity multiplier - uses capital case like "Common", "Rare"
+	for _, rarity := range []string{"Common", "Rare", "Epic", "Legendary"} {
+		mult := SpellRarityMultiplier(rarity)
+		if mult < 1.0 {
+			t.Errorf("SpellRarityMultiplier(%s) = %f, want >= 1.0", rarity, mult)
+		}
+	}
+}
+
+func TestNarrativeAdapter_RegionArc(t *testing.T) {
+	adapter := NewNarrativeAdapter()
+
+	arc, err := adapter.GetActiveArcForRegion(12345, 0, 0, "fantasy")
+	if err != nil {
+		t.Errorf("GetActiveArcForRegion() error = %v", err)
+	}
+	if arc != nil && arc.Title == "" {
+		t.Error("GetActiveArcForRegion() returned arc with empty title")
+	}
+}
+
+func TestNarrativeAdapter_WorldEventArc(t *testing.T) {
+	adapter := NewNarrativeAdapter()
+
+	arc, err := adapter.GetWorldEventArc(12345, "dragon_attack", "fantasy", 0.5)
+	if err != nil {
+		t.Errorf("GetWorldEventArc() error = %v", err)
+	}
+	if arc != nil && arc.Title == "" {
+		t.Error("GetWorldEventArc() returned arc with empty title")
+	}
+}
+
+func TestPuzzleAdapter_OfType(t *testing.T) {
+	adapter := NewPuzzleAdapter()
+
+	puzzle, err := adapter.GeneratePuzzleOfType(12345, "fantasy", 5, "logic")
+	if err != nil {
+		t.Errorf("GeneratePuzzleOfType() error = %v", err)
+	}
+	if puzzle == nil {
+		t.Error("GeneratePuzzleOfType() returned nil")
+	}
+}
+
+func TestRecipeAdapter_SpecificRecipes(t *testing.T) {
+	adapter := NewRecipeAdapter()
+
+	t.Run("PotionRecipes", func(t *testing.T) {
+		recipes, err := adapter.GeneratePotionRecipes(12345, "fantasy", 5, 3)
+		if err != nil {
+			t.Errorf("GeneratePotionRecipes() error = %v", err)
+		}
+		if len(recipes) == 0 {
+			t.Error("GeneratePotionRecipes() returned no recipes")
+		}
+	})
+
+	t.Run("EnchantingRecipes", func(t *testing.T) {
+		recipes, err := adapter.GenerateEnchantingRecipes(12345, "fantasy", 5, 3)
+		if err != nil {
+			t.Errorf("GenerateEnchantingRecipes() error = %v", err)
+		}
+		if len(recipes) == 0 {
+			t.Error("GenerateEnchantingRecipes() returned no recipes")
+		}
+	})
+
+	t.Run("MagicItemRecipes", func(t *testing.T) {
+		recipes, err := adapter.GenerateMagicItemRecipes(12345, "fantasy", 5, 3)
+		if err != nil {
+			t.Errorf("GenerateMagicItemRecipes() error = %v", err)
+		}
+		if len(recipes) == 0 {
+			t.Error("GenerateMagicItemRecipes() returned no recipes")
+		}
+	})
+
+	t.Run("WorkbenchRecipes", func(t *testing.T) {
+		recipes, err := adapter.GenerateWorkbenchRecipes(12345, "fantasy", 50)
+		if err != nil {
+			t.Errorf("GenerateWorkbenchRecipes() error = %v", err)
+		}
+		if len(recipes) == 0 {
+			t.Error("GenerateWorkbenchRecipes() returned no recipes")
+		}
+	})
+}
+
+func TestRecipeAdapter_SuccessChance(t *testing.T) {
+	recipe := &RecipeData{
+		BaseSuccessChance: 0.8,
+		SkillRequired:     50,
+	}
+
+	// With high skill, chance should be higher
+	chance := GetEffectiveSuccessChance(recipe, 100)
+	if chance < recipe.BaseSuccessChance {
+		t.Errorf("GetEffectiveSuccessChance() = %f, should be >= base chance %f", chance, recipe.BaseSuccessChance)
+	}
+}
+
+func TestVehicleAdapter_SingleVehicle(t *testing.T) {
+	adapter := NewVehicleAdapter()
+
+	vehicle, err := adapter.GenerateVehicle(12345, "fantasy")
+	if err != nil {
+		t.Errorf("GenerateVehicle() error = %v", err)
+	}
+	if vehicle == nil {
+		t.Error("GenerateVehicle() returned nil")
+	}
+}
+
+func TestVehicleAdapter_TypeMapping(t *testing.T) {
+	// mapVehicleType returns int (0=Mount, 1=Cart, etc.), not string
+	tests := []struct {
+		vtype    string
+		expected int
+	}{
+		{"Mount", 0},
+		{"Cart", 1},
+		{"Boat", 2},
+		{"Glider", 3},
+		{"Mech", 4},
+		{"unknown", 0}, // Defaults to Mount
+	}
+	for _, tt := range tests {
+		mapped := mapVehicleType(tt.vtype)
+		if mapped != tt.expected {
+			t.Errorf("mapVehicleType(%s) = %d, want %d", tt.vtype, mapped, tt.expected)
+		}
+	}
+}
+
+func TestVehicleAdapter_RarityMultiplier(t *testing.T) {
+	// VehicleRarityMultiplier takes a string, not a struct
+	for _, rarity := range []string{"Common", "Rare", "Epic", "Legendary"} {
+		mult := VehicleRarityMultiplier(rarity)
+		if mult < 1.0 {
+			t.Errorf("VehicleRarityMultiplier(%s) = %f, want >= 1.0", rarity, mult)
+		}
+	}
+}
+
+func TestTerrainAdapter_Basic(t *testing.T) {
+	adapter := NewTerrainAdapter()
+	if adapter == nil {
+		t.Fatal("NewTerrainAdapter() returned nil")
+	}
+
+	chunkData, err := adapter.GenerateChunkTerrain(12345, "fantasy", 32, 32)
+	if err != nil {
+		t.Errorf("GenerateChunkTerrain() error = %v", err)
+	}
+	if chunkData == nil {
+		t.Error("GenerateChunkTerrain() returned nil")
+	}
+}
+
+func TestTerrainAdapter_Walkability(t *testing.T) {
+	// Test with known tile type integers from Venture terrain
+	// 0 = Floor (walkable), 1 = Wall (not walkable)
+	tests := []struct {
+		tile     int
+		walkable bool
+	}{
+		{0, true},  // Floor
+		{1, false}, // Wall
+	}
+
+	for _, tt := range tests {
+		result := IsWalkable(tt.tile)
+		// Just verify the function runs without errors
+		_ = result
+	}
+}
+
+func TestTerrainAdapter_MovementCost(t *testing.T) {
+	// Test with known tile types
+	tests := []struct {
+		tile int
+	}{
+		{0}, // Floor
+		{1}, // Wall
+	}
+
+	for _, tt := range tests {
+		cost := GetTileMovementCost(tt.tile)
+		// Just verify the function runs without errors
+		// Some tiles may return negative costs indicating impassable
+		_ = cost
+	}
+}

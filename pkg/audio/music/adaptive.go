@@ -67,12 +67,12 @@ type AdaptiveMusic struct {
 func NewAdaptiveMusic(genre string, seed int64) *AdaptiveMusic {
 	am := &AdaptiveMusic{
 		genre:             genre,
-		sampleRate:        44100,
+		sampleRate:        DefaultSampleRate,
 		currentState:      StateExploration,
 		previousState:     StateExploration,
 		layers:            make(map[string]*Layer),
 		motifs:            make(map[string]*Motif),
-		crossfadeDuration: 2.0, // 2 second transition per AC
+		crossfadeDuration: DefaultCrossfadeDuration, // 2 second transition per AC
 		rng:               rand.New(rand.NewSource(seed)),
 	}
 
