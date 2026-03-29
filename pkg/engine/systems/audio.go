@@ -22,8 +22,8 @@ type AudioSystem struct {
 func NewAudioSystem(genre string) *AudioSystem {
 	return &AudioSystem{
 		Genre:                 genre,
-		CombatDetectionRange:  50.0,
-		AmbientUpdateInterval: 5.0,
+		CombatDetectionRange:  DefaultCombatDetectionRange,
+		AmbientUpdateInterval: DefaultAmbientUpdateInterval,
 		timeAccum:             0,
 	}
 }
@@ -92,13 +92,12 @@ func (s *AudioSystem) updateAudioState(w *ecs.World, listenerPos [2]float64) {
 
 // calculateCombatIntensity returns 0.0-1.0 based on nearby hostile entities.
 func (s *AudioSystem) calculateCombatIntensity(w *ecs.World, listenerPos [2]float64) float64 {
-	maxHostiles := 10 // Cap for intensity calculation
 	hostileCount := s.countNearbyHostiles(w, listenerPos)
 
-	if hostileCount >= maxHostiles {
-		return 1.0
+	if hostileCount >= MaxHostilesForIntensity {
+		return MaxCombatIntensity
 	}
-	return float64(hostileCount) / float64(maxHostiles)
+	return float64(hostileCount) / float64(MaxHostilesForIntensity)
 }
 
 // countNearbyHostiles counts hostile entities within detection range.
@@ -144,7 +143,7 @@ func (s *AudioSystem) isEntityHostile(w *ecs.World, e ecs.Entity) bool {
 		return false
 	}
 	faction := factionComp.(*components.Faction)
-	return faction.Reputation < -50
+	return faction.Reputation < HostileFactionThreshold
 }
 
 // processSpatialAudio calculates volume/pan for audio sources based on distance.
@@ -176,7 +175,7 @@ func (s *AudioSystem) processSpatialAudio(w *ecs.World, listenerPos [2]float64) 
 		}
 
 		// Linear falloff for now (could be improved to inverse-square)
-		attenuation := 1.0 - (dist / source.Range)
+		attenuation := LinearFalloffBase - (dist / source.Range)
 		_ = source.Volume * attenuation // Calculated volume for playback
 	}
 }
@@ -208,7 +207,7 @@ func (s *AudioSystem) selectAmbientType(w *ecs.World, listenerPos [2]float64) st
 		pos := posComp.(*components.Position)
 		dx := pos.X - listenerPos[0]
 		dy := pos.Y - listenerPos[1]
-		if dx*dx+dy*dy < 100*100 { // Within 100 units of a city node
+		if dx*dx+dy*dy < CityProximityRange*CityProximityRange { // Within city range
 			return s.getCityAmbient()
 		}
 	}

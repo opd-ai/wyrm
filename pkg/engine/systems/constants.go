@@ -130,13 +130,13 @@ const (
 	VolumeThreshold = 0.001
 
 	// Musical frequency constants (Hz) for common notes.
-	FreqA1 = 55.0   // A1
-	FreqE2 = 82.5   // E2
-	FreqA2 = 110.0  // A2
-	FreqE3 = 165.0  // E3
-	FreqA3 = 220.0  // A3
-	FreqE4 = 330.0  // E4
-	FreqA4 = 440.0  // A4
+	FreqA1 = 55.0  // A1
+	FreqE2 = 82.5  // E2
+	FreqA2 = 110.0 // A2
+	FreqE3 = 165.0 // E3
+	FreqA3 = 220.0 // A3
+	FreqE4 = 330.0 // E4
+	FreqA4 = 440.0 // A4
 
 	// ADSR envelope constants (seconds).
 	DefaultAttackTime  = 0.02

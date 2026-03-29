@@ -22,7 +22,7 @@ func NewCrimeSystem(decayDelay, bountyPerLevel float64) *CrimeSystem {
 	return &CrimeSystem{
 		DecayDelay:     decayDelay,
 		BountyPerLevel: bountyPerLevel,
-		WitnessRange:   50.0, // Default witness range
+		WitnessRange:   DefaultWitnessRange,
 	}
 }
 
@@ -62,13 +62,13 @@ func (s *CrimeSystem) decayWantedLevel(crime *components.Crime) {
 	}
 }
 
-// clampWantedLevel constrains wanted level to valid range 0-5.
+// clampWantedLevel constrains wanted level to valid range.
 func (s *CrimeSystem) clampWantedLevel(crime *components.Crime) {
-	if crime.WantedLevel < 0 {
-		crime.WantedLevel = 0
+	if crime.WantedLevel < MinWantedLevel {
+		crime.WantedLevel = MinWantedLevel
 	}
-	if crime.WantedLevel > 5 {
-		crime.WantedLevel = 5
+	if crime.WantedLevel > MaxWantedLevel {
+		crime.WantedLevel = MaxWantedLevel
 	}
 }
 

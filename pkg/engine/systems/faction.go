@@ -35,7 +35,7 @@ func NewFactionPoliticsSystem(decayRate float64) *FactionPoliticsSystem {
 		Relations:         make(map[[2]string]FactionRelation),
 		DecayRate:         decayRate,
 		KillsForHostility: 3,
-		ReputationPerKill: -25.0,
+		ReputationPerKill: DefaultReputationPerKill,
 	}
 }
 

@@ -19,7 +19,7 @@ func NewSkillProgressionSystem(xpPerLevel float64, levelCap int) *SkillProgressi
 		levelCap = 100
 	}
 	if xpPerLevel <= 0 {
-		xpPerLevel = 100
+		xpPerLevel = DefaultXPPerLevel
 	}
 	return &SkillProgressionSystem{
 		XPPerLevel: xpPerLevel,
@@ -58,9 +58,9 @@ func (s *SkillProgressionSystem) processSkillProgression(skills *components.Skil
 }
 
 // calculateXPRequired computes XP needed for the next level.
-// Uses a simple scaling formula: base * (1 + level * 0.1)
+// Uses a simple scaling formula: base * (1 + level * LevelScalingFactor)
 func (s *SkillProgressionSystem) calculateXPRequired(currentLevel int) float64 {
-	return s.XPPerLevel * (1.0 + float64(currentLevel)*0.1)
+	return s.XPPerLevel * (BasePriceMultiplier + float64(currentLevel)*LevelScalingFactor)
 }
 
 // GrantSkillXP adds experience to a skill for an entity.

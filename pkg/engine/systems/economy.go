@@ -74,14 +74,14 @@ func (s *EconomySystem) initializeNodeMaps(node *components.EconomyNode) {
 
 // calculatePriceModifier computes the price modifier based on supply and demand.
 func (s *EconomySystem) calculatePriceModifier(supply, demand int) float64 {
-	ratio := 1.0
+	ratio := BasePriceMultiplier
 	if supply > 0 {
 		ratio = float64(demand) / float64(supply)
 	} else if demand > 0 {
-		ratio = 2.0 // High demand, no supply = double price
+		ratio = HighDemandPriceMultiplier // High demand, no supply = double price
 	}
-	priceMod := 1.0 + (ratio-1.0)*s.PriceFluctuation
-	return clampFloat(priceMod, 0.5, 2.0)
+	priceMod := BasePriceMultiplier + (ratio-BasePriceMultiplier)*s.PriceFluctuation
+	return clampFloat(priceMod, MinPriceMultiplier, MaxPriceMultiplier)
 }
 
 // updateNodePrices updates all item prices based on supply vs demand.

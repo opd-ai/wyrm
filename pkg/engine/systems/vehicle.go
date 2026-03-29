@@ -45,8 +45,8 @@ func (s *VehicleSystem) getVehicleComponents(w *ecs.World, e ecs.Entity) (*compo
 func (s *VehicleSystem) applyVehicleMovement(vehicle *components.Vehicle, pos *components.Position, dt float64) {
 	pos.X += math.Cos(vehicle.Direction) * vehicle.Speed * dt
 	pos.Y += math.Sin(vehicle.Direction) * vehicle.Speed * dt
-	vehicle.Fuel -= vehicle.Speed * dt * 0.01
-	if vehicle.Fuel < 0 {
-		vehicle.Fuel = 0
+	vehicle.Fuel -= vehicle.Speed * dt * DefaultFuelConsumptionRate
+	if vehicle.Fuel < MinFuelLevel {
+		vehicle.Fuel = MinFuelLevel
 	}
 }

@@ -47,7 +47,7 @@ func (s *WeatherSystem) Update(w *ecs.World, dt float64) {
 		s.CurrentWeather = "clear"
 	}
 	if s.WeatherDuration <= 0 {
-		s.WeatherDuration = 300.0 // Default 5 minutes per weather
+		s.WeatherDuration = DefaultWeatherDuration
 	}
 	// Change weather after duration
 	if s.TimeAccum >= s.WeatherDuration {
