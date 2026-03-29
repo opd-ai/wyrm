@@ -69,13 +69,13 @@ type ClientPredictor struct {
 	turnSpeed float32
 
 	// RTT tracking for Tor-mode adaptation
-	smoothedRTT         time.Duration
-	rttAlpha            float64 // Smoothing factor
-	lastInputTime       time.Time
-	torModeActive       bool
-	predictionWindow    time.Duration
-	interpolationBlend  time.Duration
-	inputRateHz         int
+	smoothedRTT        time.Duration
+	rttAlpha           float64 // Smoothing factor
+	lastInputTime      time.Time
+	torModeActive      bool
+	predictionWindow   time.Duration
+	interpolationBlend time.Duration
+	inputRateHz        int
 }
 
 // NewClientPredictor creates a new client-side predictor.
