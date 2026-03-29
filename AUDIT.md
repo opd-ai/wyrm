@@ -71,9 +71,9 @@ _No critical findings. The codebase builds, tests pass, and core functionality w
 
 ### HIGH
 
-- [ ] **Zero-coverage package: `pkg/procgen/adapters`** — `pkg/procgen/adapters/*.go` — The V-Series adapter layer shows 0% coverage with default `go test` (11.4% with xvfb + `ebitentest` tag). This is the critical V-Series integration layer. — **Remediation:** Run tests with xvfb in CI: `xvfb-run go test -tags=ebitentest ./pkg/procgen/adapters/...` or add stub tests that don't require display.
+- [x] **Zero-coverage package: `pkg/procgen/adapters`** — `pkg/procgen/adapters/*.go` — The V-Series adapter layer shows 0% coverage with default `go test` (11.4% with xvfb + `ebitentest` tag). This is the critical V-Series integration layer. — **Remediation:** Run tests with xvfb in CI: `xvfb-run go test -tags=ebitentest ./pkg/procgen/adapters/...` or add stub tests that don't require display.
 
-- [ ] **No CI/CD pipeline** — `.github/workflows/` does not exist — No automated quality gates; regressions can merge undetected. — **Remediation:** Create `.github/workflows/ci.yml` with: `go build ./cmd/...`, `go test -race ./...`, `go vet ./...`, and coverage reporting.
+- [x] **No CI/CD pipeline** — `.github/workflows/` does not exist — No automated quality gates; regressions can merge undetected. — **Remediation:** Create `.github/workflows/ci.yml` with: `go build ./cmd/...`, `go test -race ./...`, `go vet ./...`, and coverage reporting.
 
 - [ ] **Federation not integrated at runtime** — `cmd/server/main.go` — `pkg/network/federation/` has 90.4% test coverage but `FederationNode` is never instantiated in the server. — **Remediation:** Add federation initialization in `cmd/server/main.go` when config enables it; add `federation:` section to `config.yaml`.
 
@@ -83,11 +83,11 @@ _No critical findings. The codebase builds, tests pass, and core functionality w
 
 - [ ] **Oversized file: `registry.go`** — `pkg/engine/systems/registry.go:1-950` — 950 lines with 87 functions; difficult to navigate and maintain. — **Remediation:** Split into per-system files: `world_clock.go`, `npc_schedule.go`, `faction.go`, `crime.go`, `economy.go`, `quest.go`, `weather.go`, `combat.go`, `vehicle.go`, `audio.go`, `render.go`.
 
-- [ ] **Raycast tests require build tag** — `pkg/rendering/raycast/raycast_test.go:1` — Tests use `//go:build noebiten` tag; default `go test` shows 0% coverage. — **Remediation:** Update CI to run `go test -tags=noebiten ./pkg/rendering/raycast/...` or document the tag requirement in `README.md`.
+- [x] **Raycast tests require build tag** — `pkg/rendering/raycast/raycast_test.go:1` — Tests use `//go:build noebiten` tag; default `go test` shows 0% coverage. — **Remediation:** Update CI to run `go test -tags=noebiten ./pkg/rendering/raycast/...` or document the tag requirement in `README.md`.
 
 - [ ] **Magic numbers: 2,267 instances** — Various files — Numeric literals reduce readability and maintainability. Top offenders: `pkg/engine/systems/registry.go`, `pkg/audio/music/adaptive.go`. — **Remediation:** Extract to named constants for physics (moveSpeed, turnSpeed), render (FOV, drawDistance), and audio (frequencies, durations). Target: <500 magic numbers.
 
-- [ ] **Low test coverage for adapters** — `pkg/procgen/adapters/*.go` — Only 11.4% coverage with proper tags. Critical integration layer with V-Series. — **Remediation:** Add tests covering all 16 adapters with determinism verification.
+- [x] **Low test coverage for adapters** — `pkg/procgen/adapters/*.go` — Only 11.4% coverage with proper tags. Critical integration layer with V-Series. — **Remediation:** Add tests covering all 16 adapters with determinism verification.
 
 ### LOW
 

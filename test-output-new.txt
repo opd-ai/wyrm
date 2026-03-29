@@ -1,0 +1,24 @@
+?   	github.com/opd-ai/wyrm/cmd/client	[no test files]
+?   	github.com/opd-ai/wyrm/cmd/server	[no test files]
+ok  	github.com/opd-ai/wyrm/config	1.029s
+ok  	github.com/opd-ai/wyrm/pkg/audio	1.064s
+ok  	github.com/opd-ai/wyrm/pkg/audio/ambient	1.070s
+ok  	github.com/opd-ai/wyrm/pkg/audio/music	1.061s
+ok  	github.com/opd-ai/wyrm/pkg/companion	1.027s
+ok  	github.com/opd-ai/wyrm/pkg/dialog	1.027s
+ok  	github.com/opd-ai/wyrm/pkg/engine/components	1.030s
+ok  	github.com/opd-ai/wyrm/pkg/engine/ecs	1.032s
+ok  	github.com/opd-ai/wyrm/pkg/engine/systems	1.037s
+ok  	github.com/opd-ai/wyrm/pkg/network	1.754s
+ok  	github.com/opd-ai/wyrm/pkg/network/federation	1.029s
+?   	github.com/opd-ai/wyrm/pkg/procgen/adapters	[no test files]
+ok  	github.com/opd-ai/wyrm/pkg/procgen/city	1.036s
+ok  	github.com/opd-ai/wyrm/pkg/procgen/dungeon	1.061s
+ok  	github.com/opd-ai/wyrm/pkg/procgen/noise	1.024s
+ok  	github.com/opd-ai/wyrm/pkg/rendering/postprocess	1.128s
+?   	github.com/opd-ai/wyrm/pkg/rendering/raycast	[no test files]
+ok  	github.com/opd-ai/wyrm/pkg/rendering/texture	1.018s
+ok  	github.com/opd-ai/wyrm/pkg/world/chunk	1.019s
+ok  	github.com/opd-ai/wyrm/pkg/world/housing	1.017s
+ok  	github.com/opd-ai/wyrm/pkg/world/persist	1.030s
+ok  	github.com/opd-ai/wyrm/pkg/world/pvp	1.015s

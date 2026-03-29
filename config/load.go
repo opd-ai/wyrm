@@ -9,10 +9,11 @@ import (
 
 // Config holds all application configuration.
 type Config struct {
-	Window WindowConfig `mapstructure:"window"`
-	Server ServerConfig `mapstructure:"server"`
-	World  WorldConfig  `mapstructure:"world"`
-	Genre  string       `mapstructure:"genre"`
+	Window     WindowConfig     `mapstructure:"window"`
+	Server     ServerConfig     `mapstructure:"server"`
+	World      WorldConfig      `mapstructure:"world"`
+	Federation FederationConfig `mapstructure:"federation"`
+	Genre      string           `mapstructure:"genre"`
 }
 
 // WindowConfig holds display settings.
@@ -33,6 +34,14 @@ type ServerConfig struct {
 type WorldConfig struct {
 	Seed      int64 `mapstructure:"seed"`
 	ChunkSize int   `mapstructure:"chunk_size"`
+}
+
+// FederationConfig holds cross-server federation settings.
+type FederationConfig struct {
+	Enabled        bool     `mapstructure:"enabled"`
+	NodeID         string   `mapstructure:"node_id"`
+	Peers          []string `mapstructure:"peers"`
+	GossipInterval int      `mapstructure:"gossip_interval"` // seconds
 }
 
 // Load reads configuration from file and environment, returning the populated Config.
@@ -73,6 +82,11 @@ func setDefaults() {
 
 	viper.SetDefault("world.seed", 0)
 	viper.SetDefault("world.chunk_size", 512)
+
+	viper.SetDefault("federation.enabled", false)
+	viper.SetDefault("federation.node_id", "")
+	viper.SetDefault("federation.peers", []string{})
+	viper.SetDefault("federation.gossip_interval", 5)
 
 	viper.SetDefault("genre", "fantasy")
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 	"github.com/opd-ai/wyrm/pkg/engine/systems"
 	"github.com/opd-ai/wyrm/pkg/network"
+	"github.com/opd-ai/wyrm/pkg/network/federation"
 	"github.com/opd-ai/wyrm/pkg/procgen/adapters"
 	"github.com/opd-ai/wyrm/pkg/procgen/city"
 	"github.com/opd-ai/wyrm/pkg/world/chunk"
@@ -33,6 +34,12 @@ func main() {
 	initializeWorldClock(world)
 	registerServerSystems(world, cm, cfg, fps)
 
+	// Initialize federation if enabled
+	var fed *federation.Federation
+	if cfg.Federation.Enabled {
+		fed = initializeFederation(cfg)
+	}
+
 	srv := network.NewServer(cfg.Server.Address)
 	if err := srv.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "server start: %v\n", err)
@@ -41,7 +48,10 @@ func main() {
 	defer srv.Stop()
 
 	log.Printf("server listening on %s (tick_rate=%d)", cfg.Server.Address, cfg.Server.TickRate)
-	runServerLoop(world, cfg, srv)
+	if cfg.Federation.Enabled {
+		log.Printf("federation enabled: node_id=%s, peers=%v", cfg.Federation.NodeID, cfg.Federation.Peers)
+	}
+	runServerLoop(world, cfg, srv, fed)
 }
 
 // initializeFactions generates factions using V-Series generators.
@@ -151,11 +161,42 @@ func registerServerSystems(world *ecs.World, cm *chunk.Manager, cfg *config.Conf
 	world.RegisterSystem(systems.NewWeatherSystem(cfg.Genre, 300.0))
 }
 
+// initializeFederation sets up cross-server federation.
+func initializeFederation(cfg *config.Config) *federation.Federation {
+	nodeID := cfg.Federation.NodeID
+	if nodeID == "" {
+		// Generate a node ID from server address if not specified
+		nodeID = fmt.Sprintf("node-%s", cfg.Server.Address)
+	}
+
+	fed := federation.NewFederation(nodeID)
+
+	// Register peer nodes
+	for _, peerAddr := range cfg.Federation.Peers {
+		node := &federation.FederationNode{
+			ServerID: fmt.Sprintf("peer-%s", peerAddr),
+			Address:  peerAddr,
+		}
+		fed.RegisterNode(node)
+		log.Printf("registered federation peer: %s", peerAddr)
+	}
+
+	log.Printf("federation initialized with %d peers", fed.NodeCount())
+	return fed
+}
+
 // runServerLoop runs the main server tick loop until shutdown.
-func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server) {
+func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server, fed *federation.Federation) {
 	tickInterval := time.Second / time.Duration(cfg.Server.TickRate)
 	ticker := time.NewTicker(tickInterval)
 	defer ticker.Stop()
+
+	// Federation cleanup ticker (every 30 seconds)
+	var fedCleanupTicker *time.Ticker
+	if fed != nil {
+		fedCleanupTicker = time.NewTicker(30 * time.Second)
+		defer fedCleanupTicker.Stop()
+	}
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -168,6 +209,15 @@ func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server) {
 		case <-sigCh:
 			log.Println("shutting down")
 			return
+		default:
+			// Non-blocking federation cleanup check
+			if fedCleanupTicker != nil {
+				select {
+				case <-fedCleanupTicker.C:
+					fed.CleanupExpired()
+				default:
+				}
+			}
 		}
 	}
 }
