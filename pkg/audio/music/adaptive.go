@@ -91,92 +91,92 @@ func (am *AdaptiveMusic) initializeMotifs() {
 	case "fantasy":
 		am.motifs["exploration"] = &Motif{
 			Name:      "exploration",
-			BaseFreq:  220.0, // A3
-			Notes:     []float64{1.0, 1.25, 1.5, 1.25, 1.0, 0.833, 1.0},
-			Durations: []float64{0.5, 0.5, 0.25, 0.25, 0.5, 0.5, 1.0},
+			BaseFreq:  FreqA3,
+			Notes:     []float64{IntervalUnison, IntervalMajorThird, IntervalPerfectFifth, IntervalMajorThird, IntervalUnison, IntervalDownMinor3rd, IntervalUnison},
+			Durations: []float64{EighthNote, EighthNote, SixteenthNote, SixteenthNote, EighthNote, EighthNote, QuarterNote},
 			Genre:     "fantasy",
 		}
 		am.motifs["combat"] = &Motif{
 			Name:      "combat",
-			BaseFreq:  110.0, // A2
-			Notes:     []float64{1.0, 1.0, 1.5, 1.0, 1.5, 2.0, 1.5},
-			Durations: []float64{0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.5},
+			BaseFreq:  FreqA2,
+			Notes:     []float64{IntervalUnison, IntervalUnison, IntervalPerfectFifth, IntervalUnison, IntervalPerfectFifth, IntervalOctave, IntervalPerfectFifth},
+			Durations: []float64{SixteenthNote, SixteenthNote, SixteenthNote, SixteenthNote, SixteenthNote, SixteenthNote, EighthNote},
 			Genre:     "fantasy",
 		}
 	case "sci-fi":
 		am.motifs["exploration"] = &Motif{
 			Name:      "exploration",
-			BaseFreq:  330.0, // E4
-			Notes:     []float64{1.0, 1.189, 1.414, 1.189, 1.0},
-			Durations: []float64{1.0, 0.5, 0.5, 0.5, 1.5},
+			BaseFreq:  FreqE4,
+			Notes:     []float64{IntervalUnison, IntervalMinorThird, IntervalTritone, IntervalMinorThird, IntervalUnison},
+			Durations: []float64{QuarterNote, EighthNote, EighthNote, EighthNote, DottedQuarter},
 			Genre:     "sci-fi",
 		}
 		am.motifs["combat"] = &Motif{
 			Name:      "combat",
-			BaseFreq:  165.0, // E3
-			Notes:     []float64{1.0, 1.0, 1.414, 1.0, 1.682, 1.414},
-			Durations: []float64{0.125, 0.125, 0.25, 0.125, 0.25, 0.125},
+			BaseFreq:  FreqE3,
+			Notes:     []float64{IntervalUnison, IntervalUnison, IntervalTritone, IntervalUnison, IntervalMajorSixth, IntervalTritone},
+			Durations: []float64{ThirtySecondNote, ThirtySecondNote, SixteenthNote, ThirtySecondNote, SixteenthNote, ThirtySecondNote},
 			Genre:     "sci-fi",
 		}
 	case "horror":
 		am.motifs["exploration"] = &Motif{
 			Name:      "exploration",
-			BaseFreq:  55.0, // A1
-			Notes:     []float64{1.0, 1.059, 1.0, 0.944, 1.0},
-			Durations: []float64{2.0, 1.0, 1.0, 1.0, 2.0},
+			BaseFreq:  FreqA1,
+			Notes:     []float64{IntervalUnison, IntervalMinorSecond, IntervalUnison, IntervalDownMinor2nd, IntervalUnison},
+			Durations: []float64{HalfNote, QuarterNote, QuarterNote, QuarterNote, HalfNote},
 			Genre:     "horror",
 		}
 		am.motifs["combat"] = &Motif{
 			Name:      "combat",
-			BaseFreq:  82.5, // E2
-			Notes:     []float64{1.0, 1.059, 1.122, 1.0, 0.944, 1.0},
-			Durations: []float64{0.5, 0.5, 0.5, 0.25, 0.25, 0.5},
+			BaseFreq:  FreqE2,
+			Notes:     []float64{IntervalUnison, IntervalMinorSecond, IntervalMajorSecond, IntervalUnison, IntervalDownMinor2nd, IntervalUnison},
+			Durations: []float64{EighthNote, EighthNote, EighthNote, SixteenthNote, SixteenthNote, EighthNote},
 			Genre:     "horror",
 		}
 	case "cyberpunk":
 		am.motifs["exploration"] = &Motif{
 			Name:      "exploration",
-			BaseFreq:  440.0, // A4
-			Notes:     []float64{1.0, 0.75, 1.0, 1.5, 1.0},
-			Durations: []float64{0.5, 0.25, 0.25, 0.5, 0.5},
+			BaseFreq:  FreqA4,
+			Notes:     []float64{IntervalUnison, IntervalDown5th, IntervalUnison, IntervalPerfectFifth, IntervalUnison},
+			Durations: []float64{EighthNote, SixteenthNote, SixteenthNote, EighthNote, EighthNote},
 			Genre:     "cyberpunk",
 		}
 		am.motifs["combat"] = &Motif{
 			Name:      "combat",
-			BaseFreq:  220.0, // A3
-			Notes:     []float64{1.0, 1.0, 1.5, 1.5, 2.0, 1.0},
-			Durations: []float64{0.125, 0.125, 0.125, 0.125, 0.25, 0.25},
+			BaseFreq:  FreqA3,
+			Notes:     []float64{IntervalUnison, IntervalUnison, IntervalPerfectFifth, IntervalPerfectFifth, IntervalOctave, IntervalUnison},
+			Durations: []float64{ThirtySecondNote, ThirtySecondNote, ThirtySecondNote, ThirtySecondNote, SixteenthNote, SixteenthNote},
 			Genre:     "cyberpunk",
 		}
 	case "post-apocalyptic":
 		am.motifs["exploration"] = &Motif{
 			Name:      "exploration",
-			BaseFreq:  165.0, // E3
-			Notes:     []float64{1.0, 0.889, 1.0, 1.122, 1.0},
-			Durations: []float64{1.0, 0.5, 0.5, 0.5, 1.5},
+			BaseFreq:  FreqE3,
+			Notes:     []float64{IntervalUnison, IntervalDownMajor2nd, IntervalUnison, IntervalMajorSecond, IntervalUnison},
+			Durations: []float64{QuarterNote, EighthNote, EighthNote, EighthNote, DottedQuarter},
 			Genre:     "post-apocalyptic",
 		}
 		am.motifs["combat"] = &Motif{
 			Name:      "combat",
-			BaseFreq:  110.0, // A2
-			Notes:     []float64{1.0, 1.0, 1.5, 1.0, 0.75, 1.0},
-			Durations: []float64{0.25, 0.25, 0.25, 0.25, 0.25, 0.25},
+			BaseFreq:  FreqA2,
+			Notes:     []float64{IntervalUnison, IntervalUnison, IntervalPerfectFifth, IntervalUnison, IntervalDown5th, IntervalUnison},
+			Durations: []float64{SixteenthNote, SixteenthNote, SixteenthNote, SixteenthNote, SixteenthNote, SixteenthNote},
 			Genre:     "post-apocalyptic",
 		}
 	default:
 		// Default to fantasy
 		am.motifs["exploration"] = &Motif{
 			Name:      "exploration",
-			BaseFreq:  220.0,
-			Notes:     []float64{1.0, 1.25, 1.5, 1.25, 1.0},
-			Durations: []float64{0.5, 0.5, 0.5, 0.5, 1.0},
+			BaseFreq:  FreqA3,
+			Notes:     []float64{IntervalUnison, IntervalMajorThird, IntervalPerfectFifth, IntervalMajorThird, IntervalUnison},
+			Durations: []float64{EighthNote, EighthNote, EighthNote, EighthNote, QuarterNote},
 			Genre:     "default",
 		}
 		am.motifs["combat"] = &Motif{
 			Name:      "combat",
-			BaseFreq:  110.0,
-			Notes:     []float64{1.0, 1.0, 1.5, 1.0, 1.5, 1.0},
-			Durations: []float64{0.25, 0.25, 0.25, 0.25, 0.25, 0.25},
+			BaseFreq:  FreqA2,
+			Notes:     []float64{IntervalUnison, IntervalUnison, IntervalPerfectFifth, IntervalUnison, IntervalPerfectFifth, IntervalUnison},
+			Durations: []float64{SixteenthNote, SixteenthNote, SixteenthNote, SixteenthNote, SixteenthNote, SixteenthNote},
 			Genre:     "default",
 		}
 	}
@@ -187,8 +187,8 @@ func (am *AdaptiveMusic) initializeLayers() {
 	// Base exploration layer
 	am.layers["exploration"] = &Layer{
 		Name:   "exploration",
-		Volume: 1.0,
-		Target: 1.0,
+		Volume: MaxVolume,
+		Target: MaxVolume,
 		Active: true,
 	}
 
@@ -220,8 +220,8 @@ func (am *AdaptiveMusic) EnterCombat() {
 		am.combatEntryTime = time.Now()
 
 		// Set layer targets for crossfade
-		am.layers["exploration"].Target = 0.3 // Reduce exploration
-		am.layers["combat"].Target = 1.0
+		am.layers["exploration"].Target = CombatVolumeReduction // Reduce exploration
+		am.layers["combat"].Target = MaxVolume
 		am.layers["combat"].Active = true
 	}
 }
@@ -242,7 +242,7 @@ func (am *AdaptiveMusic) ExitCombat() {
 		am.currentState = StateExploration
 
 		// Set layer targets for crossfade back to exploration
-		am.layers["exploration"].Target = 1.0
+		am.layers["exploration"].Target = MaxVolume
 		am.layers["combat"].Target = 0.0
 	}
 }
@@ -262,9 +262,9 @@ func (am *AdaptiveMusic) checkAutomaticCombatExit() {
 	if am.currentState != StateCombat || am.lastEnemyDeath.IsZero() {
 		return
 	}
-	if time.Since(am.lastEnemyDeath).Seconds() >= 5.0 {
+	if time.Since(am.lastEnemyDeath).Seconds() >= CombatExitDelay {
 		am.currentState = StateExploration
-		am.layers["exploration"].Target = 1.0
+		am.layers["exploration"].Target = MaxVolume
 		am.layers["combat"].Target = 0.0
 	}
 }
@@ -286,7 +286,7 @@ func (am *AdaptiveMusic) updateLayerVolume(layer *Layer, fadeRate float64) {
 	}
 
 	// Deactivate layers that have faded out
-	if layer.Volume <= 0.001 && layer.Target <= 0 {
+	if layer.Volume <= MinVolume && layer.Target <= 0 {
 		layer.Active = false
 	}
 }
@@ -305,7 +305,7 @@ func (am *AdaptiveMusic) getMotifForLayer(name string) *Motif {
 
 // mixLayerIntoSamples adds a single layer's contribution to the output samples.
 func (am *AdaptiveMusic) mixLayerIntoSamples(samples []float64, name string, layer *Layer) {
-	if !layer.Active || layer.Volume < 0.001 {
+	if !layer.Active || layer.Volume < MinVolume {
 		return
 	}
 
@@ -367,16 +367,14 @@ func (am *AdaptiveMusic) generateMotifSamples(motif *Motif, numSamples int) []fl
 		// Generate note with envelope
 		for i := 0; i < noteSamples && position+i < numSamples; i++ {
 			t := float64(i) / float64(am.sampleRate)
-			sample := math.Sin(2 * math.Pi * freq * t)
+			sample := math.Sin(TwoPi * freq * t)
 
 			// Simple ADSR envelope
 			env := 1.0
-			attack := 0.02
-			release := 0.05
-			if t < attack {
-				env = t / attack
-			} else if t > dur-release {
-				env = (dur - t) / release
+			if t < DefaultAttackTime {
+				env = t / DefaultAttackTime
+			} else if t > dur-DefaultReleaseTime {
+				env = (dur - t) / DefaultReleaseTime
 			}
 
 			samples[position+i] = sample * env
