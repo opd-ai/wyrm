@@ -50,13 +50,13 @@ jobs:
 
       - name: Run tests with build tags (xvfb)
         run: |
-          xvfb-run -a go test -tags=ebitentest -coverprofile=coverage-ebiten.out ./pkg/procgen/adapters/...
+          xvfb-run -a go test -coverprofile=coverage-adapters.out ./pkg/procgen/adapters/...
           xvfb-run -a go test -tags=noebiten -coverprofile=coverage-raycast.out ./pkg/rendering/raycast/...
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
-          files: coverage.out,coverage-ebiten.out,coverage-raycast.out
+          files: coverage.out,coverage-adapters.out,coverage-raycast.out
           fail_ci_if_error: false
 
   lint:
