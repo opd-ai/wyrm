@@ -1,4 +1,4 @@
-//go:build ebitentest
+//go:build !noebiten
 
 // This test file requires the "ebitentest" build tag because the Venture
 // faction generator imports ebiten, which requires GLFW/X11 initialization.

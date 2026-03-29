@@ -1,4 +1,4 @@
-//go:build ebitentest
+//go:build !noebiten
 
 // Package adapters provides V-Series integration for Wyrm.
 package adapters

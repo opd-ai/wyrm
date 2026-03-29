@@ -1,4 +1,4 @@
-//go:build ebitentest
+//go:build !noebiten
 
 package adapters
 

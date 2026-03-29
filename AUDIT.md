@@ -66,7 +66,7 @@ Wyrm is described as a **"100% procedurally generated first-person open-world RP
 
 ### CRITICAL
 
-- [ ] **Server build constraint prevents normal compilation** — `cmd/server/main.go:1` — The server has `//go:build ebitentest` build tag which means `go build ./cmd/server` fails with "build constraints exclude all Go files". This contradicts README instructions. — **Remediation:** Remove or change the build tag on line 1 from `//go:build ebitentest` to `//go:build !noebiten` (to match client) or remove the tag entirely. **Validation:** `go build ./cmd/server && echo "Server builds"`
+- [x] **Server build constraint prevents normal compilation** — `cmd/server/main.go:1` — The server has `//go:build ebitentest` build tag which means `go build ./cmd/server` fails with "build constraints exclude all Go files". This contradicts README instructions. — **Remediation:** Remove or change the build tag on line 1 from `//go:build ebitentest` to `//go:build !noebiten` (to match client) or remove the tag entirely. **Validation:** `go build ./cmd/server && echo "Server builds"`
 
 - [ ] **V-Series adapters have 0% test coverage** — `pkg/procgen/adapters/*.go` — 16 adapter files (3,221 LOC, 124 functions) have no test files in standard `go test ./...` runs. Tests exist but require `ebitentest` tag. — **Remediation:** (1) Refactor adapters to not require Ebiten at import time, OR (2) Add CI job: `xvfb-run go test -tags=ebitentest ./pkg/procgen/adapters/...`. **Validation:** `go test -cover ./pkg/procgen/adapters/...` shows >70%
 

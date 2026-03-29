@@ -1,4 +1,4 @@
-//go:build ebitentest
+//go:build !noebiten
 
 // Command server launches the Wyrm authoritative game server.
 package main
