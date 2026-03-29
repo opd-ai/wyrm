@@ -121,11 +121,12 @@
 
 ---
 
-### Step 6: Add Genre-Specific Texture Palettes
+### Step 6: Add Genre-Specific Texture Palettes ✅
 
 - **Deliverable**: Color palette selection in `pkg/rendering/texture/generator.go`
 - **Dependencies**: Step 5 (terrain provides context for textures)
 - **Goal Impact**: Visual differentiation across genres
+- **Status**: COMPLETE - Updated GenrePalette to match ROADMAP.md specifications
 - **Acceptance**: Textures use correct palette per genre
 - **Validation**:
   ```bash
