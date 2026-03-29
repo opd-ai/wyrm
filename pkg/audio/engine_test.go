@@ -343,3 +343,137 @@ func BenchmarkGenerateSFX(b *testing.B) {
 		_ = e.GenerateSFX(SFXFootstep, 440.0, 0.1)
 	}
 }
+
+func TestSampleStreamQueueAndRead(t *testing.T) {
+	stream := NewSampleStream()
+
+	// Queue some samples
+	samples := []float64{0.5, -0.5, 1.0, -1.0}
+	stream.QueueSamples(samples)
+
+	// Read should return the queued data
+	buf := make([]byte, 16) // 4 samples * 4 bytes/sample = 16 bytes
+	n, err := stream.Read(buf)
+	if err != nil {
+		t.Fatalf("Read error: %v", err)
+	}
+	if n != 16 {
+		t.Errorf("expected 16 bytes read, got %d", n)
+	}
+}
+
+func TestSampleStreamReadSilence(t *testing.T) {
+	stream := NewSampleStream()
+
+	// Read when buffer is empty should return silence
+	buf := make([]byte, 100)
+	n, err := stream.Read(buf)
+	if err != nil {
+		t.Fatalf("Read error: %v", err)
+	}
+	if n == 0 {
+		t.Error("Read should return silence bytes, not 0")
+	}
+
+	// All bytes should be zero (silence)
+	for i := 0; i < n; i++ {
+		if buf[i] != 0 {
+			t.Errorf("silence byte %d not zero: %d", i, buf[i])
+		}
+	}
+}
+
+func TestSampleStreamClipping(t *testing.T) {
+	stream := NewSampleStream()
+
+	// Queue samples that exceed [-1, 1] range - should be clipped
+	samples := []float64{2.0, -2.0}
+	stream.QueueSamples(samples)
+
+	// Read and verify (we can't check exact values but should not error)
+	buf := make([]byte, 8)
+	n, err := stream.Read(buf)
+	if err != nil {
+		t.Fatalf("Read error: %v", err)
+	}
+	if n != 8 {
+		t.Errorf("expected 8 bytes, got %d", n)
+	}
+}
+
+func TestSampleStreamSeek(t *testing.T) {
+	stream := NewSampleStream()
+
+	// Seek should return 0, nil (no-op for streaming audio)
+	pos, err := stream.Seek(100, 0)
+	if err != nil {
+		t.Errorf("Seek should not error: %v", err)
+	}
+	if pos != 0 {
+		t.Errorf("Seek should return 0, got %d", pos)
+	}
+}
+
+func TestSampleStreamLength(t *testing.T) {
+	stream := NewSampleStream()
+
+	// Length should return a large value for streaming
+	length := stream.Length()
+	if length < 1<<60 {
+		t.Errorf("Length should be very large for streaming, got %d", length)
+	}
+}
+
+func TestMinHelper(t *testing.T) {
+	tests := []struct {
+		a, b, want int
+	}{
+		{1, 2, 1},
+		{2, 1, 1},
+		{5, 5, 5},
+		{0, 10, 0},
+		{-5, 5, -5},
+	}
+
+	for _, tc := range tests {
+		got := min(tc.a, tc.b)
+		if got != tc.want {
+			t.Errorf("min(%d, %d) = %d, want %d", tc.a, tc.b, got, tc.want)
+		}
+	}
+}
+
+func TestSampleStreamPartialRead(t *testing.T) {
+	stream := NewSampleStream()
+
+	// Queue many samples
+	samples := make([]float64, 100)
+	for i := range samples {
+		samples[i] = 0.5
+	}
+	stream.QueueSamples(samples)
+
+	// Read in small chunks
+	buf := make([]byte, 20)
+	totalRead := 0
+	for totalRead < 100*4 {
+		n, err := stream.Read(buf)
+		if err != nil {
+			t.Fatalf("Read error: %v", err)
+		}
+		totalRead += n
+	}
+
+	// After reading all, should get silence
+	n, _ := stream.Read(buf)
+	allZero := true
+	for i := 0; i < n; i++ {
+		if buf[i] != 0 {
+			allZero = false
+			break
+		}
+	}
+	if !allZero {
+		t.Error("expected silence after draining buffer")
+	}
+}

@@ -308,3 +308,173 @@ func TestNewVehicleFromArchetype(t *testing.T) {
 		t.Errorf("expected fuel 150, got %f", vehicle.Fuel)
 	}
 }
+
+func TestFactionTerritoryContainsPoint(t *testing.T) {
+	// Square territory from (0,0) to (10,10)
+	territory := &FactionTerritory{
+		FactionID: "test_faction",
+		Vertices: []Point2D{
+			{X: 0, Y: 0},
+			{X: 10, Y: 0},
+			{X: 10, Y: 10},
+			{X: 0, Y: 10},
+		},
+		KillTracker: make(map[uint64]int),
+	}
+
+	tests := []struct {
+		name   string
+		x, y   float64
+		inside bool
+	}{
+		{"center point", 5, 5, true},
+		{"top-left inside", 1, 1, true},
+		{"bottom-right inside", 9, 9, true},
+		{"outside left", -5, 5, false},
+		{"outside right", 15, 5, false},
+		{"outside top", 5, -5, false},
+		{"outside bottom", 5, 15, false},
+		{"corner outside", 15, 15, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := territory.ContainsPoint(tc.x, tc.y)
+			if result != tc.inside {
+				t.Errorf("ContainsPoint(%f, %f) = %v, want %v", tc.x, tc.y, result, tc.inside)
+			}
+		})
+	}
+}
+
+func TestFactionTerritoryContainsPointTriangle(t *testing.T) {
+	// Triangle territory
+	territory := &FactionTerritory{
+		FactionID: "triangle_faction",
+		Vertices: []Point2D{
+			{X: 0, Y: 0},
+			{X: 10, Y: 0},
+			{X: 5, Y: 10},
+		},
+		KillTracker: make(map[uint64]int),
+	}
+
+	// Center of triangle should be inside
+	if !territory.ContainsPoint(5, 3) {
+		t.Error("center of triangle should be inside")
+	}
+
+	// Point outside triangle
+	if territory.ContainsPoint(0, 10) {
+		t.Error("point outside triangle should not be inside")
+	}
+}
+
+func TestFactionTerritoryContainsPointInvalidPolygon(t *testing.T) {
+	// Too few vertices (less than 3 points)
+	territory := &FactionTerritory{
+		FactionID: "invalid_faction",
+		Vertices: []Point2D{
+			{X: 0, Y: 0},
+			{X: 10, Y: 10},
+		},
+		KillTracker: make(map[uint64]int),
+	}
+
+	// Should return false for invalid polygon
+	if territory.ContainsPoint(5, 5) {
+		t.Error("invalid polygon with <3 vertices should return false")
+	}
+}
+
+func TestQuestLockBranch(t *testing.T) {
+	quest := &Quest{
+		ID:           "main_quest",
+		CurrentStage: 1,
+		Flags:        make(map[string]bool),
+	}
+
+	// Initially no branches are locked
+	if quest.IsBranchLocked("branch_a") {
+		t.Error("branch should not be locked initially")
+	}
+
+	// Lock a branch
+	quest.LockBranch("branch_a")
+
+	// Now it should be locked
+	if !quest.IsBranchLocked("branch_a") {
+		t.Error("branch_a should be locked after LockBranch")
+	}
+
+	// Other branches should still be unlocked
+	if quest.IsBranchLocked("branch_b") {
+		t.Error("branch_b should not be locked")
+	}
+
+	// Lock another branch
+	quest.LockBranch("branch_b")
+	if !quest.IsBranchLocked("branch_b") {
+		t.Error("branch_b should be locked after LockBranch")
+	}
+}
+
+func TestQuestIsBranchLockedNilMap(t *testing.T) {
+	quest := &Quest{
+		ID:             "test_quest",
+		CurrentStage:   1,
+		Flags:          make(map[string]bool),
+		LockedBranches: nil, // Explicitly nil
+	}
+
+	// Should return false without panic
+	if quest.IsBranchLocked("any_branch") {
+		t.Error("IsBranchLocked should return false when LockedBranches is nil")
+	}
+}
+
+func TestAudioListenerType(t *testing.T) {
+	listener := &AudioListener{
+		Volume:  0.8,
+		Enabled: true,
+	}
+	if listener.Type() != "AudioListener" {
+		t.Errorf("expected AudioListener, got %s", listener.Type())
+	}
+}
+
+func TestAudioSourceType(t *testing.T) {
+	source := &AudioSource{
+		SoundType: "footstep",
+		Volume:    1.0,
+		Range:     50.0,
+		Looping:   false,
+		Playing:   true,
+	}
+	if source.Type() != "AudioSource" {
+		t.Errorf("expected AudioSource, got %s", source.Type())
+	}
+}
+
+func TestAudioStateType(t *testing.T) {
+	state := &AudioState{
+		CurrentAmbient:  "forest",
+		CombatIntensity: 0.5,
+		LastPositionX:   100.0,
+		LastPositionY:   200.0,
+	}
+	if state.Type() != "AudioState" {
+		t.Errorf("expected AudioState, got %s", state.Type())
+	}
+}
+
+func TestFactionTerritoryType(t *testing.T) {
+	territory := &FactionTerritory{
+		FactionID:   "test_faction",
+		Vertices:    []Point2D{{X: 0, Y: 0}},
+		KillTracker: make(map[uint64]int),
+	}
+	if territory.Type() != "FactionTerritory" {
+		t.Errorf("expected FactionTerritory, got %s", territory.Type())
+	}
+}

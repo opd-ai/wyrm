@@ -291,3 +291,313 @@ func TestSetAutoSave(t *testing.T) {
 		t.Errorf("interval changed with zero: %v", p.interval)
 	}
 }
+
+func TestCompareCrime(t *testing.T) {
+	tests := []struct {
+		name      string
+		before    EntityData
+		after     EntityData
+		wantTotal int
+		wantDiff  int
+	}{
+		{
+			name:      "both have no crime",
+			before:    EntityData{HasCrime: false},
+			after:     EntityData{HasCrime: false},
+			wantTotal: 0,
+			wantDiff:  0,
+		},
+		{
+			name:      "before has crime, after doesn't - compares actual values",
+			before:    EntityData{HasCrime: true, WantedLevel: 2, BountyAmount: 100.0, InJail: false},
+			after:     EntityData{HasCrime: false, WantedLevel: 0, BountyAmount: 0.0, InJail: false},
+			wantTotal: 3,
+			wantDiff:  2, // WantedLevel and BountyAmount differ; InJail is same (both false)
+		},
+		{
+			name:      "after has crime, before doesn't",
+			before:    EntityData{HasCrime: false},
+			after:     EntityData{HasCrime: true, WantedLevel: 3, BountyAmount: 200.0, InJail: true},
+			wantTotal: 3,
+			wantDiff:  3,
+		},
+		{
+			name:      "both have identical crime",
+			before:    EntityData{HasCrime: true, WantedLevel: 2, BountyAmount: 100.0, InJail: false},
+			after:     EntityData{HasCrime: true, WantedLevel: 2, BountyAmount: 100.0, InJail: false},
+			wantTotal: 3,
+			wantDiff:  0,
+		},
+		{
+			name:      "wanted level differs",
+			before:    EntityData{HasCrime: true, WantedLevel: 2, BountyAmount: 100.0, InJail: false},
+			after:     EntityData{HasCrime: true, WantedLevel: 5, BountyAmount: 100.0, InJail: false},
+			wantTotal: 3,
+			wantDiff:  1,
+		},
+		{
+			name:      "bounty differs",
+			before:    EntityData{HasCrime: true, WantedLevel: 2, BountyAmount: 100.0, InJail: false},
+			after:     EntityData{HasCrime: true, WantedLevel: 2, BountyAmount: 500.0, InJail: false},
+			wantTotal: 3,
+			wantDiff:  1,
+		},
+		{
+			name:      "in jail differs",
+			before:    EntityData{HasCrime: true, WantedLevel: 2, BountyAmount: 100.0, InJail: false},
+			after:     EntityData{HasCrime: true, WantedLevel: 2, BountyAmount: 100.0, InJail: true},
+			wantTotal: 3,
+			wantDiff:  1,
+		},
+		{
+			name:      "all crime fields differ",
+			before:    EntityData{HasCrime: true, WantedLevel: 1, BountyAmount: 50.0, InJail: false},
+			after:     EntityData{HasCrime: true, WantedLevel: 5, BountyAmount: 1000.0, InJail: true},
+			wantTotal: 3,
+			wantDiff:  3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := compareCrime(tt.before, tt.after)
+			if result.total != tt.wantTotal {
+				t.Errorf("total = %d, want %d", result.total, tt.wantTotal)
+			}
+			if result.diff != tt.wantDiff {
+				t.Errorf("diff = %d, want %d", result.diff, tt.wantDiff)
+			}
+		})
+	}
+}
+
+func TestComparePosition(t *testing.T) {
+	tests := []struct {
+		name      string
+		before    EntityData
+		after     EntityData
+		wantTotal int
+		wantDiff  int
+	}{
+		{
+			name:      "both no position",
+			before:    EntityData{HasPosition: false},
+			after:     EntityData{HasPosition: false},
+			wantTotal: 0,
+			wantDiff:  0,
+		},
+		{
+			name:      "before has position, after doesn't",
+			before:    EntityData{HasPosition: true, PosX: 10, PosY: 20, PosZ: 30, PosAngle: 1.5},
+			after:     EntityData{HasPosition: false},
+			wantTotal: 4,
+			wantDiff:  4,
+		},
+		{
+			name:      "identical positions",
+			before:    EntityData{HasPosition: true, PosX: 10, PosY: 20, PosZ: 30, PosAngle: 1.5},
+			after:     EntityData{HasPosition: true, PosX: 10, PosY: 20, PosZ: 30, PosAngle: 1.5},
+			wantTotal: 4,
+			wantDiff:  0,
+		},
+		{
+			name:      "X position differs",
+			before:    EntityData{HasPosition: true, PosX: 10, PosY: 20, PosZ: 30, PosAngle: 1.5},
+			after:     EntityData{HasPosition: true, PosX: 15, PosY: 20, PosZ: 30, PosAngle: 1.5},
+			wantTotal: 4,
+			wantDiff:  1,
+		},
+		{
+			name:      "all position fields differ",
+			before:    EntityData{HasPosition: true, PosX: 10, PosY: 20, PosZ: 30, PosAngle: 1.5},
+			after:     EntityData{HasPosition: true, PosX: 100, PosY: 200, PosZ: 300, PosAngle: 3.14},
+			wantTotal: 4,
+			wantDiff:  4,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := comparePosition(tt.before, tt.after)
+			if result.total != tt.wantTotal {
+				t.Errorf("total = %d, want %d", result.total, tt.wantTotal)
+			}
+			if result.diff != tt.wantDiff {
+				t.Errorf("diff = %d, want %d", result.diff, tt.wantDiff)
+			}
+		})
+	}
+}
+
+func TestCompareHealth(t *testing.T) {
+	tests := []struct {
+		name      string
+		before    EntityData
+		after     EntityData
+		wantTotal int
+		wantDiff  int
+	}{
+		{
+			name:      "both no health",
+			before:    EntityData{HasHealth: false},
+			after:     EntityData{HasHealth: false},
+			wantTotal: 0,
+			wantDiff:  0,
+		},
+		{
+			name:      "identical health",
+			before:    EntityData{HasHealth: true, HealthCurrent: 80, HealthMax: 100},
+			after:     EntityData{HasHealth: true, HealthCurrent: 80, HealthMax: 100},
+			wantTotal: 2,
+			wantDiff:  0,
+		},
+		{
+			name:      "current health differs",
+			before:    EntityData{HasHealth: true, HealthCurrent: 80, HealthMax: 100},
+			after:     EntityData{HasHealth: true, HealthCurrent: 50, HealthMax: 100},
+			wantTotal: 2,
+			wantDiff:  1,
+		},
+		{
+			name:      "both differ",
+			before:    EntityData{HasHealth: true, HealthCurrent: 80, HealthMax: 100},
+			after:     EntityData{HasHealth: true, HealthCurrent: 50, HealthMax: 150},
+			wantTotal: 2,
+			wantDiff:  2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := compareHealth(tt.before, tt.after)
+			if result.total != tt.wantTotal {
+				t.Errorf("total = %d, want %d", result.total, tt.wantTotal)
+			}
+			if result.diff != tt.wantDiff {
+				t.Errorf("diff = %d, want %d", result.diff, tt.wantDiff)
+			}
+		})
+	}
+}
+
+func TestCompareEntities(t *testing.T) {
+	tests := []struct {
+		name      string
+		before    []EntityData
+		after     []EntityData
+		wantTotal int
+		wantDiff  int
+	}{
+		{
+			name:      "both empty",
+			before:    nil,
+			after:     nil,
+			wantTotal: 0,
+			wantDiff:  0,
+		},
+		{
+			name:      "different entity counts",
+			before:    []EntityData{{ID: 1}},
+			after:     []EntityData{{ID: 1}, {ID: 2}},
+			wantTotal: 1, // At least counts as different
+			wantDiff:  1,
+		},
+		{
+			name: "identical entities",
+			before: []EntityData{
+				{ID: 1, HasPosition: true, PosX: 10, PosY: 20, PosZ: 30, PosAngle: 1.5},
+			},
+			after: []EntityData{
+				{ID: 1, HasPosition: true, PosX: 10, PosY: 20, PosZ: 30, PosAngle: 1.5},
+			},
+			wantTotal: 4, // 4 position fields
+			wantDiff:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			total, diff := compareEntities(tt.before, tt.after)
+			if total < tt.wantTotal {
+				t.Errorf("total = %d, want >= %d", total, tt.wantTotal)
+			}
+			if diff < tt.wantDiff {
+				t.Errorf("diff = %d, want >= %d", diff, tt.wantDiff)
+			}
+		})
+	}
+}
+
+func TestCompareMetadata(t *testing.T) {
+	tests := []struct {
+		name      string
+		before    *WorldSnapshot
+		after     *WorldSnapshot
+		wantTotal int
+		wantDiff  int
+	}{
+		{
+			name:      "identical metadata",
+			before:    &WorldSnapshot{Seed: 123, Genre: "fantasy", Entities: []EntityData{}},
+			after:     &WorldSnapshot{Seed: 123, Genre: "fantasy", Entities: []EntityData{}},
+			wantTotal: 3,
+			wantDiff:  0,
+		},
+		{
+			name:      "different seed",
+			before:    &WorldSnapshot{Seed: 123, Genre: "fantasy", Entities: []EntityData{}},
+			after:     &WorldSnapshot{Seed: 456, Genre: "fantasy", Entities: []EntityData{}},
+			wantTotal: 3,
+			wantDiff:  1,
+		},
+		{
+			name:      "different genre",
+			before:    &WorldSnapshot{Seed: 123, Genre: "fantasy", Entities: []EntityData{}},
+			after:     &WorldSnapshot{Seed: 123, Genre: "sci-fi", Entities: []EntityData{}},
+			wantTotal: 3,
+			wantDiff:  1,
+		},
+		{
+			name:      "different entity count",
+			before:    &WorldSnapshot{Seed: 123, Genre: "fantasy", Entities: []EntityData{}},
+			after:     &WorldSnapshot{Seed: 123, Genre: "fantasy", Entities: []EntityData{{ID: 1}}},
+			wantTotal: 3,
+			wantDiff:  1,
+		},
+		{
+			name:      "all metadata differs",
+			before:    &WorldSnapshot{Seed: 123, Genre: "fantasy", Entities: []EntityData{}},
+			after:     &WorldSnapshot{Seed: 999, Genre: "horror", Entities: []EntityData{{ID: 1}, {ID: 2}}},
+			wantTotal: 3,
+			wantDiff:  3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			total, diff := compareMetadata(tt.before, tt.after)
+			if total != tt.wantTotal {
+				t.Errorf("total = %d, want %d", total, tt.wantTotal)
+			}
+			if diff != tt.wantDiff {
+				t.Errorf("diff = %d, want %d", diff, tt.wantDiff)
+			}
+		})
+	}
+}
+
+func TestLastSaveTimeNonExistent(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "wyrm_persist_test")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	p := NewPersister(tmpDir)
+
+	// LastSaveTime for non-existent seed
+	_, err = p.LastSaveTime(99999)
+	if err == nil {
+		t.Error("LastSaveTime should return error for non-existent seed")
+	}
+}
