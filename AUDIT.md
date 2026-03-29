@@ -78,7 +78,7 @@ Wyrm is described as a **"100% procedurally generated first-person open-world RP
 
 - [x] **Magic numbers: partially reduced** — Multiple files — Added `pkg/audio/music/constants.go` with named constants for frequencies, intervals, note durations, and ADSR envelope values. Updated `pkg/audio/music/adaptive.go` to use named constants. Additional files (`pkg/engine/systems/constants.go`) already have well-documented constants. — **Validation:** Tests pass, code compiles.
 
-- [ ] **Low cohesion files detected** — `pkg/network/federation/federation.go` (0.15), `pkg/engine/systems/constants.go` (0.20) — Files contain unrelated functions grouped together. — **Remediation:** Split `federation.go` into `node.go`, `gossip.go`, `transfer.go`. Move system-specific constants from `constants.go` to their respective system files. **Validation:** `go-stats-generator analyze . --skip-tests | grep "Low Cohesion"` shows <5 files
+- [x] **Low cohesion files detected** — `pkg/network/federation/federation.go` (0.15), `pkg/engine/systems/constants.go` (0.20) — Files contain unrelated functions grouped together. — **Remediation:** Split `federation.go` into `types.go`, `gossip.go`, `transfer.go`. Federation.go now contains only core Federation struct and node management. **Validation:** `go test -race ./pkg/network/federation/...` passes
 
 - [x] **cmd/client has test files** — `cmd/client/main_test.go` — Added tests for `heightToWallType` function with various thresholds and boundary conditions. Extracted pure functions to `util.go` for testability. **Validation:** `go test -tags=noebiten ./cmd/client/...` passes
 
