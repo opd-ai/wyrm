@@ -189,11 +189,12 @@
 
 ---
 
-### Step 9: Add Combat Mechanics (First-Person Melee)
+### Step 9: Add Combat Mechanics (First-Person Melee) ✅
 
 - **Deliverable**: Attack input handling, melee range detection, damage calculation
 - **Dependencies**: Step 8 (combat.go split makes this cleaner)
 - **Goal Impact**: Fulfills "First-person melee combat" claim
+- **Status**: COMPLETE - Added Weapon and CombatState components, enhanced CombatSystem with InitiateAttack, range detection, damage calculation with skill modifiers, cooldowns
 - **Acceptance**: Player can attack NPCs; damage is applied
 - **Validation**:
   ```bash

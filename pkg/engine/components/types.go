@@ -374,3 +374,71 @@ type AudioState struct {
 
 // Type returns the component type identifier for AudioState.
 func (a *AudioState) Type() string { return "AudioState" }
+
+// Weapon represents an entity's equipped weapon.
+type Weapon struct {
+	// Name is the weapon's display name.
+	Name string
+	// Damage is the base damage dealt per hit.
+	Damage float64
+	// Range is the maximum attack range in world units.
+	Range float64
+	// AttackSpeed is attacks per second.
+	AttackSpeed float64
+	// WeaponType categorizes the weapon (melee, ranged, magic).
+	WeaponType string
+}
+
+// Type returns the component type identifier for Weapon.
+func (w *Weapon) Type() string { return "Weapon" }
+
+// CombatState tracks combat-related runtime state.
+type CombatState struct {
+	// LastAttackTime is the game time of the last attack.
+	LastAttackTime float64
+	// Cooldown is the remaining time before the next attack.
+	Cooldown float64
+	// IsAttacking indicates an attack is in progress.
+	IsAttacking bool
+	// TargetEntity is the current attack target (0 = none).
+	TargetEntity uint64
+	// InCombat indicates the entity is engaged in combat.
+	InCombat bool
+}
+
+// Type returns the component type identifier for CombatState.
+func (c *CombatState) Type() string { return "CombatState" }
+
+// Stealth represents an entity's stealth state for sneaking mechanics.
+type Stealth struct {
+	// Visibility is the current visibility level (0.0 = invisible, 1.0 = fully visible).
+	Visibility float64
+	// Sneaking indicates if the entity is actively sneaking.
+	Sneaking bool
+	// DetectionRadius is how far NPCs can detect this entity when sneaking.
+	DetectionRadius float64
+	// BaseVisibility is the default visibility when not sneaking.
+	BaseVisibility float64
+	// SneakVisibility is the visibility when actively sneaking.
+	SneakVisibility float64
+	// LastDetectedBy tracks which entities have detected this one (entity ID -> time).
+	LastDetectedBy map[uint64]float64
+}
+
+// Type returns the component type identifier for Stealth.
+func (s *Stealth) Type() string { return "Stealth" }
+
+// Awareness tracks an NPC's awareness of stealthy players.
+type Awareness struct {
+	// AlertLevel is the current alert state (0.0 = unaware, 1.0 = fully alert).
+	AlertLevel float64
+	// SightRange is the maximum distance the NPC can see.
+	SightRange float64
+	// SightAngle is the field of view angle in radians.
+	SightAngle float64
+	// DetectedEntities tracks entities this NPC is aware of (entity ID -> alert level).
+	DetectedEntities map[uint64]float64
+}
+
+// Type returns the component type identifier for Awareness.
+func (a *Awareness) Type() string { return "Awareness" }
