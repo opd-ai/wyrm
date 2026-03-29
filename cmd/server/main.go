@@ -100,16 +100,16 @@ func initializeCity(world *ecs.World, cfg *config.Config, fps *systems.FactionPo
 			npcsPerDistrict = 20
 		}
 
-		entities, err := entityAdapter.GenerateAndSpawnNPCs(
-			world,
-			districtSeed,
-			cfg.Genre,
-			factionID,
-			npcsPerDistrict,
-			district.CenterX,
-			district.CenterY,
-			100.0,
-		)
+		npcCfg := adapters.NPCSpawnConfig{
+			Seed:      districtSeed,
+			Genre:     cfg.Genre,
+			FactionID: factionID,
+			Count:     npcsPerDistrict,
+			CenterX:   district.CenterX,
+			CenterY:   district.CenterY,
+			Radius:    100.0,
+		}
+		entities, err := entityAdapter.GenerateAndSpawnNPCs(world, npcCfg)
 		if err != nil {
 			log.Printf("warning: NPC spawn failed for district %s: %v", district.Name, err)
 			continue

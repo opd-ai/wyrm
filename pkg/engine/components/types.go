@@ -442,3 +442,105 @@ type Awareness struct {
 
 // Type returns the component type identifier for Awareness.
 func (a *Awareness) Type() string { return "Awareness" }
+
+// Material represents a gatherable or craftable material.
+type Material struct {
+	// ResourceType identifies the material category (ore, herb, wood, etc.).
+	ResourceType string
+	// Quantity is the amount of this material.
+	Quantity int
+	// Quality is the material quality (0.0-1.0, affects crafted item quality).
+	Quality float64
+	// Rarity indicates how rare this material is (common, uncommon, rare, epic, legendary).
+	Rarity string
+}
+
+// Type returns the component type identifier for Material.
+func (m *Material) Type() string { return "Material" }
+
+// ResourceNode represents a gatherable resource in the world.
+type ResourceNode struct {
+	// ResourceType identifies what material this node yields.
+	ResourceType string
+	// Quantity is the remaining amount available.
+	Quantity int
+	// MaxQuantity is the maximum this node can hold.
+	MaxQuantity int
+	// Quality is the base quality of materials from this node.
+	Quality float64
+	// RespawnTime is seconds until the node respawns after depletion.
+	RespawnTime float64
+	// LastGathered is the game time when the node was last gathered.
+	LastGathered float64
+	// Depleted indicates the node is currently empty.
+	Depleted bool
+}
+
+// Type returns the component type identifier for ResourceNode.
+func (r *ResourceNode) Type() string { return "ResourceNode" }
+
+// Workbench represents a crafting station.
+type Workbench struct {
+	// WorkbenchType identifies the station type (forge, alchemy_table, enchanting_table, etc.).
+	WorkbenchType string
+	// SupportedRecipeTypes lists what recipe categories this workbench can craft.
+	SupportedRecipeTypes []string
+	// CraftingSpeedMult is a multiplier on crafting time (1.0 = normal, 0.5 = twice as fast).
+	CraftingSpeedMult float64
+	// QualityBonus is added to crafted item quality.
+	QualityBonus float64
+}
+
+// Type returns the component type identifier for Workbench.
+func (w *Workbench) Type() string { return "Workbench" }
+
+// CraftingState tracks an entity's ongoing crafting activity.
+type CraftingState struct {
+	// IsCrafting indicates if the entity is currently crafting.
+	IsCrafting bool
+	// CurrentRecipeID is the ID of the recipe being crafted.
+	CurrentRecipeID string
+	// Progress is 0.0-1.0 representing completion percentage.
+	Progress float64
+	// TotalTime is the total crafting time in seconds.
+	TotalTime float64
+	// WorkbenchEntity is the entity ID of the workbench being used.
+	WorkbenchEntity uint64
+	// ConsumedMaterials tracks materials already consumed for this craft.
+	ConsumedMaterials map[string]int
+}
+
+// Type returns the component type identifier for CraftingState.
+func (c *CraftingState) Type() string { return "CraftingState" }
+
+// Tool represents an equipped tool with durability.
+type Tool struct {
+	// ToolType identifies the tool category (pickaxe, axe, hammer, etc.).
+	ToolType string
+	// Name is the tool's display name.
+	Name string
+	// Durability is the current durability (0 = broken).
+	Durability float64
+	// MaxDurability is the maximum durability.
+	MaxDurability float64
+	// GatherSpeed is a multiplier on gathering time.
+	GatherSpeed float64
+	// QualityBonus is added to gathered material quality.
+	QualityBonus float64
+	// ToolTier affects what resources can be gathered (1=basic, 5=legendary).
+	ToolTier int
+}
+
+// Type returns the component type identifier for Tool.
+func (t *Tool) Type() string { return "Tool" }
+
+// RecipeKnowledge tracks which recipes an entity has discovered.
+type RecipeKnowledge struct {
+	// KnownRecipes is a set of recipe IDs the entity can craft.
+	KnownRecipes map[string]bool
+	// DiscoveryProgress tracks partial discovery progress for recipes.
+	DiscoveryProgress map[string]float64
+}
+
+// Type returns the component type identifier for RecipeKnowledge.
+func (r *RecipeKnowledge) Type() string { return "RecipeKnowledge" }

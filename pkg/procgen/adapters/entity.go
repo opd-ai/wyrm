@@ -112,14 +112,25 @@ func SpawnNPC(world *ecs.World, data *NPCData, x, y float64, factionID string) (
 	return e, nil
 }
 
-// GenerateAndSpawnNPCs generates multiple NPCs and spawns them in the world.
-func (a *EntityAdapter) GenerateAndSpawnNPCs(world *ecs.World, seed int64, genre, factionID string, count int, centerX, centerY, radius float64) ([]ecs.Entity, error) {
-	rng := rand.New(rand.NewSource(seed))
-	entities := make([]ecs.Entity, 0, count)
+// NPCSpawnConfig holds parameters for spawning multiple NPCs.
+type NPCSpawnConfig struct {
+	Seed      int64
+	Genre     string
+	FactionID string
+	Count     int
+	CenterX   float64
+	CenterY   float64
+	Radius    float64
+}
 
-	for i := 0; i < count; i++ {
-		npcSeed := seed + int64(i)*1000
-		data, err := a.GenerateEntity(npcSeed, genre, i/10)
+// GenerateAndSpawnNPCs generates multiple NPCs and spawns them in the world.
+func (a *EntityAdapter) GenerateAndSpawnNPCs(world *ecs.World, cfg NPCSpawnConfig) ([]ecs.Entity, error) {
+	rng := rand.New(rand.NewSource(cfg.Seed))
+	entities := make([]ecs.Entity, 0, cfg.Count)
+
+	for i := 0; i < cfg.Count; i++ {
+		npcSeed := cfg.Seed + int64(i)*1000
+		data, err := a.GenerateEntity(npcSeed, cfg.Genre, i/10)
 		if err != nil {
 			continue // Skip failed generations
 		}
@@ -129,10 +140,10 @@ func (a *EntityAdapter) GenerateAndSpawnNPCs(world *ecs.World, seed int64, genre
 		_ = rng.Float64() // Reserved for future random offset
 		_ = rng.Float64() // Reserved for future random offset
 
-		x := centerX + float64(i%5-2)*radius/5
-		y := centerY + float64(i/5-count/10)*radius/5
+		x := cfg.CenterX + float64(i%5-2)*cfg.Radius/5
+		y := cfg.CenterY + float64(i/5-cfg.Count/10)*cfg.Radius/5
 
-		e, err := SpawnNPC(world, data, x, y, factionID)
+		e, err := SpawnNPC(world, data, x, y, cfg.FactionID)
 		if err != nil {
 			continue
 		}

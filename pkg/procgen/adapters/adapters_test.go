@@ -1000,7 +1000,16 @@ func TestEntityAdapter_GenerateAndSpawnNPCs(t *testing.T) {
 	adapter := NewEntityAdapter()
 	world := ecs.NewWorld()
 
-	entities, err := adapter.GenerateAndSpawnNPCs(world, 12345, "fantasy", "faction_test", 5, 100.0, 100.0, 50.0)
+	cfg := NPCSpawnConfig{
+		Seed:      12345,
+		Genre:     "fantasy",
+		FactionID: "faction_test",
+		Count:     5,
+		CenterX:   100.0,
+		CenterY:   100.0,
+		Radius:    50.0,
+	}
+	entities, err := adapter.GenerateAndSpawnNPCs(world, cfg)
 	if err != nil {
 		t.Fatalf("GenerateAndSpawnNPCs failed: %v", err)
 	}
