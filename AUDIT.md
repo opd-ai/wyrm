@@ -81,7 +81,7 @@ _No critical findings. The codebase builds, tests pass, and core functionality w
 
 ### MEDIUM
 
-- [ ] **Oversized file: `registry.go`** — `pkg/engine/systems/registry.go:1-950` — 950 lines with 87 functions; difficult to navigate and maintain. — **Remediation:** Split into per-system files: `world_clock.go`, `npc_schedule.go`, `faction.go`, `crime.go`, `economy.go`, `quest.go`, `weather.go`, `combat.go`, `vehicle.go`, `audio.go`, `render.go`.
+- [x] **Oversized file: `registry.go`** — `pkg/engine/systems/registry.go:1-950` — 950 lines with 87 functions; difficult to navigate and maintain. — **Remediation:** Split into per-system files: `world_clock.go`, `npc_schedule.go`, `faction.go`, `crime.go`, `economy.go`, `quest.go`, `weather.go`, `combat.go`, `vehicle.go`, `audio.go`, `render.go`.
 
 - [x] **Raycast tests require build tag** — `pkg/rendering/raycast/raycast_test.go:1` — Tests use `//go:build noebiten` tag; default `go test` shows 0% coverage. — **Remediation:** Update CI to run `go test -tags=noebiten ./pkg/rendering/raycast/...` or document the tag requirement in `README.md`.
 

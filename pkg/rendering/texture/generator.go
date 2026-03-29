@@ -16,36 +16,37 @@ type Texture struct {
 }
 
 // GenrePalette holds color palettes for different genres.
+// Colors are based on ROADMAP.md genre visual specifications.
 var GenrePalette = map[string][]color.RGBA{
 	"fantasy": {
-		{R: 139, G: 119, B: 101, A: 255}, // warm brown
-		{R: 169, G: 149, B: 121, A: 255}, // light tan
-		{R: 101, G: 139, B: 101, A: 255}, // forest green
-		{R: 199, G: 179, B: 139, A: 255}, // gold tint
+		{R: 0xD4, G: 0xA5, B: 0x74, A: 255}, // warm gold
+		{R: 0x4A, G: 0x7C, B: 0x23, A: 255}, // green
+		{R: 0x8B, G: 0x45, B: 0x13, A: 255}, // brown
+		{R: 0xC0, G: 0xA0, B: 0x60, A: 255}, // light gold
 	},
 	"sci-fi": {
-		{R: 80, G: 100, B: 130, A: 255},  // steel blue
-		{R: 200, G: 210, B: 220, A: 255}, // bright white
-		{R: 60, G: 80, B: 100, A: 255},   // dark blue
-		{R: 100, G: 120, B: 150, A: 255}, // medium blue
+		{R: 0x1E, G: 0x90, B: 0xFF, A: 255}, // cool blue
+		{R: 0xF0, G: 0xF0, B: 0xF0, A: 255}, // white
+		{R: 0xC0, G: 0xC0, B: 0xC0, A: 255}, // chrome
+		{R: 0x40, G: 0x60, B: 0x90, A: 255}, // steel blue
 	},
 	"horror": {
-		{R: 60, G: 55, B: 50, A: 255},  // dark grey
-		{R: 80, G: 70, B: 65, A: 255},  // muted brown
-		{R: 100, G: 85, B: 75, A: 255}, // dusty tan
-		{R: 50, G: 45, B: 45, A: 255},  // near black
+		{R: 0x55, G: 0x6B, B: 0x2F, A: 255}, // desaturated grey-green
+		{R: 0x1A, G: 0x1A, B: 0x1A, A: 255}, // near black
+		{R: 0x8B, G: 0x00, B: 0x00, A: 255}, // blood red
+		{R: 0x3F, G: 0x3F, B: 0x3F, A: 255}, // dark grey
 	},
 	"cyberpunk": {
-		{R: 40, G: 30, B: 50, A: 255},  // dark purple
-		{R: 255, G: 0, B: 128, A: 255}, // neon pink
-		{R: 0, G: 255, B: 255, A: 255}, // cyan
-		{R: 80, G: 60, B: 100, A: 255}, // muted purple
+		{R: 0xFF, G: 0x00, B: 0xFF, A: 255}, // neon pink
+		{R: 0x00, G: 0xFF, B: 0xFF, A: 255}, // cyan
+		{R: 0x2F, G: 0x2F, B: 0x2F, A: 255}, // dark grey
+		{R: 0x80, G: 0x00, B: 0x80, A: 255}, // deep purple
 	},
 	"post-apocalyptic": {
-		{R: 139, G: 119, B: 91, A: 255},  // rust orange
-		{R: 169, G: 149, B: 111, A: 255}, // dusty tan
-		{R: 99, G: 89, B: 79, A: 255},    // weathered grey
-		{R: 119, G: 99, B: 79, A: 255},   // mud brown
+		{R: 0x70, G: 0x42, B: 0x14, A: 255}, // sepia
+		{R: 0xCC, G: 0x77, B: 0x22, A: 255}, // orange dust
+		{R: 0xB7, G: 0x41, B: 0x0E, A: 255}, // rust
+		{R: 0x8B, G: 0x63, B: 0x33, A: 255}, // weathered tan
 	},
 }
 
