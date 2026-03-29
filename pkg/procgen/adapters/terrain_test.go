@@ -1,3 +1,5 @@
+//go:build ebitentest
+
 package adapters
 
 import (

@@ -1,1 +1,31 @@
-xvfb-run: error: Xvfb failed to start
+?   	github.com/opd-ai/wyrm/cmd/client	[no test files]
+?   	github.com/opd-ai/wyrm/cmd/server	[no test files]
+ok  	github.com/opd-ai/wyrm/config	1.030s
+ok  	github.com/opd-ai/wyrm/pkg/audio	1.057s
+ok  	github.com/opd-ai/wyrm/pkg/audio/ambient	1.067s
+ok  	github.com/opd-ai/wyrm/pkg/audio/music	1.057s
+ok  	github.com/opd-ai/wyrm/pkg/companion	1.026s
+ok  	github.com/opd-ai/wyrm/pkg/dialog	1.024s
+ok  	github.com/opd-ai/wyrm/pkg/engine/components	1.030s
+ok  	github.com/opd-ai/wyrm/pkg/engine/ecs	1.023s
+ok  	github.com/opd-ai/wyrm/pkg/engine/systems	1.029s
+ok  	github.com/opd-ai/wyrm/pkg/network	1.771s
+ok  	github.com/opd-ai/wyrm/pkg/network/federation	1.026s
+glfw: X11: The DISPLAY environment variable is missing: a platform-specific error occurred
+panic: glfw: The GLFW library is not initialized: the GLFW library is not initialized
+
+goroutine 1 [running]:
+github.com/hajimehoshi/ebiten/v2/internal/ui.init.0()
+	/home/user/go/pkg/mod/github.com/hajimehoshi/ebiten/v2@v2.9.3/internal/ui/ui.go:101 +0x9b
+FAIL	github.com/opd-ai/wyrm/pkg/procgen/adapters	0.047s
+ok  	github.com/opd-ai/wyrm/pkg/procgen/city	1.021s
+ok  	github.com/opd-ai/wyrm/pkg/procgen/dungeon	1.043s
+ok  	github.com/opd-ai/wyrm/pkg/procgen/noise	1.015s
+ok  	github.com/opd-ai/wyrm/pkg/rendering/postprocess	1.107s
+?   	github.com/opd-ai/wyrm/pkg/rendering/raycast	[no test files]
+ok  	github.com/opd-ai/wyrm/pkg/rendering/texture	1.016s
+ok  	github.com/opd-ai/wyrm/pkg/world/chunk	1.016s
+ok  	github.com/opd-ai/wyrm/pkg/world/housing	1.016s
+ok  	github.com/opd-ai/wyrm/pkg/world/persist	1.029s
+ok  	github.com/opd-ai/wyrm/pkg/world/pvp	1.015s
+FAIL

@@ -1,3 +1,5 @@
+//go:build ebitentest
+
 // Command server launches the Wyrm authoritative game server.
 package main
 

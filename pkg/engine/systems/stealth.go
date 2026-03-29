@@ -22,9 +22,9 @@ type StealthSystem struct {
 // NewStealthSystem creates a new stealth system with default settings.
 func NewStealthSystem() *StealthSystem {
 	return &StealthSystem{
-		BackstabMultiplier:  2.0,
-		SneakSpeedReduction: 0.5,
-		AlertDecayRate:      0.1,
+		BackstabMultiplier:  BackstabDamageMultiplier,
+		SneakSpeedReduction: DefaultSneakSpeedReduction,
+		AlertDecayRate:      DefaultAlertDecayRate,
 		GameTime:            0,
 	}
 }
@@ -149,9 +149,9 @@ func (s *StealthSystem) applyDetection(awareness *components.Awareness, stealth 
 	}
 
 	// Increase alert level based on visibility
-	awareness.AlertLevel += stealth.Visibility * 0.1
-	if awareness.AlertLevel > 1.0 {
-		awareness.AlertLevel = 1.0
+	awareness.AlertLevel += stealth.Visibility * AlertIncreasePerDetection
+	if awareness.AlertLevel > MaxAlertLevel {
+		awareness.AlertLevel = MaxAlertLevel
 	}
 
 	awareness.DetectedEntities[uint64(target)] = awareness.AlertLevel
@@ -187,7 +187,7 @@ func (s *StealthSystem) IsTargetUnaware(w *ecs.World, attacker, target ecs.Entit
 		return true
 	}
 	alertLevel, detected := awareness.DetectedEntities[uint64(attacker)]
-	return !detected || alertLevel < 0.5 // Below 50% alert = unaware
+	return !detected || alertLevel < AwarenessThreshold // Below threshold = unaware
 }
 
 // GetBackstabDamage calculates damage with backstab multiplier if applicable.
@@ -231,7 +231,7 @@ func (s *StealthSystem) AttemptPickpocket(w *ecs.World, thief, target ecs.Entity
 	skillLevel := s.getPickpocketSkill(w, thief)
 
 	// Skill check: skill level >= difficulty
-	return float64(skillLevel) >= difficulty*10
+	return float64(skillLevel) >= difficulty*PickpocketDifficultyMultiplier
 }
 
 // getPickpocketSkill returns the pickpocket skill level for an entity.

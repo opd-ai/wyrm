@@ -20,8 +20,8 @@ type CombatSystem struct {
 // NewCombatSystem creates a new combat system with default settings.
 func NewCombatSystem() *CombatSystem {
 	return &CombatSystem{
-		DefaultMeleeRange: 2.0,
-		DefaultDamage:     10.0,
+		DefaultMeleeRange: DefaultMeleeRangeUnits,
+		DefaultDamage:     DefaultBaseDamage,
 		GameTime:          0,
 	}
 }
@@ -151,13 +151,13 @@ func (s *CombatSystem) getMeleeRange(w *ecs.World, entity ecs.Entity) float64 {
 func (s *CombatSystem) getAttackCooldown(w *ecs.World, entity ecs.Entity) float64 {
 	weaponComp, ok := w.GetComponent(entity, "Weapon")
 	if !ok {
-		return 1.0 // Default 1 attack per second
+		return DefaultAttackCooldown
 	}
 	weapon := weaponComp.(*components.Weapon)
 	if weapon.AttackSpeed <= 0 {
-		return 1.0
+		return DefaultAttackCooldown
 	}
-	return 1.0 / weapon.AttackSpeed
+	return DefaultAttackCooldown / weapon.AttackSpeed
 }
 
 // resolveAttack applies damage from attacker to target.
@@ -196,11 +196,11 @@ func (s *CombatSystem) calculateDamage(w *ecs.World, attacker ecs.Entity) float6
 func (s *CombatSystem) getSkillModifier(w *ecs.World, entity ecs.Entity) float64 {
 	skillsComp, ok := w.GetComponent(entity, "Skills")
 	if !ok {
-		return 1.0
+		return BasePriceMultiplier
 	}
 	skills := skillsComp.(*components.Skills)
 	if skills.Levels == nil {
-		return 1.0
+		return BasePriceMultiplier
 	}
 
 	// Check for combat-related skills
@@ -211,8 +211,8 @@ func (s *CombatSystem) getSkillModifier(w *ecs.World, entity ecs.Entity) float64
 		}
 	}
 
-	// Each skill level adds 2% damage
-	return 1.0 + float64(combatLevel)*0.02
+	// Each skill level adds damage bonus
+	return BasePriceMultiplier + float64(combatLevel)*SkillDamageBonus
 }
 
 // getPosition retrieves an entity's position component.

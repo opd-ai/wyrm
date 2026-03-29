@@ -1,3 +1,5 @@
+//go:build ebitentest
+
 // Package adapters provides V-Series integration for Wyrm.
 package adapters
 
@@ -190,8 +192,17 @@ func selectBiomeFromWeights(seed int64, dist *GenreBiomeDistribution) BiomeType 
 	// Use seed to generate a deterministic value between 0 and 1
 	seedVal := float64(seed%10000) / 10000.0
 
+	// Iterate in deterministic order: primary biomes first, then secondary
+	// This ensures deterministic selection despite Go's randomized map iteration
+	allBiomes := append([]BiomeType{}, dist.PrimaryBiomes...)
+	allBiomes = append(allBiomes, dist.SecondaryBiomes...)
+
 	cumulative := 0.0
-	for biome, weight := range dist.Weights {
+	for _, biome := range allBiomes {
+		weight, ok := dist.Weights[biome]
+		if !ok {
+			continue
+		}
 		cumulative += weight
 		if seedVal < cumulative {
 			return biome

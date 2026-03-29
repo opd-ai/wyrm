@@ -1,24 +1,30 @@
+# github.com/opd-ai/wyrm/cmd/server
+cmd/server/main.go:59:29: undefined: adapters.NewFactionAdapter
+cmd/server/main.go:72:11: undefined: adapters.RegisterFactionsWithPoliticsSystem
+cmd/server/main.go:82:28: undefined: adapters.NewEntityAdapter
+cmd/server/main.go:83:29: undefined: adapters.NewFactionAdapter
 ?   	github.com/opd-ai/wyrm/cmd/client	[no test files]
-?   	github.com/opd-ai/wyrm/cmd/server	[no test files]
-ok  	github.com/opd-ai/wyrm/config	1.029s
+FAIL	github.com/opd-ai/wyrm/cmd/server [build failed]
+ok  	github.com/opd-ai/wyrm/config	1.032s
 ok  	github.com/opd-ai/wyrm/pkg/audio	1.064s
-ok  	github.com/opd-ai/wyrm/pkg/audio/ambient	1.070s
+ok  	github.com/opd-ai/wyrm/pkg/audio/ambient	1.072s
 ok  	github.com/opd-ai/wyrm/pkg/audio/music	1.061s
-ok  	github.com/opd-ai/wyrm/pkg/companion	1.027s
-ok  	github.com/opd-ai/wyrm/pkg/dialog	1.027s
-ok  	github.com/opd-ai/wyrm/pkg/engine/components	1.030s
-ok  	github.com/opd-ai/wyrm/pkg/engine/ecs	1.032s
-ok  	github.com/opd-ai/wyrm/pkg/engine/systems	1.037s
-ok  	github.com/opd-ai/wyrm/pkg/network	1.754s
-ok  	github.com/opd-ai/wyrm/pkg/network/federation	1.029s
+ok  	github.com/opd-ai/wyrm/pkg/companion	1.026s
+ok  	github.com/opd-ai/wyrm/pkg/dialog	1.023s
+ok  	github.com/opd-ai/wyrm/pkg/engine/components	1.027s
+ok  	github.com/opd-ai/wyrm/pkg/engine/ecs	1.026s
+ok  	github.com/opd-ai/wyrm/pkg/engine/systems	1.032s
+ok  	github.com/opd-ai/wyrm/pkg/network	1.776s
+ok  	github.com/opd-ai/wyrm/pkg/network/federation	1.033s
 ?   	github.com/opd-ai/wyrm/pkg/procgen/adapters	[no test files]
-ok  	github.com/opd-ai/wyrm/pkg/procgen/city	1.036s
-ok  	github.com/opd-ai/wyrm/pkg/procgen/dungeon	1.061s
-ok  	github.com/opd-ai/wyrm/pkg/procgen/noise	1.024s
-ok  	github.com/opd-ai/wyrm/pkg/rendering/postprocess	1.128s
+ok  	github.com/opd-ai/wyrm/pkg/procgen/city	1.035s
+ok  	github.com/opd-ai/wyrm/pkg/procgen/dungeon	1.056s
+ok  	github.com/opd-ai/wyrm/pkg/procgen/noise	1.026s
+ok  	github.com/opd-ai/wyrm/pkg/rendering/postprocess	1.129s
 ?   	github.com/opd-ai/wyrm/pkg/rendering/raycast	[no test files]
-ok  	github.com/opd-ai/wyrm/pkg/rendering/texture	1.018s
-ok  	github.com/opd-ai/wyrm/pkg/world/chunk	1.019s
-ok  	github.com/opd-ai/wyrm/pkg/world/housing	1.017s
-ok  	github.com/opd-ai/wyrm/pkg/world/persist	1.030s
+ok  	github.com/opd-ai/wyrm/pkg/rendering/texture	1.016s
+ok  	github.com/opd-ai/wyrm/pkg/world/chunk	1.018s
+ok  	github.com/opd-ai/wyrm/pkg/world/housing	1.018s
+ok  	github.com/opd-ai/wyrm/pkg/world/persist	1.029s
 ok  	github.com/opd-ai/wyrm/pkg/world/pvp	1.015s
+FAIL
