@@ -162,6 +162,85 @@ func (s *CraftingSystem) CancelCraft(w *ecs.World, crafter ecs.Entity) bool {
 	return true
 }
 
+// gatherToolBonus contains tool effects for gathering.
+type gatherToolBonus struct {
+	speed   float64
+	quality float64
+}
+
+// applyToolDurability reduces tool durability and returns bonuses.
+func applyToolDurability(w *ecs.World, gatherer ecs.Entity) gatherToolBonus {
+	result := gatherToolBonus{speed: 1.0, quality: 0.0}
+
+	toolComp, toolOK := w.GetComponent(gatherer, "Tool")
+	if !toolOK {
+		return result
+	}
+	tool := toolComp.(*components.Tool)
+	if tool.Durability <= 0 {
+		return result
+	}
+
+	result.speed = tool.GatherSpeed
+	result.quality = tool.QualityBonus
+	tool.Durability -= 1.0
+	if tool.Durability < 0 {
+		tool.Durability = 0
+	}
+	return result
+}
+
+// calculateGatherAmount determines how much resource to gather.
+func calculateGatherAmount(available int, gatherSpeed float64) int {
+	amount := 1
+	if gatherSpeed > 1.0 {
+		amount = int(math.Ceil(float64(amount) * gatherSpeed))
+	}
+	if amount > available {
+		amount = available
+	}
+	return amount
+}
+
+// applyGatheringSkillBonus adds quality bonus from gathering skills.
+func applyGatheringSkillBonus(w *ecs.World, gatherer ecs.Entity, baseQuality float64) float64 {
+	skillsComp, skillsOK := w.GetComponent(gatherer, "Skills")
+	if !skillsOK {
+		return baseQuality
+	}
+	skills := skillsComp.(*components.Skills)
+	quality := baseQuality
+	for _, skillID := range []string{"herbalism", "mining", "woodcutting", "scavenging"} {
+		if level, ok := skills.Levels[skillID]; ok {
+			quality += float64(level) * 0.005 // +0.5% per skill level
+		}
+	}
+	return clampQuality(quality)
+}
+
+// clampQuality ensures quality stays in valid range [0, 1].
+func clampQuality(quality float64) float64 {
+	if quality > 1.0 {
+		return 1.0
+	}
+	if quality < 0.0 {
+		return 0.0
+	}
+	return quality
+}
+
+// recordDepletionTime sets the depletion timestamp from world clock.
+func recordDepletionTime(w *ecs.World, node *components.ResourceNode) {
+	for _, ce := range w.Entities("WorldClock") {
+		clockComp, clockOK := w.GetComponent(ce, "WorldClock")
+		if clockOK {
+			clock := clockComp.(*components.WorldClock)
+			node.LastGathered = float64(clock.Day*HoursPerDay+clock.Hour)*SecondsPerHour + clock.TimeAccum
+			return
+		}
+	}
+}
+
 // GatherResource harvests materials from a resource node.
 func (s *CraftingSystem) GatherResource(w *ecs.World, gatherer, node ecs.Entity) (string, int, float64) {
 	nodeComp, nodeOK := w.GetComponent(node, "ResourceNode")
@@ -173,70 +252,24 @@ func (s *CraftingSystem) GatherResource(w *ecs.World, gatherer, node ecs.Entity)
 		return "", 0, 0
 	}
 
-	// Check for equipped tool
-	gatherSpeed := 1.0
-	qualityBonus := 0.0
+	// Apply tool effects
+	toolBonus := applyToolDurability(w, gatherer)
 
-	toolComp, toolOK := w.GetComponent(gatherer, "Tool")
-	if toolOK {
-		tool := toolComp.(*components.Tool)
-		if tool.Durability > 0 {
-			gatherSpeed = tool.GatherSpeed
-			qualityBonus = tool.QualityBonus
-			// Reduce tool durability
-			tool.Durability -= 1.0
-			if tool.Durability < 0 {
-				tool.Durability = 0
-			}
-		}
-	}
+	// Calculate gathered amount
+	amount := calculateGatherAmount(rn.Quantity, toolBonus.speed)
 
-	// Calculate gathered amount (affected by tool)
-	baseAmount := 1
-	if gatherSpeed > 1.0 {
-		baseAmount = int(math.Ceil(float64(baseAmount) * gatherSpeed))
-	}
-	if baseAmount > rn.Quantity {
-		baseAmount = rn.Quantity
-	}
+	// Calculate quality with tool and skill bonuses
+	quality := clampQuality(rn.Quality + toolBonus.quality)
+	quality = applyGatheringSkillBonus(w, gatherer, quality)
 
-	// Calculate quality
-	quality := rn.Quality + qualityBonus
-	if quality > 1.0 {
-		quality = 1.0
-	}
-
-	// Apply skill bonus if available
-	skillsComp, skillsOK := w.GetComponent(gatherer, "Skills")
-	if skillsOK {
-		skills := skillsComp.(*components.Skills)
-		// Use gathering-related skill if available
-		for _, skillID := range []string{"herbalism", "mining", "woodcutting", "scavenging"} {
-			if level, ok := skills.Levels[skillID]; ok {
-				quality += float64(level) * 0.005 // +0.5% per skill level
-			}
-		}
-	}
-	if quality > 1.0 {
-		quality = 1.0
-	}
-
-	// Update node
-	rn.Quantity -= baseAmount
+	// Update node state
+	rn.Quantity -= amount
 	if rn.Quantity <= 0 {
 		rn.Depleted = true
-		// Record depletion time - find world clock
-		for _, ce := range w.Entities("WorldClock") {
-			clockComp, clockOK := w.GetComponent(ce, "WorldClock")
-			if clockOK {
-				clock := clockComp.(*components.WorldClock)
-				rn.LastGathered = float64(clock.Day*HoursPerDay+clock.Hour)*SecondsPerHour + clock.TimeAccum
-				break
-			}
-		}
+		recordDepletionTime(w, rn)
 	}
 
-	return rn.ResourceType, baseAmount, quality
+	return rn.ResourceType, amount, quality
 }
 
 // DiscoverRecipe attempts to discover a new recipe based on experimentation.
