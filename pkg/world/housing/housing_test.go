@@ -3137,3 +3137,344 @@ func TestSharedStorageAllGenres(t *testing.T) {
 		}
 	}
 }
+
+// ============================================================================
+// Indoor/Outdoor Detection Tests
+// ============================================================================
+
+func TestNewIndoorDetectionSystem(t *testing.T) {
+	hm := NewHouseManager()
+	ids := NewIndoorDetectionSystem(hm)
+	if ids == nil {
+		t.Fatal("NewIndoorDetectionSystem returned nil")
+	}
+	if ids.DefaultType != LocationOutdoor {
+		t.Errorf("DefaultType = %v, want LocationOutdoor", ids.DefaultType)
+	}
+}
+
+func TestIndoorDetectionSystem_RegisterZone(t *testing.T) {
+	ids := NewIndoorDetectionSystem(nil)
+	zone := &IndoorZone{
+		ID:   "test_zone",
+		Name: "Test Zone",
+		Type: LocationIndoor,
+		MinX: 0, MaxX: 10,
+		MinY: 0, MaxY: 5,
+		MinZ: 0, MaxZ: 10,
+	}
+	ids.RegisterZone(zone)
+
+	if ids.ZoneCount() != 1 {
+		t.Errorf("ZoneCount = %d, want 1", ids.ZoneCount())
+	}
+}
+
+func TestIndoorDetectionSystem_RegisterZone_AutoID(t *testing.T) {
+	ids := NewIndoorDetectionSystem(nil)
+	zone := &IndoorZone{
+		Name: "Auto ID Zone",
+		Type: LocationIndoor,
+		MinX: 0, MaxX: 10,
+		MinY: 0, MaxY: 5,
+		MinZ: 0, MaxZ: 10,
+	}
+	ids.RegisterZone(zone)
+
+	if zone.ID == "" {
+		t.Error("Zone should have auto-generated ID")
+	}
+}
+
+func TestIndoorDetectionSystem_UnregisterZone(t *testing.T) {
+	ids := NewIndoorDetectionSystem(nil)
+	zone := &IndoorZone{
+		ID:   "test_zone",
+		Name: "Test Zone",
+		Type: LocationIndoor,
+		MinX: 0, MaxX: 10,
+		MinY: 0, MaxY: 5,
+		MinZ: 0, MaxZ: 10,
+	}
+	ids.RegisterZone(zone)
+	ids.UnregisterZone("test_zone")
+
+	if ids.ZoneCount() != 0 {
+		t.Errorf("ZoneCount = %d, want 0", ids.ZoneCount())
+	}
+}
+
+func TestIndoorDetectionSystem_GetLocationType(t *testing.T) {
+	ids := NewIndoorDetectionSystem(nil)
+	ids.RegisterZone(&IndoorZone{
+		ID:   "indoor",
+		Type: LocationIndoor,
+		MinX: 0, MaxX: 10,
+		MinY: 0, MaxY: 5,
+		MinZ: 0, MaxZ: 10,
+	})
+
+	// Inside the zone
+	if lt := ids.GetLocationType(5, 2, 5); lt != LocationIndoor {
+		t.Errorf("Inside zone: LocationType = %v, want LocationIndoor", lt)
+	}
+
+	// Outside the zone
+	if lt := ids.GetLocationType(20, 2, 20); lt != LocationOutdoor {
+		t.Errorf("Outside zone: LocationType = %v, want LocationOutdoor", lt)
+	}
+}
+
+func TestIndoorDetectionSystem_IsIndoors(t *testing.T) {
+	ids := NewIndoorDetectionSystem(nil)
+	ids.RegisterZone(&IndoorZone{
+		ID:   "indoor",
+		Type: LocationIndoor,
+		MinX: 0, MaxX: 10,
+		MinY: 0, MaxY: 5,
+		MinZ: 0, MaxZ: 10,
+	})
+
+	if !ids.IsIndoors(5, 2, 5) {
+		t.Error("Point inside zone should be indoors")
+	}
+	if ids.IsIndoors(20, 2, 20) {
+		t.Error("Point outside zone should not be indoors")
+	}
+}
+
+func TestIndoorDetectionSystem_IsOutdoors(t *testing.T) {
+	ids := NewIndoorDetectionSystem(nil)
+	ids.RegisterZone(&IndoorZone{
+		ID:   "indoor",
+		Type: LocationIndoor,
+		MinX: 0, MaxX: 10,
+		MinY: 0, MaxY: 5,
+		MinZ: 0, MaxZ: 10,
+	})
+
+	if ids.IsOutdoors(5, 2, 5) {
+		t.Error("Point inside zone should not be outdoors")
+	}
+	if !ids.IsOutdoors(20, 2, 20) {
+		t.Error("Point outside zone should be outdoors")
+	}
+}
+
+func TestIndoorDetectionSystem_Priority(t *testing.T) {
+	ids := NewIndoorDetectionSystem(nil)
+
+	// Low priority zone
+	ids.RegisterZone(&IndoorZone{
+		ID:   "building",
+		Type: LocationBuilding,
+		MinX: 0, MaxX: 20,
+		MinY: 0, MaxY: 10,
+		MinZ: 0, MaxZ: 20,
+		Priority: 5,
+	})
+
+	// High priority zone (overlapping)
+	ids.RegisterZone(&IndoorZone{
+		ID:   "dungeon",
+		Type: LocationDungeon,
+		MinX: 5, MaxX: 15,
+		MinY: 0, MaxY: 10,
+		MinZ: 5, MaxZ: 15,
+		Priority: 15,
+	})
+
+	// Point in both zones - should return higher priority
+	if lt := ids.GetLocationType(10, 5, 10); lt != LocationDungeon {
+		t.Errorf("Overlapping point: LocationType = %v, want LocationDungeon", lt)
+	}
+
+	// Point only in building zone
+	if lt := ids.GetLocationType(1, 5, 1); lt != LocationBuilding {
+		t.Errorf("Building only point: LocationType = %v, want LocationBuilding", lt)
+	}
+}
+
+func TestIndoorDetectionSystem_GetZoneAt(t *testing.T) {
+	ids := NewIndoorDetectionSystem(nil)
+	zone := &IndoorZone{
+		ID:   "test",
+		Name: "Test Zone",
+		Type: LocationIndoor,
+		MinX: 0, MaxX: 10,
+		MinY: 0, MaxY: 5,
+		MinZ: 0, MaxZ: 10,
+	}
+	ids.RegisterZone(zone)
+
+	got := ids.GetZoneAt(5, 2, 5)
+	if got == nil {
+		t.Fatal("GetZoneAt returned nil")
+	}
+	if got.ID != "test" {
+		t.Errorf("Zone ID = %s, want test", got.ID)
+	}
+
+	// Outside zone
+	got = ids.GetZoneAt(20, 2, 20)
+	if got != nil {
+		t.Error("GetZoneAt should return nil for point outside zones")
+	}
+}
+
+func TestIndoorDetectionSystem_GetAllZonesAt(t *testing.T) {
+	ids := NewIndoorDetectionSystem(nil)
+
+	ids.RegisterZone(&IndoorZone{
+		ID:   "zone1",
+		Type: LocationBuilding,
+		MinX: 0, MaxX: 20,
+		MinY: 0, MaxY: 10,
+		MinZ: 0, MaxZ: 20,
+	})
+	ids.RegisterZone(&IndoorZone{
+		ID:   "zone2",
+		Type: LocationDungeon,
+		MinX: 5, MaxX: 15,
+		MinY: 0, MaxY: 10,
+		MinZ: 5, MaxZ: 15,
+	})
+
+	zones := ids.GetAllZonesAt(10, 5, 10)
+	if len(zones) != 2 {
+		t.Errorf("GetAllZonesAt returned %d zones, want 2", len(zones))
+	}
+}
+
+func TestIndoorDetectionSystem_RegisterHouseAsZone(t *testing.T) {
+	hm := NewHouseManager()
+	ids := NewIndoorDetectionSystem(hm)
+
+	house := &House{
+		ID:     "house1",
+		WorldX: 100,
+		WorldZ: 100,
+	}
+	ids.RegisterHouseAsZone(house, 10, 5, 10)
+
+	if ids.ZoneCount() != 1 {
+		t.Errorf("ZoneCount = %d, want 1", ids.ZoneCount())
+	}
+
+	// Check point inside house
+	if !ids.IsIndoors(100, 2, 100) {
+		t.Error("Point inside house should be indoors")
+	}
+}
+
+func TestIndoorDetectionSystem_RegisterBuildingZone(t *testing.T) {
+	ids := NewIndoorDetectionSystem(nil)
+	ids.RegisterBuildingZone("shop1", "General Store", 50, 50, 20, 8, 20)
+
+	if ids.ZoneCount() != 1 {
+		t.Errorf("ZoneCount = %d, want 1", ids.ZoneCount())
+	}
+
+	zone := ids.GetZoneAt(50, 4, 50)
+	if zone == nil {
+		t.Fatal("Zone not found")
+	}
+	if zone.Type != LocationBuilding {
+		t.Errorf("Zone type = %v, want LocationBuilding", zone.Type)
+	}
+}
+
+func TestIndoorDetectionSystem_RegisterDungeonZone(t *testing.T) {
+	ids := NewIndoorDetectionSystem(nil)
+	ids.RegisterDungeonZone("dungeon1", "Dark Cavern", 0, 100, -50, 0, 0, 100)
+
+	zone := ids.GetZoneAt(50, -25, 50)
+	if zone == nil {
+		t.Fatal("Zone not found")
+	}
+	if zone.Type != LocationDungeon {
+		t.Errorf("Zone type = %v, want LocationDungeon", zone.Type)
+	}
+}
+
+func TestIndoorDetectionSystem_RegisterCaveZone(t *testing.T) {
+	ids := NewIndoorDetectionSystem(nil)
+	ids.RegisterCaveZone("cave1", "Crystal Cave", 0, 50, -100, -20, 0, 50)
+
+	zone := ids.GetZoneAt(25, -50, 25)
+	if zone == nil {
+		t.Fatal("Zone not found")
+	}
+	if zone.Type != LocationCave {
+		t.Errorf("Zone type = %v, want LocationCave", zone.Type)
+	}
+}
+
+func TestGetLocationTypeName(t *testing.T) {
+	tests := []struct {
+		locType LocationType
+		want    string
+	}{
+		{LocationOutdoor, "Outdoors"},
+		{LocationIndoor, "Indoors"},
+		{LocationDungeon, "Dungeon"},
+		{LocationCave, "Cave"},
+		{LocationBuilding, "Building"},
+		{LocationType(99), "Unknown"},
+	}
+
+	for _, tc := range tests {
+		got := GetLocationTypeName(tc.locType)
+		if got != tc.want {
+			t.Errorf("GetLocationTypeName(%v) = %s, want %s", tc.locType, got, tc.want)
+		}
+	}
+}
+
+func TestIndoorDetectionSystem_EdgeCases(t *testing.T) {
+	ids := NewIndoorDetectionSystem(nil)
+	ids.RegisterZone(&IndoorZone{
+		ID:   "exact",
+		Type: LocationIndoor,
+		MinX: 0, MaxX: 10,
+		MinY: 0, MaxY: 5,
+		MinZ: 0, MaxZ: 10,
+	})
+
+	// Test exact boundary points (should be inside)
+	if !ids.IsIndoors(0, 0, 0) {
+		t.Error("Point at min boundary should be indoors")
+	}
+	if !ids.IsIndoors(10, 5, 10) {
+		t.Error("Point at max boundary should be indoors")
+	}
+
+	// Test just outside boundary
+	if ids.IsIndoors(-0.1, 0, 0) {
+		t.Error("Point just outside min X should be outdoors")
+	}
+	if ids.IsIndoors(10.1, 0, 0) {
+		t.Error("Point just outside max X should be outdoors")
+	}
+}
+
+func BenchmarkIndoorDetectionSystem_GetLocationType(b *testing.B) {
+	ids := NewIndoorDetectionSystem(nil)
+
+	// Add 100 zones
+	for i := 0; i < 100; i++ {
+		x := float64(i * 20)
+		ids.RegisterZone(&IndoorZone{
+			ID:   fmt.Sprintf("zone_%d", i),
+			Type: LocationIndoor,
+			MinX: x, MaxX: x + 10,
+			MinY: 0, MaxY: 5,
+			MinZ: 0, MaxZ: 100,
+		})
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ids.GetLocationType(500, 2, 50)
+	}
+}

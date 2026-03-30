@@ -231,7 +231,7 @@ Legend:
 - [x] Day/night visual changes
 - [x] Environmental sounds
 - [x] Weather-affected movement
-- [ ] Indoor/outdoor detection
+- [x] Indoor/outdoor detection
 - [ ] Extreme weather events
 
 ---
