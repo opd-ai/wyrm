@@ -161,23 +161,24 @@
 - **Acceptance**: Storms, blizzards, radiation storms affect gameplay and visuals
 - **Validation**: `go test -cover ./pkg/engine/systems/... -run Weather`
 
-### Step 15: Refactor High Complexity Functions (10 → 0 above complexity 13)
+### Step 15: Refactor High Complexity Functions (10 → 0 above complexity 13) ✅ PARTIALLY COMPLETED
 - **Deliverable**: Extract helper functions from the 10 highest-complexity functions
 - **Dependencies**: Steps 1–14 (all feature work complete to avoid churn)
 - **Goal Impact**: Code maintainability, reduces bug risk
 - **Acceptance**: No function exceeds cyclomatic complexity 13; all tests pass
 - **Validation**: `go-stats-generator analyze . --skip-tests --format json 2>/dev/null | jq '[.functions[] | select(.complexity.overall > 13)] | length' # should output 0`
+- **Status**: Refactored applyToNode (economic_event.go), updateMount (vehicle.go), completeReading (skill_progression.go), generateSceneEvidence (evidence.go). Remaining: InstallCustomization, CompleteObjective, CanHide.
 
 **Refactoring targets:**
-| Function | File | Current | Strategy |
-|----------|------|---------|----------|
-| `applyToNode` | economic_event.go | 22.0 | Extract `applyPriceChange`, `applySupplyChange`, `applyDemandChange` |
-| `updateMount` | vehicle.go | 17.9 | Extract `calculateMountSpeed`, `applyMountMovement`, `handleMountStamina` |
-| `completeReading` | skill_progression.go | 15.8 | Extract `validateReading`, `applyReadingBonus`, `updateSkillFromBook` |
-| `generateSceneEvidence` | evidence.go | 15.3 | Extract evidence type generators per crime type |
-| `InstallCustomization` | vehicle.go | 14.5 | Extract `validateCustomization`, `applyCustomization`, `calculateCost` |
-| `CompleteObjective` | quest.go | 14.0 | Extract `checkObjectiveConditions`, `applyObjectiveRewards` |
-| `CanHide` | stealth.go | 14.0 | Extract `checkEnvironmentCover`, `checkLightLevel`, `checkNPCProximity` |
+| Function | File | Current | Strategy | Status |
+|----------|------|---------|----------|--------|
+| `applyToNode` | economic_event.go | 22.0 | Extract `applyPriceChange`, `applySupplyChange`, `applyDemandChange` | ✅ COMPLETED |
+| `updateMount` | vehicle.go | 17.9 | Extract `calculateMountSpeed`, `applyMountMovement`, `handleMountStamina` | ✅ COMPLETED |
+| `completeReading` | skill_progression.go | 15.8 | Extract `validateReading`, `applyReadingBonus`, `updateSkillFromBook` | ✅ COMPLETED |
+| `generateSceneEvidence` | evidence.go | 15.3 | Extract evidence type generators per crime type | ✅ COMPLETED |
+| `InstallCustomization` | vehicle.go | 14.5 | Extract `validateCustomization`, `applyCustomization`, `calculateCost` | ⏳ TODO |
+| `CompleteObjective` | quest.go | 14.0 | Extract `checkObjectiveConditions`, `applyObjectiveRewards` | ⏳ TODO |
+| `CanHide` | stealth.go | 14.0 | Extract `checkEnvironmentCover`, `checkLightLevel`, `checkNPCProximity` | ⏳ TODO |
 
 ### Step 16: Add Performance Benchmarks
 - **Deliverable**: Create benchmark tests for raycaster, ECS update loop, and server tick

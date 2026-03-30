@@ -15,6 +15,7 @@ type Config struct {
 	Federation    FederationConfig    `mapstructure:"federation"`
 	Accessibility AccessibilityConfig `mapstructure:"accessibility"`
 	Difficulty    DifficultyConfig    `mapstructure:"difficulty"`
+	KeyBindings   KeyBindingsConfig   `mapstructure:"keybindings"`
 	Genre         string              `mapstructure:"genre"`
 }
 
@@ -88,6 +89,56 @@ type DifficultyConfig struct {
 	PermaDeath             bool            `mapstructure:"perma_death"`
 	FriendlyFire           bool            `mapstructure:"friendly_fire"`
 	AutoAim                bool            `mapstructure:"auto_aim"`
+}
+
+// KeyBindingsConfig holds configurable key bindings.
+// Keys are specified as Ebitengine key names (e.g., "W", "Space", "Escape").
+type KeyBindingsConfig struct {
+	// Movement
+	MoveForward  string `mapstructure:"move_forward"`
+	MoveBackward string `mapstructure:"move_backward"`
+	MoveLeft     string `mapstructure:"move_left"`
+	MoveRight    string `mapstructure:"move_right"`
+	Jump         string `mapstructure:"jump"`
+	Crouch       string `mapstructure:"crouch"`
+	Sprint       string `mapstructure:"sprint"`
+
+	// Combat
+	Attack       string `mapstructure:"attack"`
+	Block        string `mapstructure:"block"`
+	UseAbility1  string `mapstructure:"ability_1"`
+	UseAbility2  string `mapstructure:"ability_2"`
+	UseAbility3  string `mapstructure:"ability_3"`
+	UseAbility4  string `mapstructure:"ability_4"`
+	QuickHeal    string `mapstructure:"quick_heal"`
+	ToggleWeapon string `mapstructure:"toggle_weapon"`
+
+	// Interaction
+	Interact     string `mapstructure:"interact"`
+	PickUp       string `mapstructure:"pick_up"`
+	DropItem     string `mapstructure:"drop_item"`
+	UseItem      string `mapstructure:"use_item"`
+	Talk         string `mapstructure:"talk"`
+	ReadSign     string `mapstructure:"read_sign"`
+	Mount        string `mapstructure:"mount"`
+	EnterVehicle string `mapstructure:"enter_vehicle"`
+
+	// UI
+	Inventory   string `mapstructure:"inventory"`
+	Map         string `mapstructure:"map"`
+	QuestLog    string `mapstructure:"quest_log"`
+	CharSheet   string `mapstructure:"character_sheet"`
+	SkillTree   string `mapstructure:"skill_tree"`
+	Crafting    string `mapstructure:"crafting"`
+	Pause       string `mapstructure:"pause"`
+	QuickSave   string `mapstructure:"quick_save"`
+	QuickLoad   string `mapstructure:"quick_load"`
+	Screenshot  string `mapstructure:"screenshot"`
+	ToggleHUD   string `mapstructure:"toggle_hud"`
+	Console     string `mapstructure:"console"`
+	ChatWindow  string `mapstructure:"chat_window"`
+	SocialMenu  string `mapstructure:"social_menu"`
+	TradeWindow string `mapstructure:"trade_window"`
 }
 
 // ColorblindPalette returns adjusted color values for a colorblind mode.
@@ -210,6 +261,49 @@ func setDefaults() {
 	viper.SetDefault("difficulty.perma_death", false)
 	viper.SetDefault("difficulty.friendly_fire", false)
 	viper.SetDefault("difficulty.auto_aim", false)
+
+	// Default key bindings
+	viper.SetDefault("keybindings.move_forward", "W")
+	viper.SetDefault("keybindings.move_backward", "S")
+	viper.SetDefault("keybindings.move_left", "A")
+	viper.SetDefault("keybindings.move_right", "D")
+	viper.SetDefault("keybindings.jump", "Space")
+	viper.SetDefault("keybindings.crouch", "ControlLeft")
+	viper.SetDefault("keybindings.sprint", "ShiftLeft")
+
+	viper.SetDefault("keybindings.attack", "MouseButtonLeft")
+	viper.SetDefault("keybindings.block", "MouseButtonRight")
+	viper.SetDefault("keybindings.ability_1", "1")
+	viper.SetDefault("keybindings.ability_2", "2")
+	viper.SetDefault("keybindings.ability_3", "3")
+	viper.SetDefault("keybindings.ability_4", "4")
+	viper.SetDefault("keybindings.quick_heal", "H")
+	viper.SetDefault("keybindings.toggle_weapon", "Tab")
+
+	viper.SetDefault("keybindings.interact", "E")
+	viper.SetDefault("keybindings.pick_up", "F")
+	viper.SetDefault("keybindings.drop_item", "G")
+	viper.SetDefault("keybindings.use_item", "R")
+	viper.SetDefault("keybindings.talk", "T")
+	viper.SetDefault("keybindings.read_sign", "V")
+	viper.SetDefault("keybindings.mount", "X")
+	viper.SetDefault("keybindings.enter_vehicle", "C")
+
+	viper.SetDefault("keybindings.inventory", "I")
+	viper.SetDefault("keybindings.map", "M")
+	viper.SetDefault("keybindings.quest_log", "J")
+	viper.SetDefault("keybindings.character_sheet", "K")
+	viper.SetDefault("keybindings.skill_tree", "P")
+	viper.SetDefault("keybindings.crafting", "B")
+	viper.SetDefault("keybindings.pause", "Escape")
+	viper.SetDefault("keybindings.quick_save", "F5")
+	viper.SetDefault("keybindings.quick_load", "F9")
+	viper.SetDefault("keybindings.screenshot", "F12")
+	viper.SetDefault("keybindings.toggle_hud", "F1")
+	viper.SetDefault("keybindings.console", "Backquote")
+	viper.SetDefault("keybindings.chat_window", "Enter")
+	viper.SetDefault("keybindings.social_menu", "O")
+	viper.SetDefault("keybindings.trade_window", "Y")
 
 	viper.SetDefault("genre", "fantasy")
 }
