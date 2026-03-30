@@ -21,6 +21,8 @@ type City struct {
 	Genre            string
 	ResidentialAreas []ResidentialArea
 	IndustrialZones  []IndustrialZone
+	Walls            CityWall
+	Gates            []CityGate
 }
 
 // District represents a city district.
@@ -161,7 +163,7 @@ func Generate(seed int64, genre string) *City {
 	// Generate industrial zones
 	industrialZones := generateIndustrialZones(rng, cityName, genre, cityDistricts)
 
-	return &City{
+	city := &City{
 		Name:             cityName,
 		Districts:        cityDistricts,
 		Seed:             seed,
@@ -169,6 +171,11 @@ func Generate(seed int64, genre string) *City {
 		ResidentialAreas: residentialAreas,
 		IndustrialZones:  industrialZones,
 	}
+
+	// Generate defensive walls and gates
+	city.GenerateWallsAndGates(rng)
+
+	return city
 }
 
 // genreHousingTypes maps genres to appropriate housing types.
@@ -575,4 +582,247 @@ func (c *City) GetZoneByName(name string) *IndustrialZone {
 		}
 	}
 	return nil
+}
+
+// CityWall represents the defensive walls surrounding a city.
+type CityWall struct {
+	// Segments defines wall segments as start/end point pairs.
+	Segments []WallSegment
+	// Height is the wall height in units.
+	Height float64
+	// Thickness is the wall thickness in units.
+	Thickness float64
+	// Material is the construction material (affects durability).
+	Material string
+	// Condition is the current repair state (0.0-1.0).
+	Condition float64
+}
+
+// WallSegment represents a single section of wall.
+type WallSegment struct {
+	StartX, StartY float64
+	EndX, EndY     float64
+	HasWalkway     bool    // Can guards patrol on top
+	Damaged        bool    // Section has breach
+	DamageLevel    float64 // 0.0-1.0 damage amount
+}
+
+// CityGate represents an entrance through the city walls.
+type CityGate struct {
+	Name       string
+	X, Y       float64
+	Width      float64 // Gate opening width
+	Facing     string  // "north", "south", "east", "west"
+	IsOpen     bool
+	OpenHour   int  // Hour gate opens (0-23)
+	CloseHour  int  // Hour gate closes (0-23)
+	GuardCount int  // Number of guards stationed
+	Locked     bool // Requires key or permission
+	Style      string
+}
+
+// genreWallMaterials maps genres to appropriate wall construction materials.
+var genreWallMaterials = map[string][]string{
+	"fantasy":          {"stone", "granite", "marble", "enchanted_stone"},
+	"sci-fi":           {"plasteel", "forcefield", "nano_composite", "energy_barrier"},
+	"horror":           {"crumbling_stone", "iron", "bone", "cursed_masonry"},
+	"cyberpunk":        {"concrete", "steel", "smart_glass", "holographic_barrier"},
+	"post-apocalyptic": {"scrap_metal", "concrete_rubble", "car_bodies", "shipping_containers"},
+}
+
+// genreGateStyles maps genres to appropriate gate architectural styles.
+var genreGateStyles = map[string][]string{
+	"fantasy":          {"portcullis", "drawbridge", "wooden_doors", "enchanted_arch"},
+	"sci-fi":           {"blast_door", "iris_gate", "energy_field", "airlock"},
+	"horror":           {"rusted_iron", "bone_arch", "creaking_wood", "mist_barrier"},
+	"cyberpunk":        {"security_checkpoint", "scanner_gate", "holo_barrier", "blast_shutter"},
+	"post-apocalyptic": {"barricade", "car_gate", "chain_fence", "guard_tower"},
+}
+
+// GenerateWallsAndGates generates defensive walls and entrance gates for a city.
+func (c *City) GenerateWallsAndGates(rng *rand.Rand) {
+	materials := genreWallMaterials[c.Genre]
+	if materials == nil {
+		materials = genreWallMaterials["fantasy"]
+	}
+	gateStyles := genreGateStyles[c.Genre]
+	if gateStyles == nil {
+		gateStyles = genreGateStyles["fantasy"]
+	}
+
+	// Calculate city bounds from districts
+	minX, minY, maxX, maxY := c.calculateBounds()
+
+	// Add padding for walls
+	wallPadding := 50.0
+	minX -= wallPadding
+	minY -= wallPadding
+	maxX += wallPadding
+	maxY += wallPadding
+
+	// Generate wall
+	material := materials[rng.Intn(len(materials))]
+	c.Walls = CityWall{
+		Height:    8.0 + rng.Float64()*8.0,
+		Thickness: 2.0 + rng.Float64()*3.0,
+		Material:  material,
+		Condition: 0.7 + rng.Float64()*0.3,
+	}
+
+	// Create wall segments (rectangular for simplicity)
+	c.Walls.Segments = []WallSegment{
+		// North wall
+		{StartX: minX, StartY: minY, EndX: maxX, EndY: minY, HasWalkway: true},
+		// East wall
+		{StartX: maxX, StartY: minY, EndX: maxX, EndY: maxY, HasWalkway: true},
+		// South wall
+		{StartX: maxX, StartY: maxY, EndX: minX, EndY: maxY, HasWalkway: true},
+		// West wall
+		{StartX: minX, StartY: maxY, EndX: minX, EndY: minY, HasWalkway: true},
+	}
+
+	// Add random damage based on genre
+	damageChance := 0.1
+	if c.Genre == "horror" || c.Genre == "post-apocalyptic" {
+		damageChance = 0.4
+	}
+	for i := range c.Walls.Segments {
+		if rng.Float64() < damageChance {
+			c.Walls.Segments[i].Damaged = true
+			c.Walls.Segments[i].DamageLevel = 0.2 + rng.Float64()*0.5
+		}
+	}
+
+	// Generate gates (2-4 gates)
+	numGates := 2 + rng.Intn(3)
+	c.Gates = make([]CityGate, numGates)
+
+	gateDirections := []struct {
+		name   string
+		x, y   float64
+		facing string
+	}{
+		{"North Gate", (minX + maxX) / 2, minY, "north"},
+		{"South Gate", (minX + maxX) / 2, maxY, "south"},
+		{"East Gate", maxX, (minY + maxY) / 2, "east"},
+		{"West Gate", minX, (minY + maxY) / 2, "west"},
+	}
+
+	// Shuffle and select gates
+	for i := range gateDirections {
+		j := rng.Intn(i + 1)
+		gateDirections[i], gateDirections[j] = gateDirections[j], gateDirections[i]
+	}
+
+	for i := 0; i < numGates && i < len(gateDirections); i++ {
+		dir := gateDirections[i]
+		style := gateStyles[rng.Intn(len(gateStyles))]
+
+		c.Gates[i] = CityGate{
+			Name:       fmt.Sprintf("%s %s", c.Name, dir.name),
+			X:          dir.x,
+			Y:          dir.y,
+			Width:      8.0 + rng.Float64()*4.0,
+			Facing:     dir.facing,
+			IsOpen:     true,
+			OpenHour:   5 + rng.Intn(2),  // Opens 5-6 AM
+			CloseHour:  21 + rng.Intn(3), // Closes 9-11 PM
+			GuardCount: 2 + rng.Intn(5),
+			Locked:     false,
+			Style:      style,
+		}
+
+		// Some gates might be locked in dangerous settings
+		if (c.Genre == "horror" || c.Genre == "post-apocalyptic") && rng.Float64() < 0.3 {
+			c.Gates[i].Locked = true
+		}
+	}
+}
+
+// calculateBounds finds the bounding box of all districts.
+func (c *City) calculateBounds() (minX, minY, maxX, maxY float64) {
+	if len(c.Districts) == 0 {
+		return -100, -100, 100, 100
+	}
+
+	minX = c.Districts[0].CenterX
+	maxX = c.Districts[0].CenterX
+	minY = c.Districts[0].CenterY
+	maxY = c.Districts[0].CenterY
+
+	for _, d := range c.Districts {
+		// Estimate district radius based on building count
+		radius := float64(d.Buildings) * 3.0
+		if d.CenterX-radius < minX {
+			minX = d.CenterX - radius
+		}
+		if d.CenterX+radius > maxX {
+			maxX = d.CenterX + radius
+		}
+		if d.CenterY-radius < minY {
+			minY = d.CenterY - radius
+		}
+		if d.CenterY+radius > maxY {
+			maxY = d.CenterY + radius
+		}
+	}
+
+	return minX, minY, maxX, maxY
+}
+
+// GetGateByDirection finds a gate facing the specified direction.
+func (c *City) GetGateByDirection(direction string) *CityGate {
+	for i := range c.Gates {
+		if c.Gates[i].Facing == direction {
+			return &c.Gates[i]
+		}
+	}
+	return nil
+}
+
+// GetGateByName finds a gate by its name.
+func (c *City) GetGateByName(name string) *CityGate {
+	for i := range c.Gates {
+		if c.Gates[i].Name == name {
+			return &c.Gates[i]
+		}
+	}
+	return nil
+}
+
+// IsGateOpen checks if a gate is open at the given hour.
+func (g *CityGate) IsGateOpen(hour int) bool {
+	if g.Locked {
+		return false
+	}
+	if g.OpenHour <= g.CloseHour {
+		return hour >= g.OpenHour && hour < g.CloseHour
+	}
+	// Handle overnight hours
+	return hour >= g.OpenHour || hour < g.CloseHour
+}
+
+// GetWallCondition returns the overall wall condition (average of segments).
+func (c *CityWall) GetWallCondition() float64 {
+	if len(c.Segments) == 0 {
+		return c.Condition
+	}
+
+	totalDamage := 0.0
+	for _, seg := range c.Segments {
+		if seg.Damaged {
+			totalDamage += seg.DamageLevel
+		}
+	}
+	return c.Condition * (1.0 - totalDamage/float64(len(c.Segments)))
+}
+
+// HasBreach returns true if any wall segment is significantly damaged.
+func (c *CityWall) HasBreach() bool {
+	for _, seg := range c.Segments {
+		if seg.Damaged && seg.DamageLevel > 0.5 {
+			return true
+		}
+	}
+	return false
 }

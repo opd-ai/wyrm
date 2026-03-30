@@ -59,7 +59,7 @@ type BuildingWindowData struct {
 func (a *BuildingAdapter) GenerateBuilding(seed int64, genre string, buildingType, floors int) (*BuildingData, error) {
 	params := procgen.GenerationParams{
 		GenreID:    mapGenreID(genre),
-		Difficulty: 0.5,
+		Difficulty: DefaultGenerationDifficulty,
 		Custom: map[string]interface{}{
 			"buildingType": building.BuildingType(buildingType),
 			"floors":       floors,

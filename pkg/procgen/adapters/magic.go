@@ -47,8 +47,8 @@ type SpellData struct {
 func (a *MagicAdapter) GenerateSpells(seed int64, genre string, count int) ([]*SpellData, error) {
 	params := procgen.GenerationParams{
 		GenreID:    mapGenreID(genre),
-		Difficulty: 0.5,
-		Depth:      1,
+		Difficulty: DefaultGenerationDifficulty,
+		Depth:      DefaultGenerationDepth,
 		Custom: map[string]interface{}{
 			"count": count,
 		},
@@ -123,16 +123,16 @@ func (s *SpellData) IsSupport() bool {
 func SpellRarityMultiplier(rarity string) float64 {
 	switch rarity {
 	case "Common":
-		return 1.0
+		return VehicleCommonStatMultiplier
 	case "Uncommon":
-		return 1.2
+		return VehicleUncommonStatMultiplier
 	case "Rare":
-		return 1.5
+		return VehicleRareStatMultiplier
 	case "Epic":
-		return 2.0
+		return VehicleEpicStatMultiplier
 	case "Legendary":
-		return 3.0
+		return VehicleLegendaryStatMultiplier
 	default:
-		return 1.0
+		return VehicleCommonStatMultiplier
 	}
 }

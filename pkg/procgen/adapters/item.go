@@ -60,7 +60,7 @@ type ItemStatsData struct {
 func (a *ItemAdapter) GenerateItems(seed int64, genre string, depth, count int, itemType string) ([]*ItemData, error) {
 	params := procgen.GenerationParams{
 		GenreID:    mapGenreID(genre),
-		Difficulty: float64(depth) / 100.0,
+		Difficulty: float64(depth) / DepthToDifficultyDivisor,
 		Depth:      depth,
 		Custom: map[string]interface{}{
 			"count": count,
@@ -99,19 +99,19 @@ func (a *ItemAdapter) GenerateLootTable(seed int64, genre string, depth int) ([]
 	var allItems []*ItemData
 
 	// Weapons
-	weapons, err := a.GenerateItems(seed, genre, depth, 2, "weapon")
+	weapons, err := a.GenerateItems(seed, genre, depth, LootTableWeaponCount, "weapon")
 	if err == nil {
 		allItems = append(allItems, weapons...)
 	}
 
 	// Armor
-	armor, err := a.GenerateItems(seed+1, genre, depth, 2, "armor")
+	armor, err := a.GenerateItems(seed+1, genre, depth, LootTableArmorCount, "armor")
 	if err == nil {
 		allItems = append(allItems, armor...)
 	}
 
 	// Consumables
-	consumables, err := a.GenerateItems(seed+2, genre, depth, 3, "consumable")
+	consumables, err := a.GenerateItems(seed+2, genre, depth, LootTableConsumableCount, "consumable")
 	if err == nil {
 		allItems = append(allItems, consumables...)
 	}
@@ -122,16 +122,16 @@ func (a *ItemAdapter) GenerateLootTable(seed int64, genre string, depth int) ([]
 // GenerateShopInventory generates items for a vendor's shop.
 func (a *ItemAdapter) GenerateShopInventory(seed int64, genre string, cityWealth int) ([]*ItemData, error) {
 	// Depth scales with city wealth
-	depth := cityWealth / 10
-	if depth < 1 {
-		depth = 1
+	depth := cityWealth / ShopWealthDivisor
+	if depth < MinShopDepth {
+		depth = MinShopDepth
 	}
-	if depth > 50 {
-		depth = 50
+	if depth > MaxShopDepth {
+		depth = MaxShopDepth
 	}
 
 	// Generate more items for shops
-	return a.GenerateItems(seed, genre, depth, 15, "")
+	return a.GenerateItems(seed, genre, depth, ShopInventorySize, "")
 }
 
 // convertItems converts Venture items to Wyrm format.

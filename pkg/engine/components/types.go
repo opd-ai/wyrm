@@ -1130,3 +1130,60 @@ type TrapMechanism struct {
 
 // Type returns the component type identifier for TrapMechanism.
 func (t *TrapMechanism) Type() string { return "TrapMechanism" }
+
+// CityEvent represents a dynamic event occurring in a city.
+type CityEvent struct {
+	// EventType identifies the event category.
+	EventType string
+	// Name is the human-readable event name.
+	Name string
+	// Description provides details about the event.
+	Description string
+	// CityID identifies the city where this event is occurring.
+	CityID string
+	// DistrictName is the affected district (if applicable).
+	DistrictName string
+	// StartTime is the game time when the event started.
+	StartTime float64
+	// Duration is how long the event lasts in game hours.
+	Duration float64
+	// Severity is the event impact level (0.0-1.0).
+	Severity float64
+	// Active indicates if the event is currently happening.
+	Active bool
+	// Effects contains modifiers applied during the event.
+	Effects CityEventEffects
+	// ParticipantRequirements specifies who can participate.
+	ParticipantRequirements CityEventRequirements
+}
+
+// Type returns the component type identifier for CityEvent.
+func (c *CityEvent) Type() string { return "CityEvent" }
+
+// CityEventEffects contains gameplay modifiers during an event.
+type CityEventEffects struct {
+	// ShopPriceMultiplier affects shop prices (1.0 = normal).
+	ShopPriceMultiplier float64
+	// CrimePenaltyMultiplier affects crime penalties (1.0 = normal).
+	CrimePenaltyMultiplier float64
+	// NPCActivityChange overrides NPC schedules if non-empty.
+	NPCActivityChange string
+	// SpawnRateMultiplier affects hostile NPC spawn rate (1.0 = normal).
+	SpawnRateMultiplier float64
+	// QuestRewardMultiplier affects quest rewards (1.0 = normal).
+	QuestRewardMultiplier float64
+	// GuardPatrolMultiplier affects guard presence (1.0 = normal).
+	GuardPatrolMultiplier float64
+}
+
+// CityEventRequirements specifies participation requirements.
+type CityEventRequirements struct {
+	// MinFactionReputation required to participate.
+	MinFactionReputation float64
+	// RequiredFaction limits participation to a faction (empty = any).
+	RequiredFaction string
+	// MinLevel is the minimum player level required.
+	MinLevel int
+	// RequiredItems lists items needed to participate.
+	RequiredItems []string
+}

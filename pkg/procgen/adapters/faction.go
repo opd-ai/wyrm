@@ -40,7 +40,7 @@ func (a *FactionAdapter) GenerateFactions(seed int64, genre string, depth int) (
 	params := procgen.GenerationParams{
 		GenreID:    mapGenreID(genre),
 		Depth:      depth,
-		Difficulty: 0.5,
+		Difficulty: DefaultGenerationDifficulty,
 	}
 
 	result, err := a.generator.Generate(seed, params)
@@ -165,10 +165,10 @@ func RegisterFactionsWithPoliticsSystem(fps *systems.FactionPoliticsSystem, fact
 
 // relationshipToFactionRelation converts Venture's relationship int to Wyrm's FactionRelation.
 func relationshipToFactionRelation(relationship int) systems.FactionRelation {
-	if relationship <= -50 {
+	if relationship <= FactionHostileThreshold {
 		return systems.RelationHostile
 	}
-	if relationship >= 51 {
+	if relationship >= FactionAllyThreshold {
 		return systems.RelationAlly
 	}
 	return systems.RelationNeutral

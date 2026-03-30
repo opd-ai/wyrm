@@ -434,3 +434,260 @@ func BenchmarkGenerateWithResidential(b *testing.B) {
 		_ = Generate(int64(i), "cyberpunk")
 	}
 }
+
+func TestGenerateWallsAndGates(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+
+	for _, genre := range genres {
+		t.Run(genre, func(t *testing.T) {
+			c := Generate(12345, genre)
+
+			// Verify walls were generated
+			if len(c.Walls.Segments) == 0 {
+				t.Error("Wall segments should not be empty")
+			}
+			if c.Walls.Height <= 0 {
+				t.Error("Wall height should be positive")
+			}
+			if c.Walls.Thickness <= 0 {
+				t.Error("Wall thickness should be positive")
+			}
+			if c.Walls.Material == "" {
+				t.Error("Wall material should not be empty")
+			}
+
+			// Verify gates were generated
+			if len(c.Gates) < 2 {
+				t.Errorf("Expected at least 2 gates, got %d", len(c.Gates))
+			}
+
+			for _, gate := range c.Gates {
+				if gate.Name == "" {
+					t.Error("Gate name should not be empty")
+				}
+				if gate.Width <= 0 {
+					t.Error("Gate width should be positive")
+				}
+				if gate.Facing == "" {
+					t.Error("Gate facing should not be empty")
+				}
+				if gate.Style == "" {
+					t.Error("Gate style should not be empty")
+				}
+			}
+		})
+	}
+}
+
+func TestCityGateIsOpen(t *testing.T) {
+	tests := []struct {
+		name     string
+		gate     CityGate
+		hour     int
+		wantOpen bool
+	}{
+		{
+			"open during day",
+			CityGate{OpenHour: 6, CloseHour: 22, Locked: false},
+			12,
+			true,
+		},
+		{
+			"closed at night",
+			CityGate{OpenHour: 6, CloseHour: 22, Locked: false},
+			3,
+			false,
+		},
+		{
+			"locked gate",
+			CityGate{OpenHour: 6, CloseHour: 22, Locked: true},
+			12,
+			false,
+		},
+		{
+			"overnight hours open late",
+			CityGate{OpenHour: 22, CloseHour: 6, Locked: false},
+			23,
+			true,
+		},
+		{
+			"overnight hours open early",
+			CityGate{OpenHour: 22, CloseHour: 6, Locked: false},
+			2,
+			true,
+		},
+		{
+			"overnight hours closed midday",
+			CityGate{OpenHour: 22, CloseHour: 6, Locked: false},
+			12,
+			false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.gate.IsGateOpen(tt.hour)
+			if got != tt.wantOpen {
+				t.Errorf("IsGateOpen(%d) = %v, want %v", tt.hour, got, tt.wantOpen)
+			}
+		})
+	}
+}
+
+func TestCityWallHasBreach(t *testing.T) {
+	tests := []struct {
+		name       string
+		segments   []WallSegment
+		wantBreach bool
+	}{
+		{
+			"no breach",
+			[]WallSegment{
+				{Damaged: false},
+				{Damaged: true, DamageLevel: 0.3},
+			},
+			false,
+		},
+		{
+			"has breach",
+			[]WallSegment{
+				{Damaged: false},
+				{Damaged: true, DamageLevel: 0.7},
+			},
+			true,
+		},
+		{
+			"empty segments",
+			[]WallSegment{},
+			false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wall := CityWall{Segments: tt.segments}
+			got := wall.HasBreach()
+			if got != tt.wantBreach {
+				t.Errorf("HasBreach() = %v, want %v", got, tt.wantBreach)
+			}
+		})
+	}
+}
+
+func TestCityWallGetCondition(t *testing.T) {
+	tests := []struct {
+		name      string
+		wall      CityWall
+		wantRange [2]float64 // min, max expected
+	}{
+		{
+			"pristine wall",
+			CityWall{
+				Condition: 1.0,
+				Segments: []WallSegment{
+					{Damaged: false},
+					{Damaged: false},
+				},
+			},
+			[2]float64{0.99, 1.01},
+		},
+		{
+			"damaged wall",
+			CityWall{
+				Condition: 1.0,
+				Segments: []WallSegment{
+					{Damaged: true, DamageLevel: 0.5},
+					{Damaged: false},
+				},
+			},
+			[2]float64{0.7, 0.8},
+		},
+		{
+			"empty segments",
+			CityWall{
+				Condition: 0.8,
+				Segments:  []WallSegment{},
+			},
+			[2]float64{0.79, 0.81},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.wall.GetWallCondition()
+			if got < tt.wantRange[0] || got > tt.wantRange[1] {
+				t.Errorf("GetWallCondition() = %v, want between %v and %v", got, tt.wantRange[0], tt.wantRange[1])
+			}
+		})
+	}
+}
+
+func TestGetGateByDirection(t *testing.T) {
+	c := Generate(12345, "fantasy")
+
+	// Should find at least one gate
+	directions := []string{"north", "south", "east", "west"}
+	foundCount := 0
+	for _, dir := range directions {
+		if g := c.GetGateByDirection(dir); g != nil {
+			foundCount++
+			if g.Facing != dir {
+				t.Errorf("Gate facing = %v, want %v", g.Facing, dir)
+			}
+		}
+	}
+
+	if foundCount == 0 {
+		t.Error("Should find at least one gate by direction")
+	}
+}
+
+func TestGetGateByName(t *testing.T) {
+	c := Generate(12345, "fantasy")
+
+	if len(c.Gates) == 0 {
+		t.Fatal("No gates generated")
+	}
+
+	// Find a gate by its name
+	firstGate := c.Gates[0]
+	found := c.GetGateByName(firstGate.Name)
+	if found == nil {
+		t.Errorf("GetGateByName(%s) returned nil", firstGate.Name)
+	}
+
+	// Non-existent gate should return nil
+	notFound := c.GetGateByName("NonExistent Gate")
+	if notFound != nil {
+		t.Error("GetGateByName should return nil for non-existent gate")
+	}
+}
+
+func TestWallsAndGatesDeterminism(t *testing.T) {
+	c1 := Generate(12345, "fantasy")
+	c2 := Generate(12345, "fantasy")
+
+	// Walls should be deterministic
+	if len(c1.Walls.Segments) != len(c2.Walls.Segments) {
+		t.Error("Wall segment count should be deterministic")
+	}
+	if c1.Walls.Material != c2.Walls.Material {
+		t.Error("Wall material should be deterministic")
+	}
+	if c1.Walls.Height != c2.Walls.Height {
+		t.Error("Wall height should be deterministic")
+	}
+
+	// Gates should be deterministic
+	if len(c1.Gates) != len(c2.Gates) {
+		t.Error("Gate count should be deterministic")
+	}
+	for i := range c1.Gates {
+		if c1.Gates[i].Name != c2.Gates[i].Name {
+			t.Errorf("Gate %d name should be deterministic", i)
+		}
+		if c1.Gates[i].Style != c2.Gates[i].Style {
+			t.Errorf("Gate %d style should be deterministic", i)
+		}
+	}
+}

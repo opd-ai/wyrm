@@ -51,7 +51,7 @@ type PuzzleElementData struct {
 func (a *PuzzleAdapter) GeneratePuzzle(seed int64, genre string, difficulty int) (*PuzzleData, error) {
 	params := procgen.GenerationParams{
 		GenreID:    mapGenreID(genre),
-		Difficulty: float64(difficulty) / 10.0,
+		Difficulty: float64(difficulty) / PuzzleDifficultyToDifficultyDivisor,
 		Depth:      difficulty,
 		Custom:     map[string]interface{}{},
 	}
@@ -73,7 +73,7 @@ func (a *PuzzleAdapter) GeneratePuzzle(seed int64, genre string, difficulty int)
 func (a *PuzzleAdapter) GeneratePuzzleOfType(seed int64, genre string, difficulty int, puzzleType string) (*PuzzleData, error) {
 	params := procgen.GenerationParams{
 		GenreID:    mapGenreID(genre),
-		Difficulty: float64(difficulty) / 10.0,
+		Difficulty: float64(difficulty) / PuzzleDifficultyToDifficultyDivisor,
 		Depth:      difficulty,
 		Custom: map[string]interface{}{
 			"type": puzzleType,
@@ -96,23 +96,23 @@ func (a *PuzzleAdapter) GeneratePuzzleOfType(seed int64, genre string, difficult
 // GenerateDungeonPuzzles generates a set of puzzles for a dungeon level.
 func (a *PuzzleAdapter) GenerateDungeonPuzzles(seed int64, genre string, dungeonDepth, roomCount int) ([]*PuzzleData, error) {
 	// Number of puzzles scales with room count and depth
-	puzzleCount := roomCount/5 + dungeonDepth/3
-	if puzzleCount < 1 {
-		puzzleCount = 1
+	puzzleCount := roomCount/RoomsPerPuzzle + dungeonDepth/DepthPerPuzzle
+	if puzzleCount < MinPuzzleCount {
+		puzzleCount = MinPuzzleCount
 	}
-	if puzzleCount > 10 {
-		puzzleCount = 10
+	if puzzleCount > MaxPuzzleCount {
+		puzzleCount = MaxPuzzleCount
 	}
 
 	puzzles := make([]*PuzzleData, 0, puzzleCount)
 	for i := 0; i < puzzleCount; i++ {
 		// Difficulty increases deeper in dungeon
-		difficulty := dungeonDepth + i/2
-		if difficulty > 10 {
-			difficulty = 10
+		difficulty := dungeonDepth + i/DifficultyPerPuzzle
+		if difficulty > MaxPuzzleDifficulty {
+			difficulty = MaxPuzzleDifficulty
 		}
 
-		p, err := a.GeneratePuzzle(seed+int64(i)*1000, genre, difficulty)
+		p, err := a.GeneratePuzzle(seed+int64(i)*PuzzleSeedMultiplier, genre, difficulty)
 		if err != nil {
 			continue
 		}
@@ -165,11 +165,11 @@ func ValidateSolution(puzzle *PuzzleData, actions []string) bool {
 
 // GetPuzzleHint returns a hint for the puzzle based on attempts.
 func GetPuzzleHint(puzzle *PuzzleData, attempts int) string {
-	if attempts < 2 {
+	if attempts < MinHintAttempts {
 		return "" // No hint yet
 	}
-	if attempts >= 5 {
-		// After 5 attempts, reveal first step
+	if attempts >= RevealSolutionAttempts {
+		// After RevealSolutionAttempts attempts, reveal first step
 		if len(puzzle.Solution) > 0 {
 			return "First step: " + puzzle.Solution[0]
 		}

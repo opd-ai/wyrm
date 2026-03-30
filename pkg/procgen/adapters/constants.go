@@ -207,6 +207,16 @@ const (
 	QuestRewardDepthMultiplier = 50
 	// QuestDifficultyXPMultiplier scales XP by difficulty.
 	QuestDifficultyXPMultiplier = 25.0
+	// QuestDifficultyToDepthMultiplier converts difficulty to depth.
+	QuestDifficultyToDepthMultiplier = 100
+)
+
+// Faction relationship thresholds.
+const (
+	// FactionHostileThreshold is the relationship value below which factions are hostile.
+	FactionHostileThreshold = -50
+	// FactionAllyThreshold is the relationship value above which factions are allies.
+	FactionAllyThreshold = 51
 )
 
 // Magic spell generation constants.
@@ -235,6 +245,22 @@ const (
 	ArmorDefensePerTier = 5.0
 	// ConsumableHealAmount is the base healing for consumables.
 	ConsumableHealAmount = 25.0
+	// DepthToDifficultyDivisor converts depth to difficulty (0-1 range).
+	DepthToDifficultyDivisor = 100.0
+	// LootTableWeaponCount is weapons in a standard loot table.
+	LootTableWeaponCount = 2
+	// LootTableArmorCount is armor pieces in a standard loot table.
+	LootTableArmorCount = 2
+	// LootTableConsumableCount is consumables in a standard loot table.
+	LootTableConsumableCount = 3
+	// ShopInventorySize is the default number of items in a shop.
+	ShopInventorySize = 15
+	// ShopWealthDivisor converts city wealth to item depth.
+	ShopWealthDivisor = 10
+	// MinShopDepth is the minimum depth for shop items.
+	MinShopDepth = 1
+	// MaxShopDepth is the maximum depth for shop items.
+	MaxShopDepth = 50
 )
 
 // Recipe crafting constants.
@@ -259,6 +285,26 @@ const (
 	PuzzleStepsPerDifficulty = 2
 	// BasePuzzleReward is the base XP reward for solving puzzles.
 	BasePuzzleReward = 50
+	// PuzzleDifficultyToDifficultyDivisor converts difficulty int to difficulty float.
+	PuzzleDifficultyToDifficultyDivisor = 10.0
+	// MinPuzzleCount is the minimum puzzles per dungeon.
+	MinPuzzleCount = 1
+	// MaxPuzzleCount is the maximum puzzles per dungeon.
+	MaxPuzzleCount = 10
+	// MaxPuzzleDifficulty is the cap on puzzle difficulty.
+	MaxPuzzleDifficulty = 10
+	// RoomsPerPuzzle is used to calculate puzzle count from room count.
+	RoomsPerPuzzle = 5
+	// DepthPerPuzzle is used to calculate puzzle count from dungeon depth.
+	DepthPerPuzzle = 3
+	// DifficultyPerPuzzle is the difficulty increase per puzzle in a set.
+	DifficultyPerPuzzle = 2
+	// PuzzleSeedMultiplier is used to derive unique seeds per puzzle.
+	PuzzleSeedMultiplier = 1000
+	// MinHintAttempts is the minimum attempts before a hint is shown.
+	MinHintAttempts = 2
+	// RevealSolutionAttempts is the attempts before the first step is revealed.
+	RevealSolutionAttempts = 5
 )
 
 // Building generation constants.

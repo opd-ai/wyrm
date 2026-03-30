@@ -266,3 +266,32 @@ const (
 	// TrainingXPFraction is the fraction of XP per level granted during training.
 	TrainingXPFraction = 0.1
 )
+
+// City event constants for event timing and probabilities.
+const (
+	// CityEventMinInterval is the minimum hours between automatic events.
+	CityEventMinInterval = 24.0
+	// CityEventMaxActive is the maximum number of simultaneous events.
+	CityEventMaxActive = 3
+	// CityEventBaseProbability is the base chance per check for a new event.
+	CityEventBaseProbability = 0.15
+
+	// Event duration constants (in game hours).
+	CityEventDurationFestival     = 48.0
+	CityEventDurationMarket       = 12.0
+	CityEventDurationPlague       = 168.0 // 7 days
+	CityEventDurationRiot         = 8.0
+	CityEventDurationSiege        = 72.0 // 3 days
+	CityEventDurationCelebration  = 24.0
+	CityEventDurationMartialLaw   = 72.0
+	CityEventDurationCaravan      = 24.0
+	CityEventDurationRite         = 6.0
+	CityEventDurationTournament   = 8.0
+	CityEventDurationBlackout     = 4.0
+	CityEventDurationHacking      = 12.0
+	CityEventDurationRadiation    = 6.0
+	CityEventDurationMutantAttack = 4.0
+	CityEventDurationCultRitual   = 3.0
+	CityEventDurationHaunting     = 12.0
+	CityEventDurationDefault      = 12.0
+)

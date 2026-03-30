@@ -78,7 +78,7 @@ type SkillEffect struct {
 func (a *SkillsAdapter) GenerateSkillTrees(seed int64, genre string, count int) ([]*SkillTreeData, error) {
 	params := procgen.GenerationParams{
 		GenreID:    mapGenreID(genre),
-		Difficulty: 0.5,
+		Difficulty: DefaultGenerationDifficulty,
 		Custom: map[string]interface{}{
 			"count": count,
 		},

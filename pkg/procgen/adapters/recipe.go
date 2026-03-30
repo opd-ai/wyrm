@@ -51,7 +51,7 @@ type MaterialData struct {
 func (a *RecipeAdapter) GenerateRecipes(seed int64, genre string, depth, count int, recipeType string) ([]*RecipeData, error) {
 	params := procgen.GenerationParams{
 		GenreID:    mapGenreID(genre),
-		Difficulty: float64(depth) / 100.0,
+		Difficulty: float64(depth) / DepthToDifficultyDivisor,
 		Depth:      depth,
 		Custom: map[string]interface{}{
 			"count": count,

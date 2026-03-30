@@ -55,7 +55,7 @@ func (a *QuestAdapter) GenerateQuests(seed int64, genre string, count int, diffi
 	params := procgen.GenerationParams{
 		GenreID:    mapGenreID(genre),
 		Difficulty: difficulty,
-		Depth:      int(difficulty * 100),
+		Depth:      int(difficulty * QuestDifficultyToDepthMultiplier),
 		Custom:     map[string]interface{}{"count": count},
 	}
 
@@ -148,7 +148,7 @@ func RegisterQuestWithSystem(qs *systems.QuestSystem, data *QuestData) {
 
 // GenerateAndSpawnQuests generates quests and spawns them in the world.
 func (a *QuestAdapter) GenerateAndSpawnQuests(world *ecs.World, qs *systems.QuestSystem, seed int64, genre string, count int) ([]ecs.Entity, error) {
-	quests, err := a.GenerateQuests(seed, genre, count, 0.5)
+	quests, err := a.GenerateQuests(seed, genre, count, DefaultGenerationDifficulty)
 	if err != nil {
 		return nil, err
 	}
