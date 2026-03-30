@@ -153,39 +153,43 @@ func (s *MagicSystem) CastSpell(w *ecs.World, caster ecs.Entity, spellID string,
 	return true
 }
 
-// CastSpellAtPosition casts a spell at a world position (for AoE or projectiles).
-func (s *MagicSystem) CastSpellAtPosition(w *ecs.World, caster ecs.Entity, spellID string, targetX, targetY, targetZ float64, projectileSystem *ProjectileSystem) bool {
-	// Get caster's spellbook
+// getSpellFromBook retrieves a spell from an entity's spellbook.
+func (s *MagicSystem) getSpellFromBook(w *ecs.World, caster ecs.Entity, spellID string) *components.Spell {
 	spellbookComp, ok := w.GetComponent(caster, "Spellbook")
 	if !ok {
-		return false
+		return nil
 	}
 	spellbook := spellbookComp.(*components.Spellbook)
-
-	// Get the spell
 	spell, exists := spellbook.Spells[spellID]
 	if !exists {
-		return false
+		return nil
 	}
+	return spell
+}
 
-	// Check cooldown (LastCast starts at -1 for never cast)
+// canCastSpell checks cooldown and mana requirements.
+func (s *MagicSystem) canCastSpell(w *ecs.World, caster ecs.Entity, spell *components.Spell) (*components.Mana, bool) {
+	// Check cooldown
 	if spell.LastCast >= 0 && s.GameTime-spell.LastCast < spell.Cooldown {
-		return false
+		return nil, false
 	}
 
 	// Get caster mana
 	manaComp, manaOK := w.GetComponent(caster, "Mana")
 	if !manaOK {
-		return false
+		return nil, false
 	}
 	mana := manaComp.(*components.Mana)
 
 	// Check mana cost
 	if mana.Current < spell.ManaCost {
-		return false
+		return nil, false
 	}
+	return mana, true
+}
 
-	// Check range
+// isPositionInRange checks if a position is within spell range.
+func (s *MagicSystem) isPositionInRange(w *ecs.World, caster ecs.Entity, targetX, targetY, targetZ, spellRange float64) bool {
 	casterPos := s.getPosition(w, caster)
 	if casterPos == nil {
 		return false
@@ -194,31 +198,50 @@ func (s *MagicSystem) CastSpellAtPosition(w *ecs.World, caster ecs.Entity, spell
 	dy := targetY - casterPos.Y
 	dz := targetZ - casterPos.Z
 	distSq := dx*dx + dy*dy + dz*dz
-	if distSq > spell.Range*spell.Range {
+	return distSq <= spellRange*spellRange
+}
+
+// consumeSpellResources deducts mana and sets cooldown.
+func (s *MagicSystem) consumeSpellResources(mana *components.Mana, spell *components.Spell) {
+	mana.Current -= spell.ManaCost
+	spell.LastCast = s.GameTime
+}
+
+// spawnAoEProjectile creates a projectile with AoE properties.
+func (s *MagicSystem) spawnAoEProjectile(w *ecs.World, caster ecs.Entity, targetX, targetY, targetZ float64, spell *components.Spell, projectileSystem *ProjectileSystem) {
+	proj := projectileSystem.SpawnProjectile(w, caster, targetX, targetY, targetZ, spell.Magnitude, spell.ProjectileSpeed, "spell")
+	if proj != 0 && spell.AreaOfEffect > 0 {
+		projComp, _ := w.GetComponent(proj, "Projectile")
+		if projComp != nil {
+			projectile := projComp.(*components.Projectile)
+			projectile.HitRadius = spell.AreaOfEffect
+			projectile.PierceCount = 0 // AoE hits all in radius
+		}
+	}
+}
+
+// CastSpellAtPosition casts a spell at a world position (for AoE or projectiles).
+func (s *MagicSystem) CastSpellAtPosition(w *ecs.World, caster ecs.Entity, spellID string, targetX, targetY, targetZ float64, projectileSystem *ProjectileSystem) bool {
+	spell := s.getSpellFromBook(w, caster, spellID)
+	if spell == nil {
 		return false
 	}
 
-	// Consume mana
-	mana.Current -= spell.ManaCost
+	mana, canCast := s.canCastSpell(w, caster, spell)
+	if !canCast {
+		return false
+	}
 
-	// Update cooldown
-	spell.LastCast = s.GameTime
+	if !s.isPositionInRange(w, caster, targetX, targetY, targetZ, spell.Range) {
+		return false
+	}
+
+	s.consumeSpellResources(mana, spell)
 
 	// Cast the spell
 	if spell.ProjectileSpeed > 0 && projectileSystem != nil {
-		// Spawn spell projectile
-		proj := projectileSystem.SpawnProjectile(w, caster, targetX, targetY, targetZ, spell.Magnitude, spell.ProjectileSpeed, "spell")
-		if proj != 0 && spell.AreaOfEffect > 0 {
-			// Mark projectile for AoE on impact
-			projComp, _ := w.GetComponent(proj, "Projectile")
-			if projComp != nil {
-				projectile := projComp.(*components.Projectile)
-				projectile.HitRadius = spell.AreaOfEffect
-				projectile.PierceCount = 0 // AoE hits all in radius
-			}
-		}
+		s.spawnAoEProjectile(w, caster, targetX, targetY, targetZ, spell, projectileSystem)
 	} else if spell.AreaOfEffect > 0 {
-		// Instant AoE spell
 		s.applyAoESpell(w, caster, targetX, targetY, targetZ, spell)
 	}
 

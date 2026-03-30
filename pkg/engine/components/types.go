@@ -875,3 +875,82 @@ type GovernmentBuilding struct {
 
 // Type returns the component type identifier for GovernmentBuilding.
 func (g *GovernmentBuilding) Type() string { return "GovernmentBuilding" }
+
+// GossipItem represents a piece of gossip that can spread through the NPC network.
+type GossipItem struct {
+	// ID uniquely identifies this gossip.
+	ID string
+	// Topic categorizes the gossip ("crime", "romance", "business", "politics", "danger").
+	Topic string
+	// Content is the gossip text/description.
+	Content string
+	// SubjectEntity is the entity the gossip is about (0 = general/no subject).
+	SubjectEntity uint64
+	// OriginTime is when the gossip originated.
+	OriginTime float64
+	// Spread indicates how many NPCs have heard this (0.0 to 1.0 of local population).
+	Spread float64
+	// Truthfulness indicates accuracy (0.0 = lie, 1.0 = true).
+	Truthfulness float64
+	// ImpactOnReputation is how this gossip affects the subject's reputation.
+	ImpactOnReputation float64
+}
+
+// GossipNetwork stores gossip an NPC knows and can spread.
+type GossipNetwork struct {
+	// KnownGossip maps gossip IDs to the gossip items this NPC knows.
+	KnownGossip map[string]*GossipItem
+	// GossipChance is the probability of sharing gossip during social interactions (0.0-1.0).
+	GossipChance float64
+	// ListenChance is the probability of remembering heard gossip (0.0-1.0).
+	ListenChance float64
+	// LastGossipTime tracks when this NPC last gossiped.
+	LastGossipTime float64
+	// GossipCooldown is the minimum time between gossip sharing.
+	GossipCooldown float64
+}
+
+// Type returns the component type identifier for GossipNetwork.
+func (g *GossipNetwork) Type() string { return "GossipNetwork" }
+
+// EmotionalState represents an NPC's current emotional condition.
+type EmotionalState struct {
+	// CurrentEmotion is the dominant emotion ("neutral", "happy", "sad", "angry", "fearful", "disgusted", "surprised").
+	CurrentEmotion string
+	// Intensity indicates emotion strength (0.0 = calm, 1.0 = intense).
+	Intensity float64
+	// Mood is the longer-term emotional baseline (-1.0 = depressed, +1.0 = elated).
+	Mood float64
+	// Stress accumulates from negative events (0.0 to 1.0, high = breakdown risk).
+	Stress float64
+	// LastEmotionChange is when the emotion last changed.
+	LastEmotionChange float64
+	// EmotionDecayRate is how fast emotions return to neutral.
+	EmotionDecayRate float64
+	// MoodDecayRate is how fast mood returns to neutral.
+	MoodDecayRate float64
+}
+
+// Type returns the component type identifier for EmotionalState.
+func (e *EmotionalState) Type() string { return "EmotionalState" }
+
+// NPCNeeds tracks an NPC's basic needs that drive behavior.
+type NPCNeeds struct {
+	// Hunger ranges from 0.0 (full) to 1.0 (starving).
+	Hunger float64
+	// Energy ranges from 0.0 (exhausted) to 1.0 (fully rested).
+	Energy float64
+	// Social ranges from 0.0 (lonely) to 1.0 (socially fulfilled).
+	Social float64
+	// Safety ranges from 0.0 (terrified) to 1.0 (completely safe).
+	Safety float64
+	// HungerRate is how fast hunger increases per hour.
+	HungerRate float64
+	// EnergyRate is how fast energy decreases per hour when awake.
+	EnergyRate float64
+	// SocialDecayRate is how fast social need decreases per hour alone.
+	SocialDecayRate float64
+}
+
+// Type returns the component type identifier for NPCNeeds.
+func (n *NPCNeeds) Type() string { return "NPCNeeds" }
