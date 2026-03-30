@@ -74,6 +74,44 @@ type Schedule struct {
 // Type returns the component type identifier for Schedule.
 func (s *Schedule) Type() string { return "Schedule" }
 
+// NPCPathfinding tracks NPC movement toward scheduled activity locations.
+type NPCPathfinding struct {
+	// TargetX, TargetY is the destination position.
+	TargetX, TargetY float64
+	// HasTarget indicates if the NPC has a destination.
+	HasTarget bool
+	// IsMoving indicates if the NPC is currently traveling.
+	IsMoving bool
+	// MoveSpeed is the NPC's movement speed (units per second).
+	MoveSpeed float64
+	// ActivityLocations maps activity names to world positions.
+	ActivityLocations map[string]ActivityLocation
+	// CurrentPath is the list of waypoints to follow.
+	CurrentPath []Waypoint
+	// CurrentWaypointIndex is the next waypoint to reach.
+	CurrentWaypointIndex int
+	// ArrivalThreshold is the distance at which the NPC is considered arrived.
+	ArrivalThreshold float64
+	// StuckTime tracks time spent not making progress.
+	StuckTime float64
+	// MaxStuckTime is the time before giving up on current path.
+	MaxStuckTime float64
+}
+
+// Type returns the component type identifier for NPCPathfinding.
+func (n *NPCPathfinding) Type() string { return "NPCPathfinding" }
+
+// ActivityLocation represents a position for a scheduled activity.
+type ActivityLocation struct {
+	X, Y       float64
+	LocationID string // Building or POI identifier
+}
+
+// Waypoint represents a point along a path.
+type Waypoint struct {
+	X, Y float64
+}
+
 // Inventory represents an entity's carried items.
 type Inventory struct {
 	Items    []string

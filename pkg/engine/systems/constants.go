@@ -295,3 +295,15 @@ const (
 	CityEventDurationHaunting     = 12.0
 	CityEventDurationDefault      = 12.0
 )
+
+// NPC pathfinding constants.
+const (
+	// NPCDefaultMoveSpeed is the default NPC movement speed (units per second).
+	NPCDefaultMoveSpeed = 3.0
+	// NPCDefaultArrivalThreshold is the distance at which NPCs stop moving.
+	NPCDefaultArrivalThreshold = 1.0
+	// NPCMinMovementThreshold is the minimum movement to not be considered stuck.
+	NPCMinMovementThreshold = 0.01
+	// NPCDefaultMaxStuckTime is the time before giving up on a path.
+	NPCDefaultMaxStuckTime = 5.0
+)

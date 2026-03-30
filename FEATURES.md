@@ -37,7 +37,7 @@ Legend:
 - [x] Industrial zones
 - [x] Points of interest markers
 - [x] Dynamic city events
-- [ ] City gates and walls
+- [x] City gates and walls
 
 ---
 
