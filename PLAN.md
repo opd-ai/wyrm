@@ -83,12 +83,13 @@
 - **Acceptance**: Trade request, offer, accept, cancel operations; atomic transactions
 - **Validation**: `go test -cover ./pkg/network/trading/...`
 
-### Step 4: Implement Key Rebinding System
+### Step 4: Implement Key Rebinding System ✅ COMPLETED
 - **Deliverable**: Extend `config/config.go` with key mapping configuration; create `pkg/input/rebind.go`
 - **Dependencies**: None
 - **Goal Impact**: Technical & Accessibility (8/10 → 9/10), accessibility requirement
 - **Acceptance**: All player inputs configurable via config.yaml; changes apply without restart
 - **Validation**: `go test ./config/... ./pkg/input/... && grep -c '\[x\] Key rebinding' FEATURES.md`
+- **Status**: Added KeyBindingsConfig to config/load.go with 37 bindable actions. Created pkg/input/rebind.go with InputManager, action constants, listeners, and comprehensive tests.
 
 ### Step 5: Implement Subtitle System
 - **Deliverable**: Create `pkg/rendering/subtitles/subtitles.go` for text overlay rendering

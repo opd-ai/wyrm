@@ -308,7 +308,7 @@ Legend:
 - [x] Configuration via Viper
 - [x] Colorblind modes
 - [ ] Subtitle system
-- [ ] Key rebinding
+- [x] Key rebinding
 - [x] Difficulty settings
 
 ---
