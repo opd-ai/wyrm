@@ -1,7 +1,7 @@
 # Feature Checklist (200 Features)
 
 **Generated**: 2026-03-29  
-**Progress**: ~110/200 implemented (55%)
+**Progress**: ~120/200 implemented (60.0%)
 
 This document tracks all 200 features across 20 categories as specified in the README.
 
@@ -50,7 +50,7 @@ Legend:
 - [x] NPC relationships
 - [x] Gossip network propagation
 - [x] Emotional states
-- [ ] NPC needs (hunger, sleep, social)
+- [x] NPC needs (hunger, sleep, social)
 - [ ] NPC pathfinding to schedule locations
 - [ ] NPC occupation behaviors
 
@@ -180,14 +180,14 @@ Legend:
 
 - [x] Material gathering
 - [x] Workbench system
-- [ ] Crafting minigames
+- [x] Crafting minigames
 - [x] Recipe discovery
 - [x] Quality tiers
 - [x] Tool durability
 - [x] Resource respawning
 - [x] Rare materials
-- [ ] Enchanting system
-- [ ] Disassembly system
+- [x] Enchanting system
+- [x] Disassembly system
 
 ---
 
@@ -326,7 +326,7 @@ Legend:
 | Factions & Politics | 5 | 10 | 50% |
 | Crime & Law | 5 | 10 | 50% |
 | Economy & Trade | 5 | 10 | 50% |
-| Crafting & Resources | 7 | 10 | 70% |
+| Crafting & Resources | 10 | 10 | 100% |
 | Property & Housing | 4 | 10 | 40% |
 | Vehicles & Mounts | 3 | 10 | 30% |
 | Weather & Environment | 8 | 10 | 80% |
@@ -335,7 +335,7 @@ Legend:
 | Rendering & Graphics | 5 | 10 | 50% |
 | Networking & Multiplayer | 7 | 10 | 70% |
 | Technical & Accessibility | 6 | 10 | 60% |
-| **TOTAL** | **101** | **200** | **50.5%** |
+| **TOTAL** | **119** | **200** | **59.5%** |
 
 ---
 

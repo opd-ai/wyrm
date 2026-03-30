@@ -419,3 +419,392 @@ func GetToolEfficiency(toolTier, resourceTier int) float64 {
 		return 0.25 // Tool much worse
 	}
 }
+
+// Minigame constants.
+const (
+	// MinigameTimingWindow is the window in seconds to hit a timing challenge.
+	MinigameTimingWindow = 0.5
+	// MinigamePrecisionBonus is quality bonus for perfect timing.
+	MinigamePrecisionBonus = 0.15
+	// MinigameFailurePenalty is quality penalty for missing timing.
+	MinigameFailurePenalty = 0.1
+)
+
+// MinigameState tracks the state of a crafting minigame.
+type MinigameState struct {
+	// Type is the minigame type ("timing", "sequence", "precision").
+	Type string
+	// TargetTime is when the player should act (for timing games).
+	TargetTime float64
+	// CurrentTime tracks elapsed time in the minigame.
+	CurrentTime float64
+	// Sequence is the required input sequence (for sequence games).
+	Sequence []string
+	// CurrentIndex is progress through a sequence.
+	CurrentIndex int
+	// Score tracks accumulated minigame performance (0.0-1.0).
+	Score float64
+	// Attempts is the number of minigame steps completed.
+	Attempts int
+	// MaxAttempts is the total minigame steps.
+	MaxAttempts int
+}
+
+// StartCraftingMinigame begins a minigame for a crafting operation.
+func (s *CraftingSystem) StartCraftingMinigame(recipeType string) *MinigameState {
+	// Determine minigame type based on recipe
+	gameType := s.getMinigameType(recipeType)
+
+	state := &MinigameState{
+		Type:        gameType,
+		Score:       0.0,
+		Attempts:    0,
+		MaxAttempts: 3,
+	}
+
+	switch gameType {
+	case "timing":
+		// Set up timing challenge
+		state.TargetTime = 1.0 + s.rng.Float64()*2.0 // Random between 1-3 seconds
+		state.CurrentTime = 0
+	case "sequence":
+		// Generate random sequence
+		inputs := []string{"up", "down", "left", "right"}
+		state.Sequence = make([]string, 4)
+		for i := range state.Sequence {
+			state.Sequence[i] = inputs[s.rng.Intn(len(inputs))]
+		}
+		state.CurrentIndex = 0
+	case "precision":
+		// Precision is a series of timing windows
+		state.TargetTime = 0.5
+		state.CurrentTime = 0
+	}
+
+	return state
+}
+
+// getMinigameType returns appropriate minigame type for recipe.
+func (s *CraftingSystem) getMinigameType(recipeType string) string {
+	switch recipeType {
+	case "smithing", "weapon", "armor":
+		return "timing" // Hammering rhythm
+	case "alchemy", "potion", "chemistry":
+		return "sequence" // Ingredient order
+	case "enchanting", "magic":
+		return "precision" // Rune tracing
+	default:
+		return "timing"
+	}
+}
+
+// ProcessMinigameInput handles player input during a minigame.
+func (s *CraftingSystem) ProcessMinigameInput(state *MinigameState, input string, currentTime float64) (complete, success bool) {
+	if state == nil {
+		return true, false
+	}
+
+	switch state.Type {
+	case "timing":
+		state.CurrentTime = currentTime
+		timeDiff := math.Abs(state.CurrentTime - state.TargetTime)
+		if timeDiff <= MinigameTimingWindow {
+			// Perfect timing
+			state.Score += 1.0 / float64(state.MaxAttempts)
+		} else if timeDiff <= MinigameTimingWindow*2 {
+			// Good timing
+			state.Score += 0.5 / float64(state.MaxAttempts)
+		}
+		// Miss adds nothing
+		state.Attempts++
+		// Set up next timing target
+		state.TargetTime = currentTime + 1.0 + s.rng.Float64()*2.0
+
+	case "sequence":
+		if state.CurrentIndex < len(state.Sequence) {
+			if input == state.Sequence[state.CurrentIndex] {
+				state.Score += 1.0 / float64(len(state.Sequence))
+				state.CurrentIndex++
+			} else {
+				// Wrong input - reset sequence
+				state.Score -= 0.1
+				if state.Score < 0 {
+					state.Score = 0
+				}
+				state.CurrentIndex = 0
+			}
+		}
+		state.Attempts++
+
+	case "precision":
+		state.CurrentTime = currentTime
+		timeDiff := math.Abs(state.CurrentTime - state.TargetTime)
+		if timeDiff <= MinigameTimingWindow*0.5 {
+			// Perfect precision
+			state.Score += 1.0 / float64(state.MaxAttempts)
+		} else if timeDiff <= MinigameTimingWindow {
+			// Good precision
+			state.Score += 0.7 / float64(state.MaxAttempts)
+		}
+		state.Attempts++
+		state.TargetTime = currentTime + 0.5 + s.rng.Float64()*0.5
+	}
+
+	// Check completion
+	if state.Type == "sequence" {
+		complete = state.CurrentIndex >= len(state.Sequence) || state.Attempts >= state.MaxAttempts*2
+	} else {
+		complete = state.Attempts >= state.MaxAttempts
+	}
+
+	success = state.Score >= 0.5
+	return complete, success
+}
+
+// ApplyMinigameBonus modifies craft quality based on minigame performance.
+func (s *CraftingSystem) ApplyMinigameBonus(baseQuality, minigameScore float64) float64 {
+	if minigameScore >= 0.9 {
+		return baseQuality + MinigamePrecisionBonus
+	} else if minigameScore >= 0.7 {
+		return baseQuality + MinigamePrecisionBonus*0.5
+	} else if minigameScore < 0.3 {
+		return baseQuality - MinigameFailurePenalty
+	}
+	return baseQuality
+}
+
+// Enchanting constants.
+const (
+	// BaseEnchantSuccessRate is the base success chance for enchanting.
+	BaseEnchantSuccessRate = 0.7
+	// EnchantSkillBonus is success bonus per enchanting skill level.
+	EnchantSkillBonus = 0.02
+	// MaxEnchantments is the maximum enchantments per item.
+	MaxEnchantments = 3
+)
+
+// EnchantmentType defines an enchantment effect.
+type EnchantmentType struct {
+	ID           string
+	Name         string
+	Effect       string // "damage_fire", "defense_frost", "mana_regen", etc.
+	MinMagnitude float64
+	MaxMagnitude float64
+	ManaCost     float64
+}
+
+// GenreEnchantments maps genres to available enchantment types.
+var GenreEnchantments = map[string][]EnchantmentType{
+	"fantasy": {
+		{ID: "fire", Name: "Flame", Effect: "damage_fire", MinMagnitude: 5, MaxMagnitude: 25, ManaCost: 20},
+		{ID: "frost", Name: "Frost", Effect: "damage_frost", MinMagnitude: 5, MaxMagnitude: 25, ManaCost: 20},
+		{ID: "shock", Name: "Lightning", Effect: "damage_shock", MinMagnitude: 5, MaxMagnitude: 25, ManaCost: 25},
+		{ID: "fortify", Name: "Fortification", Effect: "defense_all", MinMagnitude: 5, MaxMagnitude: 15, ManaCost: 30},
+		{ID: "mana", Name: "Magicka", Effect: "mana_regen", MinMagnitude: 2, MaxMagnitude: 10, ManaCost: 35},
+	},
+	"sci-fi": {
+		{ID: "plasma", Name: "Plasma", Effect: "damage_energy", MinMagnitude: 8, MaxMagnitude: 30, ManaCost: 25},
+		{ID: "cryo", Name: "Cryo", Effect: "damage_frost", MinMagnitude: 5, MaxMagnitude: 20, ManaCost: 20},
+		{ID: "shield", Name: "Shield Boost", Effect: "defense_energy", MinMagnitude: 10, MaxMagnitude: 25, ManaCost: 30},
+		{ID: "battery", Name: "Power Cell", Effect: "energy_regen", MinMagnitude: 3, MaxMagnitude: 12, ManaCost: 35},
+	},
+	"horror": {
+		{ID: "curse", Name: "Curse", Effect: "damage_dark", MinMagnitude: 10, MaxMagnitude: 35, ManaCost: 30},
+		{ID: "drain", Name: "Life Drain", Effect: "lifesteal", MinMagnitude: 3, MaxMagnitude: 10, ManaCost: 40},
+		{ID: "fear", Name: "Terror", Effect: "fear_aura", MinMagnitude: 5, MaxMagnitude: 15, ManaCost: 25},
+	},
+	"cyberpunk": {
+		{ID: "emp", Name: "EMP", Effect: "damage_emp", MinMagnitude: 15, MaxMagnitude: 40, ManaCost: 30},
+		{ID: "hack", Name: "Breach", Effect: "hack_bonus", MinMagnitude: 5, MaxMagnitude: 20, ManaCost: 25},
+		{ID: "armor", Name: "Nano-Armor", Effect: "defense_physical", MinMagnitude: 8, MaxMagnitude: 20, ManaCost: 35},
+	},
+	"post-apocalyptic": {
+		{ID: "rad", Name: "Radiation", Effect: "damage_radiation", MinMagnitude: 8, MaxMagnitude: 30, ManaCost: 20},
+		{ID: "toxic", Name: "Toxin", Effect: "damage_poison", MinMagnitude: 5, MaxMagnitude: 20, ManaCost: 15},
+		{ID: "salvage", Name: "Scavenger", Effect: "loot_bonus", MinMagnitude: 10, MaxMagnitude: 25, ManaCost: 25},
+	},
+}
+
+// Enchantment represents an applied enchantment on an item.
+type Enchantment struct {
+	TypeID    string
+	Name      string
+	Effect    string
+	Magnitude float64
+	Charges   int // -1 = permanent, 0+ = uses remaining
+}
+
+// EnchantItem applies an enchantment to an item.
+func (s *CraftingSystem) EnchantItem(w *ecs.World, crafter, item ecs.Entity, enchantType EnchantmentType) (*Enchantment, bool) {
+	// Check crafter has mana
+	manaComp, manaOK := w.GetComponent(crafter, "Mana")
+	if !manaOK {
+		return nil, false
+	}
+	mana := manaComp.(*components.Mana)
+	if mana.Current < enchantType.ManaCost {
+		return nil, false
+	}
+
+	// Calculate success chance
+	successRate := BaseEnchantSuccessRate
+	skillsComp, skillsOK := w.GetComponent(crafter, "Skills")
+	if skillsOK {
+		skills := skillsComp.(*components.Skills)
+		if level, ok := skills.Levels["enchanting"]; ok {
+			successRate += float64(level) * EnchantSkillBonus
+		}
+	}
+	if successRate > 0.95 {
+		successRate = 0.95
+	}
+
+	// Consume mana
+	mana.Current -= enchantType.ManaCost
+
+	// Roll for success
+	if s.rng.Float64() > successRate {
+		return nil, false
+	}
+
+	// Calculate magnitude based on skill
+	magnitudeRange := enchantType.MaxMagnitude - enchantType.MinMagnitude
+	magnitude := enchantType.MinMagnitude + s.rng.Float64()*magnitudeRange
+
+	// Skill bonus to magnitude
+	if skillsOK {
+		skills := skillsComp.(*components.Skills)
+		if level, ok := skills.Levels["enchanting"]; ok {
+			magnitude *= 1.0 + float64(level)*0.01
+		}
+	}
+	if magnitude > enchantType.MaxMagnitude*1.5 {
+		magnitude = enchantType.MaxMagnitude * 1.5
+	}
+
+	enchantment := &Enchantment{
+		TypeID:    enchantType.ID,
+		Name:      enchantType.Name,
+		Effect:    enchantType.Effect,
+		Magnitude: magnitude,
+		Charges:   -1, // Permanent by default
+	}
+
+	return enchantment, true
+}
+
+// GetAvailableEnchantments returns enchantments available for a genre.
+func (s *CraftingSystem) GetAvailableEnchantments(genre string) []EnchantmentType {
+	if enchants, ok := GenreEnchantments[genre]; ok {
+		return enchants
+	}
+	return GenreEnchantments["fantasy"]
+}
+
+// DisassemblyResult contains materials recovered from disassembly.
+type DisassemblyResult struct {
+	Materials     map[string]int
+	RareMaterials map[string]int
+	Success       bool
+	Message       string
+}
+
+// Disassembly constants.
+const (
+	// BaseDisassemblyRate is the base material recovery rate.
+	BaseDisassemblyRate = 0.5
+	// DisassemblySkillBonus is recovery bonus per relevant skill level.
+	DisassemblySkillBonus = 0.02
+	// RareMaterialChance is chance to recover rare materials.
+	RareMaterialChance = 0.1
+)
+
+// DisassembleItem breaks down an item into materials.
+func (s *CraftingSystem) DisassembleItem(w *ecs.World, crafter ecs.Entity, itemQuality float64, itemType string) DisassemblyResult {
+	result := DisassemblyResult{
+		Materials:     make(map[string]int),
+		RareMaterials: make(map[string]int),
+		Success:       true,
+	}
+
+	// Calculate recovery rate
+	recoveryRate := BaseDisassemblyRate
+	skillsComp, skillsOK := w.GetComponent(crafter, "Skills")
+	if skillsOK {
+		skills := skillsComp.(*components.Skills)
+		// Check for relevant skills
+		for _, skillID := range []string{"crafting", "smithing", "engineering", "scavenging"} {
+			if level, ok := skills.Levels[skillID]; ok {
+				recoveryRate += float64(level) * DisassemblySkillBonus
+			}
+		}
+	}
+	if recoveryRate > 0.9 {
+		recoveryRate = 0.9
+	}
+
+	// Determine materials based on item type
+	baseMaterials := s.getItemBaseMaterials(itemType)
+	for mat, baseQty := range baseMaterials {
+		// Calculate recovered quantity
+		recovered := int(float64(baseQty) * recoveryRate * (0.8 + s.rng.Float64()*0.4))
+		if recovered > 0 {
+			result.Materials[mat] = recovered
+		}
+	}
+
+	// Chance for rare material based on item quality
+	rareChance := RareMaterialChance * (1.0 + itemQuality)
+	if s.rng.Float64() < rareChance {
+		rareMat := s.getRareMaterialForType(itemType)
+		if rareMat != "" {
+			result.RareMaterials[rareMat] = 1
+		}
+	}
+
+	result.Message = "Item successfully disassembled"
+	return result
+}
+
+// getItemBaseMaterials returns materials that make up an item type.
+func (s *CraftingSystem) getItemBaseMaterials(itemType string) map[string]int {
+	switch itemType {
+	case "sword", "axe", "mace":
+		return map[string]int{"metal_ingot": 3, "leather": 1, "wood": 1}
+	case "bow", "staff":
+		return map[string]int{"wood": 4, "leather": 1, "string": 2}
+	case "armor", "helmet", "shield":
+		return map[string]int{"metal_ingot": 5, "leather": 2, "padding": 1}
+	case "robe", "clothing":
+		return map[string]int{"cloth": 4, "thread": 2, "dye": 1}
+	case "potion", "elixir":
+		return map[string]int{"glass": 1, "herb": 2}
+	case "ring", "amulet":
+		return map[string]int{"metal_ingot": 1, "gem": 1}
+	default:
+		return map[string]int{"scrap": 2}
+	}
+}
+
+// getRareMaterialForType returns a rare material that can drop from an item type.
+func (s *CraftingSystem) getRareMaterialForType(itemType string) string {
+	switch itemType {
+	case "sword", "axe", "mace", "armor", "helmet", "shield":
+		materials := []string{"rare_metal", "enchanted_fragment", "soul_gem_shard"}
+		return materials[s.rng.Intn(len(materials))]
+	case "bow", "staff":
+		materials := []string{"heartwood", "enchanted_string", "focus_crystal"}
+		return materials[s.rng.Intn(len(materials))]
+	case "robe", "clothing":
+		materials := []string{"magic_thread", "rare_dye", "enchanted_cloth"}
+		return materials[s.rng.Intn(len(materials))]
+	case "potion", "elixir":
+		materials := []string{"rare_essence", "catalyst", "purified_water"}
+		return materials[s.rng.Intn(len(materials))]
+	case "ring", "amulet":
+		materials := []string{"flawless_gem", "rare_metal", "enchantment_core"}
+		return materials[s.rng.Intn(len(materials))]
+	default:
+		return "mystery_component"
+	}
+}
