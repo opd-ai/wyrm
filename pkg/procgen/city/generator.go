@@ -641,47 +641,60 @@ var genreGateStyles = map[string][]string{
 
 // GenerateWallsAndGates generates defensive walls and entrance gates for a city.
 func (c *City) GenerateWallsAndGates(rng *rand.Rand) {
-	materials := genreWallMaterials[c.Genre]
+	materials := getGenreMaterials(c.Genre, genreWallMaterials)
+	gateStyles := getGenreMaterials(c.Genre, genreGateStyles)
+
+	bounds := c.calculateWallBounds()
+	c.Walls = c.createCityWall(rng, materials, bounds)
+	c.applyWallDamage(rng)
+	c.Gates = c.generateGates(rng, gateStyles, bounds)
+}
+
+// getGenreMaterials returns materials for a genre with fantasy fallback.
+func getGenreMaterials(genre string, genreMap map[string][]string) []string {
+	materials := genreMap[genre]
 	if materials == nil {
-		materials = genreWallMaterials["fantasy"]
+		materials = genreMap["fantasy"]
 	}
-	gateStyles := genreGateStyles[c.Genre]
-	if gateStyles == nil {
-		gateStyles = genreGateStyles["fantasy"]
-	}
+	return materials
+}
 
-	// Calculate city bounds from districts
+// wallBounds holds the calculated wall boundaries.
+type wallBounds struct {
+	minX, minY, maxX, maxY float64
+}
+
+// calculateWallBounds computes city bounds with padding for walls.
+func (c *City) calculateWallBounds() wallBounds {
 	minX, minY, maxX, maxY := c.calculateBounds()
-
-	// Add padding for walls
 	wallPadding := 50.0
-	minX -= wallPadding
-	minY -= wallPadding
-	maxX += wallPadding
-	maxY += wallPadding
+	return wallBounds{
+		minX: minX - wallPadding,
+		minY: minY - wallPadding,
+		maxX: maxX + wallPadding,
+		maxY: maxY + wallPadding,
+	}
+}
 
-	// Generate wall
+// createCityWall creates the wall structure with segments.
+func (c *City) createCityWall(rng *rand.Rand, materials []string, b wallBounds) CityWall {
 	material := materials[rng.Intn(len(materials))]
-	c.Walls = CityWall{
+	return CityWall{
 		Height:    8.0 + rng.Float64()*8.0,
 		Thickness: 2.0 + rng.Float64()*3.0,
 		Material:  material,
 		Condition: 0.7 + rng.Float64()*0.3,
+		Segments: []WallSegment{
+			{StartX: b.minX, StartY: b.minY, EndX: b.maxX, EndY: b.minY, HasWalkway: true}, // North
+			{StartX: b.maxX, StartY: b.minY, EndX: b.maxX, EndY: b.maxY, HasWalkway: true}, // East
+			{StartX: b.maxX, StartY: b.maxY, EndX: b.minX, EndY: b.maxY, HasWalkway: true}, // South
+			{StartX: b.minX, StartY: b.maxY, EndX: b.minX, EndY: b.minY, HasWalkway: true}, // West
+		},
 	}
+}
 
-	// Create wall segments (rectangular for simplicity)
-	c.Walls.Segments = []WallSegment{
-		// North wall
-		{StartX: minX, StartY: minY, EndX: maxX, EndY: minY, HasWalkway: true},
-		// East wall
-		{StartX: maxX, StartY: minY, EndX: maxX, EndY: maxY, HasWalkway: true},
-		// South wall
-		{StartX: maxX, StartY: maxY, EndX: minX, EndY: maxY, HasWalkway: true},
-		// West wall
-		{StartX: minX, StartY: maxY, EndX: minX, EndY: minY, HasWalkway: true},
-	}
-
-	// Add random damage based on genre
+// applyWallDamage adds random damage to wall segments based on genre.
+func (c *City) applyWallDamage(rng *rand.Rand) {
 	damageChance := 0.1
 	if c.Genre == "horror" || c.Genre == "post-apocalyptic" {
 		damageChance = 0.4
@@ -692,51 +705,59 @@ func (c *City) GenerateWallsAndGates(rng *rand.Rand) {
 			c.Walls.Segments[i].DamageLevel = 0.2 + rng.Float64()*0.5
 		}
 	}
+}
 
-	// Generate gates (2-4 gates)
-	numGates := 2 + rng.Intn(3)
-	c.Gates = make([]CityGate, numGates)
-
+// generateGates creates the city gates.
+func (c *City) generateGates(rng *rand.Rand, gateStyles []string, b wallBounds) []CityGate {
 	gateDirections := []struct {
 		name   string
 		x, y   float64
 		facing string
 	}{
-		{"North Gate", (minX + maxX) / 2, minY, "north"},
-		{"South Gate", (minX + maxX) / 2, maxY, "south"},
-		{"East Gate", maxX, (minY + maxY) / 2, "east"},
-		{"West Gate", minX, (minY + maxY) / 2, "west"},
+		{"North Gate", (b.minX + b.maxX) / 2, b.minY, "north"},
+		{"South Gate", (b.minX + b.maxX) / 2, b.maxY, "south"},
+		{"East Gate", b.maxX, (b.minY + b.maxY) / 2, "east"},
+		{"West Gate", b.minX, (b.minY + b.maxY) / 2, "west"},
 	}
 
-	// Shuffle and select gates
+	// Shuffle directions
 	for i := range gateDirections {
 		j := rng.Intn(i + 1)
 		gateDirections[i], gateDirections[j] = gateDirections[j], gateDirections[i]
 	}
 
+	numGates := 2 + rng.Intn(3)
+	gates := make([]CityGate, numGates)
 	for i := 0; i < numGates && i < len(gateDirections); i++ {
-		dir := gateDirections[i]
-		style := gateStyles[rng.Intn(len(gateStyles))]
-
-		c.Gates[i] = CityGate{
-			Name:       fmt.Sprintf("%s %s", c.Name, dir.name),
-			X:          dir.x,
-			Y:          dir.y,
-			Width:      8.0 + rng.Float64()*4.0,
-			Facing:     dir.facing,
-			IsOpen:     true,
-			OpenHour:   5 + rng.Intn(2),  // Opens 5-6 AM
-			CloseHour:  21 + rng.Intn(3), // Closes 9-11 PM
-			GuardCount: 2 + rng.Intn(5),
-			Locked:     false,
-			Style:      style,
-		}
-
-		// Some gates might be locked in dangerous settings
-		if (c.Genre == "horror" || c.Genre == "post-apocalyptic") && rng.Float64() < 0.3 {
-			c.Gates[i].Locked = true
-		}
+		gates[i] = c.createGate(rng, gateStyles, gateDirections[i])
 	}
+	return gates
+}
+
+// createGate creates a single city gate.
+func (c *City) createGate(rng *rand.Rand, gateStyles []string, dir struct {
+	name   string
+	x, y   float64
+	facing string
+}) CityGate {
+	style := gateStyles[rng.Intn(len(gateStyles))]
+	gate := CityGate{
+		Name:       fmt.Sprintf("%s %s", c.Name, dir.name),
+		X:          dir.x,
+		Y:          dir.y,
+		Width:      8.0 + rng.Float64()*4.0,
+		Facing:     dir.facing,
+		IsOpen:     true,
+		OpenHour:   5 + rng.Intn(2),
+		CloseHour:  21 + rng.Intn(3),
+		GuardCount: 2 + rng.Intn(5),
+		Locked:     false,
+		Style:      style,
+	}
+	if (c.Genre == "horror" || c.Genre == "post-apocalyptic") && rng.Float64() < 0.3 {
+		gate.Locked = true
+	}
+	return gate
 }
 
 // calculateBounds finds the bounding box of all districts.

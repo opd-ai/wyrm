@@ -100,55 +100,85 @@ func (s *NPCPathfindingSystem) moveTowardTarget(pos *components.Position, path *
 		return
 	}
 
-	if len(path.CurrentPath) == 0 || path.CurrentWaypointIndex >= len(path.CurrentPath) {
+	waypoint, ok := s.getCurrentWaypoint(path)
+	if !ok {
 		path.IsMoving = false
 		return
 	}
 
-	waypoint := path.CurrentPath[path.CurrentWaypointIndex]
+	dx, dy, dist := calculateDistance(waypoint.X, waypoint.Y, pos.X, pos.Y)
+	threshold := s.getArrivalThreshold(path)
 
-	// Calculate distance to waypoint
-	dx := waypoint.X - pos.X
-	dy := waypoint.Y - pos.Y
-	dist := math.Sqrt(dx*dx + dy*dy)
-
-	// Set arrival threshold
-	threshold := path.ArrivalThreshold
-	if threshold <= 0 {
-		threshold = s.DefaultArrivalThreshold
-	}
-
-	// Check if arrived at waypoint
-	if dist <= threshold {
-		path.CurrentWaypointIndex++
-		if path.CurrentWaypointIndex >= len(path.CurrentPath) {
-			path.IsMoving = false
-			path.HasTarget = false
-		}
+	if s.checkArrival(path, dist, threshold) {
 		return
 	}
 
-	// Calculate movement
+	moveAmount := s.calculateMovement(path, dist, dt)
+	s.applyMovement(pos, dx, dy, dist, moveAmount)
+	s.updateStuckDetection(path, moveAmount, dt)
+}
+
+// getCurrentWaypoint returns the current waypoint if valid.
+func (s *NPCPathfindingSystem) getCurrentWaypoint(path *components.NPCPathfinding) (components.Waypoint, bool) {
+	if len(path.CurrentPath) == 0 || path.CurrentWaypointIndex >= len(path.CurrentPath) {
+		return components.Waypoint{}, false
+	}
+	return path.CurrentPath[path.CurrentWaypointIndex], true
+}
+
+// calculateDistance computes the delta and distance between two points.
+func calculateDistance(targetX, targetY, posX, posY float64) (dx, dy, dist float64) {
+	dx = targetX - posX
+	dy = targetY - posY
+	dist = math.Sqrt(dx*dx + dy*dy)
+	return dx, dy, dist
+}
+
+// getArrivalThreshold returns the threshold for waypoint arrival.
+func (s *NPCPathfindingSystem) getArrivalThreshold(path *components.NPCPathfinding) float64 {
+	if path.ArrivalThreshold > 0 {
+		return path.ArrivalThreshold
+	}
+	return s.DefaultArrivalThreshold
+}
+
+// checkArrival handles waypoint arrival and path completion.
+func (s *NPCPathfindingSystem) checkArrival(path *components.NPCPathfinding, dist, threshold float64) bool {
+	if dist > threshold {
+		return false
+	}
+	path.CurrentWaypointIndex++
+	if path.CurrentWaypointIndex >= len(path.CurrentPath) {
+		path.IsMoving = false
+		path.HasTarget = false
+	}
+	return true
+}
+
+// calculateMovement determines how far to move this frame.
+func (s *NPCPathfindingSystem) calculateMovement(path *components.NPCPathfinding, dist, dt float64) float64 {
 	speed := path.MoveSpeed
 	if speed <= 0 {
 		speed = s.DefaultMoveSpeed
 	}
-
 	moveAmount := speed * dt
 	if moveAmount > dist {
 		moveAmount = dist
 	}
+	return moveAmount
+}
 
-	// Normalize and apply movement
+// applyMovement updates position and facing angle.
+func (s *NPCPathfindingSystem) applyMovement(pos *components.Position, dx, dy, dist, moveAmount float64) {
 	if dist > 0 {
 		pos.X += (dx / dist) * moveAmount
 		pos.Y += (dy / dist) * moveAmount
-
-		// Update facing angle
 		pos.Angle = math.Atan2(dy, dx)
 	}
+}
 
-	// Track stuck detection
+// updateStuckDetection tracks if NPC is stuck and handles timeout.
+func (s *NPCPathfindingSystem) updateStuckDetection(path *components.NPCPathfinding, moveAmount, dt float64) {
 	if moveAmount < NPCMinMovementThreshold {
 		path.StuckTime += dt
 		maxStuck := path.MaxStuckTime
@@ -156,7 +186,6 @@ func (s *NPCPathfindingSystem) moveTowardTarget(pos *components.Position, path *
 			maxStuck = NPCDefaultMaxStuckTime
 		}
 		if path.StuckTime > maxStuck {
-			// Give up on current path
 			path.IsMoving = false
 			path.StuckTime = 0
 		}

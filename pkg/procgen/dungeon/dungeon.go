@@ -995,14 +995,22 @@ func (c *Cave) LargestCavernSize() int {
 
 // IsConnected checks if the cave has a path from entrance to any exit.
 func (c *Cave) IsConnected() bool {
+	if !c.hasValidEntranceAndExit() {
+		return false
+	}
+	return c.bfsCanReachExit()
+}
+
+// hasValidEntranceAndExit checks for non-zero entrance and at least one exit.
+func (c *Cave) hasValidEntranceAndExit() bool {
 	if c.Entrance.X == 0 && c.Entrance.Y == 0 {
 		return false
 	}
-	if len(c.Exits) == 0 {
-		return false
-	}
+	return len(c.Exits) > 0
+}
 
-	// BFS from entrance
+// bfsCanReachExit performs BFS from entrance to check exit reachability.
+func (c *Cave) bfsCanReachExit() bool {
 	visited := make([][]bool, c.Height)
 	for y := 0; y < c.Height; y++ {
 		visited[y] = make([]bool, c.Width)
@@ -1013,32 +1021,46 @@ func (c *Cave) IsConnected() bool {
 		p := queue[0]
 		queue = queue[1:]
 
-		if p.X < 0 || p.X >= c.Width || p.Y < 0 || p.Y >= c.Height {
+		if !c.isValidBFSCell(p, visited) {
 			continue
 		}
-		if visited[p.Y][p.X] {
-			continue
-		}
-		if c.Tiles[p.Y][p.X] == TileWall {
-			continue
-		}
-
 		visited[p.Y][p.X] = true
 
-		// Check if we reached an exit
-		for _, exit := range c.Exits {
-			if p.X == exit.X && p.Y == exit.Y {
-				return true
-			}
+		if c.isExitPoint(p) {
+			return true
 		}
-
-		queue = append(queue,
-			CavePoint{X: p.X + 1, Y: p.Y},
-			CavePoint{X: p.X - 1, Y: p.Y},
-			CavePoint{X: p.X, Y: p.Y + 1},
-			CavePoint{X: p.X, Y: p.Y - 1},
-		)
+		queue = c.appendNeighbors(queue, p)
 	}
-
 	return false
+}
+
+// isValidBFSCell checks if a cell should be processed in BFS.
+func (c *Cave) isValidBFSCell(p CavePoint, visited [][]bool) bool {
+	if p.X < 0 || p.X >= c.Width || p.Y < 0 || p.Y >= c.Height {
+		return false
+	}
+	if visited[p.Y][p.X] {
+		return false
+	}
+	return c.Tiles[p.Y][p.X] != TileWall
+}
+
+// isExitPoint checks if a point is one of the cave exits.
+func (c *Cave) isExitPoint(p CavePoint) bool {
+	for _, exit := range c.Exits {
+		if p.X == exit.X && p.Y == exit.Y {
+			return true
+		}
+	}
+	return false
+}
+
+// appendNeighbors adds the 4 cardinal neighbors to the BFS queue.
+func (c *Cave) appendNeighbors(queue []CavePoint, p CavePoint) []CavePoint {
+	return append(queue,
+		CavePoint{X: p.X + 1, Y: p.Y},
+		CavePoint{X: p.X - 1, Y: p.Y},
+		CavePoint{X: p.X, Y: p.Y + 1},
+		CavePoint{X: p.X, Y: p.Y - 1},
+	)
 }

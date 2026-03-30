@@ -27,6 +27,52 @@ type Faction struct {
 // Type returns the component type identifier for Faction.
 func (f *Faction) Type() string { return "Faction" }
 
+// FactionMembership tracks a player's membership, rank, and standing with multiple factions.
+type FactionMembership struct {
+	// Memberships maps faction ID to membership details.
+	Memberships map[string]*FactionMemberInfo
+}
+
+// FactionMemberInfo represents a player's membership in a single faction.
+type FactionMemberInfo struct {
+	FactionID       string
+	Rank            int             // 0 = not a member, 1-10 = member ranks
+	RankTitle       string          // Rank-specific title (e.g., "Initiate", "Champion")
+	Reputation      float64         // -100 to 100 standing with faction
+	JoinedAt        float64         // Game time when joined
+	LastPromoAt     float64         // Game time of last promotion
+	XP              int             // Experience points toward next rank
+	XPToNext        int             // XP required for next rank
+	QuestsCompleted int             // Count of faction quests completed
+	DonationTotal   int             // Total gold/resources donated
+	IsExalted       bool            // Maximum rank achieved
+	UnlockedContent map[string]bool // Exclusive content IDs that have been unlocked
+}
+
+// Type returns the component type identifier for FactionMembership.
+func (f *FactionMembership) Type() string { return "FactionMembership" }
+
+// GetMembership returns membership info for a faction, or nil if not a member.
+func (f *FactionMembership) GetMembership(factionID string) *FactionMemberInfo {
+	if f.Memberships == nil {
+		return nil
+	}
+	return f.Memberships[factionID]
+}
+
+// GetRank returns the player's rank in a faction (0 if not a member).
+func (f *FactionMembership) GetRank(factionID string) int {
+	if info := f.GetMembership(factionID); info != nil {
+		return info.Rank
+	}
+	return 0
+}
+
+// IsMember returns true if the player is a member of the faction.
+func (f *FactionMembership) IsMember(factionID string) bool {
+	return f.GetRank(factionID) > 0
+}
+
 // FactionTerritory represents a faction's claimed territory.
 type FactionTerritory struct {
 	FactionID string

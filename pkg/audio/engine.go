@@ -476,3 +476,337 @@ func (e *Engine) ApplyReverb(samples []float64) []float64 {
 	processor := NewReverbProcessor(config, e.SampleRate)
 	return processor.Process(samples)
 }
+
+// VoiceSynthesizer generates synthetic speech for dialog.
+type VoiceSynthesizer struct {
+	// SampleRate is the audio sample rate.
+	SampleRate int
+	// Genre affects voice characteristics.
+	Genre string
+	// VoiceProfiles maps NPC types to voice configurations.
+	VoiceProfiles map[string]*VoiceProfile
+}
+
+// VoiceProfile defines characteristics for synthetic speech.
+type VoiceProfile struct {
+	// BaseFrequency is the fundamental pitch in Hz.
+	BaseFrequency float64
+	// FrequencyVariation adds pitch variation (0-1).
+	FrequencyVariation float64
+	// SpeakingRate affects speech speed (1.0 = normal).
+	SpeakingRate float64
+	// Breathiness adds noise to the voice (0-1).
+	Breathiness float64
+	// Roughness adds harmonic distortion (0-1).
+	Roughness float64
+	// Vibrato is the amount of pitch oscillation (0-1).
+	Vibrato float64
+	// VibratoRate is the vibrato frequency in Hz.
+	VibratoRate float64
+	// FormantShift adjusts formant frequencies (-1 to 1).
+	FormantShift float64
+	// ResonanceBoost boosts resonant frequencies (0-1).
+	ResonanceBoost float64
+}
+
+// NewVoiceSynthesizer creates a new voice synthesizer.
+func NewVoiceSynthesizer(sampleRate int, genre string) *VoiceSynthesizer {
+	vs := &VoiceSynthesizer{
+		SampleRate:    sampleRate,
+		Genre:         genre,
+		VoiceProfiles: make(map[string]*VoiceProfile),
+	}
+	vs.initializeProfiles()
+	return vs
+}
+
+// initializeProfiles sets up default voice profiles.
+func (vs *VoiceSynthesizer) initializeProfiles() {
+	// Male deep voice (guards, warriors)
+	vs.VoiceProfiles["male_deep"] = &VoiceProfile{
+		BaseFrequency:      110,
+		FrequencyVariation: 0.1,
+		SpeakingRate:       0.9,
+		Breathiness:        0.1,
+		Roughness:          0.2,
+		Vibrato:            0.05,
+		VibratoRate:        5.0,
+		FormantShift:       -0.2,
+		ResonanceBoost:     0.3,
+	}
+
+	// Male medium voice (merchants, commoners)
+	vs.VoiceProfiles["male_medium"] = &VoiceProfile{
+		BaseFrequency:      140,
+		FrequencyVariation: 0.15,
+		SpeakingRate:       1.0,
+		Breathiness:        0.15,
+		Roughness:          0.1,
+		Vibrato:            0.1,
+		VibratoRate:        5.5,
+		FormantShift:       0.0,
+		ResonanceBoost:     0.2,
+	}
+
+	// Female voice
+	vs.VoiceProfiles["female"] = &VoiceProfile{
+		BaseFrequency:      220,
+		FrequencyVariation: 0.2,
+		SpeakingRate:       1.1,
+		Breathiness:        0.2,
+		Roughness:          0.05,
+		Vibrato:            0.15,
+		VibratoRate:        6.0,
+		FormantShift:       0.3,
+		ResonanceBoost:     0.4,
+	}
+
+	// Elderly voice
+	vs.VoiceProfiles["elderly"] = &VoiceProfile{
+		BaseFrequency:      130,
+		FrequencyVariation: 0.25,
+		SpeakingRate:       0.8,
+		Breathiness:        0.3,
+		Roughness:          0.25,
+		Vibrato:            0.2,
+		VibratoRate:        4.5,
+		FormantShift:       -0.1,
+		ResonanceBoost:     0.2,
+	}
+
+	// Child voice
+	vs.VoiceProfiles["child"] = &VoiceProfile{
+		BaseFrequency:      300,
+		FrequencyVariation: 0.25,
+		SpeakingRate:       1.2,
+		Breathiness:        0.25,
+		Roughness:          0.0,
+		Vibrato:            0.05,
+		VibratoRate:        6.5,
+		FormantShift:       0.5,
+		ResonanceBoost:     0.5,
+	}
+
+	// Monster/creature voice
+	vs.VoiceProfiles["creature"] = &VoiceProfile{
+		BaseFrequency:      80,
+		FrequencyVariation: 0.3,
+		SpeakingRate:       0.7,
+		Breathiness:        0.4,
+		Roughness:          0.5,
+		Vibrato:            0.1,
+		VibratoRate:        3.0,
+		FormantShift:       -0.5,
+		ResonanceBoost:     0.6,
+	}
+
+	// Robot voice (sci-fi)
+	vs.VoiceProfiles["robot"] = &VoiceProfile{
+		BaseFrequency:      160,
+		FrequencyVariation: 0.05,
+		SpeakingRate:       1.0,
+		Breathiness:        0.0,
+		Roughness:          0.0,
+		Vibrato:            0.0,
+		VibratoRate:        0.0,
+		FormantShift:       0.0,
+		ResonanceBoost:     0.8,
+	}
+
+	// Whisper voice
+	vs.VoiceProfiles["whisper"] = &VoiceProfile{
+		BaseFrequency:      150,
+		FrequencyVariation: 0.1,
+		SpeakingRate:       0.85,
+		Breathiness:        0.9,
+		Roughness:          0.0,
+		Vibrato:            0.0,
+		VibratoRate:        0.0,
+		FormantShift:       0.0,
+		ResonanceBoost:     0.1,
+	}
+}
+
+// SynthesizeSpeech generates audio samples for a text phrase.
+func (vs *VoiceSynthesizer) SynthesizeSpeech(text, voiceType string) []float64 {
+	profile, ok := vs.VoiceProfiles[voiceType]
+	if !ok {
+		profile = vs.VoiceProfiles["male_medium"]
+	}
+
+	// Simple formant synthesis approximation
+	// Each character gets a short "phoneme" duration
+	phonemeDuration := 0.08 / profile.SpeakingRate
+	totalDuration := float64(len(text)) * phonemeDuration
+	numSamples := int(totalDuration * float64(vs.SampleRate))
+
+	samples := make([]float64, numSamples)
+	phase := 0.0
+	vibratoPhase := 0.0
+
+	for i := 0; i < numSamples; i++ {
+		t := float64(i) / float64(vs.SampleRate)
+		charIndex := int(t / phonemeDuration)
+		if charIndex >= len(text) {
+			charIndex = len(text) - 1
+		}
+
+		// Get character for formant modulation
+		char := ' '
+		if charIndex < len(text) {
+			char = rune(text[charIndex])
+		}
+
+		// Calculate frequency with vibrato
+		vibratoPhase += 2 * math.Pi * profile.VibratoRate / float64(vs.SampleRate)
+		vibrato := profile.Vibrato * math.Sin(vibratoPhase)
+
+		freq := profile.BaseFrequency * (1 + vibrato)
+		freq *= 1 + (getCharacterPitch(char) * profile.FrequencyVariation)
+
+		// Advance phase
+		phase += 2 * math.Pi * freq / float64(vs.SampleRate)
+
+		// Generate voice signal
+		voice := vs.generateVoiceWaveform(phase, profile, char)
+
+		// Apply amplitude envelope for phoneme
+		phonemeT := math.Mod(t, phonemeDuration) / phonemeDuration
+		envelope := vs.phonemeEnvelope(phonemeT)
+
+		samples[i] = voice * envelope * 0.3 // Scale to avoid clipping
+	}
+
+	return samples
+}
+
+// generateVoiceWaveform creates the voice signal for one sample.
+func (vs *VoiceSynthesizer) generateVoiceWaveform(phase float64, profile *VoiceProfile, char rune) float64 {
+	// Base glottal pulse (simplified using harmonics)
+	signal := math.Sin(phase)
+	signal += 0.5 * math.Sin(2*phase)  // Second harmonic
+	signal += 0.25 * math.Sin(3*phase) // Third harmonic
+
+	// Add roughness (higher harmonics)
+	if profile.Roughness > 0 {
+		signal += profile.Roughness * 0.3 * math.Sin(5*phase)
+		signal += profile.Roughness * 0.15 * math.Sin(7*phase)
+	}
+
+	// Add breathiness (noise)
+	if profile.Breathiness > 0 {
+		noise := (rand() - 0.5) * 2 * profile.Breathiness
+		signal = signal*(1-profile.Breathiness*0.5) + noise
+	}
+
+	// Apply formant filtering based on character (simplified)
+	formantMod := getFormantModifier(char)
+	signal *= formantMod
+
+	// Resonance boost
+	if profile.ResonanceBoost > 0 {
+		signal *= 1 + profile.ResonanceBoost*0.5
+	}
+
+	return signal
+}
+
+// phonemeEnvelope generates an amplitude envelope for a phoneme.
+func (vs *VoiceSynthesizer) phonemeEnvelope(t float64) float64 {
+	// ADSR-like envelope within each phoneme
+	attack := 0.1
+	decay := 0.1
+	sustain := 0.7
+	release := 0.1
+
+	if t < attack {
+		return t / attack
+	} else if t < attack+decay {
+		return 1.0 - (1.0-sustain)*(t-attack)/decay
+	} else if t < 1.0-release {
+		return sustain
+	} else {
+		return sustain * (1.0 - (t-(1.0-release))/release)
+	}
+}
+
+// getCharacterPitch returns pitch modification for a character.
+func getCharacterPitch(char rune) float64 {
+	// Vowels have slightly higher pitch
+	switch char {
+	case 'a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U':
+		return 0.1
+	case '!', '?':
+		return 0.2
+	case '.':
+		return -0.1
+	default:
+		return 0
+	}
+}
+
+// getFormantModifier returns amplitude modification for a character.
+func getFormantModifier(char rune) float64 {
+	// Different characters produce different resonances
+	switch char {
+	case 'a', 'A':
+		return 1.0
+	case 'e', 'E':
+		return 0.9
+	case 'i', 'I':
+		return 0.85
+	case 'o', 'O':
+		return 0.95
+	case 'u', 'U':
+		return 0.8
+	case ' ', '.', ',':
+		return 0.1 // Quieter for pauses
+	default:
+		return 0.7
+	}
+}
+
+// Simple pseudo-random for voice synthesis (deterministic within sample).
+var randState uint32 = 12345
+
+func rand() float64 {
+	randState = randState*1103515245 + 12345
+	return float64(randState%65536) / 65536.0
+}
+
+// GetGenreVoiceProfile returns a voice profile appropriate for the genre.
+func (vs *VoiceSynthesizer) GetGenreVoiceProfile(occupation string) string {
+	switch vs.Genre {
+	case "sci-fi":
+		if occupation == "technician" || occupation == "scientist" {
+			return "robot"
+		}
+	case "horror":
+		if occupation == "priest" || occupation == "mortician" {
+			return "whisper"
+		}
+	case "fantasy":
+		if occupation == "creature" || occupation == "monster" {
+			return "creature"
+		}
+	}
+
+	// Default selection based on occupation
+	switch occupation {
+	case "guard", "blacksmith", "warrior":
+		return "male_deep"
+	case "healer", "innkeeper":
+		return "female"
+	case "priest", "scribe":
+		return "elderly"
+	default:
+		return "male_medium"
+	}
+}
+
+// GenerateDialogAudio creates audio for NPC dialog text.
+func (e *Engine) GenerateDialogAudio(text, npcType string) []float64 {
+	vs := NewVoiceSynthesizer(e.SampleRate, e.Genre)
+	voiceProfile := vs.GetGenreVoiceProfile(npcType)
+	return vs.SynthesizeSpeech(text, voiceProfile)
+}

@@ -48,68 +48,70 @@ func (s *DialogConsequenceSystem) Update(w *ecs.World, dt float64) {
 func (s *DialogConsequenceSystem) applyConsequences(w *ecs.World, pending PendingConsequence) {
 	cons := pending.Consequences
 
-	// Apply reputation change
-	if cons.ReputationChange != 0 && cons.FactionID != "" {
-		s.applyReputationChange(w, pending.PlayerEntity, cons.FactionID, cons.ReputationChange)
-	}
+	s.applyResourceChanges(w, pending.PlayerEntity, cons)
+	s.applyInventoryChanges(w, pending.PlayerEntity, cons)
+	s.applyQuestChanges(w, pending.PlayerEntity, cons)
+	s.applyWorldFlagChanges(w, cons)
+	s.applyRelationshipAndMoodChanges(w, pending, cons)
 
-	// Apply gold change
-	if cons.GoldChange != 0 {
-		s.applyGoldChange(w, pending.PlayerEntity, cons.GoldChange)
-	}
-
-	// Give items to player
-	for _, itemID := range cons.ItemsGiven {
-		s.giveItem(w, pending.PlayerEntity, itemID)
-	}
-
-	// Take items from player
-	for _, itemID := range cons.ItemsTaken {
-		s.takeItem(w, pending.PlayerEntity, itemID)
-	}
-
-	// Start quest
-	if cons.QuestStart != "" {
-		s.startQuest(w, pending.PlayerEntity, cons.QuestStart)
-	}
-
-	// Progress quest
-	if cons.QuestProgress != "" {
-		s.progressQuest(w, pending.PlayerEntity, cons.QuestProgress)
-	}
-
-	// Complete quest
-	if cons.QuestComplete != "" {
-		s.completeQuest(w, pending.PlayerEntity, cons.QuestComplete)
-	}
-
-	// Set world flag
-	if cons.FlagSet != "" {
-		s.setWorldFlag(w, cons.FlagSet, true)
-	}
-
-	// Clear world flag
-	if cons.FlagClear != "" {
-		s.setWorldFlag(w, cons.FlagClear, false)
-	}
-
-	// Apply relationship change
-	if cons.RelationshipChange != 0 {
-		s.applyRelationshipChange(w, pending.NPCEntity, pending.PlayerEntity, cons.RelationshipChange)
-	}
-
-	// Update NPC mood
-	if cons.NPCMood != "" {
-		s.setNPCMood(w, pending.NPCEntity, cons.NPCMood)
-	}
-
-	// Trigger combat
 	if cons.TriggerCombat {
 		s.triggerCombat(w, pending.PlayerEntity, pending.NPCEntity)
 	}
 
-	// Record in NPC's dialog memory
 	s.recordDialogEvent(w, pending.NPCEntity, pending.PlayerEntity, pending.OptionID, cons)
+}
+
+// applyResourceChanges handles reputation and gold changes.
+func (s *DialogConsequenceSystem) applyResourceChanges(w *ecs.World, player ecs.Entity, cons components.DialogConsequences) {
+	if cons.ReputationChange != 0 && cons.FactionID != "" {
+		s.applyReputationChange(w, player, cons.FactionID, cons.ReputationChange)
+	}
+	if cons.GoldChange != 0 {
+		s.applyGoldChange(w, player, cons.GoldChange)
+	}
+}
+
+// applyInventoryChanges handles item giving and taking.
+func (s *DialogConsequenceSystem) applyInventoryChanges(w *ecs.World, player ecs.Entity, cons components.DialogConsequences) {
+	for _, itemID := range cons.ItemsGiven {
+		s.giveItem(w, player, itemID)
+	}
+	for _, itemID := range cons.ItemsTaken {
+		s.takeItem(w, player, itemID)
+	}
+}
+
+// applyQuestChanges handles quest start, progress, and completion.
+func (s *DialogConsequenceSystem) applyQuestChanges(w *ecs.World, player ecs.Entity, cons components.DialogConsequences) {
+	if cons.QuestStart != "" {
+		s.startQuest(w, player, cons.QuestStart)
+	}
+	if cons.QuestProgress != "" {
+		s.progressQuest(w, player, cons.QuestProgress)
+	}
+	if cons.QuestComplete != "" {
+		s.completeQuest(w, player, cons.QuestComplete)
+	}
+}
+
+// applyWorldFlagChanges handles world flag setting and clearing.
+func (s *DialogConsequenceSystem) applyWorldFlagChanges(w *ecs.World, cons components.DialogConsequences) {
+	if cons.FlagSet != "" {
+		s.setWorldFlag(w, cons.FlagSet, true)
+	}
+	if cons.FlagClear != "" {
+		s.setWorldFlag(w, cons.FlagClear, false)
+	}
+}
+
+// applyRelationshipAndMoodChanges handles NPC relationship and mood updates.
+func (s *DialogConsequenceSystem) applyRelationshipAndMoodChanges(w *ecs.World, pending PendingConsequence, cons components.DialogConsequences) {
+	if cons.RelationshipChange != 0 {
+		s.applyRelationshipChange(w, pending.NPCEntity, pending.PlayerEntity, cons.RelationshipChange)
+	}
+	if cons.NPCMood != "" {
+		s.setNPCMood(w, pending.NPCEntity, cons.NPCMood)
+	}
 }
 
 // applyReputationChange modifies faction reputation.
@@ -241,30 +243,7 @@ func (s *DialogConsequenceSystem) recordDialogEvent(w *ecs.World, npc, player ec
 	}
 	mem := memComp.(*components.DialogMemory)
 
-	// Determine event type and sentiment based on consequences
-	eventType := "conversation"
-	sentiment := 0.0
-
-	if cons.QuestStart != "" {
-		eventType = "quest_given"
-		sentiment = 0.3
-	}
-	if cons.QuestComplete != "" {
-		eventType = "quest_completed"
-		sentiment = 0.5
-	}
-	if cons.TriggerCombat {
-		eventType = "combat_started"
-		sentiment = -1.0
-	}
-	if cons.RelationshipChange > 0 {
-		eventType = "positive_interaction"
-		sentiment = cons.RelationshipChange
-	}
-	if cons.RelationshipChange < 0 {
-		eventType = "negative_interaction"
-		sentiment = cons.RelationshipChange
-	}
+	eventType, sentiment := determineEventTypeAndSentiment(cons)
 
 	event := components.DialogMemoryEvent{
 		EventType:   eventType,
@@ -277,6 +256,26 @@ func (s *DialogConsequenceSystem) recordDialogEvent(w *ecs.World, npc, player ec
 	if len(mem.ImportantEvents) > DialogMemoryMaxEvents {
 		mem.ImportantEvents = mem.ImportantEvents[1:]
 	}
+}
+
+// determineEventTypeAndSentiment categorizes a dialog consequence.
+func determineEventTypeAndSentiment(cons components.DialogConsequences) (eventType string, sentiment float64) {
+	eventType = "conversation"
+	sentiment = 0.0
+
+	switch {
+	case cons.TriggerCombat:
+		return "combat_started", -1.0
+	case cons.RelationshipChange < 0:
+		return "negative_interaction", cons.RelationshipChange
+	case cons.RelationshipChange > 0:
+		return "positive_interaction", cons.RelationshipChange
+	case cons.QuestComplete != "":
+		return "quest_completed", 0.5
+	case cons.QuestStart != "":
+		return "quest_given", 0.3
+	}
+	return eventType, sentiment
 }
 
 // checkPromises checks for broken promises and updates relationships.
@@ -426,39 +425,55 @@ func EndConversation(w *ecs.World, player, npc ecs.Entity) {
 
 // CheckDialogRequirements verifies if a player meets option requirements.
 func CheckDialogRequirements(w *ecs.World, player ecs.Entity, reqs components.DialogRequirements) bool {
-	// Check reputation
-	if reqs.MinReputation != 0 {
-		facComp, ok := w.GetComponent(player, "Faction")
-		if !ok || facComp.(*components.Faction).Reputation < reqs.MinReputation {
-			return false
-		}
+	if !checkReputationRequirement(w, player, reqs.MinReputation) {
+		return false
 	}
-
-	// Check required items
-	if len(reqs.RequiredItems) > 0 {
-		invComp, ok := w.GetComponent(player, "Inventory")
-		if !ok {
-			return false
-		}
-		inv := invComp.(*components.Inventory)
-		for _, reqItem := range reqs.RequiredItems {
-			found := false
-			for _, item := range inv.Items {
-				if item == reqItem {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return false
-			}
-		}
+	if !checkInventoryRequirements(w, player, reqs.RequiredItems) {
+		return false
 	}
-
 	// Additional requirements (skill, quest, flag, gold) would need
 	// their respective systems to be implemented
-
 	return true
+}
+
+// checkReputationRequirement verifies minimum reputation is met.
+func checkReputationRequirement(w *ecs.World, player ecs.Entity, minReputation float64) bool {
+	if minReputation == 0 {
+		return true
+	}
+	facComp, ok := w.GetComponent(player, "Faction")
+	if !ok {
+		return false
+	}
+	return facComp.(*components.Faction).Reputation >= minReputation
+}
+
+// checkInventoryRequirements verifies all required items are present.
+func checkInventoryRequirements(w *ecs.World, player ecs.Entity, requiredItems []string) bool {
+	if len(requiredItems) == 0 {
+		return true
+	}
+	invComp, ok := w.GetComponent(player, "Inventory")
+	if !ok {
+		return false
+	}
+	inv := invComp.(*components.Inventory)
+	for _, reqItem := range requiredItems {
+		if !hasItem(inv.Items, reqItem) {
+			return false
+		}
+	}
+	return true
+}
+
+// hasItem checks if an item exists in the inventory.
+func hasItem(items []string, itemID string) bool {
+	for _, item := range items {
+		if item == itemID {
+			return true
+		}
+	}
+	return false
 }
 
 // UpdateDialogOptions refreshes available options based on requirements.

@@ -151,40 +151,54 @@ func (s *HazardSystem) processTraps(w *ecs.World, dt float64) {
 		trapComp, _ := w.GetComponent(trapEnt, "TrapMechanism")
 		trap := trapComp.(*components.TrapMechanism)
 
-		if !trap.Armed || trap.Triggered {
-			// Handle reset
-			if trap.Triggered && trap.ResetTime > 0 {
-				trap.ResetTime -= dt
-				if trap.ResetTime <= 0 {
-					trap.Triggered = false
-					trap.Armed = true
-				}
-			}
+		if s.updateTrapReset(trap, dt) {
 			continue
 		}
 
 		trapPosComp, _ := w.GetComponent(trapEnt, "Position")
 		trapPos := trapPosComp.(*components.Position)
+		s.checkTrapTriggers(w, trapEnt, trapPos, trap, targets)
+	}
+}
 
-		for _, targetEnt := range targets {
-			if targetEnt == trapEnt {
-				continue
-			}
-
-			targetPosComp, _ := w.GetComponent(targetEnt, "Position")
-			targetPos := targetPosComp.(*components.Position)
-
-			// Check trigger radius
-			dx := trapPos.X - targetPos.X
-			dy := trapPos.Y - targetPos.Y
-			distSq := dx*dx + dy*dy
-
-			if distSq <= trap.TriggerRadius*trap.TriggerRadius {
-				s.triggerTrap(w, trapEnt, targetEnt, trap)
-				break
+// updateTrapReset handles trap reset timing, returns true if trap is inactive.
+func (s *HazardSystem) updateTrapReset(trap *components.TrapMechanism, dt float64) bool {
+	if !trap.Armed || trap.Triggered {
+		if trap.Triggered && trap.ResetTime > 0 {
+			trap.ResetTime -= dt
+			if trap.ResetTime <= 0 {
+				trap.Triggered = false
+				trap.Armed = true
 			}
 		}
+		return true
 	}
+	return false
+}
+
+// checkTrapTriggers checks if any target triggers the trap.
+func (s *HazardSystem) checkTrapTriggers(w *ecs.World, trapEnt ecs.Entity, trapPos *components.Position, trap *components.TrapMechanism, targets []ecs.Entity) {
+	for _, targetEnt := range targets {
+		if targetEnt == trapEnt {
+			continue
+		}
+
+		targetPosComp, _ := w.GetComponent(targetEnt, "Position")
+		targetPos := targetPosComp.(*components.Position)
+
+		if s.isInTriggerRadius(trapPos, targetPos, trap.TriggerRadius) {
+			s.triggerTrap(w, trapEnt, targetEnt, trap)
+			return
+		}
+	}
+}
+
+// isInTriggerRadius checks if a target is within the trap's trigger radius.
+func (s *HazardSystem) isInTriggerRadius(trapPos, targetPos *components.Position, triggerRadius float64) bool {
+	dx := trapPos.X - targetPos.X
+	dy := trapPos.Y - targetPos.Y
+	distSq := dx*dx + dy*dy
+	return distSq <= triggerRadius*triggerRadius
 }
 
 // triggerTrap activates a trap and deals damage.

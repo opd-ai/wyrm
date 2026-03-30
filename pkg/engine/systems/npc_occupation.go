@@ -64,27 +64,37 @@ func (s *NPCOccupationSystem) updateOccupation(w *ecs.World, e ecs.Entity, dt fl
 // performWorkBehavior handles NPC work actions.
 func (s *NPCOccupationSystem) performWorkBehavior(w *ecs.World, e ecs.Entity, occ *components.NPCOccupation, dt float64) {
 	occ.IsWorking = true
+	s.applyFatigue(occ, dt)
+	efficiency := s.calculateEfficiency(occ)
+	s.progressTask(w, e, occ, efficiency, dt)
+	s.processCustomers(w, e, occ, dt)
+}
 
-	// Apply fatigue
+// applyFatigue increases fatigue during work.
+func (s *NPCOccupationSystem) applyFatigue(occ *components.NPCOccupation, dt float64) {
 	occ.Fatigue += dt * OccupationFatigueRate
 	if occ.Fatigue > 1.0 {
 		occ.Fatigue = 1.0
 	}
+}
 
-	// Calculate effective efficiency
+// calculateEfficiency computes current work efficiency based on fatigue.
+func (s *NPCOccupationSystem) calculateEfficiency(occ *components.NPCOccupation) float64 {
 	efficiency := occ.WorkEfficiency * (1.0 - occ.Fatigue*OccupationFatiguePenalty)
 	if efficiency < OccupationMinEfficiency {
 		efficiency = OccupationMinEfficiency
 	}
+	return efficiency
+}
 
-	// Select task if none active
+// progressTask updates current task progress and handles completion.
+func (s *NPCOccupationSystem) progressTask(w *ecs.World, e ecs.Entity, occ *components.NPCOccupation, efficiency, dt float64) {
 	if occ.CurrentTask == "" {
 		occ.CurrentTask = s.selectTask(occ)
 		occ.TaskProgress = 0
 		occ.TaskDuration = s.getTaskDuration(occ.OccupationType, occ.CurrentTask)
 	}
 
-	// Progress current task
 	if occ.TaskDuration > 0 {
 		progressRate := (dt / occ.TaskDuration) * efficiency
 		occ.TaskProgress += progressRate
@@ -95,8 +105,10 @@ func (s *NPCOccupationSystem) performWorkBehavior(w *ecs.World, e ecs.Entity, oc
 			occ.TaskProgress = 0
 		}
 	}
+}
 
-	// Process customer queue for service occupations
+// processCustomers handles customer queue for service occupations.
+func (s *NPCOccupationSystem) processCustomers(w *ecs.World, e ecs.Entity, occ *components.NPCOccupation, dt float64) {
 	if len(occ.CustomerQueue) > 0 && occ.CanTrade {
 		s.processCustomerQueue(w, e, occ, dt)
 	}
@@ -124,65 +136,52 @@ func (s *NPCOccupationSystem) selectTask(occ *components.NPCOccupation) string {
 
 // getTaskDuration returns the base duration for a task.
 func (s *NPCOccupationSystem) getTaskDuration(occupationType, task string) float64 {
-	// Task durations vary by occupation and task
 	baseDuration := OccupationTaskDurationBase
-	switch occupationType {
-	case OccupationMerchant:
-		switch task {
-		case "arranging_wares":
-			return baseDuration * 0.5
-		case "counting_gold":
-			return baseDuration * 0.3
-		case "haggling":
-			return baseDuration * 0.8
-		}
-	case OccupationBlacksmith:
-		switch task {
-		case "forging":
-			return baseDuration * 2.0
-		case "sharpening":
-			return baseDuration * 0.7
-		case "tempering":
-			return baseDuration * 1.5
-		}
-	case OccupationGuard:
-		switch task {
-		case "patrolling":
-			return baseDuration * 1.0
-		case "standing_watch":
-			return baseDuration * 2.0
-		case "inspecting":
-			return baseDuration * 0.5
-		}
-	case OccupationInnkeeper:
-		switch task {
-		case "cleaning":
-			return baseDuration * 0.8
-		case "serving":
-			return baseDuration * 0.3
-		case "cooking":
-			return baseDuration * 1.2
-		}
-	case OccupationHealer:
-		switch task {
-		case "treating_patient":
-			return baseDuration * 1.5
-		case "preparing_medicine":
-			return baseDuration * 1.0
-		case "studying":
-			return baseDuration * 2.0
-		}
-	case OccupationFarmer:
-		switch task {
-		case "planting":
-			return baseDuration * 1.2
-		case "harvesting":
-			return baseDuration * 1.5
-		case "tending_animals":
-			return baseDuration * 0.8
+	multiplier := getTaskDurationMultiplier(occupationType, task)
+	return baseDuration * multiplier
+}
+
+// getTaskDurationMultiplier returns the duration multiplier for a task.
+func getTaskDurationMultiplier(occupationType, task string) float64 {
+	multipliers := map[string]map[string]float64{
+		OccupationMerchant: {
+			"arranging_wares": 0.5,
+			"counting_gold":   0.3,
+			"haggling":        0.8,
+		},
+		OccupationBlacksmith: {
+			"forging":    2.0,
+			"sharpening": 0.7,
+			"tempering":  1.5,
+		},
+		OccupationGuard: {
+			"patrolling":     1.0,
+			"standing_watch": 2.0,
+			"inspecting":     0.5,
+		},
+		OccupationInnkeeper: {
+			"cleaning": 0.8,
+			"serving":  0.3,
+			"cooking":  1.2,
+		},
+		OccupationHealer: {
+			"treating_patient":   1.5,
+			"preparing_medicine": 1.0,
+			"studying":           2.0,
+		},
+		OccupationFarmer: {
+			"planting":        1.2,
+			"harvesting":      1.5,
+			"tending_animals": 0.8,
+		},
+	}
+
+	if occTasks, ok := multipliers[occupationType]; ok {
+		if mult, ok := occTasks[task]; ok {
+			return mult
 		}
 	}
-	return baseDuration
+	return 1.0
 }
 
 // completeTask handles task completion effects.

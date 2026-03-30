@@ -510,3 +510,337 @@ func (s *GuardPursuitSystem) SetSearchDuration(duration float64) {
 func (s *GuardPursuitSystem) GetSearchDuration() float64 {
 	return s.searchDuration
 }
+
+// ============================================================================
+// Bribery System
+// ============================================================================
+
+// BribeTarget represents who can be bribed.
+type BribeTarget int
+
+const (
+	// BribeTargetGuard bribes a pursuing guard.
+	BribeTargetGuard BribeTarget = iota
+	// BribeTargetWitness bribes a witness to forget.
+	BribeTargetWitness
+	// BribeTargetOfficial bribes an official to reduce bounty.
+	BribeTargetOfficial
+	// BribeTargetJailer bribes a jailer for early release.
+	BribeTargetJailer
+)
+
+// BribeResult represents the outcome of a bribery attempt.
+type BribeResult int
+
+const (
+	// BribeResultSuccess means the bribe was accepted.
+	BribeResultSuccess BribeResult = iota
+	// BribeResultFailed means the bribe was rejected.
+	BribeResultFailed
+	// BribeResultInsufficient means not enough money offered.
+	BribeResultInsufficient
+	// BribeResultReported means the target reported the bribe attempt.
+	BribeResultReported
+	// BribeResultNoTarget means there's no valid bribery target.
+	BribeResultNoTarget
+)
+
+// BriberySystem handles bribery attempts to reduce wanted level and bounty.
+type BriberySystem struct {
+	crimeSystem        *CrimeSystem
+	guardPursuitSystem *GuardPursuitSystem
+	// Base costs per wanted level
+	BaseBribeCostPerLevel float64
+	// Success chance modifiers
+	GuardSuccessBase    float64
+	WitnessSuccessBase  float64
+	OfficialSuccessBase float64
+	JailerSuccessBase   float64
+	// Chance to be reported when bribe fails
+	ReportChanceOnFailure float64
+	// Multipliers for different wanted levels
+	HighWantedMultiplier float64 // Applied at 4-5 stars
+	// Random seed for determinism
+	rngSeed    int64
+	rngCounter int64
+}
+
+// NewBriberySystem creates a new bribery system.
+func NewBriberySystem(crimeSystem *CrimeSystem, guardPursuitSystem *GuardPursuitSystem, seed int64) *BriberySystem {
+	return &BriberySystem{
+		crimeSystem:           crimeSystem,
+		guardPursuitSystem:    guardPursuitSystem,
+		BaseBribeCostPerLevel: 100.0,
+		GuardSuccessBase:      0.6, // 60% base success
+		WitnessSuccessBase:    0.8, // 80% base success
+		OfficialSuccessBase:   0.5, // 50% base success
+		JailerSuccessBase:     0.4, // 40% base success
+		ReportChanceOnFailure: 0.3, // 30% chance to report failed bribe
+		HighWantedMultiplier:  2.0, // Double cost at high wanted level
+		rngSeed:               seed,
+		rngCounter:            0,
+	}
+}
+
+// pseudoRandom generates a deterministic pseudo-random number 0.0-1.0.
+func (s *BriberySystem) pseudoRandom() float64 {
+	s.rngCounter++
+	// Simple LCG-style pseudo-random
+	x := s.rngSeed*1103515245 + s.rngCounter*12345
+	return float64((x>>16)&0x7FFF) / 32768.0
+}
+
+// CalculateBribeCost calculates the cost to bribe a target.
+func (s *BriberySystem) CalculateBribeCost(w *ecs.World, entity ecs.Entity, target BribeTarget) float64 {
+	comp, ok := w.GetComponent(entity, "Crime")
+	if !ok {
+		return 0
+	}
+	crime := comp.(*components.Crime)
+
+	baseCost := s.BaseBribeCostPerLevel * float64(crime.WantedLevel)
+
+	// Apply target-specific multipliers
+	switch target {
+	case BribeTargetGuard:
+		baseCost *= 1.0 // Standard
+	case BribeTargetWitness:
+		baseCost *= 0.5 // Witnesses are cheaper
+	case BribeTargetOfficial:
+		baseCost *= 2.0 // Officials cost more
+	case BribeTargetJailer:
+		baseCost *= 1.5 // Jailers are in-between
+	}
+
+	// High wanted level increases cost
+	if crime.WantedLevel >= 4 {
+		baseCost *= s.HighWantedMultiplier
+	}
+
+	return baseCost
+}
+
+// CalculateSuccessChance calculates bribe success probability.
+func (s *BriberySystem) CalculateSuccessChance(w *ecs.World, entity ecs.Entity, target BribeTarget, offerMultiplier float64) float64 {
+	comp, ok := w.GetComponent(entity, "Crime")
+	if !ok {
+		return 0
+	}
+	crime := comp.(*components.Crime)
+
+	var baseChance float64
+	switch target {
+	case BribeTargetGuard:
+		baseChance = s.GuardSuccessBase
+	case BribeTargetWitness:
+		baseChance = s.WitnessSuccessBase
+	case BribeTargetOfficial:
+		baseChance = s.OfficialSuccessBase
+	case BribeTargetJailer:
+		baseChance = s.JailerSuccessBase
+	}
+
+	// Offering more than base cost increases success chance
+	if offerMultiplier > 1.0 {
+		baseChance += (offerMultiplier - 1.0) * 0.1 // +10% per 100% extra
+	}
+
+	// Higher wanted level reduces success chance
+	baseChance -= float64(crime.WantedLevel) * 0.05 // -5% per wanted level
+
+	// Clamp to 5-95%
+	if baseChance < 0.05 {
+		baseChance = 0.05
+	}
+	if baseChance > 0.95 {
+		baseChance = 0.95
+	}
+
+	return baseChance
+}
+
+// AttemptBribe attempts to bribe a target to reduce criminal status.
+func (s *BriberySystem) AttemptBribe(w *ecs.World, entity ecs.Entity, target BribeTarget, offerAmount float64) BribeResult {
+	comp, ok := w.GetComponent(entity, "Crime")
+	if !ok {
+		return BribeResultNoTarget
+	}
+	crime := comp.(*components.Crime)
+
+	// Calculate required cost
+	requiredCost := s.CalculateBribeCost(w, entity, target)
+	if requiredCost <= 0 {
+		return BribeResultNoTarget
+	}
+
+	// Check if offer is sufficient
+	if offerAmount < requiredCost*0.5 {
+		// Way too low - instant rejection
+		return BribeResultInsufficient
+	}
+
+	// Calculate success chance
+	offerMultiplier := offerAmount / requiredCost
+	successChance := s.CalculateSuccessChance(w, entity, target, offerMultiplier)
+
+	// Roll for success
+	roll := s.pseudoRandom()
+
+	if roll < successChance {
+		// Success!
+		s.applyBribeEffect(w, entity, crime, target)
+		return BribeResultSuccess
+	}
+
+	// Failed - check if reported
+	if s.pseudoRandom() < s.ReportChanceOnFailure {
+		// Crime reported! Increase wanted level
+		crime.WantedLevel++
+		if crime.WantedLevel > MaxWantedLevel {
+			crime.WantedLevel = MaxWantedLevel
+		}
+		crime.BountyAmount += s.BaseBribeCostPerLevel
+		return BribeResultReported
+	}
+
+	return BribeResultFailed
+}
+
+// applyBribeEffect applies the effect of a successful bribe.
+func (s *BriberySystem) applyBribeEffect(w *ecs.World, entity ecs.Entity, crime *components.Crime, target BribeTarget) {
+	switch target {
+	case BribeTargetGuard:
+		// Guard stops pursuing - reduce wanted level by 1
+		crime.WantedLevel--
+		if crime.WantedLevel < 0 {
+			crime.WantedLevel = 0
+		}
+		// Also resets any guards in pursuit (would need to track guard state)
+
+	case BribeTargetWitness:
+		// Witness forgets - prevent wanted level increase for a time
+		// In full implementation, would mark witness as "bribed"
+		crime.WantedLevel--
+		if crime.WantedLevel < 0 {
+			crime.WantedLevel = 0
+		}
+
+	case BribeTargetOfficial:
+		// Official reduces bounty significantly
+		crime.WantedLevel -= 2
+		if crime.WantedLevel < 0 {
+			crime.WantedLevel = 0
+		}
+		crime.BountyAmount /= 2
+
+	case BribeTargetJailer:
+		// Jailer releases from jail early
+		if crime.InJail {
+			crime.InJail = false
+			crime.JailReleaseTime = 0
+		}
+	}
+}
+
+// BribeGuard attempts to bribe a specific pursuing guard.
+func (s *BriberySystem) BribeGuard(w *ecs.World, criminal, guard ecs.Entity, offerAmount float64) BribeResult {
+	// Verify guard is pursuing the criminal
+	guardComp, ok := w.GetComponent(guard, "Guard")
+	if !ok {
+		return BribeResultNoTarget
+	}
+	guardState := guardComp.(*components.Guard)
+
+	// Guard must be in pursuit or combat with this criminal
+	if guardState.State != int(GuardStatePursue) && guardState.State != int(GuardStateCombat) {
+		return BribeResultNoTarget
+	}
+	if ecs.Entity(guardState.TargetEntity) != criminal {
+		return BribeResultNoTarget
+	}
+
+	result := s.AttemptBribe(w, criminal, BribeTargetGuard, offerAmount)
+
+	// On success, guard returns to patrol
+	if result == BribeResultSuccess {
+		guardState.State = int(GuardStateReturn)
+		guardState.TargetEntity = 0
+	}
+
+	return result
+}
+
+// BribeWitnessesNearby attempts to bribe all witnesses near a position.
+func (s *BriberySystem) BribeWitnessesNearby(w *ecs.World, criminal ecs.Entity, x, z, radius, offerPerWitness float64) (successes, failures int) {
+	for _, e := range w.Entities("Witness", "Position") {
+		posComp, ok := w.GetComponent(e, "Position")
+		if !ok {
+			continue
+		}
+		pos := posComp.(*components.Position)
+
+		// Check if witness is in range
+		dx := pos.X - x
+		dz := pos.Z - z
+		dist := dx*dx + dz*dz
+		if dist > radius*radius {
+			continue
+		}
+
+		// Attempt bribe
+		result := s.AttemptBribe(w, criminal, BribeTargetWitness, offerPerWitness)
+		if result == BribeResultSuccess {
+			successes++
+			// Mark witness as bribed (would set CanReport = false temporarily)
+			witnessComp, _ := w.GetComponent(e, "Witness")
+			if witnessComp != nil {
+				witness := witnessComp.(*components.Witness)
+				witness.CanReport = false
+			}
+		} else {
+			failures++
+		}
+	}
+	return successes, failures
+}
+
+// GetBribeDescription returns a description of the bribe target.
+func (s *BriberySystem) GetBribeDescription(target BribeTarget) string {
+	switch target {
+	case BribeTargetGuard:
+		return "Bribe a guard to stop pursuit and look the other way."
+	case BribeTargetWitness:
+		return "Bribe witnesses to forget what they saw."
+	case BribeTargetOfficial:
+		return "Bribe an official to reduce your bounty and wanted level."
+	case BribeTargetJailer:
+		return "Bribe the jailer for early release from prison."
+	default:
+		return "Unknown bribe target."
+	}
+}
+
+// GetAvailableBribeTargets returns which bribe options are currently available.
+func (s *BriberySystem) GetAvailableBribeTargets(w *ecs.World, entity ecs.Entity) []BribeTarget {
+	comp, ok := w.GetComponent(entity, "Crime")
+	if !ok {
+		return nil
+	}
+	crime := comp.(*components.Crime)
+
+	var available []BribeTarget
+
+	// Guard bribe available if wanted
+	if crime.WantedLevel > 0 && !crime.InJail {
+		available = append(available, BribeTargetGuard)
+		available = append(available, BribeTargetWitness)
+		available = append(available, BribeTargetOfficial)
+	}
+
+	// Jailer bribe only available in jail
+	if crime.InJail {
+		available = append(available, BribeTargetJailer)
+	}
+
+	return available
+}

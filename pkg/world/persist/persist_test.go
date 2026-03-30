@@ -601,3 +601,311 @@ func TestLastSaveTimeNonExistent(t *testing.T) {
 		t.Error("LastSaveTime should return error for non-existent seed")
 	}
 }
+
+// WorldConsequenceTracker tests
+
+func TestNewWorldConsequenceTracker(t *testing.T) {
+	tracker := NewWorldConsequenceTracker()
+	if tracker == nil {
+		t.Fatal("NewWorldConsequenceTracker returned nil")
+	}
+	if tracker.Consequences == nil {
+		t.Error("Consequences map should be initialized")
+	}
+	if tracker.ByChunk == nil {
+		t.Error("ByChunk map should be initialized")
+	}
+	if tracker.ByType == nil {
+		t.Error("ByType map should be initialized")
+	}
+	if tracker.ByPlayer == nil {
+		t.Error("ByPlayer map should be initialized")
+	}
+}
+
+func TestRecordConsequence(t *testing.T) {
+	tracker := NewWorldConsequenceTracker()
+
+	c := &WorldConsequence{
+		Type:           ConsequenceNPCKilled,
+		CausedByPlayer: 100,
+		AffectedEntity: 200,
+		ChunkX:         5,
+		ChunkY:         10,
+	}
+	tracker.RecordConsequence(c)
+
+	if c.ID == "" {
+		t.Error("Consequence should have generated ID")
+	}
+	if c.Timestamp.IsZero() {
+		t.Error("Consequence should have timestamp")
+	}
+
+	// Check stored in main map
+	stored := tracker.GetConsequence(c.ID)
+	if stored == nil {
+		t.Fatal("Consequence should be retrievable")
+	}
+	if stored.Type != ConsequenceNPCKilled {
+		t.Errorf("Type = %v, want %v", stored.Type, ConsequenceNPCKilled)
+	}
+}
+
+func TestConsequenceIndexes(t *testing.T) {
+	tracker := NewWorldConsequenceTracker()
+
+	c1 := &WorldConsequence{
+		Type:           ConsequenceNPCKilled,
+		CausedByPlayer: 100,
+		ChunkX:         5,
+		ChunkY:         10,
+	}
+	c2 := &WorldConsequence{
+		Type:           ConsequenceBuildingDestroyed,
+		CausedByPlayer: 100,
+		ChunkX:         5,
+		ChunkY:         10,
+	}
+	c3 := &WorldConsequence{
+		Type:           ConsequenceNPCKilled,
+		CausedByPlayer: 200,
+		ChunkX:         8,
+		ChunkY:         15,
+	}
+
+	tracker.RecordConsequence(c1)
+	tracker.RecordConsequence(c2)
+	tracker.RecordConsequence(c3)
+
+	// Test chunk index
+	chunkCons := tracker.GetChunkConsequences(5, 10)
+	if len(chunkCons) != 2 {
+		t.Errorf("Chunk (5,10) has %d consequences, want 2", len(chunkCons))
+	}
+
+	// Test type index
+	npcKilledCons := tracker.GetTypeConsequences(ConsequenceNPCKilled)
+	if len(npcKilledCons) != 2 {
+		t.Errorf("NPC_KILLED has %d consequences, want 2", len(npcKilledCons))
+	}
+
+	// Test player index
+	player100Cons := tracker.GetPlayerConsequences(100)
+	if len(player100Cons) != 2 {
+		t.Errorf("Player 100 has %d consequences, want 2", len(player100Cons))
+	}
+}
+
+func TestReverseConsequence(t *testing.T) {
+	tracker := NewWorldConsequenceTracker()
+
+	c1 := &WorldConsequence{
+		Type:         ConsequenceBuildingDestroyed,
+		IsReversible: true,
+	}
+	c2 := &WorldConsequence{
+		Type:         ConsequenceNPCKilled,
+		IsReversible: false,
+	}
+
+	tracker.RecordConsequence(c1)
+	tracker.RecordConsequence(c2)
+
+	// Should succeed for reversible
+	if !tracker.ReverseConsequence(c1.ID) {
+		t.Error("Should be able to reverse reversible consequence")
+	}
+	if tracker.GetConsequence(c1.ID).ReversedAt.IsZero() {
+		t.Error("ReversedAt should be set")
+	}
+
+	// Should fail for non-reversible
+	if tracker.ReverseConsequence(c2.ID) {
+		t.Error("Should not be able to reverse non-reversible consequence")
+	}
+
+	// Should fail for non-existent
+	if tracker.ReverseConsequence("fake_id") {
+		t.Error("Should not be able to reverse non-existent consequence")
+	}
+}
+
+func TestGetActiveConsequences(t *testing.T) {
+	tracker := NewWorldConsequenceTracker()
+
+	c1 := &WorldConsequence{Type: "type1", IsReversible: true}
+	c2 := &WorldConsequence{Type: "type2"}
+	c3 := &WorldConsequence{Type: "type3", IsReversible: true}
+
+	tracker.RecordConsequence(c1)
+	tracker.RecordConsequence(c2)
+	tracker.RecordConsequence(c3)
+	tracker.ReverseConsequence(c1.ID)
+
+	active := tracker.GetActiveConsequences()
+	if len(active) != 2 {
+		t.Errorf("Active consequences = %d, want 2", len(active))
+	}
+
+	// Check reversed one is not in active
+	for _, a := range active {
+		if a.ID == c1.ID {
+			t.Error("Reversed consequence should not be in active list")
+		}
+	}
+}
+
+func TestRecordNPCKilled(t *testing.T) {
+	tracker := NewWorldConsequenceTracker()
+
+	RecordNPCKilled(tracker, 200, 100, 50.0, 60.0, 0.0, 5, 6, "Guard Bob", "guard")
+
+	cons := tracker.GetTypeConsequences(ConsequenceNPCKilled)
+	if len(cons) != 1 {
+		t.Fatalf("Should have 1 NPC killed consequence, got %d", len(cons))
+	}
+
+	c := cons[0]
+	if c.CausedByPlayer != 100 {
+		t.Errorf("CausedByPlayer = %d, want 100", c.CausedByPlayer)
+	}
+	if c.AffectedEntity != 200 {
+		t.Errorf("AffectedEntity = %d, want 200", c.AffectedEntity)
+	}
+	if c.IsReversible {
+		t.Error("NPC death should not be reversible")
+	}
+	if c.Data["npc_name"] != "Guard Bob" {
+		t.Errorf("npc_name = %v, want 'Guard Bob'", c.Data["npc_name"])
+	}
+}
+
+func TestRecordBuildingDestroyed(t *testing.T) {
+	tracker := NewWorldConsequenceTracker()
+
+	RecordBuildingDestroyed(tracker, 300, 100, 100.0, 200.0, 10, 20, "tavern")
+
+	cons := tracker.GetTypeConsequences(ConsequenceBuildingDestroyed)
+	if len(cons) != 1 {
+		t.Fatalf("Should have 1 building destroyed consequence, got %d", len(cons))
+	}
+
+	c := cons[0]
+	if !c.IsReversible {
+		t.Error("Building destruction should be reversible")
+	}
+	if c.Data["building_type"] != "tavern" {
+		t.Errorf("building_type = %v, want 'tavern'", c.Data["building_type"])
+	}
+}
+
+func TestRecordFactionWar(t *testing.T) {
+	tracker := NewWorldConsequenceTracker()
+
+	RecordFactionWar(tracker, "guards", "thieves", 100)
+
+	cons := tracker.GetTypeConsequences(ConsequenceFactionWar)
+	if len(cons) != 1 {
+		t.Fatalf("Should have 1 faction war consequence, got %d", len(cons))
+	}
+
+	c := cons[0]
+	if c.Data["faction1"] != "guards" {
+		t.Errorf("faction1 = %v, want 'guards'", c.Data["faction1"])
+	}
+	if c.Data["faction2"] != "thieves" {
+		t.Errorf("faction2 = %v, want 'thieves'", c.Data["faction2"])
+	}
+}
+
+func TestRecordQuestCompleted(t *testing.T) {
+	tracker := NewWorldConsequenceTracker()
+
+	RecordQuestCompleted(tracker, 100, "kill_dragon", "gold")
+
+	cons := tracker.GetTypeConsequences(ConsequenceQuestCompleted)
+	if len(cons) != 1 {
+		t.Fatalf("Should have 1 quest completed consequence, got %d", len(cons))
+	}
+
+	c := cons[0]
+	if c.CausedByPlayer != 100 {
+		t.Errorf("CausedByPlayer = %d, want 100", c.CausedByPlayer)
+	}
+	if c.Data["quest_id"] != "kill_dragon" {
+		t.Errorf("quest_id = %v, want 'kill_dragon'", c.Data["quest_id"])
+	}
+}
+
+func TestSerializeAndLoadConsequences(t *testing.T) {
+	tracker := NewWorldConsequenceTracker()
+
+	c1 := &WorldConsequence{
+		Type:           ConsequenceNPCKilled,
+		CausedByPlayer: 100,
+		AffectedEntity: 200,
+		ChunkX:         5,
+		ChunkY:         10,
+	}
+	c2 := &WorldConsequence{
+		Type:         ConsequenceBuildingDestroyed,
+		IsReversible: true,
+		ChunkX:       8,
+		ChunkY:       15,
+	}
+	tracker.RecordConsequence(c1)
+	tracker.RecordConsequence(c2)
+
+	// Serialize
+	data := tracker.SerializeConsequences()
+	if len(data) != 2 {
+		t.Fatalf("Serialized %d consequences, want 2", len(data))
+	}
+
+	// Load into new tracker
+	newTracker := NewWorldConsequenceTracker()
+	newTracker.LoadConsequences(data)
+
+	if newTracker.TotalCount() != 2 {
+		t.Errorf("Loaded %d consequences, want 2", newTracker.TotalCount())
+	}
+
+	// Verify indexes were rebuilt
+	npcKilled := newTracker.GetTypeConsequences(ConsequenceNPCKilled)
+	if len(npcKilled) != 1 {
+		t.Errorf("Type index has %d NPC_KILLED, want 1", len(npcKilled))
+	}
+}
+
+func TestCountByType(t *testing.T) {
+	tracker := NewWorldConsequenceTracker()
+
+	tracker.RecordConsequence(&WorldConsequence{Type: ConsequenceNPCKilled})
+	tracker.RecordConsequence(&WorldConsequence{Type: ConsequenceNPCKilled})
+	tracker.RecordConsequence(&WorldConsequence{Type: ConsequenceBuildingDestroyed})
+
+	counts := tracker.CountByType()
+	if counts[ConsequenceNPCKilled] != 2 {
+		t.Errorf("NPC_KILLED count = %d, want 2", counts[ConsequenceNPCKilled])
+	}
+	if counts[ConsequenceBuildingDestroyed] != 1 {
+		t.Errorf("BUILDING_DESTROYED count = %d, want 1", counts[ConsequenceBuildingDestroyed])
+	}
+}
+
+func TestTotalCount(t *testing.T) {
+	tracker := NewWorldConsequenceTracker()
+
+	if tracker.TotalCount() != 0 {
+		t.Error("Empty tracker should have 0 count")
+	}
+
+	tracker.RecordConsequence(&WorldConsequence{Type: "type1"})
+	tracker.RecordConsequence(&WorldConsequence{Type: "type2"})
+	tracker.RecordConsequence(&WorldConsequence{Type: "type3"})
+
+	if tracker.TotalCount() != 3 {
+		t.Errorf("TotalCount = %d, want 3", tracker.TotalCount())
+	}
+}

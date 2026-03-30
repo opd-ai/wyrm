@@ -182,31 +182,37 @@ func calculateMaxSlope(x, y, size int, elevationMap []float64) float64 {
 		return 0
 	}
 	centerElevation := elevationMap[idx]
-	maxSlope := 0.0
+	maxSlope := findMaxNeighborSlope(x, y, size, centerElevation, elevationMap)
+	return maxSlope / MaxElevation // Normalize to [0, 1] range
+}
 
-	// Check all 8 neighbors
+// findMaxNeighborSlope finds the steepest slope among all 8 neighbors.
+func findMaxNeighborSlope(x, y, size int, centerElevation float64, elevationMap []float64) float64 {
+	maxSlope := 0.0
 	for dy := -1; dy <= 1; dy++ {
 		for dx := -1; dx <= 1; dx++ {
 			if dx == 0 && dy == 0 {
 				continue
 			}
-			nx, ny := x+dx, y+dy
-			if nx < 0 || nx >= size || ny < 0 || ny >= size {
-				continue
-			}
-			neighborIdx := ny*size + nx
-			if neighborIdx >= len(elevationMap) {
-				continue
-			}
-			neighborElevation := elevationMap[neighborIdx]
-			slope := abs(centerElevation - neighborElevation)
+			slope := getNeighborSlope(x+dx, y+dy, size, centerElevation, elevationMap)
 			if slope > maxSlope {
 				maxSlope = slope
 			}
 		}
 	}
+	return maxSlope
+}
 
-	return maxSlope / MaxElevation // Normalize to [0, 1] range
+// getNeighborSlope calculates the slope to a single neighbor.
+func getNeighborSlope(nx, ny, size int, centerElevation float64, elevationMap []float64) float64 {
+	if nx < 0 || nx >= size || ny < 0 || ny >= size {
+		return 0
+	}
+	neighborIdx := ny*size + nx
+	if neighborIdx >= len(elevationMap) {
+		return 0
+	}
+	return abs(centerElevation - elevationMap[neighborIdx])
 }
 
 // abs returns the absolute value of a float64.
@@ -469,8 +475,17 @@ func (mc *ModifiedChunk) applyExplosionCrater(x, y int, radius float64) {
 func (mc *ModifiedChunk) applyErosion(x, y int, intensity float64) {
 	idx := y*mc.Size + x
 	currentHeight := mc.HeightMap[idx]
+	lowestHeight := mc.findLowestNeighborHeight(x, y, currentHeight)
 
-	// Find lowest neighbor
+	diff := currentHeight - lowestHeight
+	mc.HeightMap[idx] -= diff * intensity * 0.5
+	if mc.HeightMap[idx] < 0 {
+		mc.HeightMap[idx] = 0
+	}
+}
+
+// findLowestNeighborHeight finds the minimum height among 8-neighbors.
+func (mc *ModifiedChunk) findLowestNeighborHeight(x, y int, currentHeight float64) float64 {
 	lowestHeight := currentHeight
 	for dy := -1; dy <= 1; dy++ {
 		for dx := -1; dx <= 1; dx++ {
@@ -486,13 +501,7 @@ func (mc *ModifiedChunk) applyErosion(x, y int, intensity float64) {
 			}
 		}
 	}
-
-	// Move height toward the lowest neighbor
-	diff := currentHeight - lowestHeight
-	mc.HeightMap[idx] -= diff * intensity * 0.5
-	if mc.HeightMap[idx] < 0 {
-		mc.HeightMap[idx] = 0
-	}
+	return lowestHeight
 }
 
 // recalculateElevation updates elevation at a modified point.
@@ -700,37 +709,15 @@ func (c *ChunkLODCache) InvalidateLOD(x, y int) {
 
 // generateLOD creates a downsampled version of a chunk.
 func generateLOD(chunk *Chunk, level LODLevel) *LODChunk {
-	step := 1 << int(level) // 2, 4, 8 for LOD levels 1, 2, 3
-	lodSize := chunk.Size / step
-	if lodSize < 1 {
-		lodSize = 1
-	}
+	step := 1 << int(level)
+	lodSize := calculateLODSize(chunk.Size, step)
 
 	heightMap := make([]float64, lodSize*lodSize)
 	elevationMap := make([]float64, lodSize*lodSize)
 
 	for ly := 0; ly < lodSize; ly++ {
 		for lx := 0; lx < lodSize; lx++ {
-			// Sample from the full-resolution chunk with averaging
-			sumH := 0.0
-			sumE := 0.0
-			count := 0.0
-
-			for dy := 0; dy < step; dy++ {
-				for dx := 0; dx < step; dx++ {
-					sx := lx*step + dx
-					sy := ly*step + dy
-					if sx < chunk.Size && sy < chunk.Size {
-						idx := sy*chunk.Size + sx
-						sumH += chunk.HeightMap[idx]
-						if chunk.ElevationMap != nil {
-							sumE += chunk.ElevationMap[idx]
-						}
-						count++
-					}
-				}
-			}
-
+			sumH, sumE, count := sampleChunkRegion(chunk, lx, ly, step)
 			lodIdx := ly*lodSize + lx
 			if count > 0 {
 				heightMap[lodIdx] = sumH / count
@@ -746,6 +733,34 @@ func generateLOD(chunk *Chunk, level LODLevel) *LODChunk {
 		ElevationMap: elevationMap,
 		LODSize:      lodSize,
 	}
+}
+
+// calculateLODSize computes the size of an LOD map.
+func calculateLODSize(chunkSize, step int) int {
+	lodSize := chunkSize / step
+	if lodSize < 1 {
+		lodSize = 1
+	}
+	return lodSize
+}
+
+// sampleChunkRegion averages height and elevation for an LOD cell.
+func sampleChunkRegion(chunk *Chunk, lx, ly, step int) (sumH, sumE, count float64) {
+	for dy := 0; dy < step; dy++ {
+		for dx := 0; dx < step; dx++ {
+			sx := lx*step + dx
+			sy := ly*step + dy
+			if sx < chunk.Size && sy < chunk.Size {
+				idx := sy*chunk.Size + sx
+				sumH += chunk.HeightMap[idx]
+				if chunk.ElevationMap != nil {
+					sumE += chunk.ElevationMap[idx]
+				}
+				count++
+			}
+		}
+	}
+	return sumH, sumE, count
 }
 
 // GetHeight returns the height at LOD coordinates.

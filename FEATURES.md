@@ -67,7 +67,7 @@ Legend:
 - [x] Dialog consequences
 - [x] Dialog memory
 - [x] Multi-NPC conversations
-- [ ] Voice synthesis integration
+- [x] Voice synthesis integration
 
 ---
 
@@ -77,8 +77,8 @@ Legend:
 - [x] Stage condition checking
 - [x] Branch locking mechanism
 - [x] Consequence flag system
-- [ ] Persistent world consequences
-- [ ] Faction-specific quest arcs
+- [x] Persistent world consequences
+- [x] Faction-specific quest arcs
 - [x] Dynamic quest generation
 - [x] Radiant quest system
 - [x] Notice board quests
@@ -108,10 +108,10 @@ Legend:
 - [x] Skill progression system
 - [x] Genre-appropriate skill naming
 - [x] 30+ unique skills
-- [ ] Skill-based action unlocks
+- [x] Skill-based action unlocks
 - [x] Skill training from NPCs
-- [ ] Skill books
-- [ ] Skill synergies
+- [x] Skill books
+- [x] Skill synergies
 - [x] Max skill caps
 
 ---
@@ -126,8 +126,8 @@ Legend:
 - [x] Backstab damage multiplier
 - [x] Pickpocket skill checks
 - [x] Alert level decay
-- [ ] Hiding spots
-- [ ] Distraction mechanics
+- [x] Hiding spots
+- [x] Distraction mechanics
 
 ---
 
@@ -140,9 +140,9 @@ Legend:
 - [x] Treaty signing mechanism
 - [x] Dynamic faction wars
 - [x] Territory control system
-- [ ] Faction rank progression
-- [ ] Exclusive faction content
-- [ ] Faction coups
+- [x] Faction rank progression
+- [x] Exclusive faction content
+- [x] Faction coups
 
 ---
 
@@ -154,9 +154,9 @@ Legend:
 - [x] Wanted level decay
 - [x] Jail mechanic
 - [x] Guard pursuit AI
-- [ ] Bribery system
-- [ ] Crime evidence system
-- [ ] Criminal faction questlines
+- [x] Bribery system
+- [x] Crime evidence system
+- [x] Criminal faction questlines
 - [ ] Pardons and amnesty
 
 ---

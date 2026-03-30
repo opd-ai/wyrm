@@ -440,3 +440,334 @@ func BenchmarkRadiantQuestRefresh(b *testing.B) {
 		board.RefreshQuests(int64(i))
 	}
 }
+
+// ============================================================================
+// Faction Arc Tests
+// ============================================================================
+
+func TestNewFactionArcManager(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+
+	for _, genre := range genres {
+		m := NewFactionArcManager(genre)
+		if m == nil {
+			t.Fatalf("Manager for genre %s should not be nil", genre)
+		}
+		if len(m.Arcs) == 0 {
+			t.Errorf("Genre %s should have default arcs", genre)
+		}
+	}
+}
+
+func TestFactionArcManagerRegisterArc(t *testing.T) {
+	m := NewFactionArcManager("fantasy")
+
+	arc := &FactionQuestArc{
+		ID:          "custom_arc",
+		FactionID:   "custom_faction",
+		Name:        "Custom Arc",
+		Description: "A custom test arc",
+		Quests: []FactionArcQuest{
+			{ID: "q1", Title: "Quest 1", NextQuestID: "q2"},
+			{ID: "q2", Title: "Quest 2"},
+		},
+	}
+
+	m.RegisterArc(arc)
+
+	if _, ok := m.Arcs["custom_arc"]; !ok {
+		t.Error("Arc should be registered")
+	}
+
+	factionArcs := m.GetFactionArcs("custom_faction")
+	if len(factionArcs) == 0 {
+		t.Error("Should find arc by faction ID")
+	}
+}
+
+func TestFactionArcStartAndProgress(t *testing.T) {
+	m := NewFactionArcManager("fantasy")
+
+	// Create a simple test arc
+	arc := &FactionQuestArc{
+		ID:           "test_arc",
+		FactionID:    "test_faction",
+		Name:         "Test Arc",
+		Description:  "A test arc",
+		RequiredRank: 0,
+		Quests: []FactionArcQuest{
+			{
+				ID:          "test_q1",
+				Title:       "Test Quest 1",
+				Objectives:  []ArcQuestGoal{{Type: "kill", Target: "enemy", Count: 5}},
+				NextQuestID: "test_q2",
+			},
+			{
+				ID:         "test_q2",
+				Title:      "Test Quest 2",
+				Objectives: []ArcQuestGoal{{Type: "fetch", Target: "item", Count: 3}},
+			},
+		},
+	}
+	m.RegisterArc(arc)
+
+	playerEntity := uint64(1)
+
+	// Start the arc
+	if !m.StartArc(playerEntity, "test_arc") {
+		t.Fatal("Should be able to start arc")
+	}
+
+	// Verify current quest
+	quest := m.GetCurrentQuest(playerEntity, "test_arc")
+	if quest == nil {
+		t.Fatal("Should have current quest")
+	}
+	if quest.ID != "test_q1" {
+		t.Errorf("Current quest should be test_q1, got %s", quest.ID)
+	}
+
+	// Complete objective
+	if !m.CompleteObjective(playerEntity, "test_arc", 0) {
+		t.Error("Should complete objective")
+	}
+
+	// Quest should advance
+	quest = m.GetCurrentQuest(playerEntity, "test_arc")
+	if quest.ID != "test_q2" {
+		t.Errorf("Should advance to test_q2, got %s", quest.ID)
+	}
+
+	// Complete final quest
+	if !m.CompleteObjective(playerEntity, "test_arc", 0) {
+		t.Error("Should complete final objective")
+	}
+
+	// Arc should be complete
+	if !m.IsArcComplete(playerEntity, "test_arc") {
+		t.Error("Arc should be complete")
+	}
+}
+
+func TestFactionArcMutualExclusivity(t *testing.T) {
+	m := NewFactionArcManager("fantasy")
+
+	// Create mutually exclusive arcs
+	arc1 := &FactionQuestArc{
+		ID:               "arc_good",
+		FactionID:        "test_faction",
+		Name:             "Good Path",
+		MutuallyExcludes: []string{"arc_evil"},
+		IsExclusive:      true,
+		Quests: []FactionArcQuest{
+			{ID: "good_q1", Title: "Good Quest", Objectives: []ArcQuestGoal{{Type: "talk", Target: "sage"}}},
+		},
+	}
+	arc2 := &FactionQuestArc{
+		ID:               "arc_evil",
+		FactionID:        "test_faction",
+		Name:             "Evil Path",
+		MutuallyExcludes: []string{"arc_good"},
+		IsExclusive:      true,
+		Quests: []FactionArcQuest{
+			{ID: "evil_q1", Title: "Evil Quest", Objectives: []ArcQuestGoal{{Type: "kill", Target: "innocent"}}},
+		},
+	}
+
+	m.RegisterArc(arc1)
+	m.RegisterArc(arc2)
+
+	playerEntity := uint64(2)
+
+	// Start good path
+	if !m.StartArc(playerEntity, "arc_good") {
+		t.Fatal("Should start good arc")
+	}
+
+	// Evil path should now be locked
+	available := m.GetAvailableArcs(playerEntity, "test_faction")
+	for _, arc := range available {
+		if arc.ID == "arc_evil" {
+			t.Error("Evil arc should be locked after choosing good")
+		}
+	}
+}
+
+func TestFactionArcRankRequirement(t *testing.T) {
+	m := NewFactionArcManager("fantasy")
+
+	arc := &FactionQuestArc{
+		ID:           "high_rank_arc",
+		FactionID:    "test_faction",
+		Name:         "Elite Quest",
+		RequiredRank: 5,
+		Quests: []FactionArcQuest{
+			{ID: "elite_q1", Title: "Elite Quest", Objectives: []ArcQuestGoal{{Type: "kill", Target: "boss"}}},
+		},
+	}
+	m.RegisterArc(arc)
+
+	playerEntity := uint64(3)
+
+	// Should not be available without rank
+	available := m.GetAvailableArcs(playerEntity, "test_faction")
+	for _, a := range available {
+		if a.ID == "high_rank_arc" {
+			t.Error("High rank arc should not be available without sufficient rank")
+		}
+	}
+
+	// Should not be able to start
+	if m.StartArc(playerEntity, "high_rank_arc") {
+		t.Error("Should not start arc without sufficient rank")
+	}
+
+	// Manually set rank
+	progress := m.getOrCreateProgress(playerEntity)
+	progress.FactionRanks["test_faction"] = 5
+
+	// Now should be available
+	available = m.GetAvailableArcs(playerEntity, "test_faction")
+	found := false
+	for _, a := range available {
+		if a.ID == "high_rank_arc" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("High rank arc should be available with sufficient rank")
+	}
+}
+
+func TestGetArcProgress(t *testing.T) {
+	m := NewFactionArcManager("fantasy")
+
+	arc := &FactionQuestArc{
+		ID:        "progress_arc",
+		FactionID: "test_faction",
+		Name:      "Progress Test",
+		Quests: []FactionArcQuest{
+			{
+				ID:    "prog_q1",
+				Title: "Progress Quest",
+				Objectives: []ArcQuestGoal{
+					{Type: "kill", Target: "enemy1", Count: 1},
+					{Type: "kill", Target: "enemy2", Count: 1},
+					{Type: "kill", Target: "enemy3", Count: 1},
+				},
+			},
+		},
+	}
+	m.RegisterArc(arc)
+
+	playerEntity := uint64(4)
+	m.StartArc(playerEntity, "progress_arc")
+
+	// Initial progress
+	questID, done, total := m.GetArcProgress(playerEntity, "progress_arc")
+	if questID != "prog_q1" {
+		t.Errorf("Quest ID should be prog_q1, got %s", questID)
+	}
+	if done != 0 {
+		t.Errorf("Done should be 0, got %d", done)
+	}
+	if total != 3 {
+		t.Errorf("Total should be 3, got %d", total)
+	}
+
+	// Complete one objective
+	m.CompleteObjective(playerEntity, "progress_arc", 0)
+
+	_, done, _ = m.GetArcProgress(playerEntity, "progress_arc")
+	if done != 1 {
+		t.Errorf("Done should be 1, got %d", done)
+	}
+}
+
+func TestGetCompletedArcs(t *testing.T) {
+	m := NewFactionArcManager("fantasy")
+
+	arc := &FactionQuestArc{
+		ID:        "complete_arc",
+		FactionID: "test_faction",
+		Name:      "Completable Arc",
+		Quests: []FactionArcQuest{
+			{
+				ID:         "complete_q1",
+				Title:      "Only Quest",
+				Objectives: []ArcQuestGoal{{Type: "talk", Target: "npc"}},
+			},
+		},
+	}
+	m.RegisterArc(arc)
+
+	playerEntity := uint64(5)
+	m.StartArc(playerEntity, "complete_arc")
+	m.CompleteObjective(playerEntity, "complete_arc", 0)
+
+	completed := m.GetCompletedArcs(playerEntity)
+	if len(completed) != 1 {
+		t.Errorf("Should have 1 completed arc, got %d", len(completed))
+	}
+	if completed[0] != "complete_arc" {
+		t.Errorf("Completed arc should be complete_arc, got %s", completed[0])
+	}
+}
+
+func TestGenreFactionArcs(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+
+	for _, genre := range genres {
+		arcs := getGenreFactionArcs(genre)
+		if len(arcs) == 0 {
+			t.Errorf("Genre %s should have faction arcs", genre)
+		}
+
+		for _, arc := range arcs {
+			if arc.ID == "" {
+				t.Errorf("Arc in genre %s has empty ID", genre)
+			}
+			if arc.FactionID == "" {
+				t.Errorf("Arc %s in genre %s has empty faction ID", arc.ID, genre)
+			}
+			if len(arc.Quests) == 0 {
+				t.Errorf("Arc %s in genre %s has no quests", arc.ID, genre)
+			}
+
+			for _, quest := range arc.Quests {
+				if quest.ID == "" {
+					t.Errorf("Quest in arc %s has empty ID", arc.ID)
+				}
+				if len(quest.Objectives) == 0 {
+					t.Errorf("Quest %s in arc %s has no objectives", quest.ID, arc.ID)
+				}
+			}
+		}
+	}
+}
+
+func BenchmarkFactionArcStartAndComplete(b *testing.B) {
+	m := NewFactionArcManager("fantasy")
+
+	arc := &FactionQuestArc{
+		ID:        "bench_arc",
+		FactionID: "bench_faction",
+		Name:      "Benchmark Arc",
+		Quests: []FactionArcQuest{
+			{
+				ID:         "bench_q1",
+				Title:      "Bench Quest",
+				Objectives: []ArcQuestGoal{{Type: "kill", Target: "enemy"}},
+			},
+		},
+	}
+	m.RegisterArc(arc)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		playerEntity := uint64(i)
+		m.StartArc(playerEntity, "bench_arc")
+		m.CompleteObjective(playerEntity, "bench_arc", 0)
+	}
+}

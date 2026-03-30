@@ -660,3 +660,206 @@ func BenchmarkReverbProcess(b *testing.B) {
 		_ = processor.Process(input)
 	}
 }
+
+// Voice synthesis tests
+
+func TestNewVoiceSynthesizer(t *testing.T) {
+	vs := NewVoiceSynthesizer(44100, "fantasy")
+	if vs == nil {
+		t.Fatal("NewVoiceSynthesizer returned nil")
+	}
+	if vs.SampleRate != 44100 {
+		t.Errorf("SampleRate = %d, want 44100", vs.SampleRate)
+	}
+	if vs.Genre != "fantasy" {
+		t.Errorf("Genre = %s, want fantasy", vs.Genre)
+	}
+	if len(vs.VoiceProfiles) == 0 {
+		t.Error("VoiceProfiles should be initialized")
+	}
+}
+
+func TestVoiceProfiles(t *testing.T) {
+	vs := NewVoiceSynthesizer(44100, "fantasy")
+
+	profiles := []string{"male_deep", "male_medium", "female", "elderly", "child", "creature", "robot", "whisper"}
+	for _, name := range profiles {
+		profile, ok := vs.VoiceProfiles[name]
+		if !ok {
+			t.Errorf("Missing profile: %s", name)
+			continue
+		}
+		if profile.BaseFrequency <= 0 {
+			t.Errorf("Profile %s has invalid BaseFrequency", name)
+		}
+		if profile.SpeakingRate <= 0 {
+			t.Errorf("Profile %s has invalid SpeakingRate", name)
+		}
+	}
+}
+
+func TestSynthesizeSpeech(t *testing.T) {
+	vs := NewVoiceSynthesizer(44100, "fantasy")
+
+	text := "Hello world"
+	samples := vs.SynthesizeSpeech(text, "male_medium")
+
+	if len(samples) == 0 {
+		t.Error("SynthesizeSpeech returned empty samples")
+	}
+
+	// Check samples are in valid range
+	for i, s := range samples {
+		if math.IsNaN(s) {
+			t.Errorf("Sample %d is NaN", i)
+		}
+		if math.IsInf(s, 0) {
+			t.Errorf("Sample %d is Inf", i)
+		}
+	}
+}
+
+func TestSynthesizeSpeechDifferentVoices(t *testing.T) {
+	vs := NewVoiceSynthesizer(44100, "fantasy")
+	text := "Test"
+
+	voices := []string{"male_deep", "female", "creature", "robot"}
+	for _, voice := range voices {
+		samples := vs.SynthesizeSpeech(text, voice)
+		if len(samples) == 0 {
+			t.Errorf("Voice %s produced no samples", voice)
+		}
+	}
+}
+
+func TestSynthesizeSpeechUnknownVoice(t *testing.T) {
+	vs := NewVoiceSynthesizer(44100, "fantasy")
+
+	// Should fall back to male_medium
+	samples := vs.SynthesizeSpeech("Test", "unknown_voice")
+	if len(samples) == 0 {
+		t.Error("Should produce samples with fallback voice")
+	}
+}
+
+func TestGetGenreVoiceProfile(t *testing.T) {
+	tests := []struct {
+		genre      string
+		occupation string
+		want       string
+	}{
+		{"sci-fi", "technician", "robot"},
+		{"sci-fi", "scientist", "robot"},
+		{"horror", "priest", "whisper"},
+		{"horror", "mortician", "whisper"},
+		{"fantasy", "guard", "male_deep"},
+		{"fantasy", "blacksmith", "male_deep"},
+		{"fantasy", "healer", "female"},
+		{"fantasy", "priest", "elderly"},
+		{"fantasy", "merchant", "male_medium"},
+	}
+
+	for _, tt := range tests {
+		vs := NewVoiceSynthesizer(44100, tt.genre)
+		got := vs.GetGenreVoiceProfile(tt.occupation)
+		if got != tt.want {
+			t.Errorf("GetGenreVoiceProfile(%s, %s) = %s, want %s", tt.genre, tt.occupation, got, tt.want)
+		}
+	}
+}
+
+func TestGenerateDialogAudio(t *testing.T) {
+	e := NewEngine("fantasy")
+
+	samples := e.GenerateDialogAudio("Hello there!", "guard")
+	if len(samples) == 0 {
+		t.Error("GenerateDialogAudio returned empty samples")
+	}
+
+	// Test different NPC types
+	npcTypes := []string{"guard", "merchant", "healer", "priest"}
+	for _, npcType := range npcTypes {
+		samples := e.GenerateDialogAudio("Test", npcType)
+		if len(samples) == 0 {
+			t.Errorf("No samples for NPC type %s", npcType)
+		}
+	}
+}
+
+func TestGetCharacterPitch(t *testing.T) {
+	// Vowels should have higher pitch
+	if getCharacterPitch('a') <= 0 {
+		t.Error("Vowel 'a' should have positive pitch modifier")
+	}
+	if getCharacterPitch('!') <= 0 {
+		t.Error("Exclamation should have positive pitch modifier")
+	}
+	if getCharacterPitch('.') >= 0 {
+		t.Error("Period should have negative pitch modifier")
+	}
+	if getCharacterPitch('x') != 0 {
+		t.Error("Consonant should have zero pitch modifier")
+	}
+}
+
+func TestGetFormantModifier(t *testing.T) {
+	// Vowels should have high formant values
+	if getFormantModifier('a') < 0.8 {
+		t.Error("Vowel 'a' should have high formant modifier")
+	}
+	// Spaces should be quiet
+	if getFormantModifier(' ') > 0.2 {
+		t.Error("Space should have low formant modifier")
+	}
+	// Consonants should be moderate
+	if getFormantModifier('x') < 0.5 || getFormantModifier('x') > 0.9 {
+		t.Error("Consonant should have moderate formant modifier")
+	}
+}
+
+func TestPhonemeEnvelope(t *testing.T) {
+	vs := NewVoiceSynthesizer(44100, "fantasy")
+
+	// Attack phase (t=0) should start at 0
+	if vs.phonemeEnvelope(0) != 0 {
+		t.Error("Envelope should start at 0")
+	}
+
+	// Peak should be at end of attack
+	peak := vs.phonemeEnvelope(0.1)
+	if peak < 0.9 {
+		t.Errorf("Envelope peak = %v, should be near 1.0", peak)
+	}
+
+	// Sustain should be moderate
+	sustain := vs.phonemeEnvelope(0.5)
+	if sustain < 0.5 || sustain > 0.9 {
+		t.Errorf("Envelope sustain = %v, should be moderate", sustain)
+	}
+
+	// Release (t=1) should approach 0
+	release := vs.phonemeEnvelope(0.99)
+	if release > 0.5 {
+		t.Errorf("Envelope release = %v, should be low", release)
+	}
+}
+
+func BenchmarkSynthesizeSpeech(b *testing.B) {
+	vs := NewVoiceSynthesizer(44100, "fantasy")
+	text := "Hello, welcome to my shop!"
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = vs.SynthesizeSpeech(text, "male_medium")
+	}
+}
+
+func BenchmarkGenerateDialogAudio(b *testing.B) {
+	e := NewEngine("fantasy")
+	text := "Hello, welcome to my shop!"
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = e.GenerateDialogAudio(text, "merchant")
+	}
+}

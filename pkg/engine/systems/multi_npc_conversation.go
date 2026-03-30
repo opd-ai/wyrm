@@ -277,22 +277,36 @@ func (s *MultiNPCConversationSystem) StartMultiNPCConversation(w *ecs.World, par
 		return ""
 	}
 
-	// Generate conversation ID
-	convID := generateConversationID(participants)
+	if !s.validateParticipantsAvailable(w, participants) {
+		return ""
+	}
 
-	// Check if already in a conversation
+	convID := generateConversationID(participants)
+	conv := s.createConversation(convID, participants, player, topicID)
+	s.initializeSpeakerQueue(conv, participants, player)
+	s.updateParticipantDialogStates(w, participants, topicID)
+
+	s.ActiveConversations[convID] = conv
+	return convID
+}
+
+// validateParticipantsAvailable checks if all participants are free to converse.
+func (s *MultiNPCConversationSystem) validateParticipantsAvailable(w *ecs.World, participants []ecs.Entity) bool {
 	for _, p := range participants {
 		stateComp, ok := w.GetComponent(p, "DialogState")
 		if ok {
 			state := stateComp.(*components.DialogState)
 			if state.IsInDialog {
-				return "" // Can't start - someone is busy
+				return false
 			}
 		}
 	}
+	return true
+}
 
-	// Create conversation
-	conv := &MultiNPCConversation{
+// createConversation initializes a new conversation struct.
+func (s *MultiNPCConversationSystem) createConversation(convID string, participants []ecs.Entity, player ecs.Entity, topicID string) *MultiNPCConversation {
+	return &MultiNPCConversation{
 		ConversationID: convID,
 		Participants:   participants,
 		PlayerEntity:   player,
@@ -302,24 +316,28 @@ func (s *MultiNPCConversationSystem) StartMultiNPCConversation(w *ecs.World, par
 		Exchanges:      make([]MultiNPCExchange, 0),
 		SpeakerQueue:   make([]ecs.Entity, 0),
 	}
+}
 
-	// Build initial speaker queue
+// initializeSpeakerQueue sets up the speaker order for a conversation.
+func (s *MultiNPCConversationSystem) initializeSpeakerQueue(conv *MultiNPCConversation, participants []ecs.Entity, player ecs.Entity) {
+	// NPCs first if player involved
 	for _, p := range participants {
-		if p != player { // NPCs first if player involved
+		if p != player {
 			conv.SpeakerQueue = append(conv.SpeakerQueue, p)
 		}
 	}
 	if player != 0 {
 		conv.SpeakerQueue = append(conv.SpeakerQueue, player)
 	}
-
 	// Set first speaker
 	if len(conv.SpeakerQueue) > 0 {
 		conv.CurrentSpeaker = conv.SpeakerQueue[0]
 		conv.SpeakerQueue = conv.SpeakerQueue[1:]
 	}
+}
 
-	// Update participants' dialog states
+// updateParticipantDialogStates marks all participants as in dialog.
+func (s *MultiNPCConversationSystem) updateParticipantDialogStates(w *ecs.World, participants []ecs.Entity, topicID string) {
 	for _, p := range participants {
 		stateComp, ok := w.GetComponent(p, "DialogState")
 		if !ok {
@@ -330,9 +348,6 @@ func (s *MultiNPCConversationSystem) StartMultiNPCConversation(w *ecs.World, par
 		state.IsInDialog = true
 		state.CurrentTopicID = topicID
 	}
-
-	s.ActiveConversations[convID] = conv
-	return convID
 }
 
 // EndConversation terminates a multi-NPC conversation.
@@ -435,40 +450,46 @@ func (s *MultiNPCConversationSystem) RemoveParticipant(w *ecs.World, convID stri
 		return false
 	}
 
-	// Remove from participants
-	found := false
+	if !s.removeFromParticipants(conv, entity) {
+		return false
+	}
+	s.removeFromSpeakerQueue(conv, entity)
+	s.clearEntityDialogState(w, entity)
+
+	if len(conv.Participants) < 2 {
+		s.EndConversation(w, convID)
+	}
+	return true
+}
+
+// removeFromParticipants removes an entity from the participants list.
+func (s *MultiNPCConversationSystem) removeFromParticipants(conv *MultiNPCConversation, entity ecs.Entity) bool {
 	for i, p := range conv.Participants {
 		if p == entity {
 			conv.Participants = append(conv.Participants[:i], conv.Participants[i+1:]...)
-			found = true
-			break
+			return true
 		}
 	}
-	if !found {
-		return false
-	}
+	return false
+}
 
-	// Remove from speaker queue
+// removeFromSpeakerQueue removes an entity from the speaker queue.
+func (s *MultiNPCConversationSystem) removeFromSpeakerQueue(conv *MultiNPCConversation, entity ecs.Entity) {
 	for i, p := range conv.SpeakerQueue {
 		if p == entity {
 			conv.SpeakerQueue = append(conv.SpeakerQueue[:i], conv.SpeakerQueue[i+1:]...)
-			break
+			return
 		}
 	}
+}
 
-	// Update entity's dialog state
+// clearEntityDialogState marks an entity as no longer in dialog.
+func (s *MultiNPCConversationSystem) clearEntityDialogState(w *ecs.World, entity ecs.Entity) {
 	stateComp, ok := w.GetComponent(entity, "DialogState")
 	if ok {
 		state := stateComp.(*components.DialogState)
 		state.IsInDialog = false
 	}
-
-	// End conversation if fewer than 2 participants
-	if len(conv.Participants) < 2 {
-		s.EndConversation(w, convID)
-	}
-
-	return true
 }
 
 // GetConversationHistory returns the exchange history for a conversation.
