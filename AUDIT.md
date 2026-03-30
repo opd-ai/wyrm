@@ -75,7 +75,7 @@ None identified. All critical path features are implemented and tested.
 
 ### HIGH
 
-- [ ] **Music system below coverage target** — `pkg/audio/music/`:62.9% — Package is below the 70% coverage target. Music generation is a user-facing feature; low coverage increases bug risk. — **Remediation:** Add tests for `Update()` state transitions, genre music style selection, and combat detection edge cases. Validation: `go test -cover ./pkg/audio/music/...` shows ≥75%.
+- [x] **Music system below coverage target** — `pkg/audio/music/`:62.9% → 98.3% — Package is below the 70% coverage target. Music generation is a user-facing feature; low coverage increases bug risk. — **Remediation:** Add tests for `Update()` state transitions, genre music style selection, and combat detection edge cases. Validation: `go test -cover ./pkg/audio/music/...` shows ≥75%. **COMPLETED: Added 500+ lines of tests for BossMusicManager, DynamicLayerManager, edge cases, and concurrency.**
 
 - [ ] **Network package at coverage floor** — `pkg/network/`:70.2% — Core multiplayer networking is at minimum acceptable coverage. Client prediction and state synchronization are critical for the "200-5000ms latency tolerance" claim. — **Remediation:** Add integration tests for `ClientPredictor` reconciliation, `StateHistory` rewind accuracy at boundary conditions (exactly 500ms), and Tor-mode state transitions. Validation: `go test -cover ./pkg/network/...` shows ≥80%.
 

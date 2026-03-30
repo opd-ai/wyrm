@@ -485,3 +485,704 @@ func BenchmarkLocationMusicTransition(b *testing.B) {
 		lmm.Update(0.016)
 	}
 }
+
+// ============================================================================
+// Boss Music Manager Tests
+// ============================================================================
+
+func TestNewBossMusicManager(t *testing.T) {
+	bmm := NewBossMusicManager("fantasy")
+	if bmm == nil {
+		t.Fatal("NewBossMusicManager returned nil")
+	}
+
+	if bmm.genre != "fantasy" {
+		t.Errorf("expected genre 'fantasy', got %q", bmm.genre)
+	}
+
+	if bmm.IsActive() {
+		t.Error("should not be active initially")
+	}
+}
+
+func TestBossMusicManagerAllGenres(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+	for _, genre := range genres {
+		bmm := NewBossMusicManager(genre)
+		if bmm == nil {
+			t.Errorf("genre %q: NewBossMusicManager returned nil", genre)
+			continue
+		}
+
+		// Verify default configs exist
+		if _, ok := bmm.configs["generic"]; !ok {
+			t.Errorf("genre %q: missing 'generic' boss config", genre)
+		}
+		if _, ok := bmm.configs["final"]; !ok {
+			t.Errorf("genre %q: missing 'final' boss config", genre)
+		}
+	}
+}
+
+func TestStartBossFight(t *testing.T) {
+	bmm := NewBossMusicManager("fantasy")
+
+	bmm.StartBossFight("generic")
+
+	if !bmm.IsActive() {
+		t.Error("should be active after StartBossFight")
+	}
+
+	if bmm.GetCurrentPhase() != BossPhaseIntro {
+		t.Errorf("should start at BossPhaseIntro, got %v", bmm.GetCurrentPhase())
+	}
+
+	// Check initial health
+	bmm.mu.RLock()
+	health := bmm.bossHealth
+	bmm.mu.RUnlock()
+	if health != 1.0 {
+		t.Errorf("boss health should be 1.0, got %f", health)
+	}
+}
+
+func TestStartBossFightUnknownType(t *testing.T) {
+	bmm := NewBossMusicManager("fantasy")
+
+	// Unknown boss type should default to "generic"
+	bmm.StartBossFight("unknown_boss_type")
+
+	if !bmm.IsActive() {
+		t.Error("should be active after StartBossFight with unknown type")
+	}
+
+	bmm.mu.RLock()
+	bossType := bmm.currentBoss
+	bmm.mu.RUnlock()
+	if bossType != "generic" {
+		t.Errorf("unknown boss type should default to 'generic', got %q", bossType)
+	}
+}
+
+func TestBossPhaseTransitions(t *testing.T) {
+	bmm := NewBossMusicManager("fantasy")
+	bmm.StartBossFight("generic")
+
+	tests := []struct {
+		health        float64
+		expectedPhase BossMusicPhase
+	}{
+		{1.0, BossPhaseIntro},
+		{0.74, BossPhaseMain},
+		{0.49, BossPhaseIntense},
+		{0.24, BossPhaseFinal},
+	}
+
+	for _, tc := range tests {
+		bmm.UpdateBossHealth(tc.health)
+		phase := bmm.GetCurrentPhase()
+		if phase != tc.expectedPhase {
+			t.Errorf("at health %f: expected phase %v, got %v", tc.health, tc.expectedPhase, phase)
+		}
+	}
+}
+
+func TestBossPhaseTransitionsNoReverse(t *testing.T) {
+	bmm := NewBossMusicManager("fantasy")
+	bmm.StartBossFight("generic")
+
+	// Go to intense phase
+	bmm.UpdateBossHealth(0.4)
+	phase1 := bmm.GetCurrentPhase()
+
+	// Health goes back up (healing)
+	bmm.UpdateBossHealth(0.8)
+	phase2 := bmm.GetCurrentPhase()
+
+	// Phase should not revert (phases only go forward)
+	if phase2 < phase1 {
+		t.Errorf("phase should not decrease: was %v, now %v", phase1, phase2)
+	}
+}
+
+func TestEndBossFightVictory(t *testing.T) {
+	bmm := NewBossMusicManager("fantasy")
+	bmm.StartBossFight("generic")
+
+	bmm.EndBossFight(true)
+
+	if bmm.IsActive() {
+		t.Error("should not be active after EndBossFight")
+	}
+
+	if bmm.GetCurrentPhase() != BossPhaseVictory {
+		t.Error("should be in victory phase after winning")
+	}
+}
+
+func TestEndBossFightDefeat(t *testing.T) {
+	bmm := NewBossMusicManager("fantasy")
+	bmm.StartBossFight("generic")
+	bmm.UpdateBossHealth(0.5) // Get to a later phase
+
+	initialPhase := bmm.GetCurrentPhase()
+	bmm.EndBossFight(false)
+
+	if bmm.IsActive() {
+		t.Error("should not be active after EndBossFight")
+	}
+
+	// Phase should remain unchanged on defeat (not victory)
+	if bmm.GetCurrentPhase() != initialPhase {
+		t.Error("phase should remain unchanged on defeat")
+	}
+}
+
+func TestGetCurrentTempo(t *testing.T) {
+	bmm := NewBossMusicManager("fantasy")
+	bmm.StartBossFight("generic")
+
+	// Get tempo at different phases
+	tempoIntro := bmm.GetCurrentTempo()
+	bmm.UpdateBossHealth(0.49)
+	tempoIntense := bmm.GetCurrentTempo()
+
+	// Tempo should increase with phase intensity
+	if tempoIntense <= tempoIntro {
+		t.Errorf("tempo should increase with phase: intro=%f, intense=%f", tempoIntro, tempoIntense)
+	}
+}
+
+func TestGetCurrentTempoNoBoss(t *testing.T) {
+	bmm := NewBossMusicManager("fantasy")
+	// Don't start a boss fight
+
+	tempo := bmm.GetCurrentTempo()
+	// Should return default tempo
+	if tempo != 120.0 {
+		t.Errorf("expected default tempo 120.0, got %f", tempo)
+	}
+}
+
+func TestGetCurrentIntensity(t *testing.T) {
+	bmm := NewBossMusicManager("fantasy")
+	bmm.StartBossFight("generic")
+
+	intensityIntro := bmm.GetCurrentIntensity()
+	bmm.UpdateBossHealth(0.24)
+	intensityFinal := bmm.GetCurrentIntensity()
+
+	// Intensity should increase with phase
+	if intensityFinal <= intensityIntro {
+		t.Errorf("intensity should increase: intro=%f, final=%f", intensityIntro, intensityFinal)
+	}
+
+	// Intensity should be clamped to 1.0
+	if intensityFinal > 1.0 {
+		t.Errorf("intensity should be clamped to 1.0, got %f", intensityFinal)
+	}
+}
+
+func TestGetCurrentIntensityNoBoss(t *testing.T) {
+	bmm := NewBossMusicManager("fantasy")
+	// Don't start a boss fight
+
+	intensity := bmm.GetCurrentIntensity()
+	// Should return default intensity
+	if intensity != 0.5 {
+		t.Errorf("expected default intensity 0.5, got %f", intensity)
+	}
+}
+
+func TestUpdateBossHealthClamping(t *testing.T) {
+	bmm := NewBossMusicManager("fantasy")
+	bmm.StartBossFight("generic")
+
+	// Test clamping to min
+	bmm.UpdateBossHealth(-0.5)
+	bmm.mu.RLock()
+	health := bmm.bossHealth
+	bmm.mu.RUnlock()
+	if health != 0.0 {
+		t.Errorf("health should be clamped to 0.0, got %f", health)
+	}
+
+	// Test clamping to max
+	bmm.UpdateBossHealth(1.5)
+	bmm.mu.RLock()
+	health = bmm.bossHealth
+	bmm.mu.RUnlock()
+	if health != 1.0 {
+		t.Errorf("health should be clamped to 1.0, got %f", health)
+	}
+}
+
+func TestUpdateBossHealthWhenInactive(t *testing.T) {
+	bmm := NewBossMusicManager("fantasy")
+	// Don't start boss fight, just update health
+
+	bmm.UpdateBossHealth(0.5)
+
+	// Should not cause any errors and should not trigger phase transitions
+	if bmm.GetCurrentPhase() != BossPhaseIntro {
+		t.Error("phase should remain at intro when inactive")
+	}
+}
+
+func BenchmarkBossMusicPhaseTransition(b *testing.B) {
+	bmm := NewBossMusicManager("fantasy")
+	bmm.StartBossFight("generic")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		health := float64(i%100) / 100.0
+		bmm.UpdateBossHealth(health)
+		bmm.GetCurrentTempo()
+		bmm.GetCurrentIntensity()
+	}
+}
+
+// ============================================================================
+// Dynamic Layer Manager Tests
+// ============================================================================
+
+func TestNewDynamicLayerManager(t *testing.T) {
+	dlm := NewDynamicLayerManager()
+	if dlm == nil {
+		t.Fatal("NewDynamicLayerManager returned nil")
+	}
+
+	// Check default layers exist
+	expectedLayers := []string{
+		"exploration_base",
+		"combat_percussion",
+		"combat_strings",
+		"tense_drone",
+		"victory_fanfare",
+	}
+	for _, name := range expectedLayers {
+		if _, ok := dlm.layers[name]; !ok {
+			t.Errorf("missing default layer: %s", name)
+		}
+	}
+
+	// Master volume should be 1.0
+	if dlm.masterVolume != 1.0 {
+		t.Errorf("expected master volume 1.0, got %f", dlm.masterVolume)
+	}
+}
+
+func TestDynamicLayerSetState(t *testing.T) {
+	dlm := NewDynamicLayerManager()
+
+	// Activate exploration state
+	dlm.SetState(StateExploration, true)
+
+	// Exploration layer should have a target volume
+	dlm.mu.RLock()
+	target := dlm.targetVolumes["exploration_base"]
+	dlm.mu.RUnlock()
+
+	if target <= 0 {
+		t.Error("exploration_base should have target volume when exploration state is active")
+	}
+}
+
+func TestDynamicLayerFadeIn(t *testing.T) {
+	dlm := NewDynamicLayerManager()
+
+	// Activate combat state
+	dlm.SetState(StateCombat, true)
+
+	// Initial volume should be 0
+	initialVol := dlm.GetLayerVolume("combat_percussion")
+	if initialVol != 0 {
+		t.Errorf("initial volume should be 0, got %f", initialVol)
+	}
+
+	// Update for a while to fade in
+	for i := 0; i < 50; i++ {
+		dlm.Update(0.02) // 20ms per update = 1 second total
+	}
+
+	// Volume should have increased
+	vol := dlm.GetLayerVolume("combat_percussion")
+	if vol <= initialVol {
+		t.Errorf("volume should increase during fade in: initial=%f, current=%f", initialVol, vol)
+	}
+}
+
+func TestDynamicLayerFadeOut(t *testing.T) {
+	dlm := NewDynamicLayerManager()
+
+	// Activate then deactivate combat
+	dlm.SetState(StateCombat, true)
+
+	// Force volume to max for testing
+	dlm.mu.Lock()
+	dlm.layerVolumes["combat_percussion"] = 0.8
+	dlm.mu.Unlock()
+
+	// Deactivate
+	dlm.SetState(StateCombat, false)
+
+	// Update for a while to fade out
+	for i := 0; i < 100; i++ {
+		dlm.Update(0.02)
+	}
+
+	// Volume should have decreased toward 0
+	vol := dlm.GetLayerVolume("combat_percussion")
+	if vol >= 0.8 {
+		t.Errorf("volume should decrease during fade out, got %f", vol)
+	}
+}
+
+func TestDynamicLayerSetMasterVolume(t *testing.T) {
+	dlm := NewDynamicLayerManager()
+
+	dlm.SetMasterVolume(0.5)
+
+	dlm.mu.RLock()
+	master := dlm.masterVolume
+	dlm.mu.RUnlock()
+
+	if master != 0.5 {
+		t.Errorf("expected master volume 0.5, got %f", master)
+	}
+}
+
+func TestDynamicLayerSetMasterVolumeClamping(t *testing.T) {
+	dlm := NewDynamicLayerManager()
+
+	dlm.SetMasterVolume(-0.5)
+	dlm.mu.RLock()
+	master := dlm.masterVolume
+	dlm.mu.RUnlock()
+	if master != 0 {
+		t.Errorf("master volume should clamp to 0, got %f", master)
+	}
+
+	dlm.SetMasterVolume(1.5)
+	dlm.mu.RLock()
+	master = dlm.masterVolume
+	dlm.mu.RUnlock()
+	if master != 1 {
+		t.Errorf("master volume should clamp to 1, got %f", master)
+	}
+}
+
+func TestDynamicLayerMasterVolumeAffectsOutput(t *testing.T) {
+	dlm := NewDynamicLayerManager()
+
+	// Set a layer volume directly for testing
+	dlm.mu.Lock()
+	dlm.layerVolumes["exploration_base"] = 0.6
+	dlm.mu.Unlock()
+
+	// With master at 1.0
+	dlm.SetMasterVolume(1.0)
+	vol1 := dlm.GetLayerVolume("exploration_base")
+
+	// With master at 0.5
+	dlm.SetMasterVolume(0.5)
+	vol2 := dlm.GetLayerVolume("exploration_base")
+
+	if vol2 >= vol1 {
+		t.Errorf("lower master volume should reduce output: vol1=%f, vol2=%f", vol1, vol2)
+	}
+
+	// Should be exactly half
+	if vol2 != vol1*0.5 {
+		t.Errorf("expected vol2 = %f, got %f", vol1*0.5, vol2)
+	}
+}
+
+func TestDynamicLayerGetActiveLayersByTag(t *testing.T) {
+	dlm := NewDynamicLayerManager()
+
+	// Set combat layers as active
+	dlm.mu.Lock()
+	dlm.layerVolumes["combat_percussion"] = 0.8
+	dlm.layerVolumes["combat_strings"] = 0.7
+	dlm.mu.Unlock()
+
+	combatLayers := dlm.GetActiveLayersByTag("combat")
+	if len(combatLayers) != 2 {
+		t.Errorf("expected 2 combat layers, got %d", len(combatLayers))
+	}
+
+	// Check both layers are in result
+	found := map[string]bool{}
+	for _, name := range combatLayers {
+		found[name] = true
+	}
+	if !found["combat_percussion"] || !found["combat_strings"] {
+		t.Error("should find both combat layers")
+	}
+}
+
+func TestDynamicLayerGetActiveLayersByTagNoMatches(t *testing.T) {
+	dlm := NewDynamicLayerManager()
+
+	// All layers start at 0 volume
+	layers := dlm.GetActiveLayersByTag("combat")
+	if len(layers) != 0 {
+		t.Errorf("expected 0 layers when none active, got %d", len(layers))
+	}
+}
+
+func TestDynamicLayerAddLayer(t *testing.T) {
+	dlm := NewDynamicLayerManager()
+
+	customConfig := &DynamicLayerConfig{
+		Name:         "custom_layer",
+		BaseVolume:   0.7,
+		TriggerState: StateTense,
+		FadeInTime:   1.0,
+		FadeOutTime:  1.0,
+		LoopEnabled:  true,
+		Priority:     4,
+		Tags:         []string{"custom", "test"},
+	}
+
+	dlm.AddLayer(customConfig)
+
+	dlm.mu.RLock()
+	_, ok := dlm.layers["custom_layer"]
+	dlm.mu.RUnlock()
+
+	if !ok {
+		t.Error("custom layer should be added")
+	}
+
+	// Activate tense state
+	dlm.SetState(StateTense, true)
+
+	dlm.mu.RLock()
+	target := dlm.targetVolumes["custom_layer"]
+	dlm.mu.RUnlock()
+
+	if target != 0.7 {
+		t.Errorf("custom layer target should be 0.7, got %f", target)
+	}
+}
+
+func TestDynamicLayerMultipleStates(t *testing.T) {
+	dlm := NewDynamicLayerManager()
+
+	// Activate both exploration and tense
+	dlm.SetState(StateExploration, true)
+	dlm.SetState(StateTense, true)
+
+	dlm.mu.RLock()
+	explorationTarget := dlm.targetVolumes["exploration_base"]
+	tenseTarget := dlm.targetVolumes["tense_drone"]
+	dlm.mu.RUnlock()
+
+	if explorationTarget <= 0 {
+		t.Error("exploration layer should have target when state active")
+	}
+	if tenseTarget <= 0 {
+		t.Error("tense layer should have target when state active")
+	}
+}
+
+func BenchmarkDynamicLayerUpdate(b *testing.B) {
+	dlm := NewDynamicLayerManager()
+	dlm.SetState(StateCombat, true)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		dlm.Update(0.016)
+	}
+}
+
+// ============================================================================
+// Additional Edge Case Tests
+// ============================================================================
+
+func TestStateTenseAndVictoryDefeat(t *testing.T) {
+	// Test that StateTense, StateVictory, StateDefeat exist and can be set
+	states := []State{StateExploration, StateCombat, StateTense, StateVictory, StateDefeat}
+
+	for i, state := range states {
+		if int(state) != i {
+			t.Errorf("state %d should equal %d", state, i)
+		}
+	}
+}
+
+func TestMotifGeneration(t *testing.T) {
+	am := NewAdaptiveMusic("horror", 42)
+
+	// Verify horror has distinctive characteristics
+	explorationMotif := am.motifs["exploration"]
+	if explorationMotif.BaseFreq != FreqA1 {
+		t.Errorf("horror exploration should use low frequency A1, got %f", explorationMotif.BaseFreq)
+	}
+
+	// Check that motif has notes
+	if len(explorationMotif.Notes) == 0 {
+		t.Error("motif should have notes")
+	}
+	if len(explorationMotif.Durations) == 0 {
+		t.Error("motif should have durations")
+	}
+	if len(explorationMotif.Notes) != len(explorationMotif.Durations) {
+		t.Error("notes and durations should have same length")
+	}
+}
+
+func TestGetLayerVolumeNonexistent(t *testing.T) {
+	am := NewAdaptiveMusic("fantasy", 42)
+
+	vol := am.GetLayerVolume("nonexistent_layer")
+	if vol != 0.0 {
+		t.Errorf("nonexistent layer should return 0.0, got %f", vol)
+	}
+}
+
+func TestNormalizeSamples(t *testing.T) {
+	// Test that clipping is prevented
+	samples := []float64{0.5, 1.5, -2.0, 0.3, 2.5}
+	normalizeSamples(samples)
+
+	for i, s := range samples {
+		if s > 1.0 || s < -1.0 {
+			t.Errorf("sample %d should be normalized: %f", i, s)
+		}
+	}
+}
+
+func TestNormalizeSamplesNoClip(t *testing.T) {
+	// When no clipping needed, samples unchanged
+	original := []float64{0.5, 0.3, -0.7, 0.2}
+	samples := make([]float64, len(original))
+	copy(samples, original)
+
+	normalizeSamples(samples)
+
+	for i := range samples {
+		if samples[i] != original[i] {
+			t.Errorf("samples should be unchanged when no clipping: %f != %f", samples[i], original[i])
+		}
+	}
+}
+
+func TestClampFloat(t *testing.T) {
+	tests := []struct {
+		val, min, max, expected float64
+	}{
+		{0.5, 0.0, 1.0, 0.5},
+		{-0.5, 0.0, 1.0, 0.0},
+		{1.5, 0.0, 1.0, 1.0},
+		{0.0, 0.0, 1.0, 0.0},
+		{1.0, 0.0, 1.0, 1.0},
+	}
+
+	for _, tc := range tests {
+		result := clampFloat(tc.val, tc.min, tc.max)
+		if result != tc.expected {
+			t.Errorf("clampFloat(%f, %f, %f) = %f, expected %f",
+				tc.val, tc.min, tc.max, result, tc.expected)
+		}
+	}
+}
+
+func TestDefaultGenreFallback(t *testing.T) {
+	// Test that unknown genre falls back to default motifs
+	am := NewAdaptiveMusic("unknown_genre", 42)
+
+	if am.motifs["exploration"].Genre != "default" {
+		t.Errorf("unknown genre should use default motifs, got %s", am.motifs["exploration"].Genre)
+	}
+}
+
+func TestLocationMusicMissingConfig(t *testing.T) {
+	am := NewAdaptiveMusic("fantasy", 42)
+	lmm := NewLocationMusicManager(am)
+
+	// Remove a config to test edge case
+	lmm.mu.Lock()
+	delete(lmm.configs, LocationTown)
+	lmm.mu.Unlock()
+
+	// Should use default transition time
+	lmm.SetLocation(LocationTown)
+
+	lmm.mu.RLock()
+	timer := lmm.transitionTimer
+	lmm.mu.RUnlock()
+
+	if timer != 2.0 {
+		t.Errorf("missing config should use default 2.0s, got %f", timer)
+	}
+}
+
+func TestConcurrentAccess(t *testing.T) {
+	am := NewAdaptiveMusic("fantasy", 42)
+
+	// Test concurrent access to adaptive music
+	done := make(chan bool)
+	for i := 0; i < 10; i++ {
+		go func() {
+			for j := 0; j < 100; j++ {
+				am.EnterCombat()
+				am.Update(0.016)
+				_ = am.GetCurrentState()
+				_ = am.GetLayerVolume("combat")
+				am.ExitCombat()
+			}
+			done <- true
+		}()
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+}
+
+func TestBossMusicConcurrentAccess(t *testing.T) {
+	bmm := NewBossMusicManager("fantasy")
+
+	done := make(chan bool)
+	for i := 0; i < 10; i++ {
+		go func() {
+			for j := 0; j < 100; j++ {
+				bmm.StartBossFight("generic")
+				bmm.UpdateBossHealth(float64(j%100) / 100.0)
+				_ = bmm.GetCurrentTempo()
+				_ = bmm.GetCurrentIntensity()
+				bmm.EndBossFight(j%2 == 0)
+			}
+			done <- true
+		}()
+	}
+
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+}
+
+func TestDynamicLayerConcurrentAccess(t *testing.T) {
+	dlm := NewDynamicLayerManager()
+
+	done := make(chan bool)
+	for i := 0; i < 10; i++ {
+		go func() {
+			for j := 0; j < 100; j++ {
+				dlm.SetState(StateCombat, j%2 == 0)
+				dlm.Update(0.016)
+				_ = dlm.GetLayerVolume("combat_percussion")
+				_ = dlm.GetActiveLayersByTag("combat")
+			}
+			done <- true
+		}()
+	}
+
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+}
