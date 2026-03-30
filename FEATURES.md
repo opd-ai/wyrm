@@ -48,8 +48,8 @@ Legend:
 - [x] CurrentActivity tracking
 - [x] NPC memory system
 - [x] NPC relationships
-- [ ] Gossip network propagation
-- [ ] Emotional states
+- [x] Gossip network propagation
+- [x] Emotional states
 - [ ] NPC needs (hunger, sleep, social)
 - [ ] NPC pathfinding to schedule locations
 - [ ] NPC occupation behaviors
@@ -317,7 +317,7 @@ Legend:
 |----------|-------------|-------|------------|
 | World & Exploration | 5 | 10 | 50% |
 | Cities & Structures | 3 | 10 | 30% |
-| NPCs & Social | 3 | 10 | 30% |
+| NPCs & Social | 7 | 10 | 70% |
 | Dialog & Conversation | 4 | 10 | 40% |
 | Quests & Narrative | 4 | 10 | 40% |
 | Combat System | 9 | 10 | 90% |
