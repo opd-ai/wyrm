@@ -9,6 +9,8 @@ import (
 type WorldClockSystem struct {
 	// DefaultHourLength is seconds per game hour if no clock entity exists.
 	DefaultHourLength float64
+	// TotalElapsed tracks total elapsed game time in seconds.
+	TotalElapsed float64
 }
 
 // NewWorldClockSystem creates a new world clock system.
@@ -18,9 +20,15 @@ func NewWorldClockSystem(hourLength float64) *WorldClockSystem {
 
 // Update advances the game clock each tick.
 func (s *WorldClockSystem) Update(w *ecs.World, dt float64) {
+	s.TotalElapsed += dt
 	for _, e := range w.Entities("WorldClock") {
 		s.updateClock(w, e, dt)
 	}
+}
+
+// ElapsedTime returns the total elapsed game time in seconds.
+func (s *WorldClockSystem) ElapsedTime() float64 {
+	return s.TotalElapsed
 }
 
 // updateClock updates a single world clock component.

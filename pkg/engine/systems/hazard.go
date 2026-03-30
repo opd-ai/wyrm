@@ -12,6 +12,15 @@ type HazardSystem struct {
 	Genre string
 	// DamageMultiplier scales all hazard damage.
 	DamageMultiplier float64
+	// WorldClock provides current time for hazard timing.
+	WorldClock *WorldClockSystem
+	// IndoorChecker checks if positions are indoors (optional).
+	IndoorChecker IndoorChecker
+}
+
+// IndoorChecker is an interface for checking if a position is indoors.
+type IndoorChecker interface {
+	IsIndoors(x, y, z float64) bool
 }
 
 // NewHazardSystem creates a new hazard system.
@@ -57,7 +66,7 @@ func (s *HazardSystem) processHazardZones(w *ecs.World, dt float64) {
 		hazardPos := hazardPosComp.(*components.Position)
 
 		// Check cooldown
-		if hazard.LastDamageTick+hazard.CooldownTime > getCurrentTime() {
+		if hazard.LastDamageTick+hazard.CooldownTime > s.getCurrentTime() {
 			continue
 		}
 
@@ -83,7 +92,7 @@ func (s *HazardSystem) processHazardZones(w *ecs.World, dt float64) {
 			s.applyHazardDamage(w, targetEnt, hazard, dt)
 		}
 
-		hazard.LastDamageTick = getCurrentTime()
+		hazard.LastDamageTick = s.getCurrentTime()
 	}
 }
 
@@ -248,8 +257,13 @@ func (s *HazardSystem) applyWeatherDamage(w *ecs.World, weather *components.Weat
 	entities := w.Entities("Position", "Health")
 
 	for _, ent := range entities {
-		// TODO: Check if entity is indoors (shelter check)
-		// For now, assume all entities are outdoors
+		posComp, _ := w.GetComponent(ent, "Position")
+		pos := posComp.(*components.Position)
+
+		// Check if entity is indoors (shelter check)
+		if s.isEntitySheltered(pos.X, pos.Y, pos.Z) {
+			continue // Skip damage for sheltered entities
+		}
 
 		healthComp, _ := w.GetComponent(ent, "Health")
 		health := healthComp.(*components.Health)
@@ -260,6 +274,14 @@ func (s *HazardSystem) applyWeatherDamage(w *ecs.World, weather *components.Weat
 			health.Current = 0
 		}
 	}
+}
+
+// isEntitySheltered checks if an entity at a position is sheltered from weather.
+func (s *HazardSystem) isEntitySheltered(x, y, z float64) bool {
+	if s.IndoorChecker == nil {
+		return false // Default to outdoors if no checker available
+	}
+	return s.IndoorChecker.IsIndoors(x, y, z)
 }
 
 // updateTemporaryHazards reduces duration of temporary hazards.
@@ -282,9 +304,11 @@ func (s *HazardSystem) updateTemporaryHazards(w *ecs.World, dt float64) {
 	}
 }
 
-// getCurrentTime returns the current world time (stub for now).
-func getCurrentTime() float64 {
-	// TODO: Get from WorldClock component
+// getCurrentTime returns the current world time.
+func (s *HazardSystem) getCurrentTime() float64 {
+	if s.WorldClock != nil {
+		return s.WorldClock.ElapsedTime()
+	}
 	return 0
 }
 

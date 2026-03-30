@@ -9,4 +9,19 @@
 //   - Integrating quest generation with Wyrm's consequence tracking
 //
 // All adapters maintain deterministic generation: same seed produces same output.
+//
+// # Build Tags
+//
+// This package uses conditional compilation for headless testing:
+//
+//   - Default build (no tags): Links against Venture's full generators with Ebiten
+//   - noebiten build tag: Uses stub implementations for CI/testing without graphics
+//
+// To run tests:
+//
+//	go test -tags=noebiten ./pkg/procgen/adapters/...
+//
+// To build without Ebiten dependencies:
+//
+//	go build -tags=noebiten ./...
 package adapters
