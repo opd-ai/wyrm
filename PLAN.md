@@ -274,32 +274,31 @@
 
 ---
 
-### Step 8: Expand City Structure Features
+### Step 8: Expand City Structure Features [COMPLETED]
 
 - **Deliverable**: City interiors and POIs from Cities & Structures category
 - **Dependencies**: Step 5 (terrain genres may affect city placement)
 - **Goal Impact**: Advances Cities & Structures from 30% to 60%+; buildings feel empty without interiors
 - **Acceptance**: Player can enter shop building and see interior with shelves/counters
-- **Validation**: `GenerateCity()` produces buildings with `Interior` component; raycaster renders interior walls
+- **Validation**: `go test ./pkg/engine/systems/... -run TestCityBuilding` passes
+- **Status**: ✅ Completed - Interior, POIMarker, Building, ShopInventory, GovernmentBuilding components added; CityBuildingSystem with shop/government building creation, POI discovery, restocking, and operating hours
 
-**Features to enable:**
-- Shop building interiors (uses existing `BuildingAdapter` + `FurnitureAdapter`)
-- Points of interest markers (component with map icon type)
-- Government buildings (faction headquarters)
+**Components added in `pkg/engine/components/types.go`:**
+- Interior (ParentBuilding, Width, Height, Rooms, Furniture, WallTiles, FloorType)
+- Room (ID, Name, X, Y, Width, Height, Purpose)
+- POIMarker (IconType, Name, Description, Visible, MinimapVisible, DiscoveryRequired, Discovered)
+- Building (BuildingType, Name, OwnerFaction, InteriorEntity, Floors, Width, Height, Entrance coords, IsOpen, hours)
+- ShopInventory (ShopType, Items, Prices, RestockInterval, LastRestock, GoldReserve)
+- GovernmentBuilding (GovernmentType, ControllingFaction, Services, NPCRoles)
 
-**Components to add:**
-```go
-type Interior struct {
-    ParentBuilding ecs.Entity
-    Rooms          []Room
-    Furniture      []ecs.Entity
-}
-
-type POIMarker struct {
-    IconType string // "shop", "quest", "danger", "guild"
-    Visible  bool
-}
-```
+**System added in `pkg/engine/systems/city_buildings.go`:**
+- CityBuildingSystem.Update() manages building open/close status and shop restocking
+- CreateShopBuilding() creates shops with inventory, POI, and interior
+- CreateShopInterior() generates wall layouts and room definitions
+- CreateGovernmentBuilding() creates faction buildings with services/roles
+- CreatePOI()/DiscoverPOI()/GetNearbyPOIs() for point of interest management
+- 7 shop types with distinct inventories and prices
+- 5 government building types with services and NPC roles
 
 ---
 

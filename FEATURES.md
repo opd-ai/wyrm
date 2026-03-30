@@ -1,7 +1,7 @@
 # Feature Checklist (200 Features)
 
 **Generated**: 2026-03-29  
-**Progress**: ~103/200 implemented (51.5%)
+**Progress**: ~106/200 implemented (53%)
 
 This document tracks all 200 features across 20 categories as specified in the README.
 
@@ -31,11 +31,11 @@ Legend:
 - [x] Multi-district city generation
 - [x] District-based building placement
 - [x] Procedural road networks
-- [ ] Shop building interiors
-- [ ] Government buildings
+- [x] Shop building interiors
+- [x] Government buildings
 - [ ] Residential areas
 - [ ] Industrial zones
-- [ ] Points of interest markers
+- [x] Points of interest markers
 - [ ] Dynamic city events
 - [ ] City gates and walls
 
