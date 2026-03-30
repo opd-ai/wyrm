@@ -1,6 +1,8 @@
 package housing
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 )
 
@@ -1731,5 +1733,1407 @@ func TestMultiplePrerequisites(t *testing.T) {
 	can, _ = hus.CanInstallUpgrade("house1", "alchemy_lab")
 	if !can {
 		t.Error("Should be able to install alchemy_lab with both prerequisites")
+	}
+}
+
+// ============================================================================
+// Guild Hall System Tests
+// ============================================================================
+
+func TestNewGuildHallSystem(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	if ghs.Seed != 12345 {
+		t.Errorf("Seed = %d, want 12345", ghs.Seed)
+	}
+	if ghs.Genre != "fantasy" {
+		t.Errorf("Genre = %s, want fantasy", ghs.Genre)
+	}
+	if len(ghs.Permissions) == 0 {
+		t.Error("Permissions not initialized")
+	}
+}
+
+func TestCreateGuildHall(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	hall, err := ghs.CreateGuildHall("guild1", "Test Guild Hall", 1, location)
+	if err != nil {
+		t.Errorf("CreateGuildHall failed: %v", err)
+	}
+	if hall == nil {
+		t.Fatal("Hall is nil")
+	}
+	if hall.Name != "Test Guild Hall" {
+		t.Errorf("Name = %s, want Test Guild Hall", hall.Name)
+	}
+	if hall.Tier != GuildHallTierBasic {
+		t.Errorf("Tier = %d, want GuildHallTierBasic", hall.Tier)
+	}
+	if len(hall.Facilities) == 0 {
+		t.Error("No basic facilities added")
+	}
+
+	// Check leader rank
+	rank := ghs.GetMemberRank("guild1", 1)
+	if rank != GuildRankLeader {
+		t.Errorf("Leader rank = %d, want GuildRankLeader", rank)
+	}
+}
+
+func TestCreateGuildHallDuplicate(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall 1", 1, location)
+
+	_, err := ghs.CreateGuildHall("guild1", "Hall 2", 2, location)
+	if err == nil {
+		t.Error("Should fail for duplicate guild hall")
+	}
+}
+
+func TestGetGuildHall(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+
+	hall := ghs.GetGuildHall("guild1")
+	if hall == nil {
+		t.Error("GetGuildHall returned nil")
+	}
+
+	hall = ghs.GetGuildHall("nonexistent")
+	if hall != nil {
+		t.Error("GetGuildHall should return nil for nonexistent guild")
+	}
+}
+
+func TestGuildHallUpgrade(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+
+	// Deposit funds for upgrade
+	ghs.DepositToTreasury("guild1", 1, 10000)
+
+	err := ghs.UpgradeGuildHall("guild1", 1)
+	if err != nil {
+		t.Errorf("UpgradeGuildHall failed: %v", err)
+	}
+
+	hall := ghs.GetGuildHall("guild1")
+	if hall.Tier != GuildHallTierStandard {
+		t.Errorf("Tier = %d, want GuildHallTierStandard", hall.Tier)
+	}
+
+	// Should have new facility (training_ground)
+	if _, ok := hall.Facilities["training_ground"]; !ok {
+		t.Error("Training ground should be added at Standard tier")
+	}
+}
+
+func TestGuildHallUpgradeErrors(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+	ghs.AddMemberRank("guild1", 2, GuildRankMember)
+
+	// Non-leader cannot upgrade
+	err := ghs.UpgradeGuildHall("guild1", 2)
+	if err == nil {
+		t.Error("Non-leader should not be able to upgrade")
+	}
+
+	// Insufficient funds
+	err = ghs.UpgradeGuildHall("guild1", 1)
+	if err == nil {
+		t.Error("Should fail with insufficient funds")
+	}
+}
+
+func TestGuildMemberRanks(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+
+	ghs.AddMemberRank("guild1", 2, GuildRankMember)
+	ghs.AddMemberRank("guild1", 3, GuildRankOfficer)
+
+	rank := ghs.GetMemberRank("guild1", 2)
+	if rank != GuildRankMember {
+		t.Errorf("Rank = %d, want GuildRankMember", rank)
+	}
+
+	rank = ghs.GetMemberRank("guild1", 3)
+	if rank != GuildRankOfficer {
+		t.Errorf("Rank = %d, want GuildRankOfficer", rank)
+	}
+}
+
+func TestPromoteMember(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+	ghs.AddMemberRank("guild1", 2, GuildRankMember)
+
+	err := ghs.PromoteMember("guild1", 1, 2) // Leader promotes member
+	if err != nil {
+		t.Errorf("PromoteMember failed: %v", err)
+	}
+
+	rank := ghs.GetMemberRank("guild1", 2)
+	if rank != GuildRankOfficer {
+		t.Errorf("Rank after promotion = %d, want GuildRankOfficer", rank)
+	}
+}
+
+func TestPromoteMemberErrors(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+	ghs.AddMemberRank("guild1", 2, GuildRankMember)
+	ghs.AddMemberRank("guild1", 3, GuildRankOfficer)
+
+	// Officer cannot promote (doesn't have manage_ranks)
+	err := ghs.PromoteMember("guild1", 3, 2)
+	if err == nil {
+		t.Error("Officer should not be able to promote")
+	}
+
+	// Cannot promote equal rank
+	ghs.AddMemberRank("guild1", 4, GuildRankCouncil)
+	err = ghs.PromoteMember("guild1", 1, 1) // Leader promoting self
+	if err == nil {
+		t.Error("Cannot promote equal or higher rank")
+	}
+}
+
+func TestDemoteMember(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+	ghs.AddMemberRank("guild1", 2, GuildRankOfficer)
+
+	err := ghs.DemoteMember("guild1", 1, 2)
+	if err != nil {
+		t.Errorf("DemoteMember failed: %v", err)
+	}
+
+	rank := ghs.GetMemberRank("guild1", 2)
+	if rank != GuildRankMember {
+		t.Errorf("Rank after demotion = %d, want GuildRankMember", rank)
+	}
+}
+
+func TestHasPermission(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+	ghs.AddMemberRank("guild1", 2, GuildRankMember)
+	ghs.AddMemberRank("guild1", 3, GuildRankOfficer)
+
+	// Members can use facilities
+	if !ghs.HasPermission("guild1", 2, "use_facilities") {
+		t.Error("Members should be able to use facilities")
+	}
+
+	// Members cannot access treasury
+	if ghs.HasPermission("guild1", 2, "access_treasury") {
+		t.Error("Members should not access treasury")
+	}
+
+	// Officers can invite
+	if !ghs.HasPermission("guild1", 3, "invite_members") {
+		t.Error("Officers should be able to invite")
+	}
+
+	// Leaders can manage ranks
+	if !ghs.HasPermission("guild1", 1, "manage_ranks") {
+		t.Error("Leaders should be able to manage ranks")
+	}
+}
+
+func TestDepositWithdrawTreasury(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+	ghs.AddMemberRank("guild1", 2, GuildRankCouncil)
+
+	// Deposit
+	err := ghs.DepositToTreasury("guild1", 2, 1000)
+	if err != nil {
+		t.Errorf("Deposit failed: %v", err)
+	}
+
+	balance := ghs.GetTreasuryBalance("guild1")
+	if balance != 1000 {
+		t.Errorf("Balance = %f, want 1000", balance)
+	}
+
+	// Withdraw
+	amount, err := ghs.WithdrawFromTreasury("guild1", 2, 500)
+	if err != nil {
+		t.Errorf("Withdraw failed: %v", err)
+	}
+	if amount != 500 {
+		t.Errorf("Withdrawn = %f, want 500", amount)
+	}
+
+	balance = ghs.GetTreasuryBalance("guild1")
+	if balance != 500 {
+		t.Errorf("Balance after withdraw = %f, want 500", balance)
+	}
+}
+
+func TestTreasuryErrors(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+	ghs.AddMemberRank("guild1", 2, GuildRankMember)
+
+	ghs.DepositToTreasury("guild1", 1, 100)
+
+	// Member cannot withdraw
+	_, err := ghs.WithdrawFromTreasury("guild1", 2, 50)
+	if err == nil {
+		t.Error("Member should not be able to withdraw")
+	}
+
+	// Cannot withdraw more than balance
+	_, err = ghs.WithdrawFromTreasury("guild1", 1, 1000)
+	if err == nil {
+		t.Error("Cannot withdraw more than balance")
+	}
+}
+
+func TestGuildBank(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+	ghs.AddMemberRank("guild1", 2, GuildRankOfficer)
+
+	// Deposit item
+	err := ghs.DepositToBank("guild1", 2, "item1")
+	if err != nil {
+		t.Errorf("Deposit to bank failed: %v", err)
+	}
+
+	contents, _ := ghs.GetBankContents("guild1", 2)
+	if len(contents) != 1 {
+		t.Errorf("Bank has %d items, want 1", len(contents))
+	}
+
+	// Withdraw item
+	err = ghs.WithdrawFromBank("guild1", 2, "item1")
+	if err != nil {
+		t.Errorf("Withdraw from bank failed: %v", err)
+	}
+
+	contents, _ = ghs.GetBankContents("guild1", 2)
+	if len(contents) != 0 {
+		t.Errorf("Bank has %d items after withdraw, want 0", len(contents))
+	}
+}
+
+func TestGuildBankErrors(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+	ghs.AddMemberRank("guild1", 2, GuildRankMember)
+
+	// Member cannot deposit
+	err := ghs.DepositToBank("guild1", 2, "item1")
+	if err == nil {
+		t.Error("Member should not be able to deposit to guild bank")
+	}
+
+	// Withdraw non-existent item
+	ghs.AddMemberRank("guild1", 3, GuildRankOfficer)
+	err = ghs.WithdrawFromBank("guild1", 3, "nonexistent")
+	if err == nil {
+		t.Error("Cannot withdraw non-existent item")
+	}
+}
+
+func TestUseFacility(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+	ghs.AddMemberRank("guild1", 2, GuildRankMember)
+
+	err := ghs.UseFacility("guild1", 2, "meeting_hall")
+	if err != nil {
+		t.Errorf("UseFacility failed: %v", err)
+	}
+
+	facility := ghs.GetFacility("guild1", "meeting_hall")
+	if facility.CurrentUse != 1 {
+		t.Errorf("CurrentUse = %d, want 1", facility.CurrentUse)
+	}
+
+	ghs.ReleaseFacility("guild1", "meeting_hall")
+	if facility.CurrentUse != 0 {
+		t.Errorf("CurrentUse after release = %d, want 0", facility.CurrentUse)
+	}
+}
+
+func TestUseFacilityErrors(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+
+	// Non-member cannot use
+	err := ghs.UseFacility("guild1", 999, "meeting_hall")
+	if err == nil {
+		t.Error("Non-member should not use facility")
+	}
+
+	// Non-existent facility
+	ghs.AddMemberRank("guild1", 2, GuildRankMember)
+	err = ghs.UseFacility("guild1", 2, "nonexistent")
+	if err == nil {
+		t.Error("Cannot use non-existent facility")
+	}
+}
+
+func TestUpgradeFacility(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+	ghs.AddMemberRank("guild1", 2, GuildRankCouncil)
+	ghs.DepositToTreasury("guild1", 1, 1000)
+
+	facility := ghs.GetFacility("guild1", "meeting_hall")
+	initialLevel := facility.Level
+
+	err := ghs.UpgradeFacility("guild1", 2, "meeting_hall")
+	if err != nil {
+		t.Errorf("UpgradeFacility failed: %v", err)
+	}
+
+	if facility.Level != initialLevel+1 {
+		t.Errorf("Level = %d, want %d", facility.Level, initialLevel+1)
+	}
+}
+
+func TestGetAllFacilities(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+
+	facilities := ghs.GetAllFacilities("guild1")
+	if len(facilities) < 2 {
+		t.Errorf("Got %d facilities, want at least 2 (basic)", len(facilities))
+	}
+}
+
+func TestGuildHallUpdate(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+
+	hall := ghs.GetGuildHall("guild1")
+	initialLastUpkeep := hall.LastUpkeep
+
+	// Update less than a day - no upkeep
+	ghs.Update(3600.0 * 12) // 12 hours
+
+	if hall.LastUpkeep != initialLastUpkeep {
+		t.Error("Upkeep should not be processed before a full day")
+	}
+}
+
+func TestGuildHallDebt(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+
+	hall := ghs.GetGuildHall("guild1")
+	// Ensure no funds
+	hall.TreasuryGold = 0
+
+	// Process a day
+	ghs.Update(3600.0 * 24)
+
+	if !hall.InDebt {
+		t.Error("Hall should be in debt with no funds")
+	}
+	if hall.DebtDays != 1 {
+		t.Errorf("DebtDays = %d, want 1", hall.DebtDays)
+	}
+}
+
+func TestGuildHallDebtFacilitiesDisabled(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+
+	hall := ghs.GetGuildHall("guild1")
+	hall.TreasuryGold = 0
+
+	// 3 days in debt
+	for i := 0; i < 3; i++ {
+		ghs.Update(3600.0 * 24)
+	}
+
+	// Facilities should be disabled
+	for _, facility := range hall.Facilities {
+		if facility.Operational {
+			t.Errorf("Facility %s should be non-operational after 3 days debt", facility.ID)
+		}
+	}
+}
+
+func TestGetGuildHallStats(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+	ghs.DepositToTreasury("guild1", 1, 500)
+	ghs.DepositToBank("guild1", 1, "item1")
+
+	tier, treasury, bankUsed, bankCap, _ := ghs.GetGuildHallStats("guild1")
+
+	if tier != GuildHallTierBasic {
+		t.Errorf("Tier = %d, want GuildHallTierBasic", tier)
+	}
+	if treasury != 500 {
+		t.Errorf("Treasury = %f, want 500", treasury)
+	}
+	if bankUsed != 1 {
+		t.Errorf("BankUsed = %d, want 1", bankUsed)
+	}
+	if bankCap != 50 {
+		t.Errorf("BankCap = %d, want 50", bankCap)
+	}
+}
+
+func TestGetTotalBonuses(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+
+	bonuses := ghs.GetTotalBonuses("guild1")
+
+	// Basic hall has social and storage bonuses
+	if bonuses.SocialBonus <= 0 {
+		t.Error("Should have social bonus from meeting hall")
+	}
+	if bonuses.StorageBonus <= 0 {
+		t.Error("Should have storage bonus from storage room")
+	}
+}
+
+func TestDisbandGuildHall(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+	ghs.DepositToTreasury("guild1", 1, 1000)
+
+	remaining, err := ghs.DisbandGuildHall("guild1", 1)
+	if err != nil {
+		t.Errorf("DisbandGuildHall failed: %v", err)
+	}
+	if remaining != 1000 {
+		t.Errorf("Remaining treasury = %f, want 1000", remaining)
+	}
+
+	// Hall should be gone
+	if ghs.GetGuildHall("guild1") != nil {
+		t.Error("Hall should be removed after disband")
+	}
+}
+
+func TestDisbandGuildHallNonLeader(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+	ghs.AddMemberRank("guild1", 2, GuildRankOfficer)
+
+	_, err := ghs.DisbandGuildHall("guild1", 2)
+	if err == nil {
+		t.Error("Non-leader should not be able to disband")
+	}
+}
+
+func TestGetMemberCount(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+
+	count := ghs.GetMemberCount("guild1")
+	if count != 1 {
+		t.Errorf("Initial count = %d, want 1 (leader)", count)
+	}
+
+	ghs.AddMemberRank("guild1", 2, GuildRankMember)
+	ghs.AddMemberRank("guild1", 3, GuildRankOfficer)
+
+	count = ghs.GetMemberCount("guild1")
+	if count != 3 {
+		t.Errorf("Count after adds = %d, want 3", count)
+	}
+}
+
+func TestRemoveMember(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+	ghs.AddMemberRank("guild1", 2, GuildRankMember)
+
+	ghs.RemoveMember("guild1", 2)
+
+	rank := ghs.GetMemberRank("guild1", 2)
+	if rank != GuildRankMember {
+		// After removal, getting rank of non-member returns default (Member)
+		// which is fine since they're no longer tracked
+	}
+
+	count := ghs.GetMemberCount("guild1")
+	if count != 1 {
+		t.Errorf("Count after remove = %d, want 1", count)
+	}
+}
+
+func TestIsInDebt(t *testing.T) {
+	ghs := NewGuildHallSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	ghs.CreateGuildHall("guild1", "Hall", 1, location)
+
+	if ghs.IsInDebt("guild1") {
+		t.Error("New hall should not be in debt")
+	}
+
+	hall := ghs.GetGuildHall("guild1")
+	hall.InDebt = true
+
+	if !ghs.IsInDebt("guild1") {
+		t.Error("Hall marked as in debt should return true")
+	}
+}
+
+func TestGenreFacilityNames(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+
+	for _, genre := range genres {
+		ghs := NewGuildHallSystem(12345, genre)
+		location := [3]float64{100.0, 0.0, 200.0}
+		ghs.CreateGuildHall("guild1", "Hall", 1, location)
+
+		hall := ghs.GetGuildHall("guild1")
+		meetingHall := hall.Facilities["meeting_hall"]
+		if meetingHall == nil {
+			t.Errorf("No meeting hall for genre %s", genre)
+			continue
+		}
+		if meetingHall.Name == "" {
+			t.Errorf("Empty meeting hall name for genre %s", genre)
+		}
+		t.Logf("%s: meeting hall = %s", genre, meetingHall.Name)
+	}
+}
+
+// ============================================================================
+// Shared Storage System Tests
+// ============================================================================
+
+func TestNewSharedStorageSystem(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+
+	if sys == nil {
+		t.Fatal("NewSharedStorageSystem returned nil")
+	}
+	if sys.Seed != 12345 {
+		t.Errorf("Expected seed 12345, got %d", sys.Seed)
+	}
+	if sys.Genre != "fantasy" {
+		t.Errorf("Expected genre 'fantasy', got %s", sys.Genre)
+	}
+	if sys.Storages == nil {
+		t.Error("Storages map not initialized")
+	}
+	if sys.PlayerStorage == nil {
+		t.Error("PlayerStorage map not initialized")
+	}
+	if sys.StorageCount() != 0 {
+		t.Errorf("Expected 0 storages, got %d", sys.StorageCount())
+	}
+}
+
+func TestCreateStorage(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+
+	// Create storage
+	storage, err := sys.CreateStorage("storage1", "Guild Vault", 100, "guild", 50)
+	if err != nil {
+		t.Fatalf("CreateStorage failed: %v", err)
+	}
+
+	if storage.ID != "storage1" {
+		t.Errorf("Expected ID 'storage1', got %s", storage.ID)
+	}
+	if storage.Name != "Guild Vault" {
+		t.Errorf("Expected name 'Guild Vault', got %s", storage.Name)
+	}
+	if storage.OwnerID != 100 {
+		t.Errorf("Expected owner 100, got %d", storage.OwnerID)
+	}
+	if storage.OwnerType != "guild" {
+		t.Errorf("Expected ownerType 'guild', got %s", storage.OwnerType)
+	}
+	if storage.Capacity != 50 {
+		t.Errorf("Expected capacity 50, got %d", storage.Capacity)
+	}
+
+	// Owner should have full permission
+	perm := sys.GetPermission("storage1", 100)
+	if perm != StoragePermissionFull {
+		t.Errorf("Expected owner to have full permission, got %v", perm)
+	}
+
+	// Storage count
+	if sys.StorageCount() != 1 {
+		t.Errorf("Expected 1 storage, got %d", sys.StorageCount())
+	}
+
+	// Duplicate should fail
+	_, err = sys.CreateStorage("storage1", "Another", 200, "player", 10)
+	if err == nil {
+		t.Error("Expected error for duplicate storage ID")
+	}
+}
+
+func TestGetStorage(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+	sys.CreateStorage("storage1", "Test Storage", 100, "player", 20)
+
+	storage := sys.GetStorage("storage1")
+	if storage == nil {
+		t.Fatal("GetStorage returned nil for existing storage")
+	}
+	if storage.Name != "Test Storage" {
+		t.Errorf("Expected name 'Test Storage', got %s", storage.Name)
+	}
+
+	// Non-existent storage
+	storage = sys.GetStorage("nonexistent")
+	if storage != nil {
+		t.Error("GetStorage should return nil for non-existent storage")
+	}
+}
+
+func TestAddRemoveMember(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+	sys.CreateStorage("storage1", "Shared Chest", 100, "player", 30)
+
+	// Add member with deposit permission
+	err := sys.AddMember("storage1", 100, 200, StoragePermissionDeposit)
+	if err != nil {
+		t.Fatalf("AddMember failed: %v", err)
+	}
+
+	perm := sys.GetPermission("storage1", 200)
+	if perm != StoragePermissionDeposit {
+		t.Errorf("Expected deposit permission, got %v", perm)
+	}
+
+	// Non-owner cannot add members
+	err = sys.AddMember("storage1", 200, 300, StoragePermissionView)
+	if err == nil {
+		t.Error("Non-owner should not be able to add members")
+	}
+
+	// Member count
+	if sys.MemberCount("storage1") != 2 {
+		t.Errorf("Expected 2 members, got %d", sys.MemberCount("storage1"))
+	}
+
+	// Remove member
+	err = sys.RemoveMember("storage1", 100, 200)
+	if err != nil {
+		t.Fatalf("RemoveMember failed: %v", err)
+	}
+
+	perm = sys.GetPermission("storage1", 200)
+	if perm != StoragePermissionNone {
+		t.Errorf("Removed member should have no permission, got %v", perm)
+	}
+
+	// Cannot remove owner
+	err = sys.RemoveMember("storage1", 100, 100)
+	if err == nil {
+		t.Error("Should not be able to remove owner")
+	}
+
+	// Non-owner cannot remove members
+	sys.AddMember("storage1", 100, 300, StoragePermissionView)
+	err = sys.RemoveMember("storage1", 300, 300)
+	if err == nil {
+		t.Error("Non-owner should not be able to remove members")
+	}
+}
+
+func TestSetPermission(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+	sys.CreateStorage("storage1", "Test", 100, "player", 20)
+	sys.AddMember("storage1", 100, 200, StoragePermissionView)
+
+	// Owner changes permission
+	err := sys.SetPermission("storage1", 100, 200, StoragePermissionWithdraw)
+	if err != nil {
+		t.Fatalf("SetPermission failed: %v", err)
+	}
+
+	perm := sys.GetPermission("storage1", 200)
+	if perm != StoragePermissionWithdraw {
+		t.Errorf("Expected withdraw permission, got %v", perm)
+	}
+
+	// Non-owner cannot change permission
+	err = sys.SetPermission("storage1", 200, 200, StoragePermissionFull)
+	if err == nil {
+		t.Error("Non-owner should not be able to change permissions")
+	}
+
+	// Cannot set permission for non-member
+	err = sys.SetPermission("storage1", 100, 999, StoragePermissionView)
+	if err == nil {
+		t.Error("Should not be able to set permission for non-member")
+	}
+
+	// Non-existent storage
+	err = sys.SetPermission("nonexistent", 100, 200, StoragePermissionFull)
+	if err == nil {
+		t.Error("Should error for non-existent storage")
+	}
+}
+
+func TestDepositWithdrawItem(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+	sys.CreateStorage("storage1", "Vault", 100, "player", 10)
+	sys.AddMember("storage1", 100, 200, StoragePermissionDeposit)
+	sys.AddMember("storage1", 100, 300, StoragePermissionWithdraw)
+
+	// Member with deposit permission can deposit
+	item := &StorageItem{
+		ID:       "item1",
+		Name:     "Golden Sword",
+		Type:     "weapon",
+		Quantity: 1,
+	}
+	err := sys.DepositItem("storage1", 200, item)
+	if err != nil {
+		t.Fatalf("DepositItem failed: %v", err)
+	}
+
+	if sys.ItemCount("storage1") != 1 {
+		t.Errorf("Expected 1 item, got %d", sys.ItemCount("storage1"))
+	}
+
+	// Deposited item should have owner set
+	if item.OwnerID != 200 {
+		t.Errorf("Expected item owner 200, got %d", item.OwnerID)
+	}
+
+	// Owner can withdraw
+	withdrawn, err := sys.WithdrawItem("storage1", 100, "item1")
+	if err != nil {
+		t.Fatalf("WithdrawItem failed: %v", err)
+	}
+	if withdrawn.Name != "Golden Sword" {
+		t.Errorf("Expected 'Golden Sword', got %s", withdrawn.Name)
+	}
+
+	if sys.ItemCount("storage1") != 0 {
+		t.Errorf("Expected 0 items after withdrawal, got %d", sys.ItemCount("storage1"))
+	}
+
+	// Deposit-only member cannot withdraw
+	item2 := &StorageItem{ID: "item2", Name: "Potion", Type: "consumable", Quantity: 5}
+	sys.DepositItem("storage1", 200, item2)
+	_, err = sys.WithdrawItem("storage1", 200, "item2")
+	if err == nil {
+		t.Error("Deposit-only member should not be able to withdraw")
+	}
+
+	// View-only member cannot deposit
+	sys.AddMember("storage1", 100, 400, StoragePermissionView)
+	item3 := &StorageItem{ID: "item3", Name: "Ring", Type: "accessory", Quantity: 1}
+	err = sys.DepositItem("storage1", 400, item3)
+	if err == nil {
+		t.Error("View-only member should not be able to deposit")
+	}
+}
+
+func TestStorageCapacity(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+	sys.CreateStorage("storage1", "Small Chest", 100, "player", 3)
+
+	// Fill storage
+	for i := 1; i <= 3; i++ {
+		item := &StorageItem{ID: fmt.Sprintf("item%d", i), Name: "Item", Quantity: 1}
+		err := sys.DepositItem("storage1", 100, item)
+		if err != nil {
+			t.Fatalf("DepositItem %d failed: %v", i, err)
+		}
+	}
+
+	// Should be full
+	item := &StorageItem{ID: "item4", Name: "Extra", Quantity: 1}
+	err := sys.DepositItem("storage1", 100, item)
+	if err == nil {
+		t.Error("Should not be able to deposit when full")
+	}
+
+	// Check capacity
+	used, capacity := sys.GetStorageCapacity("storage1")
+	if used != 3 {
+		t.Errorf("Expected used 3, got %d", used)
+	}
+	if capacity != 3 {
+		t.Errorf("Expected capacity 3, got %d", capacity)
+	}
+
+	// Expand capacity
+	err = sys.SetCapacity("storage1", 100, 5)
+	if err != nil {
+		t.Fatalf("SetCapacity failed: %v", err)
+	}
+
+	// Now can deposit
+	err = sys.DepositItem("storage1", 100, item)
+	if err != nil {
+		t.Fatalf("DepositItem after expansion failed: %v", err)
+	}
+
+	// Cannot shrink below usage
+	err = sys.SetCapacity("storage1", 100, 2)
+	if err == nil {
+		t.Error("Should not be able to shrink below current usage")
+	}
+}
+
+func TestReserveUnreserveItem(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+	sys.CreateStorage("storage1", "Vault", 100, "player", 20)
+	sys.AddMember("storage1", 100, 200, StoragePermissionWithdraw)
+	sys.AddMember("storage1", 100, 300, StoragePermissionWithdraw)
+
+	// Deposit item
+	item := &StorageItem{ID: "item1", Name: "Legendary Sword", Type: "weapon", Quantity: 1}
+	sys.DepositItem("storage1", 100, item)
+
+	// Owner reserves for member 200
+	err := sys.ReserveItem("storage1", 100, "item1", 200)
+	if err != nil {
+		t.Fatalf("ReserveItem failed: %v", err)
+	}
+
+	// Check reservation
+	storage := sys.GetStorage("storage1")
+	if !storage.Items["item1"].Reserved {
+		t.Error("Item should be reserved")
+	}
+	if storage.Items["item1"].ReservedFor != 200 {
+		t.Errorf("Item should be reserved for 200, got %d", storage.Items["item1"].ReservedFor)
+	}
+
+	// Member 300 cannot withdraw reserved item
+	_, err = sys.WithdrawItem("storage1", 300, "item1")
+	if err == nil {
+		t.Error("Should not be able to withdraw item reserved for another")
+	}
+
+	// Member 200 can withdraw reserved item
+	withdrawn, err := sys.WithdrawItem("storage1", 200, "item1")
+	if err != nil {
+		t.Fatalf("Reserved member should be able to withdraw: %v", err)
+	}
+	if withdrawn.ID != "item1" {
+		t.Error("Wrong item withdrawn")
+	}
+
+	// Deposit new item for unreserve test
+	item2 := &StorageItem{ID: "item2", Name: "Shield", Type: "armor", Quantity: 1}
+	sys.DepositItem("storage1", 100, item2)
+	sys.ReserveItem("storage1", 100, "item2", 300)
+
+	// Cannot reserve already reserved item
+	err = sys.ReserveItem("storage1", 100, "item2", 200)
+	if err == nil {
+		t.Error("Should not be able to reserve already reserved item")
+	}
+
+	// Unreserve
+	err = sys.UnreserveItem("storage1", 100, "item2")
+	if err != nil {
+		t.Fatalf("UnreserveItem failed: %v", err)
+	}
+
+	storage = sys.GetStorage("storage1")
+	if storage.Items["item2"].Reserved {
+		t.Error("Item should no longer be reserved")
+	}
+
+	// Cannot unreserve non-reserved item
+	err = sys.UnreserveItem("storage1", 100, "item2")
+	if err == nil {
+		t.Error("Should not be able to unreserve non-reserved item")
+	}
+
+	// Non-full permission cannot reserve
+	err = sys.ReserveItem("storage1", 200, "item2", 200)
+	if err == nil {
+		t.Error("Withdraw-only member should not be able to reserve")
+	}
+}
+
+func TestGetItems(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+	sys.CreateStorage("storage1", "Vault", 100, "player", 20)
+	sys.AddMember("storage1", 100, 200, StoragePermissionView)
+	sys.AddMember("storage1", 100, 300, StoragePermissionNone)
+
+	// Add items
+	for i := 1; i <= 3; i++ {
+		item := &StorageItem{ID: fmt.Sprintf("item%d", i), Name: fmt.Sprintf("Item %d", i), Quantity: i}
+		sys.DepositItem("storage1", 100, item)
+	}
+
+	// View permission can see items
+	items, err := sys.GetItems("storage1", 200)
+	if err != nil {
+		t.Fatalf("GetItems failed: %v", err)
+	}
+	if len(items) != 3 {
+		t.Errorf("Expected 3 items, got %d", len(items))
+	}
+
+	// No permission cannot see items
+	_, err = sys.GetItems("storage1", 300)
+	if err == nil {
+		t.Error("No-permission member should not be able to see items")
+	}
+
+	// Non-member cannot see items
+	_, err = sys.GetItems("storage1", 999)
+	if err == nil {
+		t.Error("Non-member should not be able to see items")
+	}
+}
+
+func TestAccessLog(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+	sys.CreateStorage("storage1", "Vault", 100, "player", 20)
+
+	// Deposit and withdraw to generate logs
+	item := &StorageItem{ID: "item1", Name: "Test", Quantity: 1}
+	sys.DepositItem("storage1", 100, item)
+	sys.WithdrawItem("storage1", 100, "item1")
+
+	// Owner can view log
+	log, err := sys.GetAccessLog("storage1", 100)
+	if err != nil {
+		t.Fatalf("GetAccessLog failed: %v", err)
+	}
+	if len(log) != 2 {
+		t.Errorf("Expected 2 log entries, got %d", len(log))
+	}
+
+	// Check log entries
+	if log[0].Action != "deposit" {
+		t.Errorf("Expected first action 'deposit', got %s", log[0].Action)
+	}
+	if log[1].Action != "withdraw" {
+		t.Errorf("Expected second action 'withdraw', got %s", log[1].Action)
+	}
+
+	// Non-full permission cannot view log
+	sys.AddMember("storage1", 100, 200, StoragePermissionWithdraw)
+	_, err = sys.GetAccessLog("storage1", 200)
+	if err == nil {
+		t.Error("Withdraw-only member should not be able to view log")
+	}
+}
+
+func TestAccessLogTrimming(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+	storage, _ := sys.CreateStorage("storage1", "Vault", 100, "player", 200)
+
+	// Override max entries for test
+	storage.MaxLogEntries = 5
+
+	// Generate more logs than max
+	for i := 1; i <= 10; i++ {
+		item := &StorageItem{ID: fmt.Sprintf("item%d", i), Name: "Test", Quantity: 1}
+		sys.DepositItem("storage1", 100, item)
+	}
+
+	log, _ := sys.GetAccessLog("storage1", 100)
+	if len(log) != 5 {
+		t.Errorf("Expected log trimmed to 5 entries, got %d", len(log))
+	}
+
+	// Should have the most recent entries
+	if log[0].ItemID != "item6" {
+		t.Errorf("Expected oldest entry to be item6, got %s", log[0].ItemID)
+	}
+}
+
+func TestGetMembers(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+	sys.CreateStorage("storage1", "Vault", 100, "player", 20)
+	sys.AddMember("storage1", 100, 200, StoragePermissionView)
+	sys.AddMember("storage1", 100, 300, StoragePermissionDeposit)
+
+	// Member with view permission can see members
+	members, err := sys.GetMembers("storage1", 200)
+	if err != nil {
+		t.Fatalf("GetMembers failed: %v", err)
+	}
+	if len(members) != 3 {
+		t.Errorf("Expected 3 members, got %d", len(members))
+	}
+
+	// Check permissions
+	if members[100] != StoragePermissionFull {
+		t.Error("Owner should have full permission")
+	}
+	if members[200] != StoragePermissionView {
+		t.Error("Member 200 should have view permission")
+	}
+	if members[300] != StoragePermissionDeposit {
+		t.Error("Member 300 should have deposit permission")
+	}
+
+	// No permission cannot see members
+	sys.AddMember("storage1", 100, 400, StoragePermissionNone)
+	_, err = sys.GetMembers("storage1", 400)
+	if err == nil {
+		t.Error("No-permission member should not be able to see members")
+	}
+}
+
+func TestDeleteStorage(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+	sys.CreateStorage("storage1", "Vault", 100, "player", 20)
+	sys.AddMember("storage1", 100, 200, StoragePermissionFull)
+
+	// Cannot delete with items
+	item := &StorageItem{ID: "item1", Name: "Test", Quantity: 1}
+	sys.DepositItem("storage1", 100, item)
+
+	err := sys.DeleteStorage("storage1", 100)
+	if err == nil {
+		t.Error("Should not be able to delete storage with items")
+	}
+
+	// Remove item
+	sys.WithdrawItem("storage1", 100, "item1")
+
+	// Non-owner cannot delete
+	err = sys.DeleteStorage("storage1", 200)
+	if err == nil {
+		t.Error("Non-owner should not be able to delete storage")
+	}
+
+	// Owner can delete
+	err = sys.DeleteStorage("storage1", 100)
+	if err != nil {
+		t.Fatalf("DeleteStorage failed: %v", err)
+	}
+
+	if sys.StorageCount() != 0 {
+		t.Error("Storage should be deleted")
+	}
+
+	// Check removed from player storages
+	storages := sys.GetPlayerStorages(100)
+	if len(storages) != 0 {
+		t.Error("Storage should be removed from player's list")
+	}
+
+	storages = sys.GetPlayerStorages(200)
+	if len(storages) != 0 {
+		t.Error("Storage should be removed from member's list")
+	}
+}
+
+func TestSharedStorageTransferOwnership(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+	sys.CreateStorage("storage1", "Vault", 100, "player", 20)
+	sys.AddMember("storage1", 100, 200, StoragePermissionDeposit)
+
+	// Non-owner cannot transfer
+	err := sys.TransferOwnership("storage1", 200, 300)
+	if err == nil {
+		t.Error("Non-owner should not be able to transfer ownership")
+	}
+
+	// Owner transfers to member
+	err = sys.TransferOwnership("storage1", 100, 200)
+	if err != nil {
+		t.Fatalf("TransferOwnership failed: %v", err)
+	}
+
+	// Check new owner
+	storage := sys.GetStorage("storage1")
+	if storage.OwnerID != 200 {
+		t.Errorf("Expected new owner 200, got %d", storage.OwnerID)
+	}
+
+	// New owner has full permission
+	perm := sys.GetPermission("storage1", 200)
+	if perm != StoragePermissionFull {
+		t.Error("New owner should have full permission")
+	}
+
+	// New owner should be in player storage list
+	storages := sys.GetPlayerStorages(200)
+	found := false
+	for _, s := range storages {
+		if s.ID == "storage1" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Storage should be in new owner's list")
+	}
+
+	// Transfer to non-member (should work and add them)
+	err = sys.TransferOwnership("storage1", 200, 300)
+	if err != nil {
+		t.Fatalf("Transfer to non-member failed: %v", err)
+	}
+	if storage.OwnerID != 300 {
+		t.Errorf("Expected owner 300, got %d", storage.OwnerID)
+	}
+}
+
+func TestGetPlayerStorages(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+
+	// Create multiple storages for player
+	sys.CreateStorage("storage1", "Vault 1", 100, "player", 20)
+	sys.CreateStorage("storage2", "Vault 2", 100, "player", 20)
+	sys.CreateStorage("storage3", "Vault 3", 200, "player", 20)
+
+	// Add player 100 to storage3
+	sys.AddMember("storage3", 200, 100, StoragePermissionView)
+
+	// Player 100 should have access to all three
+	storages := sys.GetPlayerStorages(100)
+	if len(storages) != 3 {
+		t.Errorf("Expected 3 storages, got %d", len(storages))
+	}
+
+	// Player 200 should only have storage3
+	storages = sys.GetPlayerStorages(200)
+	if len(storages) != 1 {
+		t.Errorf("Expected 1 storage for player 200, got %d", len(storages))
+	}
+}
+
+func TestStorageUpdate(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+
+	if sys.GameTime != 0 {
+		t.Errorf("Initial game time should be 0, got %f", sys.GameTime)
+	}
+
+	sys.Update(1.5)
+	if sys.GameTime != 1.5 {
+		t.Errorf("Expected game time 1.5, got %f", sys.GameTime)
+	}
+
+	sys.Update(0.5)
+	if sys.GameTime != 2.0 {
+		t.Errorf("Expected game time 2.0, got %f", sys.GameTime)
+	}
+}
+
+func TestSharedStorageNonExistent(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+
+	// All operations on non-existent storage should error
+	err := sys.AddMember("nonexistent", 100, 200, StoragePermissionView)
+	if err == nil {
+		t.Error("AddMember on non-existent storage should error")
+	}
+
+	err = sys.RemoveMember("nonexistent", 100, 200)
+	if err == nil {
+		t.Error("RemoveMember on non-existent storage should error")
+	}
+
+	err = sys.DepositItem("nonexistent", 100, &StorageItem{ID: "item1"})
+	if err == nil {
+		t.Error("DepositItem on non-existent storage should error")
+	}
+
+	_, err = sys.WithdrawItem("nonexistent", 100, "item1")
+	if err == nil {
+		t.Error("WithdrawItem on non-existent storage should error")
+	}
+
+	err = sys.ReserveItem("nonexistent", 100, "item1", 200)
+	if err == nil {
+		t.Error("ReserveItem on non-existent storage should error")
+	}
+
+	err = sys.UnreserveItem("nonexistent", 100, "item1")
+	if err == nil {
+		t.Error("UnreserveItem on non-existent storage should error")
+	}
+
+	_, err = sys.GetItems("nonexistent", 100)
+	if err == nil {
+		t.Error("GetItems on non-existent storage should error")
+	}
+
+	_, err = sys.GetAccessLog("nonexistent", 100)
+	if err == nil {
+		t.Error("GetAccessLog on non-existent storage should error")
+	}
+
+	_, err = sys.GetMembers("nonexistent", 100)
+	if err == nil {
+		t.Error("GetMembers on non-existent storage should error")
+	}
+
+	err = sys.SetCapacity("nonexistent", 100, 50)
+	if err == nil {
+		t.Error("SetCapacity on non-existent storage should error")
+	}
+
+	err = sys.DeleteStorage("nonexistent", 100)
+	if err == nil {
+		t.Error("DeleteStorage on non-existent storage should error")
+	}
+
+	err = sys.TransferOwnership("nonexistent", 100, 200)
+	if err == nil {
+		t.Error("TransferOwnership on non-existent storage should error")
+	}
+
+	// These should return safe defaults
+	perm := sys.GetPermission("nonexistent", 100)
+	if perm != StoragePermissionNone {
+		t.Error("GetPermission on non-existent storage should return None")
+	}
+
+	used, cap := sys.GetStorageCapacity("nonexistent")
+	if used != 0 || cap != 0 {
+		t.Error("GetStorageCapacity on non-existent storage should return 0,0")
+	}
+
+	count := sys.MemberCount("nonexistent")
+	if count != 0 {
+		t.Error("MemberCount on non-existent storage should return 0")
+	}
+
+	count = sys.ItemCount("nonexistent")
+	if count != 0 {
+		t.Error("ItemCount on non-existent storage should return 0")
+	}
+}
+
+func TestSharedStorageConcurrency(t *testing.T) {
+	sys := NewSharedStorageSystem(12345, "fantasy")
+	sys.CreateStorage("storage1", "Test", 100, "player", 1000)
+
+	// Add members
+	for i := uint64(101); i <= 110; i++ {
+		sys.AddMember("storage1", 100, i, StoragePermissionFull)
+	}
+
+	var wg sync.WaitGroup
+	errors := make(chan error, 100)
+
+	// Concurrent deposits
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			memberID := uint64(100 + (idx % 11))
+			item := &StorageItem{
+				ID:       fmt.Sprintf("item_%d", idx),
+				Name:     fmt.Sprintf("Item %d", idx),
+				Quantity: 1,
+			}
+			err := sys.DepositItem("storage1", memberID, item)
+			if err != nil {
+				errors <- err
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	close(errors)
+
+	errCount := 0
+	for err := range errors {
+		t.Logf("Error during concurrent deposit: %v", err)
+		errCount++
+	}
+
+	if errCount > 0 {
+		t.Errorf("Had %d errors during concurrent deposits", errCount)
+	}
+
+	// Verify items were deposited
+	if sys.ItemCount("storage1") != 50 {
+		t.Errorf("Expected 50 items, got %d", sys.ItemCount("storage1"))
+	}
+}
+
+func TestSharedStorageAllGenres(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+
+	for _, genre := range genres {
+		sys := NewSharedStorageSystem(12345, genre)
+		if sys.Genre != genre {
+			t.Errorf("Expected genre %s, got %s", genre, sys.Genre)
+		}
+
+		// Create and use storage
+		_, err := sys.CreateStorage("vault", "Test Vault", 100, "player", 10)
+		if err != nil {
+			t.Errorf("Failed to create storage for genre %s: %v", genre, err)
+		}
+
+		item := &StorageItem{ID: "item1", Name: "Test", Quantity: 1}
+		err = sys.DepositItem("vault", 100, item)
+		if err != nil {
+			t.Errorf("Failed to deposit for genre %s: %v", genre, err)
+		}
 	}
 }

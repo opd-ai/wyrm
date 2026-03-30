@@ -201,8 +201,8 @@ Legend:
 - [x] Property purchasing
 - [x] Rent collection
 - [x] Home upgrades
-- [ ] Guild halls
-- [ ] Shared storage
+- [x] Guild halls
+- [x] Shared storage
 
 ---
 

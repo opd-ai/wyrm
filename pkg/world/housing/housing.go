@@ -2306,7 +2306,7 @@ func (s *GuildHallSystem) UpgradeGuildHall(guildID string, memberID uint64) erro
 		return fmt.Errorf("guild hall not found")
 	}
 
-	if !s.hasPermission(guildID, memberID, "upgrade_hall") {
+	if !s.hasPermissionLocked(guildID, memberID, "upgrade_hall") {
 		return fmt.Errorf("insufficient rank to upgrade hall")
 	}
 
@@ -2468,7 +2468,14 @@ func (s *GuildHallSystem) hasPermission(guildID string, memberID uint64, permiss
 
 // hasPermissionLocked checks permission without locking (caller must hold lock).
 func (s *GuildHallSystem) hasPermissionLocked(guildID string, memberID uint64, permission string) bool {
-	rank := s.MemberRanks[guildID][memberID]
+	ranks, guildExists := s.MemberRanks[guildID]
+	if !guildExists {
+		return false
+	}
+	rank, memberExists := ranks[memberID]
+	if !memberExists {
+		return false
+	}
 	perms := s.Permissions[rank]
 	for _, p := range perms {
 		if p == permission {
@@ -2852,4 +2859,552 @@ func (s *GuildHallSystem) RemoveMember(guildID string, memberID uint64) {
 	if ranks, ok := s.MemberRanks[guildID]; ok {
 		delete(ranks, memberID)
 	}
+}
+
+// ============================================================================
+// Shared Storage System
+// ============================================================================
+
+// StoragePermission represents access level for shared storage.
+type StoragePermission int
+
+const (
+	StoragePermissionNone StoragePermission = iota
+	StoragePermissionView
+	StoragePermissionDeposit
+	StoragePermissionWithdraw
+	StoragePermissionFull
+)
+
+// StorageItem represents an item in shared storage.
+type StorageItem struct {
+	ID          string
+	OwnerID     uint64 // Player who deposited it
+	Name        string
+	Type        string
+	Quantity    int
+	DepositTime float64
+	Reserved    bool // Reserved for specific player
+	ReservedFor uint64
+}
+
+// StorageLog records storage activity.
+type StorageLog struct {
+	Timestamp float64
+	MemberID  uint64
+	Action    string // deposit, withdraw, reserve, unreserve
+	ItemID    string
+	Quantity  int
+}
+
+// SharedStorage represents a shared storage container.
+type SharedStorage struct {
+	ID            string
+	Name          string
+	OwnerID       uint64 // Player or guild owner
+	OwnerType     string // "player", "guild", "household"
+	Items         map[string]*StorageItem
+	Capacity      int
+	Members       map[uint64]StoragePermission
+	AccessLog     []StorageLog
+	MaxLogEntries int
+}
+
+// SharedStorageSystem manages shared storage containers.
+type SharedStorageSystem struct {
+	mu            sync.RWMutex
+	Seed          int64
+	Genre         string
+	Storages      map[string]*SharedStorage
+	PlayerStorage map[uint64][]string // PlayerID -> Storage IDs they have access to
+	GameTime      float64
+	counter       uint64
+}
+
+// NewSharedStorageSystem creates a new shared storage system.
+func NewSharedStorageSystem(seed int64, genre string) *SharedStorageSystem {
+	return &SharedStorageSystem{
+		Seed:          seed,
+		Genre:         genre,
+		Storages:      make(map[string]*SharedStorage),
+		PlayerStorage: make(map[uint64][]string),
+	}
+}
+
+// CreateStorage creates a new shared storage container.
+func (s *SharedStorageSystem) CreateStorage(storageID, name string, ownerID uint64, ownerType string, capacity int) (*SharedStorage, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.Storages[storageID]; exists {
+		return nil, fmt.Errorf("storage already exists: %s", storageID)
+	}
+
+	storage := &SharedStorage{
+		ID:            storageID,
+		Name:          name,
+		OwnerID:       ownerID,
+		OwnerType:     ownerType,
+		Items:         make(map[string]*StorageItem),
+		Capacity:      capacity,
+		Members:       make(map[uint64]StoragePermission),
+		AccessLog:     make([]StorageLog, 0),
+		MaxLogEntries: 100,
+	}
+
+	// Owner has full access
+	storage.Members[ownerID] = StoragePermissionFull
+
+	s.Storages[storageID] = storage
+	s.PlayerStorage[ownerID] = append(s.PlayerStorage[ownerID], storageID)
+
+	return storage, nil
+}
+
+// GetStorage returns a storage by ID.
+func (s *SharedStorageSystem) GetStorage(storageID string) *SharedStorage {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.Storages[storageID]
+}
+
+// AddMember adds a member with specific permissions to a storage.
+func (s *SharedStorageSystem) AddMember(storageID string, ownerID, memberID uint64, permission StoragePermission) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	storage := s.Storages[storageID]
+	if storage == nil {
+		return fmt.Errorf("storage not found: %s", storageID)
+	}
+
+	// Only owner can add members
+	if storage.OwnerID != ownerID {
+		return fmt.Errorf("only owner can add members")
+	}
+
+	storage.Members[memberID] = permission
+	s.PlayerStorage[memberID] = append(s.PlayerStorage[memberID], storageID)
+
+	return nil
+}
+
+// RemoveMember removes a member from a storage.
+func (s *SharedStorageSystem) RemoveMember(storageID string, ownerID, memberID uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	storage := s.Storages[storageID]
+	if storage == nil {
+		return fmt.Errorf("storage not found: %s", storageID)
+	}
+
+	if storage.OwnerID != ownerID {
+		return fmt.Errorf("only owner can remove members")
+	}
+
+	if memberID == ownerID {
+		return fmt.Errorf("cannot remove owner")
+	}
+
+	delete(storage.Members, memberID)
+
+	// Remove from player's storage list
+	playerStorages := s.PlayerStorage[memberID]
+	for i, id := range playerStorages {
+		if id == storageID {
+			s.PlayerStorage[memberID] = append(playerStorages[:i], playerStorages[i+1:]...)
+			break
+		}
+	}
+
+	return nil
+}
+
+// SetPermission updates a member's permission level.
+func (s *SharedStorageSystem) SetPermission(storageID string, ownerID, memberID uint64, permission StoragePermission) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	storage := s.Storages[storageID]
+	if storage == nil {
+		return fmt.Errorf("storage not found: %s", storageID)
+	}
+
+	if storage.OwnerID != ownerID {
+		return fmt.Errorf("only owner can change permissions")
+	}
+
+	if _, exists := storage.Members[memberID]; !exists {
+		return fmt.Errorf("member not found in storage")
+	}
+
+	storage.Members[memberID] = permission
+	return nil
+}
+
+// GetPermission returns a member's permission level.
+func (s *SharedStorageSystem) GetPermission(storageID string, memberID uint64) StoragePermission {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	storage := s.Storages[storageID]
+	if storage == nil {
+		return StoragePermissionNone
+	}
+
+	return storage.Members[memberID]
+}
+
+// DepositItem adds an item to shared storage.
+func (s *SharedStorageSystem) DepositItem(storageID string, memberID uint64, item *StorageItem) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	storage := s.Storages[storageID]
+	if storage == nil {
+		return fmt.Errorf("storage not found: %s", storageID)
+	}
+
+	perm := storage.Members[memberID]
+	if perm < StoragePermissionDeposit {
+		return fmt.Errorf("insufficient permission to deposit")
+	}
+
+	if len(storage.Items) >= storage.Capacity {
+		return fmt.Errorf("storage is full")
+	}
+
+	item.OwnerID = memberID
+	item.DepositTime = s.GameTime
+	storage.Items[item.ID] = item
+
+	s.logAction(storage, memberID, "deposit", item.ID, item.Quantity)
+
+	return nil
+}
+
+// WithdrawItem removes an item from shared storage.
+func (s *SharedStorageSystem) WithdrawItem(storageID string, memberID uint64, itemID string) (*StorageItem, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	storage := s.Storages[storageID]
+	if storage == nil {
+		return nil, fmt.Errorf("storage not found: %s", storageID)
+	}
+
+	perm := storage.Members[memberID]
+	if perm < StoragePermissionWithdraw {
+		return nil, fmt.Errorf("insufficient permission to withdraw")
+	}
+
+	item := storage.Items[itemID]
+	if item == nil {
+		return nil, fmt.Errorf("item not found: %s", itemID)
+	}
+
+	// Check reservation
+	if item.Reserved && item.ReservedFor != memberID {
+		return nil, fmt.Errorf("item is reserved for another member")
+	}
+
+	delete(storage.Items, itemID)
+	s.logAction(storage, memberID, "withdraw", itemID, item.Quantity)
+
+	return item, nil
+}
+
+// ReserveItem reserves an item for a specific member.
+func (s *SharedStorageSystem) ReserveItem(storageID string, memberID uint64, itemID string, forMemberID uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	storage := s.Storages[storageID]
+	if storage == nil {
+		return fmt.Errorf("storage not found: %s", storageID)
+	}
+
+	perm := storage.Members[memberID]
+	if perm < StoragePermissionFull {
+		return fmt.Errorf("insufficient permission to reserve items")
+	}
+
+	item := storage.Items[itemID]
+	if item == nil {
+		return fmt.Errorf("item not found: %s", itemID)
+	}
+
+	if item.Reserved {
+		return fmt.Errorf("item is already reserved")
+	}
+
+	item.Reserved = true
+	item.ReservedFor = forMemberID
+	s.logAction(storage, memberID, "reserve", itemID, 1)
+
+	return nil
+}
+
+// UnreserveItem removes a reservation from an item.
+func (s *SharedStorageSystem) UnreserveItem(storageID string, memberID uint64, itemID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	storage := s.Storages[storageID]
+	if storage == nil {
+		return fmt.Errorf("storage not found: %s", storageID)
+	}
+
+	perm := storage.Members[memberID]
+	if perm < StoragePermissionFull {
+		return fmt.Errorf("insufficient permission to unreserve items")
+	}
+
+	item := storage.Items[itemID]
+	if item == nil {
+		return fmt.Errorf("item not found: %s", itemID)
+	}
+
+	if !item.Reserved {
+		return fmt.Errorf("item is not reserved")
+	}
+
+	item.Reserved = false
+	item.ReservedFor = 0
+	s.logAction(storage, memberID, "unreserve", itemID, 1)
+
+	return nil
+}
+
+// logAction records an action in the storage log.
+func (s *SharedStorageSystem) logAction(storage *SharedStorage, memberID uint64, action, itemID string, quantity int) {
+	log := StorageLog{
+		Timestamp: s.GameTime,
+		MemberID:  memberID,
+		Action:    action,
+		ItemID:    itemID,
+		Quantity:  quantity,
+	}
+
+	storage.AccessLog = append(storage.AccessLog, log)
+
+	// Trim log if too long
+	if len(storage.AccessLog) > storage.MaxLogEntries {
+		storage.AccessLog = storage.AccessLog[1:]
+	}
+}
+
+// GetItems returns all items in a storage.
+func (s *SharedStorageSystem) GetItems(storageID string, memberID uint64) ([]*StorageItem, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	storage := s.Storages[storageID]
+	if storage == nil {
+		return nil, fmt.Errorf("storage not found: %s", storageID)
+	}
+
+	perm := storage.Members[memberID]
+	if perm < StoragePermissionView {
+		return nil, fmt.Errorf("insufficient permission to view items")
+	}
+
+	items := make([]*StorageItem, 0, len(storage.Items))
+	for _, item := range storage.Items {
+		items = append(items, item)
+	}
+
+	return items, nil
+}
+
+// GetAccessLog returns the storage access log.
+func (s *SharedStorageSystem) GetAccessLog(storageID string, memberID uint64) ([]StorageLog, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	storage := s.Storages[storageID]
+	if storage == nil {
+		return nil, fmt.Errorf("storage not found: %s", storageID)
+	}
+
+	perm := storage.Members[memberID]
+	if perm < StoragePermissionFull {
+		return nil, fmt.Errorf("insufficient permission to view log")
+	}
+
+	return storage.AccessLog, nil
+}
+
+// GetPlayerStorages returns all storages a player has access to.
+func (s *SharedStorageSystem) GetPlayerStorages(playerID uint64) []*SharedStorage {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	storageIDs := s.PlayerStorage[playerID]
+	storages := make([]*SharedStorage, 0, len(storageIDs))
+
+	for _, id := range storageIDs {
+		if storage := s.Storages[id]; storage != nil {
+			storages = append(storages, storage)
+		}
+	}
+
+	return storages
+}
+
+// GetStorageCapacity returns current usage and capacity.
+func (s *SharedStorageSystem) GetStorageCapacity(storageID string) (used, capacity int) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	storage := s.Storages[storageID]
+	if storage == nil {
+		return 0, 0
+	}
+
+	return len(storage.Items), storage.Capacity
+}
+
+// SetCapacity updates the storage capacity.
+func (s *SharedStorageSystem) SetCapacity(storageID string, ownerID uint64, newCapacity int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	storage := s.Storages[storageID]
+	if storage == nil {
+		return fmt.Errorf("storage not found: %s", storageID)
+	}
+
+	if storage.OwnerID != ownerID {
+		return fmt.Errorf("only owner can change capacity")
+	}
+
+	if newCapacity < len(storage.Items) {
+		return fmt.Errorf("cannot reduce capacity below current usage")
+	}
+
+	storage.Capacity = newCapacity
+	return nil
+}
+
+// GetMembers returns all members and their permissions.
+func (s *SharedStorageSystem) GetMembers(storageID string, memberID uint64) (map[uint64]StoragePermission, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	storage := s.Storages[storageID]
+	if storage == nil {
+		return nil, fmt.Errorf("storage not found: %s", storageID)
+	}
+
+	if storage.Members[memberID] < StoragePermissionView {
+		return nil, fmt.Errorf("insufficient permission")
+	}
+
+	return storage.Members, nil
+}
+
+// DeleteStorage removes a storage container.
+func (s *SharedStorageSystem) DeleteStorage(storageID string, ownerID uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	storage := s.Storages[storageID]
+	if storage == nil {
+		return fmt.Errorf("storage not found: %s", storageID)
+	}
+
+	if storage.OwnerID != ownerID {
+		return fmt.Errorf("only owner can delete storage")
+	}
+
+	if len(storage.Items) > 0 {
+		return fmt.Errorf("cannot delete storage with items")
+	}
+
+	// Remove from all members' lists
+	for memberID := range storage.Members {
+		playerStorages := s.PlayerStorage[memberID]
+		for i, id := range playerStorages {
+			if id == storageID {
+				s.PlayerStorage[memberID] = append(playerStorages[:i], playerStorages[i+1:]...)
+				break
+			}
+		}
+	}
+
+	delete(s.Storages, storageID)
+	return nil
+}
+
+// TransferOwnership transfers storage ownership to another player.
+func (s *SharedStorageSystem) TransferOwnership(storageID string, currentOwnerID, newOwnerID uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	storage := s.Storages[storageID]
+	if storage == nil {
+		return fmt.Errorf("storage not found: %s", storageID)
+	}
+
+	if storage.OwnerID != currentOwnerID {
+		return fmt.Errorf("only owner can transfer ownership")
+	}
+
+	// Update owner
+	storage.OwnerID = newOwnerID
+	storage.Members[newOwnerID] = StoragePermissionFull
+
+	// Add to new owner's list if not already there
+	found := false
+	for _, id := range s.PlayerStorage[newOwnerID] {
+		if id == storageID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		s.PlayerStorage[newOwnerID] = append(s.PlayerStorage[newOwnerID], storageID)
+	}
+
+	return nil
+}
+
+// Update processes shared storage (mainly for time tracking).
+func (s *SharedStorageSystem) Update(dt float64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.GameTime += dt
+}
+
+// StorageCount returns the number of storages.
+func (s *SharedStorageSystem) StorageCount() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.Storages)
+}
+
+// MemberCount returns the number of members in a storage.
+func (s *SharedStorageSystem) MemberCount(storageID string) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	storage := s.Storages[storageID]
+	if storage == nil {
+		return 0
+	}
+	return len(storage.Members)
+}
+
+// ItemCount returns the number of items in a storage.
+func (s *SharedStorageSystem) ItemCount(storageID string) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	storage := s.Storages[storageID]
+	if storage == nil {
+		return 0
+	}
+	return len(storage.Items)
 }

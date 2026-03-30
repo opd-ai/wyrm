@@ -1,7 +1,9 @@
 package systems
 
 import (
+	"fmt"
 	"math"
+	"sync"
 
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
