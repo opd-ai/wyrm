@@ -125,33 +125,29 @@
 
 ---
 
-### Step 2: Implement Crafting System Foundation
+### Step 2: Implement Crafting System Foundation [COMPLETED]
 
 - **Deliverable**: Complete Crafting & Resources category from 0% to ≥50% (5 features)
 - **Dependencies**: Step 1 (adapters tested for recipe generation)
 - **Goal Impact**: Fills largest feature gap; `RecipeAdapter` already exists but has no gameplay integration
 - **Acceptance**: FEATURES.md Crafting category shows ≥5 `[x]` marks
 - **Validation**: `grep -c '\[x\]' FEATURES.md` increases by ≥5; player can gather material and craft at workbench
+- **Status**: ✅ Completed - 7/10 crafting features implemented (70%); Material, ResourceNode, Workbench, CraftingState, Tool, RecipeKnowledge components added; CraftingSystem with gathering, quality tiers, tool durability, recipe discovery, respawning
 
-**Components to add in `pkg/engine/components/types.go`:**
-```go
-type Material struct {
-    ResourceType string
-    Quantity     int
-    Quality      float64  // 0.0-1.0
-}
+**Components added in `pkg/engine/components/types.go`:**
+- Material (ResourceType, Quantity, Quality, Rarity)
+- ResourceNode (respawning resource locations)
+- Workbench (crafting stations with type-specific recipe support)
+- CraftingState (tracks ongoing crafting)
+- Tool (durability, speed, quality bonuses)
+- RecipeKnowledge (recipe discovery tracking)
 
-type Workbench struct {
-    SupportedRecipes []string
-    CraftingSpeed    float64
-}
-```
-
-**System to add in `pkg/engine/systems/crafting.go`:**
-- `CraftingSystem.Update()` validates materials via existing `RecipeAdapter`
-- Proximity check using spatial query
-- Skill-based quality modifiers
-- Creates crafted item entity on success
+**System added in `pkg/engine/systems/crafting.go`:**
+- CraftingSystem.Update() advances crafting progress and resource respawning
+- GatherResource() with tool efficiency and skill bonuses
+- StartCraft()/CancelCraft() for workbench interaction
+- Recipe discovery via DiscoverRecipe()/ProgressRecipeDiscovery()
+- Quality tier calculation (Common/Uncommon/Rare/Epic/Legendary)
 
 **Features enabled:**
 - [x] Material gathering
@@ -159,33 +155,33 @@ type Workbench struct {
 - [x] Recipe discovery (via adapter)
 - [x] Quality tiers (skill-based)
 - [x] Tool durability
+- [x] Resource respawning
+- [x] Rare materials (quality/rarity system)
 
 ---
 
-### Step 3: Implement Ranged Combat
+### Step 3: Implement Ranged Combat [COMPLETED]
 
 - **Deliverable**: Ranged weapon system completing the combat triangle
 - **Dependencies**: None (existing `CombatSystem` and `Weapon` component sufficient)
 - **Goal Impact**: Advances Combat category from 80% to 90%; required for balanced gameplay
 - **Acceptance**: Player can fire ranged weapon; projectile deals damage on collision
 - **Validation**: `go test ./pkg/engine/systems/... -run TestRangedCombat` passes
+- **Status**: ✅ Completed - ProjectileSystem with movement, collision, lifetime; CombatSystem.InitiateRangedAttack(); Projectile, Mana, Spell, Spellbook components added
 
-**Components to add:**
-```go
-type Projectile struct {
-    OwnerID   ecs.Entity
-    Velocity  Position
-    Damage    float64
-    Lifetime  float64
-    HitRadius float64
-}
-```
+**Components added in `pkg/engine/components/types.go`:**
+- Projectile (velocity, damage, lifetime, hit radius, pierce)
+- Mana (current, max, regen rate)
+- SpellEffect (type, magnitude, duration)
+- Spell (mana cost, cooldown, effect type, AoE)
+- Spellbook (spell collection, active spell)
 
-**System changes in `pkg/engine/systems/combat.go`:**
-- Add projectile spawning for weapons where `Weapon.Range > meleeThreshold`
-- Add projectile movement system per tick
-- Add projectile-entity collision detection with damage application
-- Clean up expired projectiles (lifetime exceeded)
+**System added in `pkg/engine/systems/ranged_combat.go`:**
+- ProjectileSystem.Update() handles movement, collision, lifetime cleanup
+- SpawnProjectile() creates projectile entities with physics
+- InitiateRangedAttack() for ranged weapon firing
+- IsRangedWeapon() weapon type detection
+- getRangedSkillModifier() for archery/firearms skill bonuses
 
 ---
 

@@ -544,3 +544,98 @@ type RecipeKnowledge struct {
 
 // Type returns the component type identifier for RecipeKnowledge.
 func (r *RecipeKnowledge) Type() string { return "RecipeKnowledge" }
+
+// Projectile represents a moving projectile entity (arrow, bullet, spell).
+type Projectile struct {
+	// OwnerID is the entity that fired this projectile.
+	OwnerID uint64
+	// VelocityX is the X component of velocity (units per second).
+	VelocityX float64
+	// VelocityY is the Y component of velocity (units per second).
+	VelocityY float64
+	// VelocityZ is the Z component of velocity (units per second).
+	VelocityZ float64
+	// Damage is the damage dealt on impact.
+	Damage float64
+	// Lifetime is the remaining time before despawn (seconds).
+	Lifetime float64
+	// HitRadius is the collision radius for hit detection.
+	HitRadius float64
+	// ProjectileType identifies the projectile type (arrow, bullet, spell, etc.).
+	ProjectileType string
+	// PierceCount is how many targets the projectile can hit before despawning (0 = unlimited).
+	PierceCount int
+	// HitEntities tracks which entities have already been hit (for pierce mechanics).
+	HitEntities map[uint64]bool
+}
+
+// Type returns the component type identifier for Projectile.
+func (p *Projectile) Type() string { return "Projectile" }
+
+// Mana represents an entity's magical energy pool.
+type Mana struct {
+	// Current is the current mana level.
+	Current float64
+	// Max is the maximum mana capacity.
+	Max float64
+	// RegenRate is mana regenerated per second.
+	RegenRate float64
+}
+
+// Type returns the component type identifier for Mana.
+func (m *Mana) Type() string { return "Mana" }
+
+// SpellEffect represents an active status effect on an entity.
+type SpellEffect struct {
+	// EffectType identifies the effect (damage, heal, buff, debuff).
+	EffectType string
+	// Magnitude is the strength of the effect.
+	Magnitude float64
+	// Duration is the total duration in seconds.
+	Duration float64
+	// Remaining is the remaining duration in seconds.
+	Remaining float64
+	// Source is the entity that applied this effect.
+	Source uint64
+}
+
+// Type returns the component type identifier for SpellEffect.
+func (s *SpellEffect) Type() string { return "SpellEffect" }
+
+// Spell represents a castable spell or ability.
+type Spell struct {
+	// ID is the unique spell identifier.
+	ID string
+	// Name is the display name.
+	Name string
+	// ManaCost is the mana required to cast.
+	ManaCost float64
+	// Cooldown is the time between casts (seconds).
+	Cooldown float64
+	// LastCast is the game time when last cast.
+	LastCast float64
+	// EffectType is the spell effect type.
+	EffectType string
+	// Magnitude is the spell's power.
+	Magnitude float64
+	// Range is the maximum casting distance.
+	Range float64
+	// AreaOfEffect is the radius for AoE spells (0 = single target).
+	AreaOfEffect float64
+	// ProjectileSpeed is the speed if this is a projectile spell (0 = instant).
+	ProjectileSpeed float64
+}
+
+// Type returns the component type identifier for Spell.
+func (sp *Spell) Type() string { return "Spell" }
+
+// Spellbook contains an entity's known spells.
+type Spellbook struct {
+	// Spells maps spell ID to spell data.
+	Spells map[string]*Spell
+	// ActiveSpellID is the currently selected spell.
+	ActiveSpellID string
+}
+
+// Type returns the component type identifier for Spellbook.
+func (sb *Spellbook) Type() string { return "Spellbook" }

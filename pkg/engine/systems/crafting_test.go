@@ -51,7 +51,7 @@ func TestCraftingSystem_ResourceRespawning(t *testing.T) {
 	w := ecs.NewWorld()
 	cs := NewCraftingSystem(12345)
 
-	// Create world clock entity (use first entity as "world" entity)
+	// Create world clock entity
 	clockEntity := w.CreateEntity()
 	clock := &components.WorldClock{
 		Hour:       12,
@@ -74,20 +74,15 @@ func TestCraftingSystem_ResourceRespawning(t *testing.T) {
 	}
 	w.AddComponent(e, node)
 
-	// The system looks for WorldClock at entity 0 - we need to use the clock entity
 	// Update should respawn the node (150 > 100 seconds)
 	cs.Update(w, 1.0)
 
-	// Note: This test assumes clock is at entity 0. Since we created clockEntity first,
-	// it should be entity 1. The system needs to find the clock properly.
-	// For now, this verifies the respawn logic works when clock is found.
-	if !node.Depleted {
-		// Node respawned - system found clock
-		if node.Quantity != node.MaxQuantity {
-			t.Errorf("Node quantity should be %d, got %d", node.MaxQuantity, node.Quantity)
-		}
+	if node.Depleted {
+		t.Error("Node should have respawned")
 	}
-	// If still depleted, clock wasn't found at entity 0 - that's expected given current implementation
+	if node.Quantity != node.MaxQuantity {
+		t.Errorf("Node quantity should be %d, got %d", node.MaxQuantity, node.Quantity)
+	}
 }
 
 func TestCraftingSystem_StartCraft(t *testing.T) {

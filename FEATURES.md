@@ -1,7 +1,7 @@
 # Feature Checklist (200 Features)
 
 **Generated**: 2026-03-29  
-**Progress**: ~75/200 implemented (37.5%)
+**Progress**: ~100/200 implemented (50%)
 
 This document tracks all 200 features across 20 categories as specified in the README.
 
@@ -96,7 +96,7 @@ Legend:
 - [x] Weapon component (damage, range, speed)
 - [x] CombatState tracking
 - [x] Target finding (nearest enemy)
-- [ ] Ranged combat
+- [x] Ranged combat
 - [ ] Magic combat
 
 ---
@@ -178,14 +178,14 @@ Legend:
 
 ## 12. Crafting & Resources (10 features)
 
-- [ ] Material gathering
-- [ ] Workbench system
+- [x] Material gathering
+- [x] Workbench system
 - [ ] Crafting minigames
-- [ ] Recipe discovery
-- [ ] Quality tiers
-- [ ] Tool durability
-- [ ] Resource respawning
-- [ ] Rare materials
+- [x] Recipe discovery
+- [x] Quality tiers
+- [x] Tool durability
+- [x] Resource respawning
+- [x] Rare materials
 - [ ] Enchanting system
 - [ ] Disassembly system
 
@@ -320,13 +320,13 @@ Legend:
 | NPCs & Social | 3 | 10 | 30% |
 | Dialog & Conversation | 4 | 10 | 40% |
 | Quests & Narrative | 4 | 10 | 40% |
-| Combat System | 8 | 10 | 80% |
+| Combat System | 9 | 10 | 90% |
 | Skills & Progression | 4 | 10 | 40% |
 | Stealth System | 8 | 10 | 80% |
 | Factions & Politics | 5 | 10 | 50% |
 | Crime & Law | 5 | 10 | 50% |
 | Economy & Trade | 5 | 10 | 50% |
-| Crafting & Resources | 0 | 10 | 0% |
+| Crafting & Resources | 7 | 10 | 70% |
 | Property & Housing | 4 | 10 | 40% |
 | Vehicles & Mounts | 3 | 10 | 30% |
 | Weather & Environment | 3 | 10 | 30% |
@@ -335,7 +335,7 @@ Legend:
 | Rendering & Graphics | 5 | 10 | 50% |
 | Networking & Multiplayer | 7 | 10 | 70% |
 | Technical & Accessibility | 6 | 10 | 60% |
-| **TOTAL** | **92** | **200** | **46%** |
+| **TOTAL** | **101** | **200** | **50.5%** |
 
 ---
 
