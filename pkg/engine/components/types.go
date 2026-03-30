@@ -639,3 +639,183 @@ type Spellbook struct {
 
 // Type returns the component type identifier for Spellbook.
 func (sb *Spellbook) Type() string { return "Spellbook" }
+
+// MemoryEvent represents a single interaction event in NPC memory.
+type MemoryEvent struct {
+	// EventType categorizes the interaction ("gift", "attack", "dialog", "quest_complete", "theft").
+	EventType string
+	// Timestamp is the game time when this event occurred.
+	Timestamp float64
+	// Impact is the disposition change caused by this event (-1.0 to +1.0).
+	Impact float64
+	// Details contains additional context about the event.
+	Details string
+}
+
+// NPCMemory stores an NPC's memories of player interactions.
+type NPCMemory struct {
+	// PlayerInteractions maps player entity IDs to their interaction history.
+	PlayerInteractions map[uint64][]MemoryEvent
+	// LastSeen maps player entity IDs to the last game time they were seen.
+	LastSeen map[uint64]float64
+	// Disposition maps player entity IDs to how the NPC feels about them (-1.0 = hostile, +1.0 = friendly).
+	Disposition map[uint64]float64
+	// MaxMemories is the maximum number of events to remember per player.
+	MaxMemories int
+	// MemoryDecayRate is how fast old memories fade (disposition per second).
+	MemoryDecayRate float64
+}
+
+// Type returns the component type identifier for NPCMemory.
+func (m *NPCMemory) Type() string { return "NPCMemory" }
+
+// Relationship tracks a social bond between two entities.
+type Relationship struct {
+	// TargetEntity is the entity this relationship is with.
+	TargetEntity uint64
+	// Type classifies the relationship ("friend", "enemy", "neutral", "family", "employer").
+	Type string
+	// Strength indicates how strong the bond is (0.0 to 1.0).
+	Strength float64
+	// History tracks significant events in this relationship.
+	History []MemoryEvent
+}
+
+// NPCRelationships stores an NPC's relationships with other entities.
+type NPCRelationships struct {
+	// Relationships maps entity IDs to relationship data.
+	Relationships map[uint64]*Relationship
+}
+
+// Type returns the component type identifier for NPCRelationships.
+func (r *NPCRelationships) Type() string { return "NPCRelationships" }
+
+// SocialStatus represents an NPC's standing in society.
+type SocialStatus struct {
+	// Wealth indicates economic status (0.0 = destitute, 1.0 = wealthy).
+	Wealth float64
+	// Influence indicates social/political power (0.0 = none, 1.0 = high).
+	Influence float64
+	// Occupation is the NPC's job or role.
+	Occupation string
+	// Title is any honorific or rank.
+	Title string
+}
+
+// Type returns the component type identifier for SocialStatus.
+func (s *SocialStatus) Type() string { return "SocialStatus" }
+
+// Interior represents the inside of a building.
+type Interior struct {
+	// ParentBuilding is the entity ID of the building containing this interior.
+	ParentBuilding uint64
+	// Width is the interior width in units.
+	Width int
+	// Height is the interior height in units.
+	Height int
+	// Rooms contains room definitions within the interior.
+	Rooms []Room
+	// Furniture lists furniture entity IDs placed in this interior.
+	Furniture []uint64
+	// WallTiles defines the wall layout (1 = wall, 0 = empty).
+	WallTiles [][]int
+	// FloorType determines the floor texture/material.
+	FloorType string
+}
+
+// Room defines a single room within an interior.
+type Room struct {
+	// ID uniquely identifies this room within the interior.
+	ID string
+	// Name is the display name of the room.
+	Name string
+	// X, Y are the room's top-left coordinates.
+	X, Y int
+	// Width, Height are the room dimensions.
+	Width, Height int
+	// Purpose describes the room's function ("shop", "bedroom", "storage", etc.).
+	Purpose string
+}
+
+// Type returns the component type identifier for Interior.
+func (i *Interior) Type() string { return "Interior" }
+
+// POIMarker marks an entity as a Point of Interest on the map.
+type POIMarker struct {
+	// IconType determines the map icon ("shop", "quest", "danger", "guild", "inn", "blacksmith").
+	IconType string
+	// Name is the display name for this POI.
+	Name string
+	// Description provides additional info when hovering/selecting.
+	Description string
+	// Visible determines if this POI appears on the map.
+	Visible bool
+	// MinimapVisible determines if this POI appears on the minimap.
+	MinimapVisible bool
+	// DiscoveryRequired means the POI must be discovered before showing.
+	DiscoveryRequired bool
+	// Discovered indicates if the player has found this POI.
+	Discovered bool
+}
+
+// Type returns the component type identifier for POIMarker.
+func (p *POIMarker) Type() string { return "POIMarker" }
+
+// Building represents a building structure in the world.
+type Building struct {
+	// BuildingType classifies the building ("shop", "residence", "government", "industrial", "inn").
+	BuildingType string
+	// Name is the building's display name.
+	Name string
+	// OwnerFaction is the faction ID that owns this building.
+	OwnerFaction string
+	// InteriorEntity links to the interior entity (0 = no interior).
+	InteriorEntity uint64
+	// Floors is the number of floors/stories.
+	Floors int
+	// Width, Height are the exterior dimensions.
+	Width, Height float64
+	// EntranceX, EntranceY, EntranceZ are the door coordinates.
+	EntranceX, EntranceY, EntranceZ float64
+	// IsOpen indicates if the building is currently accessible.
+	IsOpen bool
+	// OpenHour, CloseHour define operating hours (0-23).
+	OpenHour, CloseHour int
+}
+
+// Type returns the component type identifier for Building.
+func (b *Building) Type() string { return "Building" }
+
+// ShopInventory represents a shop's available goods.
+type ShopInventory struct {
+	// ShopType classifies the shop ("general", "blacksmith", "alchemist", "tailor", "weapons").
+	ShopType string
+	// Items maps item IDs to quantities.
+	Items map[string]int
+	// Prices maps item IDs to current prices (may differ from base economy).
+	Prices map[string]float64
+	// RestockInterval is hours between restocking.
+	RestockInterval int
+	// LastRestock is the game hour when last restocked.
+	LastRestock int
+	// GoldReserve is the shop's available gold for buying from players.
+	GoldReserve float64
+}
+
+// Type returns the component type identifier for ShopInventory.
+func (s *ShopInventory) Type() string { return "ShopInventory" }
+
+// GovernmentBuilding holds data specific to government/faction buildings.
+type GovernmentBuilding struct {
+	// GovernmentType classifies the building ("barracks", "courthouse", "guild_hall", "palace", "prison").
+	GovernmentType string
+	// ControllingFaction is the faction ID in control.
+	ControllingFaction string
+	// Services lists available services ("bounty_payment", "quest_board", "training", "storage").
+	Services []string
+	// NPCRoles lists NPC roles stationed here ("guard", "clerk", "leader").
+	NPCRoles []string
+}
+
+// Type returns the component type identifier for GovernmentBuilding.
+func (g *GovernmentBuilding) Type() string { return "GovernmentBuilding" }

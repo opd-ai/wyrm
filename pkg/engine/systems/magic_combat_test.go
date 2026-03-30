@@ -67,6 +67,7 @@ func TestMagicSystem_CastSpell_Basic(t *testing.T) {
 				Range:      30.0,
 				Magnitude:  50,
 				EffectType: "damage",
+				LastCast:   -1,
 			},
 		},
 	}
@@ -141,6 +142,7 @@ func TestMagicSystem_CastSpell_Cooldown(t *testing.T) {
 				Range:      30.0,
 				Magnitude:  50,
 				EffectType: "damage",
+				LastCast:   -1, // Never cast before
 			},
 		},
 	}
@@ -216,6 +218,7 @@ func TestMagicSystem_HealSpell(t *testing.T) {
 				Range:      20.0,
 				Magnitude:  30,
 				EffectType: "heal",
+				LastCast:   -1,
 			},
 		},
 	}
@@ -252,6 +255,7 @@ func TestMagicSystem_HealSpell_Cap(t *testing.T) {
 				Range:      20.0,
 				Magnitude:  50,
 				EffectType: "heal",
+				LastCast:   -1,
 			},
 		},
 	}
@@ -436,6 +440,7 @@ func TestMagicSystem_AoESpell(t *testing.T) {
 				Magnitude:    40,
 				AreaOfEffect: 5.0,
 				EffectType:   "damage",
+				LastCast:     -1,
 			},
 		},
 	}

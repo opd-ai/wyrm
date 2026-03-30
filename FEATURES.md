@@ -1,7 +1,7 @@
 # Feature Checklist (200 Features)
 
 **Generated**: 2026-03-29  
-**Progress**: ~100/200 implemented (50%)
+**Progress**: ~103/200 implemented (51.5%)
 
 This document tracks all 200 features across 20 categories as specified in the README.
 
@@ -46,8 +46,8 @@ Legend:
 - [x] NPC schedule system (24-hour)
 - [x] Schedule component with time slots
 - [x] CurrentActivity tracking
-- [ ] NPC memory system
-- [ ] NPC relationships
+- [x] NPC memory system
+- [x] NPC relationships
 - [ ] Gossip network propagation
 - [ ] Emotional states
 - [ ] NPC needs (hunger, sleep, social)
@@ -97,7 +97,7 @@ Legend:
 - [x] CombatState tracking
 - [x] Target finding (nearest enemy)
 - [x] Ranged combat
-- [ ] Magic combat
+- [x] Magic combat
 
 ---
 

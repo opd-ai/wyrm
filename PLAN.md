@@ -185,44 +185,23 @@
 
 ---
 
-### Step 4: Implement Magic Combat
+### Step 4: Implement Magic Combat [COMPLETED]
 
 - **Deliverable**: Magic/ability system completing the combat triangle
 - **Dependencies**: Step 3 (reuses projectile infrastructure for spell projectiles)
 - **Goal Impact**: Advances Combat category to 100%; enables genre-appropriate combat (Fantasy spells, Sci-Fi tech, Cyberpunk hacks)
 - **Acceptance**: Player can cast spell consuming mana; spell applies effect to target
-- **Validation**: `go test ./pkg/engine/systems/... -run TestMagicCombat` passes
+- **Validation**: `go test ./pkg/engine/systems/... -run TestMagic` passes
+- **Status**: ✅ Completed - MagicSystem with mana regeneration, spell casting, cooldowns, instant/projectile/AoE spells, damage/heal/status effects
 
-**Components to add:**
-```go
-type Mana struct {
-    Current   float64
-    Max       float64
-    RegenRate float64
-}
-
-type SpellEffect struct {
-    EffectType string  // "damage", "heal", "buff", "debuff"
-    Magnitude  float64
-    Duration   float64
-    Remaining  float64
-}
-
-type Spell struct {
-    Name       string
-    ManaCost   float64
-    Cooldown   float64
-    LastCast   float64
-    EffectType string
-    Magnitude  float64
-}
-```
-
-**System integration:**
-- Use existing `MagicAdapter` to generate spells at character creation
-- Add `ManaSystem` for regeneration per tick
-- Extend `CombatSystem` for spell casting input
-- Add area-of-effect targeting via spatial query
+**System added in `pkg/engine/systems/magic_combat.go`:**
+- MagicSystem.Update() handles mana regeneration and spell effect ticks
+- CastSpell() for targeted spells with mana cost, cooldown, and range validation
+- CastSpellAtPosition() for AoE spells at world coordinates
+- applySpellEffect() for instant damage/heal/status effects
+- applyAoESpell() with distance-based falloff damage
+- LearnSpell()/SetActiveSpell() for spellbook management
+- GetMagicSkillModifier() for magic skill damage bonuses
 
 ---
 
@@ -250,66 +229,48 @@ type Spell struct {
 
 ---
 
-### Step 6: Wire Federation to Server Runtime
+### Step 6: Wire Federation to Server Runtime [COMPLETED]
 
 - **Deliverable**: Server federation enabled via configuration, allowing cross-server player transfer
 - **Dependencies**: None
 - **Goal Impact**: Delivers on "Cross-server federation" multiplayer promise; code exists (90.4% tested) but is never instantiated
 - **Acceptance**: Two servers with federation enabled; player transfers between them
 - **Validation**: Start two servers with `federation.enabled: true`; call transfer endpoint; player appears on peer server
+- **Status**: ✅ Completed - Federation already wired in cmd/server/main.go with initializeFederation(), peer registration, gossip cleanup, and PlayerTransfer support in pkg/network/federation/
 
-**Configuration to add in `config.yaml`:**
-```yaml
-federation:
-  enabled: false
-  node_id: ""       # Auto-generated UUID if empty
-  peers: []         # List of peer server addresses
-  gossip_interval: 5s
-```
-
-**Code changes in `cmd/server/main.go`:**
-```go
-if cfg.Federation.Enabled {
-    node := federation.NewFederationNode(cfg.Federation.NodeID)
-    for _, peer := range cfg.Federation.Peers {
-        node.ConnectPeer(peer)
-    }
-    go node.StartGossip(cfg.Federation.GossipInterval)
-}
-```
-
-**Wire `CrossServerTransfer` into player disconnect handling to persist inventory/position for peer pickup.**
+**Already implemented:**
+- FederationConfig in config/load.go with enabled, node_id, peers, gossip_interval
+- initializeFederation() creates Federation and registers peer nodes
+- runFederationCleanup() handles periodic cleanup in server loop
+- PlayerTransfer struct with inventory, skills, quests, standings
+- InitiateTransfer()/AcceptTransfer()/CompleteTransfer() for cross-server movement
+- EncodeTransfer()/DecodeTransfer() for network serialization
 
 ---
 
-### Step 7: Add NPC Memory and Relationships
+### Step 7: Add NPC Memory and Relationships [COMPLETED]
 
 - **Deliverable**: NPCs remember player interactions and adjust behavior accordingly
 - **Dependencies**: None
 - **Goal Impact**: Advances NPCs & Social category from 30% to 50%+; core RPG immersion depends on reactive NPCs
 - **Acceptance**: NPC remembers past attack; disposition decreases; future dialog options change
 - **Validation**: `go test ./pkg/engine/systems/... -run TestNPCMemory` passes
+- **Status**: ✅ Completed - NPCMemory and NPCRelationships components added; NPCMemorySystem with disposition tracking, memory events, decay, and helper methods
 
-**Components to add:**
-```go
-type NPCMemory struct {
-    PlayerInteractions map[ecs.Entity][]MemoryEvent
-    LastSeen           map[ecs.Entity]int64  // Unix timestamp
-    Disposition        map[ecs.Entity]float64 // -1.0 to +1.0
-}
+**Components added in `pkg/engine/components/types.go`:**
+- NPCMemory (PlayerInteractions, LastSeen, Disposition maps with MaxMemories and MemoryDecayRate)
+- MemoryEvent (EventType, Timestamp, Impact, Details)
+- NPCRelationships (Relationships map with Strength and History)
+- Relationship (TargetEntity, Type, Strength, History)
+- SocialStatus (Wealth, Influence, Occupation, Title)
 
-type MemoryEvent struct {
-    EventType  string  // "gift", "attack", "quest_complete", "dialog"
-    Timestamp  int64
-    Impact     float64 // Disposition change
-}
-```
-
-**System to add in `pkg/engine/systems/npc_memory.go`:**
-- Records player interactions with NPCs
-- Decays old memories over time (configurable window)
-- Updates disposition based on weighted interaction history
-- Feeds disposition into `DialogAdapter` for response filtering
+**System added in `pkg/engine/systems/npc_memory.go`:**
+- NPCMemorySystem.Update() handles disposition decay over time
+- RecordEvent() adds memory events with disposition changes
+- RecordGift()/RecordAttack()/RecordTheft()/RecordHelp()/RecordQuestComplete()/RecordWitnessedCrime() convenience methods
+- GetDisposition()/SetDisposition()/ForgetPlayer() for disposition management
+- IsHostile()/IsFriendly() for behavior checks
+- GetDispositionCategory() for human-readable disposition labels
 
 ---
 
