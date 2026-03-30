@@ -943,3 +943,128 @@ func TestAllComponentTypes(t *testing.T) {
 		t.Errorf("expected at least 45 component types, got %d", len(typeNames))
 	}
 }
+
+// ========== Environmental Hazard Component Tests ==========
+
+func TestEnvironmentalHazardType(t *testing.T) {
+	h := &EnvironmentalHazard{
+		HazardType:      HazardTypeRadiation,
+		Intensity:       0.5,
+		DamagePerSecond: 10.0,
+		Radius:          5.0,
+		Active:          true,
+	}
+	if h.Type() != "EnvironmentalHazard" {
+		t.Errorf("Expected type 'EnvironmentalHazard', got '%s'", h.Type())
+	}
+}
+
+func TestHazardTypeConstants(t *testing.T) {
+	types := []HazardType{
+		HazardTypeRadiation,
+		HazardTypeFire,
+		HazardTypePoison,
+		HazardTypeElectric,
+		HazardTypeFreeze,
+		HazardTypeLava,
+		HazardTypeAcid,
+		HazardTypeMagic,
+		HazardTypeTrap,
+		HazardTypeGas,
+	}
+
+	seen := make(map[HazardType]bool)
+	for _, ht := range types {
+		if seen[ht] {
+			t.Errorf("Duplicate hazard type: %s", ht)
+		}
+		seen[ht] = true
+		if string(ht) == "" {
+			t.Error("Hazard type should not be empty")
+		}
+	}
+}
+
+func TestHazardResistanceType(t *testing.T) {
+	h := &HazardResistance{
+		Resistances: map[HazardType]float64{
+			HazardTypeFire: 0.5,
+		},
+	}
+	if h.Type() != "HazardResistance" {
+		t.Errorf("Expected type 'HazardResistance', got '%s'", h.Type())
+	}
+}
+
+func TestHazardResistanceGetResistance(t *testing.T) {
+	h := &HazardResistance{
+		Resistances: map[HazardType]float64{
+			HazardTypeFire:   0.5,
+			HazardTypePoison: 0.75,
+		},
+	}
+
+	if h.GetResistance(HazardTypeFire) != 0.5 {
+		t.Error("Fire resistance should be 0.5")
+	}
+	if h.GetResistance(HazardTypePoison) != 0.75 {
+		t.Error("Poison resistance should be 0.75")
+	}
+	if h.GetResistance(HazardTypeRadiation) != 0 {
+		t.Error("Unset resistance should be 0")
+	}
+}
+
+func TestHazardResistanceGetResistanceNilMap(t *testing.T) {
+	h := &HazardResistance{}
+	if h.GetResistance(HazardTypeFire) != 0 {
+		t.Error("Nil resistances map should return 0")
+	}
+}
+
+func TestHazardEffectType(t *testing.T) {
+	h := &HazardEffect{
+		SourceHazard:      HazardTypePoison,
+		StackCount:        1,
+		MaxStacks:         3,
+		RemainingDuration: 30.0,
+		DamageOverTime:    5.0,
+	}
+	if h.Type() != "HazardEffect" {
+		t.Errorf("Expected type 'HazardEffect', got '%s'", h.Type())
+	}
+}
+
+func TestHazardZoneType(t *testing.T) {
+	h := &HazardZone{
+		ZoneName:    "Radiation Zone A",
+		HazardTypes: []HazardType{HazardTypeRadiation},
+		ZoneLevel:   3,
+	}
+	if h.Type() != "HazardZone" {
+		t.Errorf("Expected type 'HazardZone', got '%s'", h.Type())
+	}
+}
+
+func TestWeatherHazardType(t *testing.T) {
+	w := &WeatherHazard{
+		WeatherType:   "storm",
+		Severity:      0.7,
+		OutdoorDamage: 2.0,
+	}
+	if w.Type() != "WeatherHazard" {
+		t.Errorf("Expected type 'WeatherHazard', got '%s'", w.Type())
+	}
+}
+
+func TestTrapMechanismType(t *testing.T) {
+	t2 := &TrapMechanism{
+		TrapType:            "spike",
+		Armed:               true,
+		DetectionDifficulty: 0.5,
+		Damage:              25.0,
+	}
+	if t2.Type() != "TrapMechanism" {
+		t.Errorf("Expected type 'TrapMechanism', got '%s'", t2.Type())
+	}
+}

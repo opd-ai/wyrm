@@ -974,3 +974,159 @@ type NPCNeeds struct {
 
 // Type returns the component type identifier for NPCNeeds.
 func (n *NPCNeeds) Type() string { return "NPCNeeds" }
+
+// ========== Environmental Hazard Components ==========
+
+// HazardType represents different types of environmental dangers.
+type HazardType string
+
+const (
+	HazardTypeRadiation HazardType = "radiation"
+	HazardTypeFire      HazardType = "fire"
+	HazardTypePoison    HazardType = "poison"
+	HazardTypeElectric  HazardType = "electric"
+	HazardTypeFreeze    HazardType = "freeze"
+	HazardTypeLava      HazardType = "lava"
+	HazardTypeAcid      HazardType = "acid"
+	HazardTypeMagic     HazardType = "magic"
+	HazardTypeTrap      HazardType = "trap"
+	HazardTypeGas       HazardType = "gas"
+)
+
+// EnvironmentalHazard represents a dangerous area in the world.
+type EnvironmentalHazard struct {
+	// HazardType identifies the type of hazard.
+	HazardType HazardType
+	// Intensity is the strength of the hazard effect (0.0-1.0).
+	Intensity float64
+	// DamagePerSecond is the base damage dealt per second of exposure.
+	DamagePerSecond float64
+	// Radius is the effect radius in world units (0 = point source).
+	Radius float64
+	// Active indicates if the hazard is currently dangerous.
+	Active bool
+	// Visible indicates if the hazard can be seen by players.
+	Visible bool
+	// Permanent indicates if the hazard persists indefinitely.
+	Permanent bool
+	// Duration is the remaining time for temporary hazards (seconds).
+	Duration float64
+	// CooldownTime is the time between damage ticks.
+	CooldownTime float64
+	// LastDamageTick tracks the last damage application time.
+	LastDamageTick float64
+	// GenreOverride allows different behavior based on genre.
+	GenreOverride string
+}
+
+// Type returns the component type identifier for EnvironmentalHazard.
+func (e *EnvironmentalHazard) Type() string { return "EnvironmentalHazard" }
+
+// HazardResistance tracks an entity's resistance to various hazards.
+type HazardResistance struct {
+	// Resistances maps hazard types to resistance values (0.0 = none, 1.0 = immune).
+	Resistances map[HazardType]float64
+	// ProtectionEquipment maps hazard types to equipped protection items.
+	ProtectionEquipment map[HazardType]string
+	// ActiveEffects maps hazard types to currently active effect durations.
+	ActiveEffects map[HazardType]float64
+}
+
+// Type returns the component type identifier for HazardResistance.
+func (h *HazardResistance) Type() string { return "HazardResistance" }
+
+// GetResistance returns the resistance value for a hazard type.
+func (h *HazardResistance) GetResistance(hazardType HazardType) float64 {
+	if h.Resistances == nil {
+		return 0
+	}
+	return h.Resistances[hazardType]
+}
+
+// HazardEffect represents an ongoing effect from hazard exposure.
+type HazardEffect struct {
+	// SourceHazard identifies the hazard type causing this effect.
+	SourceHazard HazardType
+	// StackCount is how many times the effect has stacked.
+	StackCount int
+	// MaxStacks is the maximum allowed stacks.
+	MaxStacks int
+	// RemainingDuration is the time left on this effect (seconds).
+	RemainingDuration float64
+	// DamageOverTime is the damage dealt per second while active.
+	DamageOverTime float64
+	// MovementPenalty reduces movement speed (0.0 = none, 1.0 = immobile).
+	MovementPenalty float64
+	// VisualEffect identifies the visual effect to display.
+	VisualEffect string
+	// Curable indicates if the effect can be cured/cleansed.
+	Curable bool
+}
+
+// Type returns the component type identifier for HazardEffect.
+func (h *HazardEffect) Type() string { return "HazardEffect" }
+
+// HazardZone marks a region as containing environmental hazards.
+type HazardZone struct {
+	// ZoneName identifies this hazard zone.
+	ZoneName string
+	// HazardTypes lists all hazard types present in this zone.
+	HazardTypes []HazardType
+	// ZoneLevel indicates hazard severity (1 = minor, 5 = lethal).
+	ZoneLevel int
+	// RequiredProtection lists equipment needed to safely traverse.
+	RequiredProtection []string
+	// WarningDisplayed tracks if the player has been warned about this zone.
+	WarningDisplayed bool
+	// EnterTime tracks when the entity entered this zone.
+	EnterTime float64
+	// SafePoints lists coordinates of safe spots within the zone.
+	SafePoints [][2]float64
+}
+
+// Type returns the component type identifier for HazardZone.
+func (h *HazardZone) Type() string { return "HazardZone" }
+
+// WeatherHazard represents hazardous weather conditions.
+type WeatherHazard struct {
+	// WeatherType identifies the hazardous weather ("storm", "blizzard", "sandstorm", "acid_rain", "meteor_shower").
+	WeatherType string
+	// Severity indicates intensity (0.0 = mild, 1.0 = extreme).
+	Severity float64
+	// StartTime is when the weather hazard began.
+	StartTime float64
+	// Duration is how long the weather will last (seconds).
+	Duration float64
+	// OutdoorDamage is damage per second when outside shelter.
+	OutdoorDamage float64
+	// VisibilityReduction reduces view distance (0.0 = none, 1.0 = blind).
+	VisibilityReduction float64
+	// MovementPenalty affects movement speed (0.0 = none, 1.0 = immobile).
+	MovementPenalty float64
+}
+
+// Type returns the component type identifier for WeatherHazard.
+func (w *WeatherHazard) Type() string { return "WeatherHazard" }
+
+// TrapMechanism represents mechanical or magical traps.
+type TrapMechanism struct {
+	// TrapType identifies the trap ("spike", "dart", "pit", "flame", "magic", "alarm").
+	TrapType string
+	// Triggered indicates if the trap has been activated.
+	Triggered bool
+	// Armed indicates if the trap is ready to trigger.
+	Armed bool
+	// DetectionDifficulty is the skill needed to detect (0.0-1.0).
+	DetectionDifficulty float64
+	// DisarmDifficulty is the skill needed to disarm (0.0-1.0).
+	DisarmDifficulty float64
+	// Damage is the damage dealt on trigger.
+	Damage float64
+	// ResetTime is the time until the trap resets (0 = single use).
+	ResetTime float64
+	// TriggerRadius is the activation radius.
+	TriggerRadius float64
+}
+
+// Type returns the component type identifier for TrapMechanism.
+func (t *TrapMechanism) Type() string { return "TrapMechanism" }

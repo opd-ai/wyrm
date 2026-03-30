@@ -41,7 +41,7 @@ func (a *EntityAdapter) GenerateEntity(seed int64, genre string, depth int) (*NP
 	rng := rand.New(rand.NewSource(seed))
 	names := []string{"Guard", "Merchant", "Traveler", "Scholar", "Warrior"}
 	name := names[rng.Intn(len(names))]
-	health := 50.0 + float64(rng.Intn(100))
+	health := BaseNPCHealth + float64(rng.Intn(NPCHealthVariance))
 
 	return &NPCData{
 		Name:   fmt.Sprintf("%s_%s", name, genre),
@@ -74,7 +74,7 @@ func SpawnNPC(world *ecs.World, data *NPCData, x, y float64, factionID string) (
 
 	if err := world.AddComponent(e, &components.Faction{
 		ID:         factionID,
-		Reputation: 0,
+		Reputation: DefaultFactionReputation,
 	}); err != nil {
 		return 0, fmt.Errorf("failed to add Faction: %w", err)
 	}
@@ -115,8 +115,8 @@ func (a *EntityAdapter) GenerateAndSpawnNPCs(world *ecs.World, cfg NPCSpawnConfi
 	entities := make([]ecs.Entity, 0, cfg.Count)
 
 	for i := 0; i < cfg.Count; i++ {
-		npcSeed := cfg.Seed + int64(i)*1000
-		data, err := a.GenerateEntity(npcSeed, cfg.Genre, i/10)
+		npcSeed := cfg.Seed + int64(i)*NPCSeedMultiplier
+		data, err := a.GenerateEntity(npcSeed, cfg.Genre, i/DefaultNPCDepthDivisor)
 		if err != nil {
 			continue // Skip failed generations
 		}
@@ -126,8 +126,8 @@ func (a *EntityAdapter) GenerateAndSpawnNPCs(world *ecs.World, cfg NPCSpawnConfi
 		_ = rng.Float64() // Reserved for future random offset
 		_ = rng.Float64() // Reserved for future random offset
 
-		x := cfg.CenterX + float64(i%5-2)*cfg.Radius/5
-		y := cfg.CenterY + float64(i/5-cfg.Count/10)*cfg.Radius/5
+		x := cfg.CenterX + float64(i%NPCGridColumns-NPCGridOffset)*cfg.Radius/NPCGridSpacingDivisor
+		y := cfg.CenterY + float64(i/NPCGridColumns-cfg.Count/DefaultNPCDepthDivisor)*cfg.Radius/NPCGridSpacingDivisor
 
 		e, err := SpawnNPC(world, data, x, y, cfg.FactionID)
 		if err != nil {

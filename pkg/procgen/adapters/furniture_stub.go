@@ -73,10 +73,12 @@ func (a *FurnitureAdapter) GenerateRoomFurniture(seed int64, genre, roomType str
 // GenerateHouseFurniture creates furniture for an entire house.
 func (a *FurnitureAdapter) GenerateHouseFurniture(seed int64, genre string) (map[string][]*FurnitureData, error) {
 	result := make(map[string][]*FurnitureData)
-	rooms := []string{"bedroom", "kitchen", "living", "storage"}
-	for i, room := range rooms {
-		result[room], _ = a.GenerateRoomFurniture(seed+int64(i*100), genre, room, 3+i)
-	}
+
+	result["living"], _ = a.GenerateRoomFurniture(seed, genre, "living", LivingRoomFurnitureCount)
+	result["bedroom"], _ = a.GenerateRoomFurniture(seed+BedroomSeedOffset, genre, "bedroom", BedroomFurnitureCount)
+	result["kitchen"], _ = a.GenerateRoomFurniture(seed+KitchenSeedOffset, genre, "kitchen", KitchenFurnitureCount)
+	result["storage"], _ = a.GenerateRoomFurniture(seed+StorageSeedOffset, genre, "storage", StorageFurnitureCount)
+
 	return result, nil
 }
 
@@ -89,4 +91,4 @@ func (a *FurnitureAdapter) GenerateCraftingStations(seed int64, genre string) ([
 func IsFurnitureFunctional(data *FurnitureData) bool { return data.Functional }
 
 // GetFurnitureValue returns furniture's gold value.
-func GetFurnitureValue(data *FurnitureData) int { return data.Capacity * 10 }
+func GetFurnitureValue(data *FurnitureData) int { return data.Capacity * BaseFurnitureValue }

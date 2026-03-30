@@ -593,3 +593,452 @@ func (d *Dungeon) PuzzleCount() int {
 	}
 	return count
 }
+
+// Cave generation constants.
+const (
+	// CaveFillProbability is the initial probability of a cell being a wall.
+	CaveFillProbability = 0.45
+	// CaveIterations is the number of cellular automata iterations.
+	CaveIterations = 4
+	// CaveBirthLimit is the neighbor count to birth a wall.
+	CaveBirthLimit = 4
+	// CaveDeathLimit is the neighbor count below which walls die.
+	CaveDeathLimit = 3
+	// CaveMinOpenPercent is the minimum open area percentage.
+	CaveMinOpenPercent = 0.35
+	// CaveMaxOpenPercent is the maximum open area percentage.
+	CaveMaxOpenPercent = 0.55
+)
+
+// Cave represents a procedurally generated cave system.
+type Cave struct {
+	Width    int
+	Height   int
+	Tiles    [][]TileType
+	Seed     int64
+	Genre    string
+	Entrance CavePoint
+	Exits    []CavePoint
+	Caverns  []Cavern
+}
+
+// CavePoint represents a position in the cave.
+type CavePoint struct {
+	X, Y int
+}
+
+// Cavern represents a distinct open area in the cave.
+type Cavern struct {
+	ID      int
+	Points  []CavePoint
+	CenterX int
+	CenterY int
+	Size    int
+}
+
+// CaveGenerator creates procedural cave systems.
+type CaveGenerator struct {
+	Seed  int64
+	Genre string
+	rng   *rand.Rand
+}
+
+// NewCaveGenerator creates a cave generator.
+func NewCaveGenerator(seed int64, genre string) *CaveGenerator {
+	return &CaveGenerator{
+		Seed:  seed,
+		Genre: genre,
+		rng:   rand.New(rand.NewSource(seed)),
+	}
+}
+
+// GenerateCave creates a new cave system using cellular automata.
+func (g *CaveGenerator) GenerateCave(width, height int) *Cave {
+	c := &Cave{
+		Width:   width,
+		Height:  height,
+		Tiles:   make([][]TileType, height),
+		Seed:    g.Seed,
+		Genre:   g.Genre,
+		Exits:   make([]CavePoint, 0),
+		Caverns: make([]Cavern, 0),
+	}
+
+	// Initialize tiles
+	for y := 0; y < height; y++ {
+		c.Tiles[y] = make([]TileType, width)
+	}
+
+	// Generate cave using cellular automata
+	g.initializeCave(c)
+	g.runCellularAutomata(c)
+
+	// Ensure connectivity and find caverns
+	g.identifyCaverns(c)
+	g.connectCaverns(c)
+
+	// Place entrance and exits
+	g.placeEntranceAndExits(c)
+
+	return c
+}
+
+// initializeCave randomly fills the cave with walls based on probability.
+func (g *CaveGenerator) initializeCave(c *Cave) {
+	for y := 0; y < c.Height; y++ {
+		for x := 0; x < c.Width; x++ {
+			// Always make border walls
+			if x == 0 || x == c.Width-1 || y == 0 || y == c.Height-1 {
+				c.Tiles[y][x] = TileWall
+			} else if g.rng.Float64() < CaveFillProbability {
+				c.Tiles[y][x] = TileWall
+			} else {
+				c.Tiles[y][x] = TileFloor
+			}
+		}
+	}
+}
+
+// runCellularAutomata applies cellular automata rules to smooth the cave.
+func (g *CaveGenerator) runCellularAutomata(c *Cave) {
+	for i := 0; i < CaveIterations; i++ {
+		newTiles := make([][]TileType, c.Height)
+		for y := 0; y < c.Height; y++ {
+			newTiles[y] = make([]TileType, c.Width)
+			for x := 0; x < c.Width; x++ {
+				neighbors := g.countWallNeighbors(c, x, y)
+				newTiles[y][x] = g.applyCellularRule(c.Tiles[y][x], neighbors, x, y, c)
+			}
+		}
+		c.Tiles = newTiles
+	}
+}
+
+// countWallNeighbors counts wall neighbors in a 3x3 area.
+func (g *CaveGenerator) countWallNeighbors(c *Cave, x, y int) int {
+	count := 0
+	for dy := -1; dy <= 1; dy++ {
+		for dx := -1; dx <= 1; dx++ {
+			if dx == 0 && dy == 0 {
+				continue
+			}
+			nx, ny := x+dx, y+dy
+			if nx < 0 || nx >= c.Width || ny < 0 || ny >= c.Height {
+				count++ // Out of bounds counts as wall
+			} else if c.Tiles[ny][nx] == TileWall {
+				count++
+			}
+		}
+	}
+	return count
+}
+
+// applyCellularRule determines the new tile state based on neighbor count.
+func (g *CaveGenerator) applyCellularRule(current TileType, neighbors, x, y int, c *Cave) TileType {
+	// Always keep border as walls
+	if x == 0 || x == c.Width-1 || y == 0 || y == c.Height-1 {
+		return TileWall
+	}
+
+	if current == TileWall {
+		// Wall survives if it has enough neighbors
+		if neighbors >= CaveDeathLimit {
+			return TileWall
+		}
+		return TileFloor
+	}
+	// Floor becomes wall if it has too many wall neighbors
+	if neighbors >= CaveBirthLimit {
+		return TileWall
+	}
+	return TileFloor
+}
+
+// identifyCaverns finds distinct open areas in the cave using flood fill.
+func (g *CaveGenerator) identifyCaverns(c *Cave) {
+	visited := make([][]bool, c.Height)
+	for y := 0; y < c.Height; y++ {
+		visited[y] = make([]bool, c.Width)
+	}
+
+	cavernID := 0
+	for y := 1; y < c.Height-1; y++ {
+		for x := 1; x < c.Width-1; x++ {
+			if c.Tiles[y][x] == TileFloor && !visited[y][x] {
+				cavern := g.floodFillCavern(c, visited, x, y, cavernID)
+				if cavern.Size > 0 {
+					c.Caverns = append(c.Caverns, cavern)
+					cavernID++
+				}
+			}
+		}
+	}
+}
+
+// floodFillCavern fills a connected open area and returns its data.
+func (g *CaveGenerator) floodFillCavern(c *Cave, visited [][]bool, startX, startY, id int) Cavern {
+	cavern := Cavern{
+		ID:     id,
+		Points: make([]CavePoint, 0),
+	}
+
+	queue := []CavePoint{{X: startX, Y: startY}}
+	sumX, sumY := 0, 0
+
+	for len(queue) > 0 {
+		p := queue[0]
+		queue = queue[1:]
+
+		if p.X < 1 || p.X >= c.Width-1 || p.Y < 1 || p.Y >= c.Height-1 {
+			continue
+		}
+		if visited[p.Y][p.X] || c.Tiles[p.Y][p.X] != TileFloor {
+			continue
+		}
+
+		visited[p.Y][p.X] = true
+		cavern.Points = append(cavern.Points, p)
+		sumX += p.X
+		sumY += p.Y
+
+		// Add neighbors
+		queue = append(queue,
+			CavePoint{X: p.X + 1, Y: p.Y},
+			CavePoint{X: p.X - 1, Y: p.Y},
+			CavePoint{X: p.X, Y: p.Y + 1},
+			CavePoint{X: p.X, Y: p.Y - 1},
+		)
+	}
+
+	cavern.Size = len(cavern.Points)
+	if cavern.Size > 0 {
+		cavern.CenterX = sumX / cavern.Size
+		cavern.CenterY = sumY / cavern.Size
+	}
+
+	return cavern
+}
+
+// connectCaverns ensures all caverns are connected by carving tunnels.
+func (g *CaveGenerator) connectCaverns(c *Cave) {
+	if len(c.Caverns) < 2 {
+		return
+	}
+
+	// Sort caverns by size (largest first)
+	for i := 0; i < len(c.Caverns)-1; i++ {
+		for j := i + 1; j < len(c.Caverns); j++ {
+			if c.Caverns[j].Size > c.Caverns[i].Size {
+				c.Caverns[i], c.Caverns[j] = c.Caverns[j], c.Caverns[i]
+			}
+		}
+	}
+
+	// Connect each cavern to the main cavern
+	mainCavern := &c.Caverns[0]
+	for i := 1; i < len(c.Caverns); i++ {
+		g.carveTunnel(c, mainCavern.CenterX, mainCavern.CenterY,
+			c.Caverns[i].CenterX, c.Caverns[i].CenterY)
+	}
+}
+
+// carveTunnel carves a winding tunnel between two points.
+func (g *CaveGenerator) carveTunnel(c *Cave, x1, y1, x2, y2 int) {
+	x, y := x1, y1
+
+	for x != x2 || y != y2 {
+		// Randomly choose to move horizontally or vertically
+		if x != x2 && (y == y2 || g.rng.Float64() < 0.5) {
+			if x < x2 {
+				x++
+			} else {
+				x--
+			}
+		} else if y != y2 {
+			if y < y2 {
+				y++
+			} else {
+				y--
+			}
+		}
+
+		// Carve the tunnel (with some width)
+		g.carveTunnelSection(c, x, y)
+	}
+}
+
+// carveTunnelSection carves a small section of tunnel with some width.
+func (g *CaveGenerator) carveTunnelSection(c *Cave, x, y int) {
+	for dy := -1; dy <= 1; dy++ {
+		for dx := -1; dx <= 1; dx++ {
+			nx, ny := x+dx, y+dy
+			if nx > 0 && nx < c.Width-1 && ny > 0 && ny < c.Height-1 {
+				c.Tiles[ny][nx] = TileFloor
+			}
+		}
+	}
+}
+
+// placeEntranceAndExits places entrance and exit points in the cave.
+func (g *CaveGenerator) placeEntranceAndExits(c *Cave) {
+	if len(c.Caverns) == 0 {
+		return
+	}
+
+	// Find floor tiles for entrance and exits
+	floorTiles := g.findFloorTiles(c)
+	if len(floorTiles) < 2 {
+		return
+	}
+
+	// Entrance near the edge (top-left)
+	c.Entrance = g.findEdgeFloorTile(c, floorTiles, true)
+	c.Tiles[c.Entrance.Y][c.Entrance.X] = TileEntrance
+
+	// Remove entrance from available floors for exit placement
+	exitFloors := make([]CavePoint, 0, len(floorTiles))
+	for _, p := range floorTiles {
+		if p.X != c.Entrance.X || p.Y != c.Entrance.Y {
+			exitFloors = append(exitFloors, p)
+		}
+	}
+
+	// Exit far from entrance (bottom-right)
+	if len(exitFloors) > 0 {
+		exitPoint := g.findEdgeFloorTile(c, exitFloors, false)
+		c.Exits = append(c.Exits, exitPoint)
+		c.Tiles[exitPoint.Y][exitPoint.X] = TileExit
+	}
+}
+
+// findFloorTiles returns all floor tile positions.
+func (g *CaveGenerator) findFloorTiles(c *Cave) []CavePoint {
+	floors := make([]CavePoint, 0)
+	for y := 1; y < c.Height-1; y++ {
+		for x := 1; x < c.Width-1; x++ {
+			if c.Tiles[y][x] == TileFloor {
+				floors = append(floors, CavePoint{X: x, Y: y})
+			}
+		}
+	}
+	return floors
+}
+
+// findEdgeFloorTile finds a floor tile near an edge.
+func (g *CaveGenerator) findEdgeFloorTile(c *Cave, floors []CavePoint, nearTopLeft bool) CavePoint {
+	if len(floors) == 0 {
+		return CavePoint{X: 1, Y: 1}
+	}
+
+	best := floors[0]
+	bestScore := g.edgeScore(best, c, nearTopLeft)
+
+	for _, p := range floors {
+		score := g.edgeScore(p, c, nearTopLeft)
+		if nearTopLeft && score < bestScore {
+			best = p
+			bestScore = score
+		} else if !nearTopLeft && score > bestScore {
+			best = p
+			bestScore = score
+		}
+	}
+
+	return best
+}
+
+// edgeScore calculates how close a point is to an edge.
+func (g *CaveGenerator) edgeScore(p CavePoint, c *Cave, nearTopLeft bool) int {
+	if nearTopLeft {
+		return p.X + p.Y
+	}
+	return (c.Width - p.X) + (c.Height - p.Y)
+}
+
+// GetOpenAreaPercent returns the percentage of floor tiles.
+func (c *Cave) GetOpenAreaPercent() float64 {
+	total := (c.Width - 2) * (c.Height - 2) // Exclude borders
+	if total <= 0 {
+		return 0
+	}
+
+	floors := 0
+	for y := 1; y < c.Height-1; y++ {
+		for x := 1; x < c.Width-1; x++ {
+			if c.Tiles[y][x] != TileWall {
+				floors++
+			}
+		}
+	}
+
+	return float64(floors) / float64(total)
+}
+
+// CavernCount returns the number of distinct caverns.
+func (c *Cave) CavernCount() int {
+	return len(c.Caverns)
+}
+
+// LargestCavernSize returns the size of the largest cavern.
+func (c *Cave) LargestCavernSize() int {
+	if len(c.Caverns) == 0 {
+		return 0
+	}
+	max := c.Caverns[0].Size
+	for _, cav := range c.Caverns {
+		if cav.Size > max {
+			max = cav.Size
+		}
+	}
+	return max
+}
+
+// IsConnected checks if the cave has a path from entrance to any exit.
+func (c *Cave) IsConnected() bool {
+	if c.Entrance.X == 0 && c.Entrance.Y == 0 {
+		return false
+	}
+	if len(c.Exits) == 0 {
+		return false
+	}
+
+	// BFS from entrance
+	visited := make([][]bool, c.Height)
+	for y := 0; y < c.Height; y++ {
+		visited[y] = make([]bool, c.Width)
+	}
+
+	queue := []CavePoint{c.Entrance}
+	for len(queue) > 0 {
+		p := queue[0]
+		queue = queue[1:]
+
+		if p.X < 0 || p.X >= c.Width || p.Y < 0 || p.Y >= c.Height {
+			continue
+		}
+		if visited[p.Y][p.X] {
+			continue
+		}
+		if c.Tiles[p.Y][p.X] == TileWall {
+			continue
+		}
+
+		visited[p.Y][p.X] = true
+
+		// Check if we reached an exit
+		for _, exit := range c.Exits {
+			if p.X == exit.X && p.Y == exit.Y {
+				return true
+			}
+		}
+
+		queue = append(queue,
+			CavePoint{X: p.X + 1, Y: p.Y},
+			CavePoint{X: p.X - 1, Y: p.Y},
+			CavePoint{X: p.X, Y: p.Y + 1},
+			CavePoint{X: p.X, Y: p.Y - 1},
+		)
+	}
+
+	return false
+}

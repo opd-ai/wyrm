@@ -58,19 +58,19 @@ func (a *DialogAdapter) GenerateDialogLine(seed int64, genre string) (*DialogLin
 	gen := a.GetOrCreateGenerator(seed, genre)
 
 	params := dialog.GenerateParams{
-		MaxWords: 50,
-		MinWords: 5,
+		MaxWords: DefaultDialogMaxWords,
+		MinWords: DefaultDialogMinWords,
 	}
 	text := gen.GenerateDeterministic(params)
 
 	return &DialogLine{
 		Text: text,
 		Personality: PersonalityTraits{
-			Friendliness: 0.5,
-			Verbosity:    0.5,
-			Formality:    0.5,
-			Humor:        0.5,
-			Knowledge:    0.5,
+			Friendliness: DefaultSentimentNeutral,
+			Verbosity:    DefaultSentimentNeutral,
+			Formality:    DefaultSentimentNeutral,
+			Humor:        DefaultSentimentNeutral,
+			Knowledge:    DefaultSentimentNeutral,
 		},
 	}, nil
 }
@@ -80,8 +80,8 @@ func (a *DialogAdapter) GenerateGreeting(seed int64, genre string, personality P
 	gen := a.GetOrCreateGenerator(seed, genre)
 
 	params := dialog.GenerateParams{
-		MaxWords: 20,
-		MinWords: 3,
+		MaxWords: GreetingMaxWords,
+		MinWords: GreetingMinWords,
 	}
 	text := gen.GenerateDeterministic(params)
 
@@ -96,7 +96,7 @@ func (a *DialogAdapter) GenerateDialogLines(seed int64, genre string, count int)
 	lines := make([]*DialogLine, count)
 
 	for i := 0; i < count; i++ {
-		lineSeed := seed + int64(i)*1000
+		lineSeed := seed + int64(i)*DialogLineSeedMultiplier
 		line, err := a.GenerateDialogLine(lineSeed, genre)
 		if err != nil {
 			continue
@@ -160,11 +160,11 @@ func PersonalityFromType(ptype string) PersonalityTraits {
 		}
 	default:
 		return PersonalityTraits{
-			Friendliness: 0.5,
-			Verbosity:    0.5,
-			Formality:    0.5,
-			Humor:        0.5,
-			Knowledge:    0.5,
+			Friendliness: DefaultSentimentNeutral,
+			Verbosity:    DefaultSentimentNeutral,
+			Formality:    DefaultSentimentNeutral,
+			Humor:        DefaultSentimentNeutral,
+			Knowledge:    DefaultSentimentNeutral,
 		}
 	}
 }

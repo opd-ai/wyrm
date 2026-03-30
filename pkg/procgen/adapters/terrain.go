@@ -138,7 +138,7 @@ type RoomData struct {
 func (a *TerrainAdapter) GenerateChunkTerrain(seed int64, genre string, width, height int) (*ChunkTerrainData, error) {
 	params := procgen.GenerationParams{
 		GenreID:    mapGenreID(genre),
-		Difficulty: 0.5,
+		Difficulty: DefaultGenerationDifficulty,
 		Custom: map[string]interface{}{
 			"width":  width,
 			"height": height,

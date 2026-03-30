@@ -1,0 +1,386 @@
+// Package systems contains ECS systems for Wyrm.
+package systems
+
+import (
+	"github.com/opd-ai/wyrm/pkg/engine/components"
+	"github.com/opd-ai/wyrm/pkg/engine/ecs"
+)
+
+// HazardSystem handles environmental hazard damage and effects.
+type HazardSystem struct {
+	// Genre affects hazard behavior and naming.
+	Genre string
+	// DamageMultiplier scales all hazard damage.
+	DamageMultiplier float64
+}
+
+// NewHazardSystem creates a new hazard system.
+func NewHazardSystem(genre string) *HazardSystem {
+	return &HazardSystem{
+		Genre:            genre,
+		DamageMultiplier: 1.0,
+	}
+}
+
+// Update processes environmental hazards each tick.
+func (s *HazardSystem) Update(w *ecs.World, dt float64) {
+	// Process hazard zones affecting entities
+	s.processHazardZones(w, dt)
+
+	// Process active hazard effects on entities
+	s.processHazardEffects(w, dt)
+
+	// Process traps
+	s.processTraps(w, dt)
+
+	// Process weather hazards
+	s.processWeatherHazards(w, dt)
+
+	// Update temporary hazards
+	s.updateTemporaryHazards(w, dt)
+}
+
+// processHazardZones checks entities in hazard zones and applies effects.
+func (s *HazardSystem) processHazardZones(w *ecs.World, dt float64) {
+	hazards := w.Entities("EnvironmentalHazard", "Position")
+	targets := w.Entities("Position", "Health")
+
+	for _, hazardEnt := range hazards {
+		hazardComp, _ := w.GetComponent(hazardEnt, "EnvironmentalHazard")
+		hazard := hazardComp.(*components.EnvironmentalHazard)
+
+		if !hazard.Active {
+			continue
+		}
+
+		hazardPosComp, _ := w.GetComponent(hazardEnt, "Position")
+		hazardPos := hazardPosComp.(*components.Position)
+
+		// Check cooldown
+		if hazard.LastDamageTick+hazard.CooldownTime > getCurrentTime() {
+			continue
+		}
+
+		for _, targetEnt := range targets {
+			if targetEnt == hazardEnt {
+				continue
+			}
+
+			targetPosComp, _ := w.GetComponent(targetEnt, "Position")
+			targetPos := targetPosComp.(*components.Position)
+
+			// Check if target is in hazard radius
+			dx := hazardPos.X - targetPos.X
+			dy := hazardPos.Y - targetPos.Y
+			dz := hazardPos.Z - targetPos.Z
+			distSq := dx*dx + dy*dy + dz*dz
+
+			if distSq > hazard.Radius*hazard.Radius {
+				continue
+			}
+
+			// Apply damage
+			s.applyHazardDamage(w, targetEnt, hazard, dt)
+		}
+
+		hazard.LastDamageTick = getCurrentTime()
+	}
+}
+
+// applyHazardDamage deals hazard damage to a target entity.
+func (s *HazardSystem) applyHazardDamage(w *ecs.World, target ecs.Entity, hazard *components.EnvironmentalHazard, dt float64) {
+	healthComp, ok := w.GetComponent(target, "Health")
+	if !ok {
+		return
+	}
+	health := healthComp.(*components.Health)
+
+	damage := hazard.DamagePerSecond * hazard.Intensity * dt * s.DamageMultiplier
+
+	// Check for resistance
+	resistComp, hasResist := w.GetComponent(target, "HazardResistance")
+	if hasResist {
+		resist := resistComp.(*components.HazardResistance)
+		resistance := resist.GetResistance(hazard.HazardType)
+		damage *= (1.0 - resistance)
+	}
+
+	// Apply damage
+	health.Current -= damage
+	if health.Current < 0 {
+		health.Current = 0
+	}
+}
+
+// processHazardEffects updates ongoing hazard effects on entities.
+func (s *HazardSystem) processHazardEffects(w *ecs.World, dt float64) {
+	entities := w.Entities("HazardEffect", "Health")
+
+	for _, ent := range entities {
+		effectComp, _ := w.GetComponent(ent, "HazardEffect")
+		effect := effectComp.(*components.HazardEffect)
+
+		// Apply damage over time
+		if effect.DamageOverTime > 0 {
+			healthComp, _ := w.GetComponent(ent, "Health")
+			health := healthComp.(*components.Health)
+
+			damage := effect.DamageOverTime * float64(effect.StackCount) * dt * s.DamageMultiplier
+			health.Current -= damage
+			if health.Current < 0 {
+				health.Current = 0
+			}
+		}
+
+		// Reduce duration
+		effect.RemainingDuration -= dt
+
+		// Remove expired effects
+		if effect.RemainingDuration <= 0 {
+			w.RemoveComponent(ent, "HazardEffect")
+		}
+	}
+}
+
+// processTraps handles trap detection and triggering.
+func (s *HazardSystem) processTraps(w *ecs.World, dt float64) {
+	traps := w.Entities("TrapMechanism", "Position")
+	targets := w.Entities("Position", "Health")
+
+	for _, trapEnt := range traps {
+		trapComp, _ := w.GetComponent(trapEnt, "TrapMechanism")
+		trap := trapComp.(*components.TrapMechanism)
+
+		if !trap.Armed || trap.Triggered {
+			// Handle reset
+			if trap.Triggered && trap.ResetTime > 0 {
+				trap.ResetTime -= dt
+				if trap.ResetTime <= 0 {
+					trap.Triggered = false
+					trap.Armed = true
+				}
+			}
+			continue
+		}
+
+		trapPosComp, _ := w.GetComponent(trapEnt, "Position")
+		trapPos := trapPosComp.(*components.Position)
+
+		for _, targetEnt := range targets {
+			if targetEnt == trapEnt {
+				continue
+			}
+
+			targetPosComp, _ := w.GetComponent(targetEnt, "Position")
+			targetPos := targetPosComp.(*components.Position)
+
+			// Check trigger radius
+			dx := trapPos.X - targetPos.X
+			dy := trapPos.Y - targetPos.Y
+			distSq := dx*dx + dy*dy
+
+			if distSq <= trap.TriggerRadius*trap.TriggerRadius {
+				s.triggerTrap(w, trapEnt, targetEnt, trap)
+				break
+			}
+		}
+	}
+}
+
+// triggerTrap activates a trap and deals damage.
+func (s *HazardSystem) triggerTrap(w *ecs.World, trapEnt, targetEnt ecs.Entity, trap *components.TrapMechanism) {
+	trap.Triggered = true
+	trap.Armed = false
+
+	healthComp, ok := w.GetComponent(targetEnt, "Health")
+	if !ok {
+		return
+	}
+	health := healthComp.(*components.Health)
+
+	damage := trap.Damage * s.DamageMultiplier
+	health.Current -= damage
+	if health.Current < 0 {
+		health.Current = 0
+	}
+}
+
+// processWeatherHazards handles weather-based environmental damage.
+func (s *HazardSystem) processWeatherHazards(w *ecs.World, dt float64) {
+	weatherEnts := w.Entities("WeatherHazard")
+
+	for _, weatherEnt := range weatherEnts {
+		weatherComp, _ := w.GetComponent(weatherEnt, "WeatherHazard")
+		weather := weatherComp.(*components.WeatherHazard)
+
+		// Update duration
+		weather.Duration -= dt
+
+		// Remove expired weather
+		if weather.Duration <= 0 {
+			w.RemoveComponent(weatherEnt, "WeatherHazard")
+			continue
+		}
+
+		// Apply damage to outdoor entities
+		if weather.OutdoorDamage > 0 {
+			s.applyWeatherDamage(w, weather, dt)
+		}
+	}
+}
+
+// applyWeatherDamage damages entities exposed to hazardous weather.
+func (s *HazardSystem) applyWeatherDamage(w *ecs.World, weather *components.WeatherHazard, dt float64) {
+	entities := w.Entities("Position", "Health")
+
+	for _, ent := range entities {
+		// TODO: Check if entity is indoors (shelter check)
+		// For now, assume all entities are outdoors
+
+		healthComp, _ := w.GetComponent(ent, "Health")
+		health := healthComp.(*components.Health)
+
+		damage := weather.OutdoorDamage * weather.Severity * dt * s.DamageMultiplier
+		health.Current -= damage
+		if health.Current < 0 {
+			health.Current = 0
+		}
+	}
+}
+
+// updateTemporaryHazards reduces duration of temporary hazards.
+func (s *HazardSystem) updateTemporaryHazards(w *ecs.World, dt float64) {
+	hazards := w.Entities("EnvironmentalHazard")
+
+	for _, ent := range hazards {
+		hazardComp, _ := w.GetComponent(ent, "EnvironmentalHazard")
+		hazard := hazardComp.(*components.EnvironmentalHazard)
+
+		if hazard.Permanent {
+			continue
+		}
+
+		hazard.Duration -= dt
+
+		if hazard.Duration <= 0 {
+			hazard.Active = false
+		}
+	}
+}
+
+// getCurrentTime returns the current world time (stub for now).
+func getCurrentTime() float64 {
+	// TODO: Get from WorldClock component
+	return 0
+}
+
+// CreateHazard creates a new environmental hazard entity.
+func (s *HazardSystem) CreateHazard(w *ecs.World, hazardType components.HazardType, x, y, z, radius, intensity float64) ecs.Entity {
+	ent := w.CreateEntity()
+
+	w.AddComponent(ent, &components.Position{X: x, Y: y, Z: z})
+	w.AddComponent(ent, &components.EnvironmentalHazard{
+		HazardType:      hazardType,
+		Intensity:       intensity,
+		DamagePerSecond: s.getBaseDamageForHazard(hazardType),
+		Radius:          radius,
+		Active:          true,
+		Visible:         true,
+		Permanent:       false,
+		Duration:        60.0, // Default 60 second duration
+		CooldownTime:    1.0,  // Damage tick every second
+	})
+
+	return ent
+}
+
+// CreatePermanentHazard creates a permanent environmental hazard.
+func (s *HazardSystem) CreatePermanentHazard(w *ecs.World, hazardType components.HazardType, x, y, z, radius, intensity float64) ecs.Entity {
+	ent := s.CreateHazard(w, hazardType, x, y, z, radius, intensity)
+
+	hazardComp, _ := w.GetComponent(ent, "EnvironmentalHazard")
+	hazard := hazardComp.(*components.EnvironmentalHazard)
+	hazard.Permanent = true
+
+	return ent
+}
+
+// CreateTrap creates a new trap entity.
+func (s *HazardSystem) CreateTrap(w *ecs.World, trapType string, x, y, z, damage, triggerRadius float64) ecs.Entity {
+	ent := w.CreateEntity()
+
+	w.AddComponent(ent, &components.Position{X: x, Y: y, Z: z})
+	w.AddComponent(ent, &components.TrapMechanism{
+		TrapType:            trapType,
+		Triggered:           false,
+		Armed:               true,
+		DetectionDifficulty: 0.5,
+		DisarmDifficulty:    0.5,
+		Damage:              damage,
+		ResetTime:           0, // Single use by default
+		TriggerRadius:       triggerRadius,
+	})
+
+	return ent
+}
+
+// getBaseDamageForHazard returns the default DPS for a hazard type.
+func (s *HazardSystem) getBaseDamageForHazard(hazardType components.HazardType) float64 {
+	switch hazardType {
+	case components.HazardTypeFire:
+		return 10.0
+	case components.HazardTypeLava:
+		return 50.0
+	case components.HazardTypeRadiation:
+		return 5.0
+	case components.HazardTypePoison:
+		return 8.0
+	case components.HazardTypeAcid:
+		return 15.0
+	case components.HazardTypeElectric:
+		return 20.0
+	case components.HazardTypeFreeze:
+		return 7.0
+	case components.HazardTypeMagic:
+		return 12.0
+	case components.HazardTypeGas:
+		return 6.0
+	default:
+		return 10.0
+	}
+}
+
+// GetGenreHazardName returns a genre-appropriate name for a hazard type.
+func (s *HazardSystem) GetGenreHazardName(hazardType components.HazardType) string {
+	names := map[components.HazardType]map[string]string{
+		components.HazardTypeRadiation: {
+			"fantasy":          "Cursed Ground",
+			"sci-fi":           "Radiation Zone",
+			"horror":           "Necrotic Field",
+			"cyberpunk":        "Toxic Waste",
+			"post-apocalyptic": "Hot Zone",
+		},
+		components.HazardTypeFire: {
+			"fantasy":          "Dragon Fire",
+			"sci-fi":           "Plasma Fire",
+			"horror":           "Hellfire",
+			"cyberpunk":        "Napalm",
+			"post-apocalyptic": "Wildfire",
+		},
+		components.HazardTypeElectric: {
+			"fantasy":          "Lightning Storm",
+			"sci-fi":           "EMP Field",
+			"horror":           "Shock Horror",
+			"cyberpunk":        "Live Wire",
+			"post-apocalyptic": "Power Surge",
+		},
+	}
+
+	if typeNames, ok := names[hazardType]; ok {
+		if name, ok := typeNames[s.Genre]; ok {
+			return name
+		}
+	}
+
+	return string(hazardType)
+}

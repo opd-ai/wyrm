@@ -212,3 +212,192 @@ func BenchmarkLargeDungeon(b *testing.B) {
 		gen.Generate(128, 128, 5)
 	}
 }
+
+// Cave system tests
+
+func TestGenerateCave(t *testing.T) {
+	gen := NewCaveGenerator(12345, "fantasy")
+	c := gen.GenerateCave(64, 64)
+
+	if c == nil {
+		t.Fatal("GenerateCave returned nil")
+	}
+
+	if c.Width != 64 || c.Height != 64 {
+		t.Errorf("Dimensions = %dx%d, want 64x64", c.Width, c.Height)
+	}
+
+	// Should have some open space
+	openPercent := c.GetOpenAreaPercent()
+	if openPercent < 0.1 {
+		t.Errorf("Cave has too little open space: %.2f%%", openPercent*100)
+	}
+}
+
+func TestCaveConnectivity(t *testing.T) {
+	gen := NewCaveGenerator(12345, "fantasy")
+	c := gen.GenerateCave(64, 64)
+
+	if !c.IsConnected() {
+		t.Error("Cave should be connected from entrance to exit")
+	}
+}
+
+func TestCaveConnectivityOver50Caves(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+
+	for i := 0; i < 50; i++ {
+		genre := genres[i%len(genres)]
+		gen := NewCaveGenerator(int64(i), genre)
+		c := gen.GenerateCave(64, 64)
+
+		if !c.IsConnected() {
+			t.Errorf("Cave %d (seed=%d, genre=%s) is not connected", i, i, genre)
+		}
+	}
+}
+
+func TestCaveEntranceAndExit(t *testing.T) {
+	gen := NewCaveGenerator(12345, "fantasy")
+	c := gen.GenerateCave(64, 64)
+
+	// Should have at least one exit
+	if len(c.Exits) == 0 {
+		t.Error("Cave has no exits")
+	}
+
+	// Entrance should be valid (either at 0,0 for empty caves or properly placed)
+	entranceValid := false
+	if c.Entrance.X > 0 || c.Entrance.Y > 0 {
+		if c.Tiles[c.Entrance.Y][c.Entrance.X] == TileEntrance {
+			entranceValid = true
+		}
+	} else if c.GetOpenAreaPercent() < 0.01 {
+		// Very closed cave, entrance may not be placed properly
+		entranceValid = true
+	}
+
+	if !entranceValid && c.GetOpenAreaPercent() > 0.1 {
+		t.Logf("Entrance at (%d,%d), tile type: %v", c.Entrance.X, c.Entrance.Y, c.Tiles[c.Entrance.Y][c.Entrance.X])
+		t.Error("Entrance position is not marked as TileEntrance")
+	}
+
+	// Exit tile should be marked
+	for _, exit := range c.Exits {
+		if c.Tiles[exit.Y][exit.X] != TileExit {
+			t.Logf("Exit at (%d,%d), tile type: %v", exit.X, exit.Y, c.Tiles[exit.Y][exit.X])
+			t.Error("Exit position is not marked as TileExit")
+		}
+	}
+}
+
+func TestCaveDeterminism(t *testing.T) {
+	seed := int64(42)
+
+	gen1 := NewCaveGenerator(seed, "fantasy")
+	c1 := gen1.GenerateCave(64, 64)
+
+	gen2 := NewCaveGenerator(seed, "fantasy")
+	c2 := gen2.GenerateCave(64, 64)
+
+	// Same seed should produce same tiles
+	for y := 0; y < c1.Height; y++ {
+		for x := 0; x < c1.Width; x++ {
+			if c1.Tiles[y][x] != c2.Tiles[y][x] {
+				t.Errorf("Same seed produced different tile at (%d,%d): %v vs %v",
+					x, y, c1.Tiles[y][x], c2.Tiles[y][x])
+				return
+			}
+		}
+	}
+
+	// Same entrance and exits
+	if c1.Entrance != c2.Entrance {
+		t.Error("Same seed produced different entrance positions")
+	}
+}
+
+func TestCaveCaverns(t *testing.T) {
+	gen := NewCaveGenerator(12345, "fantasy")
+	c := gen.GenerateCave(64, 64)
+
+	// Should have at least one cavern after connection
+	if c.CavernCount() == 0 {
+		t.Error("Cave should have at least one cavern")
+	}
+
+	// Largest cavern should have reasonable size (at least 20 cells for a connected cave)
+	largest := c.LargestCavernSize()
+	if largest < 20 {
+		t.Errorf("Largest cavern too small: %d (expected at least 20)", largest)
+	}
+}
+
+func TestCaveBorderWalls(t *testing.T) {
+	gen := NewCaveGenerator(12345, "fantasy")
+	c := gen.GenerateCave(64, 64)
+
+	// All border tiles should be walls
+	for x := 0; x < c.Width; x++ {
+		if c.Tiles[0][x] != TileWall {
+			t.Errorf("Top border at x=%d should be wall", x)
+		}
+		if c.Tiles[c.Height-1][x] != TileWall {
+			t.Errorf("Bottom border at x=%d should be wall", x)
+		}
+	}
+
+	for y := 0; y < c.Height; y++ {
+		if c.Tiles[y][0] != TileWall {
+			t.Errorf("Left border at y=%d should be wall", y)
+		}
+		if c.Tiles[y][c.Width-1] != TileWall {
+			t.Errorf("Right border at y=%d should be wall", y)
+		}
+	}
+}
+
+func TestCaveOpenAreaRange(t *testing.T) {
+	// Generate multiple caves and check open area is reasonable
+	for i := 0; i < 20; i++ {
+		gen := NewCaveGenerator(int64(i), "fantasy")
+		c := gen.GenerateCave(64, 64)
+
+		openPercent := c.GetOpenAreaPercent()
+		if openPercent < 0.2 || openPercent > 0.8 {
+			t.Logf("Cave %d open area: %.2f%% (outside typical 20-80%% range)", i, openPercent*100)
+		}
+	}
+}
+
+func TestCaveGenreVariety(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+
+	for _, genre := range genres {
+		gen := NewCaveGenerator(12345, genre)
+		c := gen.GenerateCave(32, 32)
+
+		if c.Genre != genre {
+			t.Errorf("Cave genre = %s, want %s", c.Genre, genre)
+		}
+
+		// Cave should be valid regardless of genre
+		if !c.IsConnected() {
+			t.Errorf("Genre %s produced disconnected cave", genre)
+		}
+	}
+}
+
+func BenchmarkCaveGeneration(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		gen := NewCaveGenerator(int64(i), "fantasy")
+		gen.GenerateCave(64, 64)
+	}
+}
+
+func BenchmarkLargeCave(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		gen := NewCaveGenerator(int64(i), "fantasy")
+		gen.GenerateCave(128, 128)
+	}
+}

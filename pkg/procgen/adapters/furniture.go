@@ -53,7 +53,7 @@ type FurnitureData struct {
 func (a *FurnitureAdapter) GenerateFurniture(seed int64, genre, subType string) (*FurnitureData, error) {
 	params := procgen.GenerationParams{
 		GenreID:    mapGenreID(genre),
-		Difficulty: 0.5,
+		Difficulty: DefaultGenerationDifficulty,
 		Custom:     map[string]interface{}{},
 	}
 
@@ -98,19 +98,19 @@ func (a *FurnitureAdapter) GenerateHouseFurniture(seed int64, genre string) (map
 	rooms := map[string][]*FurnitureData{}
 
 	// Living room
-	livingRoom, _ := a.GenerateRoomFurniture(seed, genre, "living", 5)
+	livingRoom, _ := a.GenerateRoomFurniture(seed, genre, "living", LivingRoomFurnitureCount)
 	rooms["living"] = livingRoom
 
 	// Bedroom
-	bedroom, _ := a.GenerateRoomFurniture(seed+100, genre, "bedroom", 4)
+	bedroom, _ := a.GenerateRoomFurniture(seed+BedroomSeedOffset, genre, "bedroom", BedroomFurnitureCount)
 	rooms["bedroom"] = bedroom
 
 	// Kitchen
-	kitchen, _ := a.GenerateRoomFurniture(seed+200, genre, "kitchen", 4)
+	kitchen, _ := a.GenerateRoomFurniture(seed+KitchenSeedOffset, genre, "kitchen", KitchenFurnitureCount)
 	rooms["kitchen"] = kitchen
 
 	// Storage
-	storage, _ := a.GenerateRoomFurniture(seed+300, genre, "storage", 5)
+	storage, _ := a.GenerateRoomFurniture(seed+StorageSeedOffset, genre, "storage", StorageFurnitureCount)
 	rooms["storage"] = storage
 
 	return rooms, nil
@@ -188,32 +188,32 @@ func IsFurnitureFunctional(data *FurnitureData) bool {
 
 // GetFurnitureValue calculates the value of a furniture piece.
 func GetFurnitureValue(data *FurnitureData) int {
-	baseValue := 10
+	baseValue := BaseFurnitureValue
 	// Material multiplier
 	switch data.Material {
 	case "Wood":
-		baseValue *= 1
+		baseValue *= WoodMaterialMultiplier
 	case "Metal":
-		baseValue *= 2
+		baseValue *= MetalMaterialMultiplier
 	case "Stone":
-		baseValue *= 2
+		baseValue *= StoneMaterialMultiplier
 	case "Crystal":
-		baseValue *= 5
+		baseValue *= CrystalMaterialMultiplier
 	case "Fabric":
-		baseValue *= 1
+		baseValue *= FabricMaterialMultiplier
 	}
 	// Rarity multiplier
 	switch data.Rarity {
 	case "Common":
-		baseValue *= 1
+		baseValue *= CommonRarityMultiplier
 	case "Uncommon":
-		baseValue *= 2
+		baseValue *= UncommonRarityMultiplier
 	case "Rare":
-		baseValue *= 5
+		baseValue *= RareRarityMultiplier
 	case "Epic":
-		baseValue *= 10
+		baseValue *= EpicRarityMultiplier
 	case "Legendary":
-		baseValue *= 25
+		baseValue *= LegendaryRarityMultiplier
 	}
 	return baseValue
 }

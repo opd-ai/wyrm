@@ -19,10 +19,10 @@ Legend:
 - [x] Procedural noise generation (Perlin/Simplex)
 - [x] Chunk manager with 3×3 active window
 - [x] Vertical terrain (hills, cliffs)
-- [ ] Cave system generation
-- [ ] Dynamic terrain modification
-- [ ] Terrain LOD system
-- [ ] Environmental hazards
+- [x] Cave system generation
+- [x] Dynamic terrain modification
+- [x] Terrain LOD system
+- [x] Environmental hazards
 
 ---
 
@@ -33,8 +33,8 @@ Legend:
 - [x] Procedural road networks
 - [x] Shop building interiors
 - [x] Government buildings
-- [ ] Residential areas
-- [ ] Industrial zones
+- [x] Residential areas
+- [x] Industrial zones
 - [x] Points of interest markers
 - [ ] Dynamic city events
 - [ ] City gates and walls
