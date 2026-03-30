@@ -113,8 +113,8 @@ func (s *MagicSystem) CastSpell(w *ecs.World, caster ecs.Entity, spellID string,
 		return false
 	}
 
-	// Check cooldown
-	if s.GameTime-spell.LastCast < spell.Cooldown {
+	// Check cooldown (allow first cast when LastCast is 0)
+	if spell.LastCast > 0 && s.GameTime-spell.LastCast < spell.Cooldown {
 		return false
 	}
 
@@ -168,8 +168,8 @@ func (s *MagicSystem) CastSpellAtPosition(w *ecs.World, caster ecs.Entity, spell
 		return false
 	}
 
-	// Check cooldown
-	if s.GameTime-spell.LastCast < spell.Cooldown {
+	// Check cooldown (allow first cast when LastCast is 0)
+	if spell.LastCast > 0 && s.GameTime-spell.LastCast < spell.Cooldown {
 		return false
 	}
 

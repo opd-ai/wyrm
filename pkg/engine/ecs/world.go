@@ -70,6 +70,13 @@ func (w *World) GetComponent(e Entity, typeName string) (Component, bool) {
 	return c, ok
 }
 
+// RemoveComponent removes a component by type from an entity.
+func (w *World) RemoveComponent(e Entity, typeName string) {
+	if comps, ok := w.components[e]; ok {
+		delete(comps, typeName)
+	}
+}
+
 // Entities returns all entities that have the given component types,
 // sorted by entity ID for deterministic iteration order.
 func (w *World) Entities(types ...string) []Entity {
