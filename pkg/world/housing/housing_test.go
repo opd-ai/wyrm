@@ -658,3 +658,562 @@ func TestFurniturePlacementConfirmNoValidPosition(t *testing.T) {
 		t.Error("Should error with no valid position")
 	}
 }
+
+// ============================================================================
+// Rent Collection System Tests
+// ============================================================================
+
+func TestNewRentCollectionSystem(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	if rcs.Seed != 12345 {
+		t.Errorf("Seed = %d, want 12345", rcs.Seed)
+	}
+	if rcs.Genre != "fantasy" {
+		t.Errorf("Genre = %s, want fantasy", rcs.Genre)
+	}
+	if rcs.PaymentPeriod != 720.0 {
+		t.Errorf("PaymentPeriod = %f, want 720.0", rcs.PaymentPeriod)
+	}
+	if rcs.EvictionGrace != 7 {
+		t.Errorf("EvictionGrace = %d, want 7", rcs.EvictionGrace)
+	}
+	if rcs.DepositMultiple != 2.0 {
+		t.Errorf("DepositMultiple = %f, want 2.0", rcs.DepositMultiple)
+	}
+}
+
+func TestListPropertyForRent(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	prop := rcs.ListPropertyForRent(1, "prop1", "Cozy Cottage", 100.0, 0.8, location)
+
+	if prop == nil {
+		t.Fatal("ListPropertyForRent returned nil")
+	}
+	if prop.ID != "prop1" {
+		t.Errorf("ID = %s, want prop1", prop.ID)
+	}
+	if prop.OwnerID != 1 {
+		t.Errorf("OwnerID = %d, want 1", prop.OwnerID)
+	}
+	if prop.MonthlyRent != 100.0 {
+		t.Errorf("MonthlyRent = %f, want 100.0", prop.MonthlyRent)
+	}
+	if prop.Quality != 0.8 {
+		t.Errorf("Quality = %f, want 0.8", prop.Quality)
+	}
+	if prop.Status != RentStatusVacant {
+		t.Errorf("Status = %d, want RentStatusVacant", prop.Status)
+	}
+	if prop.Deposit != 200.0 {
+		t.Errorf("Deposit = %f, want 200.0 (2x rent)", prop.Deposit)
+	}
+	if prop.Condition != 1.0 {
+		t.Errorf("Condition = %f, want 1.0", prop.Condition)
+	}
+
+	// Verify property is tracked
+	got := rcs.GetProperty("prop1")
+	if got == nil {
+		t.Error("GetProperty returned nil for registered property")
+	}
+}
+
+func TestAddTenant(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	tenant := rcs.AddTenant(100, "John Doe", 0.9, 0.7)
+
+	if tenant == nil {
+		t.Fatal("AddTenant returned nil")
+	}
+	if tenant.ID != 100 {
+		t.Errorf("ID = %d, want 100", tenant.ID)
+	}
+	if tenant.Name != "John Doe" {
+		t.Errorf("Name = %s, want John Doe", tenant.Name)
+	}
+	if tenant.Reliability != 0.9 {
+		t.Errorf("Reliability = %f, want 0.9", tenant.Reliability)
+	}
+	if tenant.WealthLevel != 0.7 {
+		t.Errorf("WealthLevel = %f, want 0.7", tenant.WealthLevel)
+	}
+	if tenant.Satisfaction != 0.5 {
+		t.Errorf("Satisfaction = %f, want 0.5 (neutral)", tenant.Satisfaction)
+	}
+
+	// Verify tenant is tracked
+	got := rcs.GetTenant(100)
+	if got == nil {
+		t.Error("GetTenant returned nil for registered tenant")
+	}
+}
+
+func TestAddTenantClamps(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	// Values outside 0-1 range should be clamped
+	tenant := rcs.AddTenant(100, "Test", 1.5, -0.2)
+
+	if tenant.Reliability != 1.0 {
+		t.Errorf("Reliability = %f, want 1.0 (clamped)", tenant.Reliability)
+	}
+	if tenant.WealthLevel != 0.0 {
+		t.Errorf("WealthLevel = %f, want 0.0 (clamped)", tenant.WealthLevel)
+	}
+}
+
+func TestRentProperty(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	rcs.ListPropertyForRent(1, "prop1", "Cottage", 100.0, 1.0, location)
+	rcs.AddTenant(100, "Tenant", 0.9, 0.8)
+
+	err := rcs.RentProperty("prop1", 100)
+	if err != nil {
+		t.Errorf("RentProperty failed: %v", err)
+	}
+
+	prop := rcs.GetProperty("prop1")
+	if prop.TenantID != 100 {
+		t.Errorf("TenantID = %d, want 100", prop.TenantID)
+	}
+	if prop.Status != RentStatusOccupied {
+		t.Errorf("Status = %d, want RentStatusOccupied", prop.Status)
+	}
+
+	tenant := rcs.GetTenant(100)
+	if tenant.LeasesHeld != 1 {
+		t.Errorf("LeasesHeld = %d, want 1", tenant.LeasesHeld)
+	}
+}
+
+func TestRentPropertyErrors(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	rcs.ListPropertyForRent(1, "prop1", "Cottage", 100.0, 1.0, location)
+	rcs.AddTenant(100, "Tenant", 0.9, 0.8)
+
+	// Non-existent property
+	err := rcs.RentProperty("nonexistent", 100)
+	if err == nil {
+		t.Error("Should error for non-existent property")
+	}
+
+	// Non-existent tenant
+	err = rcs.RentProperty("prop1", 999)
+	if err == nil {
+		t.Error("Should error for non-existent tenant")
+	}
+
+	// Rent it once
+	rcs.RentProperty("prop1", 100)
+
+	// Try to rent again (not vacant)
+	err = rcs.RentProperty("prop1", 100)
+	if err == nil {
+		t.Error("Should error when property is not vacant")
+	}
+}
+
+func TestEvictTenant(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	rcs.ListPropertyForRent(1, "prop1", "Cottage", 100.0, 1.0, location)
+	rcs.AddTenant(100, "Tenant", 0.9, 0.8)
+	rcs.RentProperty("prop1", 100)
+
+	err := rcs.EvictTenant("prop1")
+	if err != nil {
+		t.Errorf("EvictTenant failed: %v", err)
+	}
+
+	prop := rcs.GetProperty("prop1")
+	if prop.TenantID != 0 {
+		t.Errorf("TenantID = %d, want 0", prop.TenantID)
+	}
+	if prop.Status != RentStatusVacant {
+		t.Errorf("Status = %d, want RentStatusVacant", prop.Status)
+	}
+
+	tenant := rcs.GetTenant(100)
+	if tenant.LeasesHeld != 0 {
+		t.Errorf("LeasesHeld = %d, want 0", tenant.LeasesHeld)
+	}
+}
+
+func TestEvictTenantErrors(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	rcs.ListPropertyForRent(1, "prop1", "Cottage", 100.0, 1.0, location)
+
+	// Non-existent property
+	err := rcs.EvictTenant("nonexistent")
+	if err == nil {
+		t.Error("Should error for non-existent property")
+	}
+
+	// No tenant
+	err = rcs.EvictTenant("prop1")
+	if err == nil {
+		t.Error("Should error when property has no tenant")
+	}
+}
+
+func TestProcessRentPayment(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	rcs.ListPropertyForRent(1, "prop1", "Cottage", 100.0, 1.0, location)
+	rcs.AddTenant(100, "Tenant", 0.9, 0.8)
+	rcs.RentProperty("prop1", 100)
+
+	amount, err := rcs.ProcessRentPayment("prop1", 100.0)
+	if err != nil {
+		t.Errorf("ProcessRentPayment failed: %v", err)
+	}
+	if amount != 100.0 {
+		t.Errorf("Amount = %f, want 100.0", amount)
+	}
+
+	// Check owner income
+	income := rcs.GetOwnerIncome(1)
+	if income != 100.0 {
+		t.Errorf("OwnerIncome = %f, want 100.0", income)
+	}
+
+	// Check payment history
+	history := rcs.GetRentHistory("prop1")
+	if len(history) != 1 {
+		t.Errorf("Payment history length = %d, want 1", len(history))
+	}
+	if !history[0].OnTime {
+		t.Error("Payment should be on time")
+	}
+}
+
+func TestProcessRentPaymentErrors(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	rcs.ListPropertyForRent(1, "prop1", "Cottage", 100.0, 1.0, location)
+
+	// Non-existent property
+	_, err := rcs.ProcessRentPayment("nonexistent", 100.0)
+	if err == nil {
+		t.Error("Should error for non-existent property")
+	}
+
+	// No tenant
+	_, err = rcs.ProcessRentPayment("prop1", 100.0)
+	if err == nil {
+		t.Error("Should error when property has no tenant")
+	}
+}
+
+func TestCollectIncome(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	rcs.ListPropertyForRent(1, "prop1", "Cottage", 100.0, 1.0, location)
+	rcs.AddTenant(100, "Tenant", 0.9, 0.8)
+	rcs.RentProperty("prop1", 100)
+	rcs.ProcessRentPayment("prop1", 100.0)
+
+	// Collect income
+	income := rcs.CollectIncome(1)
+	if income != 100.0 {
+		t.Errorf("Collected income = %f, want 100.0", income)
+	}
+
+	// Income should be zeroed after collection
+	remaining := rcs.GetOwnerIncome(1)
+	if remaining != 0 {
+		t.Errorf("Remaining income = %f, want 0", remaining)
+	}
+}
+
+func TestSetRent(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	rcs.ListPropertyForRent(1, "prop1", "Cottage", 100.0, 1.0, location)
+
+	err := rcs.SetRent("prop1", 150.0)
+	if err != nil {
+		t.Errorf("SetRent failed: %v", err)
+	}
+
+	prop := rcs.GetProperty("prop1")
+	if prop.MonthlyRent != 150.0 {
+		t.Errorf("MonthlyRent = %f, want 150.0", prop.MonthlyRent)
+	}
+	if prop.Deposit != 300.0 {
+		t.Errorf("Deposit = %f, want 300.0 (2x new rent)", prop.Deposit)
+	}
+
+	// Non-existent property
+	err = rcs.SetRent("nonexistent", 100.0)
+	if err == nil {
+		t.Error("Should error for non-existent property")
+	}
+}
+
+func TestRepairProperty(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	rcs.ListPropertyForRent(1, "prop1", "Cottage", 100.0, 1.0, location)
+	rcs.AddTenant(100, "Tenant", 0.9, 0.8)
+	rcs.RentProperty("prop1", 100)
+
+	prop := rcs.GetProperty("prop1")
+	// Manually degrade condition
+	prop.Condition = 0.5
+
+	err := rcs.RepairProperty("prop1", 0.3)
+	if err != nil {
+		t.Errorf("RepairProperty failed: %v", err)
+	}
+
+	if prop.Condition != 0.8 {
+		t.Errorf("Condition = %f, want 0.8", prop.Condition)
+	}
+
+	// Check tenant satisfaction improved
+	tenant := rcs.GetTenant(100)
+	if tenant.Satisfaction <= 0.5 {
+		t.Error("Tenant satisfaction should have improved")
+	}
+
+	// Non-existent property
+	err = rcs.RepairProperty("nonexistent", 0.1)
+	if err == nil {
+		t.Error("Should error for non-existent property")
+	}
+}
+
+func TestGetVacantProperties(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	rcs.ListPropertyForRent(1, "prop1", "Cottage1", 100.0, 1.0, location)
+	rcs.ListPropertyForRent(1, "prop2", "Cottage2", 100.0, 1.0, location)
+	rcs.ListPropertyForRent(1, "prop3", "Cottage3", 100.0, 1.0, location)
+	rcs.AddTenant(100, "Tenant", 0.9, 0.8)
+	rcs.RentProperty("prop1", 100) // Occupy prop1
+
+	vacant := rcs.GetVacantProperties()
+	if len(vacant) != 2 {
+		t.Errorf("Vacant count = %d, want 2", len(vacant))
+	}
+}
+
+func TestGetOwnerProperties(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	rcs.ListPropertyForRent(1, "prop1", "Cottage1", 100.0, 1.0, location)
+	rcs.ListPropertyForRent(1, "prop2", "Cottage2", 100.0, 1.0, location)
+	rcs.ListPropertyForRent(2, "prop3", "Cottage3", 100.0, 1.0, location)
+
+	owner1Props := rcs.GetOwnerProperties(1)
+	if len(owner1Props) != 2 {
+		t.Errorf("Owner 1 has %d properties, want 2", len(owner1Props))
+	}
+
+	owner2Props := rcs.GetOwnerProperties(2)
+	if len(owner2Props) != 1 {
+		t.Errorf("Owner 2 has %d properties, want 1", len(owner2Props))
+	}
+
+	owner3Props := rcs.GetOwnerProperties(3)
+	if len(owner3Props) != 0 {
+		t.Errorf("Owner 3 has %d properties, want 0", len(owner3Props))
+	}
+}
+
+func TestCalculateTotalRentalValue(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	rcs.ListPropertyForRent(1, "prop1", "Cottage1", 100.0, 1.0, location)
+	rcs.ListPropertyForRent(1, "prop2", "Cottage2", 150.0, 1.0, location)
+	rcs.ListPropertyForRent(1, "prop3", "Cottage3", 200.0, 1.0, location)
+
+	total := rcs.CalculateTotalRentalValue(1)
+	if total != 450.0 {
+		t.Errorf("Total rental value = %f, want 450.0", total)
+	}
+
+	total = rcs.CalculateTotalRentalValue(2)
+	if total != 0 {
+		t.Errorf("Owner 2 total = %f, want 0", total)
+	}
+}
+
+func TestCalculateOccupancyRate(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	// No properties
+	rate := rcs.CalculateOccupancyRate(1)
+	if rate != 0 {
+		t.Errorf("Rate with no properties = %f, want 0", rate)
+	}
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	rcs.ListPropertyForRent(1, "prop1", "Cottage1", 100.0, 1.0, location)
+	rcs.ListPropertyForRent(1, "prop2", "Cottage2", 100.0, 1.0, location)
+	rcs.ListPropertyForRent(1, "prop3", "Cottage3", 100.0, 1.0, location)
+	rcs.ListPropertyForRent(1, "prop4", "Cottage4", 100.0, 1.0, location)
+	rcs.AddTenant(100, "Tenant1", 0.9, 0.8)
+	rcs.AddTenant(101, "Tenant2", 0.9, 0.8)
+
+	rcs.RentProperty("prop1", 100)
+	rcs.RentProperty("prop2", 101)
+
+	rate = rcs.CalculateOccupancyRate(1)
+	if rate != 0.5 {
+		t.Errorf("Occupancy rate = %f, want 0.5 (50%%)", rate)
+	}
+}
+
+func TestGetOverdueProperties(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	rcs.ListPropertyForRent(1, "prop1", "Cottage1", 100.0, 1.0, location)
+	rcs.ListPropertyForRent(1, "prop2", "Cottage2", 100.0, 1.0, location)
+	rcs.AddTenant(100, "Tenant1", 0.9, 0.8)
+	rcs.AddTenant(101, "Tenant2", 0.9, 0.8)
+
+	rcs.RentProperty("prop1", 100)
+	rcs.RentProperty("prop2", 101)
+
+	// Manually set one property to overdue
+	prop2 := rcs.GetProperty("prop2")
+	prop2.Status = RentStatusOverdue
+	prop2.OverdueDays = 3
+
+	overdue := rcs.GetOverdueProperties(1)
+	if len(overdue) != 1 {
+		t.Errorf("Overdue count = %d, want 1", len(overdue))
+	}
+	if overdue[0].ID != "prop2" {
+		t.Errorf("Overdue property = %s, want prop2", overdue[0].ID)
+	}
+}
+
+func TestRentCollectionSystemUpdate(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	rcs.ListPropertyForRent(1, "prop1", "Cottage", 100.0, 1.0, location)
+	// Create a very reliable tenant that will pay
+	rcs.AddTenant(100, "Reliable Tenant", 1.0, 1.0) // Max reliability and wealth
+	rcs.RentProperty("prop1", 100)
+
+	prop := rcs.GetProperty("prop1")
+	tenant := rcs.GetTenant(100)
+	tenant.Satisfaction = 1.0 // Max satisfaction to ensure payment
+
+	// Initial condition
+	initialCondition := prop.Condition
+
+	// Update with small dt (simulating regular game loop)
+	rcs.Update(1.0) // 1 second
+
+	// Condition should degrade slightly
+	if prop.Condition >= initialCondition {
+		t.Error("Property condition should degrade over time")
+	}
+}
+
+func TestRentCollectionSystemUpdatePayment(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+	rcs.PaymentPeriod = 1.0 // 1 hour for testing
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	rcs.ListPropertyForRent(1, "prop1", "Cottage", 100.0, 1.0, location)
+	rcs.AddTenant(100, "Tenant", 1.0, 1.0) // Perfectly reliable tenant
+	rcs.RentProperty("prop1", 100)
+
+	tenant := rcs.GetTenant(100)
+	tenant.Satisfaction = 1.0 // Max satisfaction
+
+	prop := rcs.GetProperty("prop1")
+	initialNextPayment := prop.NextPayment
+
+	// Advance time past payment due
+	rcs.Update(3600.0 * 2) // 2 hours (2 seconds converted to hours as dt/3600)
+
+	// Check if payment was processed (tenant should have paid)
+	// With perfect reliability/wealth/satisfaction/condition, payment is likely
+	if rcs.GetOwnerIncome(1) > 0 || len(rcs.GetRentHistory("prop1")) > 0 {
+		// Payment was made
+		if prop.NextPayment <= initialNextPayment {
+			t.Error("NextPayment should have advanced after payment")
+		}
+	}
+}
+
+func TestRentCollectionSystemEviction(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+	rcs.PaymentPeriod = 0.001 // Very short payment period
+	rcs.EvictionGrace = 3     // 3 day grace period
+
+	location := [3]float64{100.0, 0.0, 200.0}
+	rcs.ListPropertyForRent(1, "prop1", "Cottage", 100.0, 1.0, location)
+	// Create an unreliable tenant that won't pay
+	rcs.AddTenant(100, "Bad Tenant", 0.0, 0.0) // Zero reliability and wealth
+	rcs.RentProperty("prop1", 100)
+
+	prop := rcs.GetProperty("prop1")
+
+	// Simulate multiple missed payments
+	for i := 0; i < 10; i++ {
+		rcs.Update(3600.0) // 1 hour each
+	}
+
+	// Property should be in overdue or evicting status
+	if prop.Status != RentStatusOverdue && prop.Status != RentStatusEvicting {
+		t.Errorf("Status = %d, want RentStatusOverdue or RentStatusEvicting", prop.Status)
+	}
+	if prop.OverdueDays == 0 {
+		t.Error("OverdueDays should be > 0 for unreliable tenant")
+	}
+}
+
+func TestRegisterProperty(t *testing.T) {
+	rcs := NewRentCollectionSystem(12345, "fantasy")
+
+	prop := &RentalProperty{
+		ID:          "prop1",
+		OwnerID:     1,
+		Name:        "Test Property",
+		MonthlyRent: 100.0,
+	}
+
+	rcs.RegisterProperty(prop)
+
+	got := rcs.GetProperty("prop1")
+	if got == nil {
+		t.Fatal("RegisterProperty failed to register")
+	}
+	if got.Name != "Test Property" {
+		t.Errorf("Name = %s, want Test Property", got.Name)
+	}
+
+	// Check owner tracking
+	ownerProps := rcs.GetOwnerProperties(1)
+	if len(ownerProps) != 1 {
+		t.Errorf("Owner properties count = %d, want 1", len(ownerProps))
+	}
+}

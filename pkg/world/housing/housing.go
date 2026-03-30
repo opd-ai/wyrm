@@ -787,3 +787,508 @@ func (fp *FurniturePlacement) GetCurrentHouse() string {
 	defer fp.mu.RUnlock()
 	return fp.CurrentHouse
 }
+
+// ============================================================================
+// Rent Collection System
+// ============================================================================
+
+// RentStatus represents the rental status of a property.
+type RentStatus int
+
+const (
+	RentStatusVacant RentStatus = iota
+	RentStatusOccupied
+	RentStatusOverdue
+	RentStatusEvicting
+)
+
+// RentalProperty represents a property available for rent.
+type RentalProperty struct {
+	ID            string
+	OwnerID       uint64 // Player who owns and rents out the property
+	TenantID      uint64 // NPC or player tenant (0 if vacant)
+	Name          string
+	MonthlyRent   float64 // Monthly rent amount
+	LastPayment   float64 // Game time of last payment
+	NextPayment   float64 // Game time when next payment is due
+	Status        RentStatus
+	Deposit       float64    // Security deposit held
+	LeaseDuration float64    // Lease length in game hours
+	LeaseStart    float64    // When current lease started
+	Quality       float64    // Property quality affects rent
+	Location      [3]float64 // World position
+	Condition     float64    // Property condition affects tenant satisfaction
+	RentHistory   []RentPayment
+	OverdueDays   int // Days payment is overdue
+}
+
+// RentPayment records a rent payment.
+type RentPayment struct {
+	Amount    float64
+	Timestamp float64
+	OnTime    bool
+}
+
+// TenantInfo represents information about a tenant.
+type TenantInfo struct {
+	ID             uint64
+	Name           string
+	Reliability    float64 // 0-1 chance to pay on time
+	WealthLevel    float64 // 0-1 affects ability to pay
+	Satisfaction   float64 // 0-1 tenant satisfaction
+	LeasesHeld     int     // Number of properties rented
+	PaymentsMade   int     // Total payments made
+	PaymentsMissed int     // Total payments missed
+}
+
+// RentCollectionSystem manages rental properties and rent collection.
+type RentCollectionSystem struct {
+	mu              sync.RWMutex
+	Seed            int64
+	Genre           string
+	Properties      map[string]*RentalProperty
+	Tenants         map[uint64]*TenantInfo
+	OwnerProperties map[uint64][]string // Owner -> property IDs
+	OwnerIncome     map[uint64]float64  // Accumulated rental income
+	GameTime        float64
+	counter         uint64
+	PaymentPeriod   float64 // Hours between rent payments
+	EvictionGrace   int     // Days before eviction starts
+	DepositMultiple float64 // Deposit as multiple of rent
+}
+
+// NewRentCollectionSystem creates a new rent collection system.
+func NewRentCollectionSystem(seed int64, genre string) *RentCollectionSystem {
+	return &RentCollectionSystem{
+		Seed:            seed,
+		Genre:           genre,
+		Properties:      make(map[string]*RentalProperty),
+		Tenants:         make(map[uint64]*TenantInfo),
+		OwnerProperties: make(map[uint64][]string),
+		OwnerIncome:     make(map[uint64]float64),
+		PaymentPeriod:   720.0, // 30 days (720 hours)
+		EvictionGrace:   7,     // 7 days grace period
+		DepositMultiple: 2.0,   // 2 months deposit
+	}
+}
+
+// pseudoRandom generates a deterministic pseudo-random number.
+func (s *RentCollectionSystem) pseudoRandom() float64 {
+	s.counter++
+	x := uint64(s.Seed) + s.counter*6364136223846793005
+	x ^= x >> 12
+	x ^= x << 25
+	x ^= x >> 27
+	return float64(x%10000) / 10000.0
+}
+
+// RegisterProperty registers a property for rent.
+func (s *RentCollectionSystem) RegisterProperty(prop *RentalProperty) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.Properties[prop.ID] = prop
+	s.OwnerProperties[prop.OwnerID] = append(s.OwnerProperties[prop.OwnerID], prop.ID)
+}
+
+// ListPropertyForRent makes a property available for rent.
+func (s *RentCollectionSystem) ListPropertyForRent(ownerID uint64, propID, name string, monthlyRent, quality float64, location [3]float64) *RentalProperty {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	prop := &RentalProperty{
+		ID:          propID,
+		OwnerID:     ownerID,
+		TenantID:    0,
+		Name:        name,
+		MonthlyRent: monthlyRent,
+		Status:      RentStatusVacant,
+		Deposit:     monthlyRent * s.DepositMultiple,
+		Quality:     quality,
+		Location:    location,
+		Condition:   1.0,
+		RentHistory: make([]RentPayment, 0),
+	}
+
+	s.Properties[propID] = prop
+	s.OwnerProperties[ownerID] = append(s.OwnerProperties[ownerID], propID)
+
+	return prop
+}
+
+// AddTenant creates a new tenant profile.
+func (s *RentCollectionSystem) AddTenant(tenantID uint64, name string, reliability, wealth float64) *TenantInfo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tenant := &TenantInfo{
+		ID:           tenantID,
+		Name:         name,
+		Reliability:  clampFloat64(reliability, 0, 1),
+		WealthLevel:  clampFloat64(wealth, 0, 1),
+		Satisfaction: 0.5, // Neutral starting satisfaction
+	}
+
+	s.Tenants[tenantID] = tenant
+	return tenant
+}
+
+// RentProperty assigns a tenant to a property.
+func (s *RentCollectionSystem) RentProperty(propID string, tenantID uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	prop := s.Properties[propID]
+	if prop == nil {
+		return fmt.Errorf("property not found: %s", propID)
+	}
+
+	if prop.Status != RentStatusVacant {
+		return fmt.Errorf("property is not vacant")
+	}
+
+	tenant := s.Tenants[tenantID]
+	if tenant == nil {
+		return fmt.Errorf("tenant not found: %d", tenantID)
+	}
+
+	prop.TenantID = tenantID
+	prop.Status = RentStatusOccupied
+	prop.LeaseStart = s.GameTime
+	prop.LeaseDuration = s.PaymentPeriod * 12 // 1 year default
+	prop.LastPayment = s.GameTime
+	prop.NextPayment = s.GameTime + s.PaymentPeriod
+	prop.OverdueDays = 0
+
+	tenant.LeasesHeld++
+
+	return nil
+}
+
+// EvictTenant removes a tenant from a property.
+func (s *RentCollectionSystem) EvictTenant(propID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	prop := s.Properties[propID]
+	if prop == nil {
+		return fmt.Errorf("property not found: %s", propID)
+	}
+
+	if prop.TenantID == 0 {
+		return fmt.Errorf("property has no tenant")
+	}
+
+	if tenant := s.Tenants[prop.TenantID]; tenant != nil {
+		tenant.LeasesHeld--
+		if tenant.LeasesHeld < 0 {
+			tenant.LeasesHeld = 0
+		}
+	}
+
+	prop.TenantID = 0
+	prop.Status = RentStatusVacant
+	prop.OverdueDays = 0
+	prop.LeaseStart = 0
+	prop.NextPayment = 0
+
+	return nil
+}
+
+// ProcessRentPayment processes a rent payment from a tenant.
+func (s *RentCollectionSystem) ProcessRentPayment(propID string, amount float64) (float64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	prop := s.Properties[propID]
+	if prop == nil {
+		return 0, fmt.Errorf("property not found: %s", propID)
+	}
+
+	if prop.TenantID == 0 {
+		return 0, fmt.Errorf("property has no tenant")
+	}
+
+	// Check if payment is on time
+	onTime := s.GameTime <= prop.NextPayment
+
+	// Record payment
+	payment := RentPayment{
+		Amount:    amount,
+		Timestamp: s.GameTime,
+		OnTime:    onTime,
+	}
+	prop.RentHistory = append(prop.RentHistory, payment)
+	if len(prop.RentHistory) > 24 {
+		prop.RentHistory = prop.RentHistory[1:]
+	}
+
+	// Update tenant stats
+	if tenant := s.Tenants[prop.TenantID]; tenant != nil {
+		tenant.PaymentsMade++
+		if onTime {
+			tenant.Satisfaction = clampFloat64(tenant.Satisfaction+0.05, 0, 1)
+		}
+	}
+
+	// Update property status
+	prop.LastPayment = s.GameTime
+	prop.NextPayment = s.GameTime + s.PaymentPeriod
+	prop.Status = RentStatusOccupied
+	prop.OverdueDays = 0
+
+	// Credit owner
+	s.OwnerIncome[prop.OwnerID] += amount
+
+	return amount, nil
+}
+
+// Update processes rent collection each tick.
+func (s *RentCollectionSystem) Update(dt float64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.GameTime += dt
+	hoursDelta := dt / 3600.0
+
+	for _, prop := range s.Properties {
+		if prop.TenantID == 0 {
+			continue
+		}
+
+		s.updateProperty(prop, hoursDelta)
+	}
+}
+
+// updateProperty processes a single rental property.
+func (s *RentCollectionSystem) updateProperty(prop *RentalProperty, hours float64) {
+	// Check if payment is due
+	if s.GameTime >= prop.NextPayment {
+		// Check if tenant pays
+		tenant := s.Tenants[prop.TenantID]
+		if tenant != nil && s.tenantPays(tenant, prop) {
+			// Auto-pay rent
+			payment := RentPayment{
+				Amount:    prop.MonthlyRent,
+				Timestamp: s.GameTime,
+				OnTime:    prop.OverdueDays == 0,
+			}
+			prop.RentHistory = append(prop.RentHistory, payment)
+			prop.LastPayment = s.GameTime
+			prop.NextPayment = s.GameTime + s.PaymentPeriod
+			prop.OverdueDays = 0
+			prop.Status = RentStatusOccupied
+			tenant.PaymentsMade++
+			s.OwnerIncome[prop.OwnerID] += prop.MonthlyRent
+		} else {
+			// Payment missed
+			prop.OverdueDays++
+			if tenant != nil {
+				tenant.PaymentsMissed++
+				tenant.Satisfaction = clampFloat64(tenant.Satisfaction-0.1, 0, 1)
+			}
+
+			if prop.OverdueDays >= s.EvictionGrace {
+				prop.Status = RentStatusEvicting
+			} else {
+				prop.Status = RentStatusOverdue
+			}
+		}
+	}
+
+	// Degrade property condition over time
+	prop.Condition = clampFloat64(prop.Condition-0.0001*hours, 0.1, 1.0)
+
+	// Tenant satisfaction affected by condition
+	if tenant := s.Tenants[prop.TenantID]; tenant != nil {
+		if prop.Condition < 0.5 {
+			tenant.Satisfaction = clampFloat64(tenant.Satisfaction-0.001*hours, 0, 1)
+		}
+	}
+}
+
+// tenantPays determines if a tenant will pay rent.
+func (s *RentCollectionSystem) tenantPays(tenant *TenantInfo, prop *RentalProperty) bool {
+	// Base chance from reliability
+	chance := tenant.Reliability
+
+	// Wealth affects ability to pay
+	chance *= (0.5 + tenant.WealthLevel*0.5)
+
+	// Satisfaction affects willingness
+	chance *= (0.5 + tenant.Satisfaction*0.5)
+
+	// Property condition affects payment
+	chance *= (0.5 + prop.Condition*0.5)
+
+	return s.pseudoRandom() < chance
+}
+
+// CollectIncome withdraws accumulated rental income for an owner.
+func (s *RentCollectionSystem) CollectIncome(ownerID uint64) float64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	income := s.OwnerIncome[ownerID]
+	s.OwnerIncome[ownerID] = 0
+	return income
+}
+
+// GetOwnerIncome returns accumulated income without collecting it.
+func (s *RentCollectionSystem) GetOwnerIncome(ownerID uint64) float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.OwnerIncome[ownerID]
+}
+
+// GetOwnerProperties returns all properties owned by a player.
+func (s *RentCollectionSystem) GetOwnerProperties(ownerID uint64) []*RentalProperty {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	propIDs := s.OwnerProperties[ownerID]
+	props := make([]*RentalProperty, 0, len(propIDs))
+	for _, id := range propIDs {
+		if prop := s.Properties[id]; prop != nil {
+			props = append(props, prop)
+		}
+	}
+	return props
+}
+
+// GetProperty returns a specific property.
+func (s *RentCollectionSystem) GetProperty(propID string) *RentalProperty {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.Properties[propID]
+}
+
+// GetTenant returns a specific tenant.
+func (s *RentCollectionSystem) GetTenant(tenantID uint64) *TenantInfo {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.Tenants[tenantID]
+}
+
+// GetVacantProperties returns all vacant properties.
+func (s *RentCollectionSystem) GetVacantProperties() []*RentalProperty {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	vacant := make([]*RentalProperty, 0)
+	for _, prop := range s.Properties {
+		if prop.Status == RentStatusVacant {
+			vacant = append(vacant, prop)
+		}
+	}
+	return vacant
+}
+
+// SetRent updates the monthly rent for a property.
+func (s *RentCollectionSystem) SetRent(propID string, newRent float64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	prop := s.Properties[propID]
+	if prop == nil {
+		return fmt.Errorf("property not found: %s", propID)
+	}
+
+	prop.MonthlyRent = newRent
+	prop.Deposit = newRent * s.DepositMultiple
+
+	return nil
+}
+
+// RepairProperty improves property condition.
+func (s *RentCollectionSystem) RepairProperty(propID string, repairAmount float64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	prop := s.Properties[propID]
+	if prop == nil {
+		return fmt.Errorf("property not found: %s", propID)
+	}
+
+	prop.Condition = clampFloat64(prop.Condition+repairAmount, 0, 1)
+
+	// Improving condition improves tenant satisfaction
+	if tenant := s.Tenants[prop.TenantID]; tenant != nil {
+		tenant.Satisfaction = clampFloat64(tenant.Satisfaction+repairAmount*0.5, 0, 1)
+	}
+
+	return nil
+}
+
+// GetRentHistory returns payment history for a property.
+func (s *RentCollectionSystem) GetRentHistory(propID string) []RentPayment {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	prop := s.Properties[propID]
+	if prop == nil {
+		return nil
+	}
+	return prop.RentHistory
+}
+
+// CalculateTotalRentalValue calculates total monthly rental income potential.
+func (s *RentCollectionSystem) CalculateTotalRentalValue(ownerID uint64) float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	total := 0.0
+	for _, propID := range s.OwnerProperties[ownerID] {
+		if prop := s.Properties[propID]; prop != nil {
+			total += prop.MonthlyRent
+		}
+	}
+	return total
+}
+
+// CalculateOccupancyRate calculates percentage of occupied properties.
+func (s *RentCollectionSystem) CalculateOccupancyRate(ownerID uint64) float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	propIDs := s.OwnerProperties[ownerID]
+	if len(propIDs) == 0 {
+		return 0
+	}
+
+	occupied := 0
+	for _, propID := range propIDs {
+		if prop := s.Properties[propID]; prop != nil && prop.TenantID != 0 {
+			occupied++
+		}
+	}
+
+	return float64(occupied) / float64(len(propIDs))
+}
+
+// GetOverdueProperties returns properties with overdue rent.
+func (s *RentCollectionSystem) GetOverdueProperties(ownerID uint64) []*RentalProperty {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	overdue := make([]*RentalProperty, 0)
+	for _, propID := range s.OwnerProperties[ownerID] {
+		if prop := s.Properties[propID]; prop != nil {
+			if prop.Status == RentStatusOverdue || prop.Status == RentStatusEvicting {
+				overdue = append(overdue, prop)
+			}
+		}
+	}
+	return overdue
+}
+
+// clampFloat64 clamps a value between min and max.
+func clampFloat64(value, min, max float64) float64 {
+	if value < min {
+		return min
+	}
+	if value > max {
+		return max
+	}
+	return value
+}

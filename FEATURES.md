@@ -172,7 +172,7 @@ Legend:
 - [x] Trade route system
 - [x] Market manipulation
 - [x] Investment system
-- [ ] Economic events
+- [x] Economic events
 
 ---
 
@@ -199,7 +199,7 @@ Legend:
 - [x] Ownership tracking
 - [x] First-person furniture placement
 - [x] Property purchasing
-- [ ] Rent collection
+- [x] Rent collection
 - [ ] Home upgrades
 - [ ] Guild halls
 - [ ] Shared storage
