@@ -19,7 +19,7 @@ This document catalogs the gaps between Wyrm's stated goals and its current impl
   1. **Priority 1**: Party system — networking infrastructure exists; add party creation, member tracking, shared quest state
   2. **Priority 2**: Player trading — economy system exists; add trade request protocol, item transfer validation
   3. **Priority 3**: Indoor/outdoor detection — housing system has room definitions; add `IsIndoors` component check
-  4. **Priority 4**: Sprite rendering — integrate with raycaster for NPC/item visibility
+  4. **Priority 4**: Sprite rendering — integrate with raycaster for NPC/item visibility (see [SPRITE_PLAN.md](SPRITE_PLAN.md) for complete design spec)
   5. **Priority 5**: Lighting system — extend raycaster with light source attenuation
   6. **Priority 6**: Particle effects — add particle emitter system for weather, combat
   7. **Priority 7**: Key rebinding — extend config system with input mapping

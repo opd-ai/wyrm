@@ -127,6 +127,7 @@
 
 ### Step 10: Implement Sprite Rendering
 - **Deliverable**: Extend `pkg/rendering/raycast/` with sprite rendering for NPCs and items
+- **Design Spec**: See [SPRITE_PLAN.md](SPRITE_PLAN.md) for the complete entity rendering system design, including billboard math, z-buffer integration, animation state machine, genre-specific visuals, and performance budgets
 - **Dependencies**: None
 - **Goal Impact**: Rendering & Graphics category (6/10 → 7/10), visual fidelity
 - **Acceptance**: Entities rendered as scaled, distance-attenuated sprites in first-person view
@@ -203,7 +204,7 @@
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Sprite/particle rendering breaks raycaster | High | Add noebiten build tag tests first |
+| Sprite/particle rendering breaks raycaster | High | Add noebiten build tag tests first; follow [SPRITE_PLAN.md](SPRITE_PLAN.md) phased approach |
 | Network features break existing federation | High | Integration tests before each merge |
 | Refactoring introduces regressions | Medium | Ensure 100% test coverage on modified functions |
 | Performance benchmarks reveal issues | Medium | Profile before committing to optimizations |
@@ -254,6 +255,16 @@ Step 10 (Sprite Rendering) ────→ Step 11 (Particles) ──┐        
 | **Total** | **16 steps** | — | **~8 weeks** |
 
 ---
+
+## Related Documents
+
+| Document | Purpose |
+|----------|---------|
+| [SPRITE_PLAN.md](SPRITE_PLAN.md) | Complete entity rendering system design — billboard math, z-buffer, Appearance component, animation system, genre visuals, performance budgets, 5-phase implementation roadmap (Steps 10–13 depend on this) |
+| [FEATURES.md](FEATURES.md) | 200-feature checklist with per-category progress tracking |
+| [GAPS.md](GAPS.md) | Implementation gaps analysis with prioritized closure actions |
+| [ROADMAP.md](ROADMAP.md) | Goal-achievement assessment with metrics and priority roadmap |
+| [AUDIT.md](AUDIT.md) | Full goal-achievement audit with build/test verification |
 
 ## Notes
 
