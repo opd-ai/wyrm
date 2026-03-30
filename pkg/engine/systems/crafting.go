@@ -52,36 +52,41 @@ func (s *CraftingSystem) updateCraftingProgress(w *ecs.World, dt float64) {
 
 // updateResourceRespawning handles depleted resource nodes.
 func (s *CraftingSystem) updateResourceRespawning(w *ecs.World, dt float64) {
-	// Find the world clock
-	var gameTime float64
-	clockFound := false
-	for _, ce := range w.Entities("WorldClock") {
-		clockComp, ok := w.GetComponent(ce, "WorldClock")
-		if ok {
-			clock := clockComp.(*components.WorldClock)
-			gameTime = float64(clock.Day*HoursPerDay+clock.Hour)*SecondsPerHour + clock.TimeAccum
-			clockFound = true
-			break
-		}
-	}
-	if !clockFound {
+	gameTime, ok := s.getGameTime(w)
+	if !ok {
 		return
 	}
 
 	for _, e := range w.Entities("ResourceNode") {
-		comp, ok := w.GetComponent(e, "ResourceNode")
-		if !ok {
-			continue
-		}
-		node := comp.(*components.ResourceNode)
-		if !node.Depleted {
-			continue
-		}
+		s.tryRespawnNode(w, e, gameTime)
+	}
+}
 
-		if gameTime-node.LastGathered >= node.RespawnTime {
-			node.Depleted = false
-			node.Quantity = node.MaxQuantity
+// getGameTime retrieves the current game time from WorldClock.
+func (s *CraftingSystem) getGameTime(w *ecs.World) (float64, bool) {
+	for _, ce := range w.Entities("WorldClock") {
+		clockComp, ok := w.GetComponent(ce, "WorldClock")
+		if ok {
+			clock := clockComp.(*components.WorldClock)
+			return float64(clock.Day*HoursPerDay+clock.Hour)*SecondsPerHour + clock.TimeAccum, true
 		}
+	}
+	return 0, false
+}
+
+// tryRespawnNode checks and respawns a single resource node if ready.
+func (s *CraftingSystem) tryRespawnNode(w *ecs.World, e ecs.Entity, gameTime float64) {
+	comp, ok := w.GetComponent(e, "ResourceNode")
+	if !ok {
+		return
+	}
+	node := comp.(*components.ResourceNode)
+	if !node.Depleted {
+		return
+	}
+	if gameTime-node.LastGathered >= node.RespawnTime {
+		node.Depleted = false
+		node.Quantity = node.MaxQuantity
 	}
 }
 
@@ -139,27 +144,36 @@ func (s *CraftingSystem) CancelCraft(w *ecs.World, crafter ecs.Entity) bool {
 		return false
 	}
 
-	// Return partial materials (CancelCraftMaterialReturn of consumed)
-	if state.ConsumedMaterials != nil {
-		invComp, invOK := w.GetComponent(crafter, "Inventory")
-		if invOK {
-			inv := invComp.(*components.Inventory)
-			for mat, qty := range state.ConsumedMaterials {
-				returnQty := qty / MaterialReturnDivisor
-				if returnQty > 0 {
-					inv.Items = append(inv.Items, mat)
-					_ = returnQty // Would add returnQty times
-				}
-			}
+	s.returnPartialMaterials(w, crafter, state)
+	s.resetCraftingState(state)
+	return true
+}
+
+// returnPartialMaterials returns a fraction of consumed materials to inventory.
+func (s *CraftingSystem) returnPartialMaterials(w *ecs.World, crafter ecs.Entity, state *components.CraftingState) {
+	if state.ConsumedMaterials == nil {
+		return
+	}
+	invComp, invOK := w.GetComponent(crafter, "Inventory")
+	if !invOK {
+		return
+	}
+	inv := invComp.(*components.Inventory)
+	for mat, qty := range state.ConsumedMaterials {
+		returnQty := qty / MaterialReturnDivisor
+		if returnQty > 0 {
+			inv.Items = append(inv.Items, mat)
+			_ = returnQty // Would add returnQty times
 		}
 	}
+}
 
+// resetCraftingState clears the crafting state.
+func (s *CraftingSystem) resetCraftingState(state *components.CraftingState) {
 	state.IsCrafting = false
 	state.Progress = 0
 	state.CurrentRecipeID = ""
 	state.ConsumedMaterials = nil
-
-	return true
 }
 
 // gatherToolBonus contains tool effects for gathering.
@@ -353,37 +367,47 @@ func (s *CraftingSystem) RepairTool(w *ecs.World, entity ecs.Entity, repairAmoun
 // CalculateCraftQuality determines the quality of a crafted item.
 func (s *CraftingSystem) CalculateCraftQuality(w *ecs.World, crafter, workbench ecs.Entity, materialQuality float64) float64 {
 	baseQuality := materialQuality
+	baseQuality += s.workbenchQualityBonus(w, workbench)
+	baseQuality += s.crafterSkillBonus(w, crafter)
+	return s.applyQualityVariance(baseQuality)
+}
 
-	// Add workbench bonus
-	wbComp, wbOK := w.GetComponent(workbench, "Workbench")
-	if wbOK {
-		wb := wbComp.(*components.Workbench)
-		baseQuality += wb.QualityBonus
+// workbenchQualityBonus returns quality bonus from workbench.
+func (s *CraftingSystem) workbenchQualityBonus(w *ecs.World, workbench ecs.Entity) float64 {
+	wbComp, ok := w.GetComponent(workbench, "Workbench")
+	if !ok {
+		return 0
 	}
+	wb := wbComp.(*components.Workbench)
+	return wb.QualityBonus
+}
 
-	// Add skill bonus
-	skillsComp, skillsOK := w.GetComponent(crafter, "Skills")
-	if skillsOK {
-		skills := skillsComp.(*components.Skills)
-		for _, skillID := range []string{"smithing", "alchemy", "enchanting", "cooking", "crafting"} {
-			if level, ok := skills.Levels[skillID]; ok {
-				baseQuality += float64(level) * CraftingSkillQualityBonus
-			}
+// crafterSkillBonus returns quality bonus from crafter's crafting skills.
+func (s *CraftingSystem) crafterSkillBonus(w *ecs.World, crafter ecs.Entity) float64 {
+	skillsComp, ok := w.GetComponent(crafter, "Skills")
+	if !ok {
+		return 0
+	}
+	skills := skillsComp.(*components.Skills)
+	var bonus float64
+	for _, skillID := range []string{"smithing", "alchemy", "enchanting", "cooking", "crafting"} {
+		if level, ok := skills.Levels[skillID]; ok {
+			bonus += float64(level) * CraftingSkillQualityBonus
 		}
 	}
+	return bonus
+}
 
-	// Apply random variance (+/- 10%)
+// applyQualityVariance adds random variance and clamps result.
+func (s *CraftingSystem) applyQualityVariance(baseQuality float64) float64 {
 	variance := (s.rng.Float64() - QualityVarianceCenter) * QualityVarianceFactor
 	finalQuality := baseQuality + variance
-
-	// Clamp to valid range
 	if finalQuality < MinimumQuality {
 		finalQuality = MinimumQuality
 	}
 	if finalQuality > MaximumQuality {
 		finalQuality = MaximumQuality
 	}
-
 	return finalQuality
 }
 

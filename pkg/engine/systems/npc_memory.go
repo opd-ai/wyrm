@@ -90,24 +90,38 @@ func decayTowardNeutral(value, decayRate, dt float64) float64 {
 
 // RecordEvent adds a memory event to an NPC's memory of a player.
 func (s *NPCMemorySystem) RecordEvent(w *ecs.World, npc, player ecs.Entity, eventType string, impact float64, details string) {
+	memory := s.getOrCreateMemory(w, npc)
+	playerID := uint64(player)
+
+	ensureMemoryMapsInitialized(memory)
+	s.addMemoryEvent(memory, playerID, eventType, impact, details)
+	s.updateDispositionFromEvent(memory, playerID, impact)
+}
+
+// getOrCreateMemory retrieves or creates an NPCMemory component.
+func (s *NPCMemorySystem) getOrCreateMemory(w *ecs.World, npc ecs.Entity) *components.NPCMemory {
 	memComp, ok := w.GetComponent(npc, "NPCMemory")
 	if !ok {
-		// Create memory component if it doesn't exist
-		memory := &components.NPCMemory{
-			PlayerInteractions: make(map[uint64][]MemoryEvent),
-			LastSeen:           make(map[uint64]float64),
-			Disposition:        make(map[uint64]float64),
-			MaxMemories:        DefaultMaxMemories,
-			MemoryDecayRate:    DefaultMemoryDecayRate,
-		}
+		memory := newDefaultNPCMemory()
 		w.AddComponent(npc, memory)
 		memComp, _ = w.GetComponent(npc, "NPCMemory")
 	}
-	memory := memComp.(*components.NPCMemory)
+	return memComp.(*components.NPCMemory)
+}
 
-	playerID := uint64(player)
+// newDefaultNPCMemory creates an NPCMemory with default values.
+func newDefaultNPCMemory() *components.NPCMemory {
+	return &components.NPCMemory{
+		PlayerInteractions: make(map[uint64][]MemoryEvent),
+		LastSeen:           make(map[uint64]float64),
+		Disposition:        make(map[uint64]float64),
+		MaxMemories:        DefaultMaxMemories,
+		MemoryDecayRate:    DefaultMemoryDecayRate,
+	}
+}
 
-	// Initialize maps if needed
+// ensureMemoryMapsInitialized initializes nil maps in NPCMemory.
+func ensureMemoryMapsInitialized(memory *components.NPCMemory) {
 	if memory.PlayerInteractions == nil {
 		memory.PlayerInteractions = make(map[uint64][]MemoryEvent)
 	}
@@ -117,8 +131,10 @@ func (s *NPCMemorySystem) RecordEvent(w *ecs.World, npc, player ecs.Entity, even
 	if memory.Disposition == nil {
 		memory.Disposition = make(map[uint64]float64)
 	}
+}
 
-	// Record the event
+// addMemoryEvent adds a new event and trims old memories.
+func (s *NPCMemorySystem) addMemoryEvent(memory *components.NPCMemory, playerID uint64, eventType string, impact float64, details string) {
 	event := MemoryEvent{
 		EventType: eventType,
 		Timestamp: s.GameTime,
@@ -126,8 +142,13 @@ func (s *NPCMemorySystem) RecordEvent(w *ecs.World, npc, player ecs.Entity, even
 		Details:   details,
 	}
 	memory.PlayerInteractions[playerID] = append(memory.PlayerInteractions[playerID], event)
+	memory.LastSeen[playerID] = s.GameTime
 
-	// Trim old memories if over limit
+	trimMemoriesToLimit(memory, playerID)
+}
+
+// trimMemoriesToLimit removes oldest memories if over the limit.
+func trimMemoriesToLimit(memory *components.NPCMemory, playerID uint64) {
 	maxMem := memory.MaxMemories
 	if maxMem <= 0 {
 		maxMem = DefaultMaxMemories
@@ -135,11 +156,10 @@ func (s *NPCMemorySystem) RecordEvent(w *ecs.World, npc, player ecs.Entity, even
 	if len(memory.PlayerInteractions[playerID]) > maxMem {
 		memory.PlayerInteractions[playerID] = memory.PlayerInteractions[playerID][1:]
 	}
+}
 
-	// Update last seen
-	memory.LastSeen[playerID] = s.GameTime
-
-	// Update disposition
+// updateDispositionFromEvent adjusts disposition based on event impact.
+func (s *NPCMemorySystem) updateDispositionFromEvent(memory *components.NPCMemory, playerID uint64, impact float64) {
 	currentDisposition := memory.Disposition[playerID]
 	newDisposition := currentDisposition + impact
 	memory.Disposition[playerID] = clampDisposition(newDisposition)
@@ -169,24 +189,8 @@ func (s *NPCMemorySystem) GetDisposition(w *ecs.World, npc, player ecs.Entity) f
 
 // SetDisposition directly sets the NPC's disposition toward a player.
 func (s *NPCMemorySystem) SetDisposition(w *ecs.World, npc, player ecs.Entity, disposition float64) {
-	memComp, ok := w.GetComponent(npc, "NPCMemory")
-	if !ok {
-		memory := &components.NPCMemory{
-			PlayerInteractions: make(map[uint64][]MemoryEvent),
-			LastSeen:           make(map[uint64]float64),
-			Disposition:        make(map[uint64]float64),
-			MaxMemories:        DefaultMaxMemories,
-			MemoryDecayRate:    DefaultMemoryDecayRate,
-		}
-		w.AddComponent(npc, memory)
-		memComp, _ = w.GetComponent(npc, "NPCMemory")
-	}
-	memory := memComp.(*components.NPCMemory)
-
-	if memory.Disposition == nil {
-		memory.Disposition = make(map[uint64]float64)
-	}
-
+	memory := s.getOrCreateMemory(w, npc)
+	ensureMemoryMapsInitialized(memory)
 	memory.Disposition[uint64(player)] = clampDisposition(disposition)
 }
 

@@ -60,36 +60,47 @@ func (s *GossipSystem) decayOldGossip(w *ecs.World) {
 func (s *GossipSystem) propagateGossip(w *ecs.World, dt float64) {
 	entities := w.Entities("GossipNetwork", "Position")
 	for i, e1 := range entities {
-		g1Comp, _ := w.GetComponent(e1, "GossipNetwork")
-		g1 := g1Comp.(*components.GossipNetwork)
-
-		// Check cooldown
-		if s.GameTime-g1.LastGossipTime < g1.GossipCooldown {
+		if !s.canShareGossip(w, e1) {
 			continue
 		}
-
-		p1Comp, _ := w.GetComponent(e1, "Position")
-		p1 := p1Comp.(*components.Position)
-
-		// Find nearby NPCs to gossip with
-		for j, e2 := range entities {
-			if i >= j {
-				continue // Skip self and already-checked pairs
-			}
-
-			p2Comp, _ := w.GetComponent(e2, "Position")
-			p2 := p2Comp.(*components.Position)
-
-			if !s.inGossipRange(p1, p2) {
-				continue
-			}
-
-			g2Comp, _ := w.GetComponent(e2, "GossipNetwork")
-			g2 := g2Comp.(*components.GossipNetwork)
-
-			s.exchangeGossip(g1, g2, dt)
-		}
+		s.tryShareWithNearbyNPCs(w, e1, entities, i, dt)
 	}
+}
+
+// canShareGossip checks if an entity is off cooldown for sharing.
+func (s *GossipSystem) canShareGossip(w *ecs.World, e ecs.Entity) bool {
+	g1Comp, _ := w.GetComponent(e, "GossipNetwork")
+	g1 := g1Comp.(*components.GossipNetwork)
+	return s.GameTime-g1.LastGossipTime >= g1.GossipCooldown
+}
+
+// tryShareWithNearbyNPCs attempts to share gossip with all nearby NPCs.
+func (s *GossipSystem) tryShareWithNearbyNPCs(w *ecs.World, e1 ecs.Entity, entities []ecs.Entity, i int, dt float64) {
+	g1Comp, _ := w.GetComponent(e1, "GossipNetwork")
+	g1 := g1Comp.(*components.GossipNetwork)
+	p1Comp, _ := w.GetComponent(e1, "Position")
+	p1 := p1Comp.(*components.Position)
+
+	for j, e2 := range entities {
+		if i >= j {
+			continue // Skip self and already-checked pairs
+		}
+		s.tryExchangeGossipWithNPC(w, g1, p1, e2, dt)
+	}
+}
+
+// tryExchangeGossipWithNPC exchanges gossip with a single NPC if in range.
+func (s *GossipSystem) tryExchangeGossipWithNPC(w *ecs.World, g1 *components.GossipNetwork, p1 *components.Position, e2 ecs.Entity, dt float64) {
+	p2Comp, _ := w.GetComponent(e2, "Position")
+	p2 := p2Comp.(*components.Position)
+
+	if !s.inGossipRange(p1, p2) {
+		return
+	}
+
+	g2Comp, _ := w.GetComponent(e2, "GossipNetwork")
+	g2 := g2Comp.(*components.GossipNetwork)
+	s.exchangeGossip(g1, g2, dt)
 }
 
 // inGossipRange checks if two positions are close enough for gossip.
@@ -114,43 +125,50 @@ func (s *GossipSystem) shareGossipOneWay(source, target *components.GossipNetwor
 	if len(source.KnownGossip) == 0 {
 		return
 	}
+	s.ensureGossipMap(target)
 
-	// Ensure target has a gossip map
-	if target.KnownGossip == nil {
-		target.KnownGossip = make(map[string]*components.GossipItem)
-	}
-
-	// Share gossip based on chance
 	shareChance := source.GossipChance * dt
 	listenChance := target.ListenChance
 
 	for id, item := range source.KnownGossip {
-		// Skip if target already knows
-		if _, known := target.KnownGossip[id]; known {
-			continue
-		}
-
-		// Roll for sharing and listening
-		if shareChance > 0 && listenChance > 0 {
-			// Copy gossip to target
-			target.KnownGossip[id] = &components.GossipItem{
-				ID:                 item.ID,
-				Topic:              item.Topic,
-				Content:            item.Content,
-				SubjectEntity:      item.SubjectEntity,
-				OriginTime:         item.OriginTime,
-				Spread:             item.Spread + GossipDecayRate*dt,
-				Truthfulness:       item.Truthfulness,
-				ImpactOnReputation: item.ImpactOnReputation,
-			}
-			// Also update source's spread tracking
-			item.Spread += GossipDecayRate * dt
-			if item.Spread > 1.0 {
-				item.Spread = 1.0
-			}
-			source.LastGossipTime = s.GameTime
+		if s.shouldTransferGossip(target, id, shareChance, listenChance) {
+			s.transferGossipItem(source, target, id, item, dt)
 		}
 	}
+}
+
+// ensureGossipMap initializes the gossip map if needed.
+func (s *GossipSystem) ensureGossipMap(network *components.GossipNetwork) {
+	if network.KnownGossip == nil {
+		network.KnownGossip = make(map[string]*components.GossipItem)
+	}
+}
+
+// shouldTransferGossip checks if gossip should be transferred.
+func (s *GossipSystem) shouldTransferGossip(target *components.GossipNetwork, id string, shareChance, listenChance float64) bool {
+	if _, known := target.KnownGossip[id]; known {
+		return false
+	}
+	return shareChance > 0 && listenChance > 0
+}
+
+// transferGossipItem copies gossip from source to target.
+func (s *GossipSystem) transferGossipItem(source, target *components.GossipNetwork, id string, item *components.GossipItem, dt float64) {
+	target.KnownGossip[id] = &components.GossipItem{
+		ID:                 item.ID,
+		Topic:              item.Topic,
+		Content:            item.Content,
+		SubjectEntity:      item.SubjectEntity,
+		OriginTime:         item.OriginTime,
+		Spread:             item.Spread + GossipDecayRate*dt,
+		Truthfulness:       item.Truthfulness,
+		ImpactOnReputation: item.ImpactOnReputation,
+	}
+	item.Spread += GossipDecayRate * dt
+	if item.Spread > 1.0 {
+		item.Spread = 1.0
+	}
+	source.LastGossipTime = s.GameTime
 }
 
 // CreateGossip generates a new piece of gossip.

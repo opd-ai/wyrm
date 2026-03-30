@@ -236,3 +236,201 @@ func BenchmarkManagerGetChunk(b *testing.B) {
 		_ = cm.GetChunk(i%100, i/100)
 	}
 }
+
+// Tests for vertical terrain (hills, cliffs)
+
+func TestChunkElevationMapPopulated(t *testing.T) {
+	c := NewChunk(0, 0, 16, 12345)
+
+	if c.ElevationMap == nil {
+		t.Fatal("ElevationMap should not be nil")
+	}
+	if len(c.ElevationMap) != 16*16 {
+		t.Errorf("expected ElevationMap size 256, got %d", len(c.ElevationMap))
+	}
+
+	// Check that elevation values are in valid range
+	for _, e := range c.ElevationMap {
+		if e < 0 || e > MaxElevation {
+			t.Errorf("elevation %f out of range [0, %f]", e, MaxElevation)
+		}
+	}
+}
+
+func TestChunkTerrainTypesPopulated(t *testing.T) {
+	c := NewChunk(0, 0, 16, 12345)
+
+	if c.TerrainTypes == nil {
+		t.Fatal("TerrainTypes should not be nil")
+	}
+	if len(c.TerrainTypes) != 16*16 {
+		t.Errorf("expected TerrainTypes size 256, got %d", len(c.TerrainTypes))
+	}
+
+	// Check that terrain types are valid
+	for _, tt := range c.TerrainTypes {
+		if tt < TerrainFlat || tt > TerrainPeak {
+			t.Errorf("invalid terrain type %d", tt)
+		}
+	}
+}
+
+func TestChunkGetElevation(t *testing.T) {
+	c := NewChunk(0, 0, 16, 12345)
+
+	// Valid coordinates
+	e := c.GetElevation(0, 0)
+	if e < 0 || e > MaxElevation {
+		t.Errorf("elevation should be in [0, %f] range, got %f", MaxElevation, e)
+	}
+
+	e = c.GetElevation(15, 15)
+	if e < 0 || e > MaxElevation {
+		t.Errorf("elevation should be in [0, %f] range, got %f", MaxElevation, e)
+	}
+
+	// Invalid coordinates should return 0
+	e = c.GetElevation(-1, 0)
+	if e != 0 {
+		t.Errorf("expected 0 for invalid coordinates, got %f", e)
+	}
+
+	e = c.GetElevation(16, 0)
+	if e != 0 {
+		t.Errorf("expected 0 for out-of-bounds coordinates, got %f", e)
+	}
+}
+
+func TestChunkGetTerrainType(t *testing.T) {
+	c := NewChunk(0, 0, 16, 12345)
+
+	// Valid coordinates should return a valid type
+	tt := c.GetTerrainType(8, 8)
+	if tt < TerrainFlat || tt > TerrainPeak {
+		t.Errorf("invalid terrain type %d", tt)
+	}
+
+	// Invalid coordinates should return TerrainFlat
+	tt = c.GetTerrainType(-1, 0)
+	if tt != TerrainFlat {
+		t.Errorf("expected TerrainFlat for invalid coordinates, got %d", tt)
+	}
+
+	tt = c.GetTerrainType(16, 0)
+	if tt != TerrainFlat {
+		t.Errorf("expected TerrainFlat for out-of-bounds coordinates, got %d", tt)
+	}
+}
+
+func TestChunkIsCliff(t *testing.T) {
+	// Create a chunk and manually set a cliff for testing
+	c := NewChunk(0, 0, 16, 12345)
+
+	// Find a cliff cell if one exists
+	hasCliff := false
+	for y := 0; y < c.Size; y++ {
+		for x := 0; x < c.Size; x++ {
+			if c.TerrainTypes[y*c.Size+x] == TerrainCliff {
+				if !c.IsCliff(x, y) {
+					t.Error("IsCliff should return true for cliff terrain")
+				}
+				hasCliff = true
+				break
+			}
+		}
+		if hasCliff {
+			break
+		}
+	}
+
+	// A flat cell should not be a cliff
+	for y := 0; y < c.Size; y++ {
+		for x := 0; x < c.Size; x++ {
+			if c.TerrainTypes[y*c.Size+x] == TerrainFlat {
+				if c.IsCliff(x, y) {
+					t.Error("IsCliff should return false for flat terrain")
+				}
+				return
+			}
+		}
+	}
+}
+
+func TestChunkIsHill(t *testing.T) {
+	c := NewChunk(0, 0, 16, 12345)
+
+	// Test that hills and peaks return true for IsHill
+	for y := 0; y < c.Size; y++ {
+		for x := 0; x < c.Size; x++ {
+			tt := c.TerrainTypes[y*c.Size+x]
+			isHill := c.IsHill(x, y)
+			expected := tt == TerrainHill || tt == TerrainPeak
+			if isHill != expected {
+				t.Errorf("IsHill(%d, %d) = %v, expected %v for terrain type %d", x, y, isHill, expected, tt)
+			}
+		}
+	}
+}
+
+func TestChunkGetElevationDifference(t *testing.T) {
+	c := NewChunk(0, 0, 16, 12345)
+
+	// Same cell should have 0 difference
+	diff := c.GetElevationDifference(5, 5, 5, 5)
+	if diff != 0 {
+		t.Errorf("expected 0 difference for same cell, got %f", diff)
+	}
+
+	// Different cells may have positive difference
+	diff = c.GetElevationDifference(0, 0, 15, 15)
+	if diff < 0 {
+		t.Errorf("elevation difference should be non-negative, got %f", diff)
+	}
+}
+
+func TestElevationDeterminism(t *testing.T) {
+	seed := int64(42)
+
+	c1 := NewChunk(0, 0, 16, seed)
+	c2 := NewChunk(0, 0, 16, seed)
+
+	// Same seed should produce identical elevation maps
+	for i := range c1.ElevationMap {
+		if c1.ElevationMap[i] != c2.ElevationMap[i] {
+			t.Errorf("elevation mismatch at index %d: %f != %f", i, c1.ElevationMap[i], c2.ElevationMap[i])
+		}
+	}
+
+	// Same seed should produce identical terrain types
+	for i := range c1.TerrainTypes {
+		if c1.TerrainTypes[i] != c2.TerrainTypes[i] {
+			t.Errorf("terrain type mismatch at index %d: %d != %d", i, c1.TerrainTypes[i], c2.TerrainTypes[i])
+		}
+	}
+}
+
+func TestTerrainTypeDistribution(t *testing.T) {
+	// Test that terrain types are distributed across the chunk
+	c := NewChunk(0, 0, 64, 12345)
+
+	counts := make(map[int]int)
+	for _, tt := range c.TerrainTypes {
+		counts[tt]++
+	}
+
+	// With a 64x64 chunk, we should have some variation
+	// At minimum, we should have flat terrain
+	if counts[TerrainFlat] == 0 {
+		t.Error("expected some flat terrain cells")
+	}
+
+	// Log distribution for debugging (not an error if others are 0)
+	t.Logf("Terrain distribution: Flat=%d, Hill=%d, Cliff=%d, Peak=%d",
+		counts[TerrainFlat], counts[TerrainHill], counts[TerrainCliff], counts[TerrainPeak])
+}
+
+func BenchmarkNewChunkWithElevation(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = NewChunk(0, 0, 64, int64(i))
+	}
+}

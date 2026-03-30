@@ -367,36 +367,46 @@ func (s *DynamicFactionWarSystem) processWarEffects(w *ecs.World, dt float64) {
 
 // processWarTerritories handles territory changes during wars.
 func (s *DynamicFactionWarSystem) processWarTerritories(w *ecs.World, war *FactionWar, dt float64) {
-	// Find contested territories (both factions have territories)
 	for _, e := range w.Entities("FactionTerritory") {
-		comp, ok := w.GetComponent(e, "FactionTerritory")
-		if !ok {
-			continue
-		}
-		territory := comp.(*components.FactionTerritory)
-
-		// Territory belongs to one of the warring factions
-		if territory.FactionID != war.Faction1 && territory.FactionID != war.Faction2 {
-			continue
-		}
-
-		// Reduce control during war
-		territory.ControlLevel -= dt * 0.01
-		if territory.ControlLevel < 0 {
-			territory.ControlLevel = 0
-		}
-
-		// Check for territory flip
-		if territory.ControlLevel < 0.2 {
-			// Territory is vulnerable
-			if territory.FactionID == war.Faction1 {
-				war.Faction2Score++
-			} else {
-				war.Faction1Score++
-			}
-			territory.ControlLevel = 0.5 // Reset after capture
-		}
+		s.processWarTerritory(w, e, war, dt)
 	}
+}
+
+// processWarTerritory handles territory changes for a single territory.
+func (s *DynamicFactionWarSystem) processWarTerritory(w *ecs.World, e ecs.Entity, war *FactionWar, dt float64) {
+	comp, ok := w.GetComponent(e, "FactionTerritory")
+	if !ok {
+		return
+	}
+	territory := comp.(*components.FactionTerritory)
+
+	if !s.isTerritoryInWar(territory, war) {
+		return
+	}
+
+	territory.ControlLevel -= dt * 0.01
+	if territory.ControlLevel < 0 {
+		territory.ControlLevel = 0
+	}
+
+	if territory.ControlLevel < 0.2 {
+		s.captureTerritory(territory, war)
+	}
+}
+
+// isTerritoryInWar checks if territory belongs to one of the warring factions.
+func (s *DynamicFactionWarSystem) isTerritoryInWar(territory *components.FactionTerritory, war *FactionWar) bool {
+	return territory.FactionID == war.Faction1 || territory.FactionID == war.Faction2
+}
+
+// captureTerritory awards points and resets control level.
+func (s *DynamicFactionWarSystem) captureTerritory(territory *components.FactionTerritory, war *FactionWar) {
+	if territory.FactionID == war.Faction1 {
+		war.Faction2Score++
+	} else {
+		war.Faction1Score++
+	}
+	territory.ControlLevel = 0.5
 }
 
 // DeclareWar starts a war between two factions.

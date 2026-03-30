@@ -717,24 +717,27 @@ func (lmm *LocationMusicManager) applyLocationConfig() {
 		return
 	}
 
-	// Apply layer weights to adaptive music
 	lmm.adaptiveMusic.mu.Lock()
 	defer lmm.adaptiveMusic.mu.Unlock()
 
 	if len(config.LayerWeights) >= 3 {
-		if layer, ok := lmm.adaptiveMusic.layers["exploration"]; ok {
-			layer.Target = config.LayerWeights[0]
+		lmm.applyLayerWeights(config.LayerWeights)
+	}
+}
+
+// applyLayerWeights sets layer targets from config weights.
+func (lmm *LocationMusicManager) applyLayerWeights(weights []float64) {
+	if layer, ok := lmm.adaptiveMusic.layers["exploration"]; ok {
+		layer.Target = weights[0]
+	}
+	if layer, ok := lmm.adaptiveMusic.layers["combat"]; ok {
+		if lmm.adaptiveMusic.currentState != StateCombat {
+			layer.Target = weights[1]
 		}
-		if layer, ok := lmm.adaptiveMusic.layers["combat"]; ok {
-			// Only set combat layer if not actually in combat
-			if lmm.adaptiveMusic.currentState != StateCombat {
-				layer.Target = config.LayerWeights[1]
-			}
-		}
-		if layer, ok := lmm.adaptiveMusic.layers["tension"]; ok {
-			layer.Target = config.LayerWeights[2]
-			layer.Active = config.LayerWeights[2] > 0
-		}
+	}
+	if layer, ok := lmm.adaptiveMusic.layers["tension"]; ok {
+		layer.Target = weights[2]
+		layer.Active = weights[2] > 0
 	}
 }
 
@@ -868,18 +871,27 @@ func (bmm *BossMusicManager) UpdateBossHealth(health float64) {
 	if !bmm.isActive {
 		return
 	}
+	bmm.checkPhaseTransitions()
+}
+
+// checkPhaseTransitions evaluates and applies boss phase transitions.
+func (bmm *BossMusicManager) checkPhaseTransitions() {
 	config := bmm.configs[bmm.currentBoss]
 	if config == nil {
 		return
 	}
-	// Check for phase transition based on health thresholds
 	for i, threshold := range config.PhaseThreshold {
-		if bmm.bossHealth <= threshold && i < len(config.Phases) {
-			if config.Phases[i] > bmm.currentPhase {
-				bmm.currentPhase = config.Phases[i]
-			}
+		if bmm.shouldTransitionToPhase(i, threshold, config) {
+			bmm.currentPhase = config.Phases[i]
 		}
 	}
+}
+
+// shouldTransitionToPhase checks if a phase transition should occur.
+func (bmm *BossMusicManager) shouldTransitionToPhase(phaseIndex int, threshold float64, config *BossMusicConfig) bool {
+	return bmm.bossHealth <= threshold &&
+		phaseIndex < len(config.Phases) &&
+		config.Phases[phaseIndex] > bmm.currentPhase
 }
 
 // EndBossFight ends boss fight music (victory or defeat).

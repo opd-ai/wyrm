@@ -565,32 +565,39 @@ func (dm *DialogManager) calculateEmotionShift(checkType SkillCheckType, result 
 
 	switch checkType {
 	case SkillCheckPersuasion:
-		if result.Success {
-			if result.CriticalSuccess {
-				return baseShift + 15 // Critical success = big friendship gain
-			}
-			return baseShift + 5 // Success = moderate friendship gain
-		}
-		// Failed persuasion has minimal negative impact
-		if result.CriticalFailure {
-			return baseShift - 5
-		}
-		return baseShift - 2
-
+		return baseShift + dm.persuasionShiftModifier(result)
 	case SkillCheckIntimidate:
-		if result.Success {
-			if result.CriticalSuccess {
-				return baseShift - 30 // Critical intimidation = fear
-			}
-			return baseShift - 15 // Success = NPC becomes fearful/hostile
-		}
-		// Failed intimidation makes NPC hostile
-		if result.CriticalFailure {
-			return baseShift - 25 // Critical failure = NPC very angry
-		}
-		return baseShift - 10
+		return baseShift + dm.intimidationShiftModifier(result)
 	}
 	return 0
+}
+
+// persuasionShiftModifier returns emotion shift modifier for persuasion checks.
+func (dm *DialogManager) persuasionShiftModifier(result *SkillCheckResult) float64 {
+	if result.Success {
+		if result.CriticalSuccess {
+			return 15 // Critical success = big friendship gain
+		}
+		return 5 // Success = moderate friendship gain
+	}
+	if result.CriticalFailure {
+		return -5
+	}
+	return -2
+}
+
+// intimidationShiftModifier returns emotion shift modifier for intimidation checks.
+func (dm *DialogManager) intimidationShiftModifier(result *SkillCheckResult) float64 {
+	if result.Success {
+		if result.CriticalSuccess {
+			return -30 // Critical intimidation = fear
+		}
+		return -15 // Success = NPC becomes fearful/hostile
+	}
+	if result.CriticalFailure {
+		return -25 // Critical failure = NPC very angry
+	}
+	return -10
 }
 
 // generateSkillCheckResponse creates NPC response text for skill check.
@@ -609,27 +616,23 @@ func (dm *DialogManager) generateSkillCheckResponse(check SkillCheck, result *Sk
 // generatePersuasionResponse creates response for persuasion attempt.
 func (dm *DialogManager) generatePersuasionResponse(result *SkillCheckResult, vocab *GenreVocabulary) string {
 	if result.CriticalSuccess {
-		if len(vocab.Affirmatives) > 0 {
-			return vocab.Affirmatives[dm.rng.Intn(len(vocab.Affirmatives))] + " You make an excellent point. I'm convinced."
-		}
-		return "You make an excellent point. I'm convinced."
+		return dm.randomVocabPrefix(vocab.Affirmatives) + "You make an excellent point. I'm convinced."
 	}
 	if result.Success {
-		if len(vocab.Affirmatives) > 0 {
-			return vocab.Affirmatives[dm.rng.Intn(len(vocab.Affirmatives))] + " I suppose you're right."
-		}
-		return "I suppose you're right."
+		return dm.randomVocabPrefix(vocab.Affirmatives) + "I suppose you're right."
 	}
 	if result.CriticalFailure {
-		if len(vocab.Negatives) > 0 {
-			return vocab.Negatives[dm.rng.Intn(len(vocab.Negatives))] + " Do you take me for a fool?"
-		}
-		return "Do you take me for a fool?"
+		return dm.randomVocabPrefix(vocab.Negatives) + "Do you take me for a fool?"
 	}
-	if len(vocab.Negatives) > 0 {
-		return vocab.Negatives[dm.rng.Intn(len(vocab.Negatives))] + " I'm not convinced."
+	return dm.randomVocabPrefix(vocab.Negatives) + "I'm not convinced."
+}
+
+// randomVocabPrefix returns a random vocabulary prefix with trailing space, or empty string.
+func (dm *DialogManager) randomVocabPrefix(phrases []string) string {
+	if len(phrases) == 0 {
+		return ""
 	}
-	return "I'm not convinced."
+	return phrases[dm.rng.Intn(len(phrases))] + " "
 }
 
 // generateIntimidationResponse creates response for intimidation attempt.
@@ -638,21 +641,12 @@ func (dm *DialogManager) generateIntimidationResponse(result *SkillCheckResult, 
 		return "P-please! I'll do whatever you want! Just don't hurt me!"
 	}
 	if result.Success {
-		if len(vocab.Affirmatives) > 0 {
-			return vocab.Affirmatives[dm.rng.Intn(len(vocab.Affirmatives))] + " Fine! You've made your point."
-		}
-		return "Fine! You've made your point."
+		return dm.randomVocabPrefix(vocab.Affirmatives) + "Fine! You've made your point."
 	}
 	if result.CriticalFailure {
-		if len(vocab.Expletives) > 0 {
-			return vocab.Expletives[dm.rng.Intn(len(vocab.Expletives))] + " You dare threaten ME?!"
-		}
-		return "You dare threaten ME?!"
+		return dm.randomVocabPrefix(vocab.Expletives) + "You dare threaten ME?!"
 	}
-	if len(vocab.Negatives) > 0 {
-		return vocab.Negatives[dm.rng.Intn(len(vocab.Negatives))] + " Your threats don't scare me."
-	}
-	return "Your threats don't scare me."
+	return dm.randomVocabPrefix(vocab.Negatives) + "Your threats don't scare me."
 }
 
 // applyEmotionShiftUnlocked applies emotion shift without locking (caller must hold lock).

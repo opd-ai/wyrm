@@ -108,28 +108,42 @@ func decayStress(emotion *components.EmotionalState, dt float64) {
 // applyMoodEffects influences NPC behavior based on mood.
 func (s *EmotionalStateSystem) applyMoodEffects(w *ecs.World, dt float64) {
 	for _, e := range w.Entities("EmotionalState", "NPCMemory") {
-		emotionComp, _ := w.GetComponent(e, "EmotionalState")
-		emotion := emotionComp.(*components.EmotionalState)
-
-		memoryComp, ok := w.GetComponent(e, "NPCMemory")
-		if !ok {
-			continue
-		}
-		memory := memoryComp.(*components.NPCMemory)
-
-		// Mood affects disposition toward all known players
-		moodModifier := emotion.Mood * MoodInfluenceOnEmotion * dt
-		for playerID := range memory.Disposition {
-			memory.Disposition[playerID] += moodModifier
-			// Clamp disposition
-			if memory.Disposition[playerID] > DispositionClamp {
-				memory.Disposition[playerID] = DispositionClamp
-			}
-			if memory.Disposition[playerID] < -DispositionClamp {
-				memory.Disposition[playerID] = -DispositionClamp
-			}
-		}
+		s.applyMoodEffectToEntity(w, e, dt)
 	}
+}
+
+// applyMoodEffectToEntity adjusts an NPC's dispositions based on mood.
+func (s *EmotionalStateSystem) applyMoodEffectToEntity(w *ecs.World, e ecs.Entity, dt float64) {
+	emotionComp, _ := w.GetComponent(e, "EmotionalState")
+	emotion := emotionComp.(*components.EmotionalState)
+
+	memoryComp, ok := w.GetComponent(e, "NPCMemory")
+	if !ok {
+		return
+	}
+	memory := memoryComp.(*components.NPCMemory)
+
+	moodModifier := emotion.Mood * MoodInfluenceOnEmotion * dt
+	applyMoodModifierToDispositions(memory.Disposition, moodModifier)
+}
+
+// applyMoodModifierToDispositions adjusts all dispositions by the mood modifier.
+func applyMoodModifierToDispositions(dispositions map[uint64]float64, moodModifier float64) {
+	for playerID := range dispositions {
+		dispositions[playerID] += moodModifier
+		dispositions[playerID] = clampValue(dispositions[playerID], -DispositionClamp, DispositionClamp)
+	}
+}
+
+// clampValue clamps a value between min and max bounds.
+func clampValue(value, min, max float64) float64 {
+	if value > max {
+		return max
+	}
+	if value < min {
+		return min
+	}
+	return value
 }
 
 // TriggerEmotion sets an NPC's emotional state.
@@ -213,25 +227,23 @@ func (s *EmotionalStateSystem) GetEmotionalResponse(w *ecs.World, entity ecs.Ent
 	}
 	state := emotionComp.(*components.EmotionalState)
 
-	// Base response on event type
 	baseEmotion := s.eventToEmotion(eventType)
-
-	// Mood modifies response
-	if state.Mood > 0.5 {
-		// Positive mood reduces negative emotions
-		if baseEmotion == EmotionAngry || baseEmotion == EmotionSad {
-			intensity *= 0.5
-		}
-	} else if state.Mood < -0.5 {
-		// Negative mood amplifies negative emotions
-		if baseEmotion == EmotionAngry || baseEmotion == EmotionSad || baseEmotion == EmotionFearful {
-			intensity *= 1.5
-		}
-	}
-
-	// Apply the emotion
-	s.TriggerEmotion(w, entity, baseEmotion, intensity)
+	adjustedIntensity := s.adjustIntensityByMood(state.Mood, baseEmotion, intensity)
+	s.TriggerEmotion(w, entity, baseEmotion, adjustedIntensity)
 	return baseEmotion
+}
+
+// adjustIntensityByMood modifies emotion intensity based on current mood.
+func (s *EmotionalStateSystem) adjustIntensityByMood(mood float64, emotion string, intensity float64) float64 {
+	isNegativeEmotion := emotion == EmotionAngry || emotion == EmotionSad || emotion == EmotionFearful
+
+	if mood > 0.5 && isNegativeEmotion {
+		return intensity * 0.5 // Positive mood reduces negative emotions
+	}
+	if mood < -0.5 && isNegativeEmotion {
+		return intensity * 1.5 // Negative mood amplifies negative emotions
+	}
+	return intensity
 }
 
 // eventToEmotion maps event types to emotions.

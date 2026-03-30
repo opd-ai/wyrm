@@ -231,26 +231,47 @@ func (s *VehicleCombatSystem) ProcessRam(attacker, target ecs.Entity, attackerSp
 // Update processes combat state each tick.
 func (s *VehicleCombatSystem) Update(w *ecs.World, dt float64) {
 	for _, state := range s.vehicles {
-		// Update weapon cooldowns
-		for _, weapon := range state.Weapons {
-			weapon.LastFired += dt
+		s.updateVehicleState(state, dt)
+	}
+}
+
+// updateVehicleState updates cooldowns, shields, and combat status for one vehicle.
+func (s *VehicleCombatSystem) updateVehicleState(state *VehicleCombatState, dt float64) {
+	s.updateWeaponCooldowns(state, dt)
+	s.updateRamCooldown(state, dt)
+	s.regenerateShields(state, dt)
+	s.updateCombatStatus(state, dt)
+}
+
+// updateWeaponCooldowns advances weapon cooldown timers.
+func (s *VehicleCombatSystem) updateWeaponCooldowns(state *VehicleCombatState, dt float64) {
+	for _, weapon := range state.Weapons {
+		weapon.LastFired += dt
+	}
+}
+
+// updateRamCooldown reduces ram cooldown timer.
+func (s *VehicleCombatSystem) updateRamCooldown(state *VehicleCombatState, dt float64) {
+	if state.RamCooldown > 0 {
+		state.RamCooldown -= dt
+	}
+}
+
+// regenerateShields restores shield power when out of combat.
+func (s *VehicleCombatSystem) regenerateShields(state *VehicleCombatState, dt float64) {
+	if state.ShieldPower < 100 && !state.InCombat {
+		state.ShieldPower += state.ShieldRegen * dt
+		if state.ShieldPower > 100 {
+			state.ShieldPower = 100
 		}
-		// Update ram cooldown
-		if state.RamCooldown > 0 {
-			state.RamCooldown -= dt
-		}
-		// Regenerate shields
-		if state.ShieldPower < 100 && !state.InCombat {
-			state.ShieldPower += state.ShieldRegen * dt
-			if state.ShieldPower > 100 {
-				state.ShieldPower = 100
-			}
-		}
-		// Exit combat after no damage for 5 seconds
-		state.LastDamaged += dt
-		if state.LastDamaged > 5.0 {
-			state.InCombat = false
-		}
+	}
+}
+
+// updateCombatStatus exits combat after no damage for 5 seconds.
+func (s *VehicleCombatSystem) updateCombatStatus(state *VehicleCombatState, dt float64) {
+	state.LastDamaged += dt
+	if state.LastDamaged > 5.0 {
+		state.InCombat = false
 	}
 }
 

@@ -56,14 +56,23 @@ func (s *NPCNeedsSystem) updateEntityNeeds(w *ecs.World, e ecs.Entity, hoursElap
 	}
 	needs := comp.(*components.NPCNeeds)
 
-	// Apply hunger increase
+	s.updateHunger(needs, hoursElapsed)
+	s.updateEnergy(w, e, needs, hoursElapsed)
+	s.updateSocial(w, e, needs, hoursElapsed)
+	needs.Safety = s.calculateSafety(w, e)
+}
+
+// updateHunger applies hunger increase.
+func (s *NPCNeedsSystem) updateHunger(needs *components.NPCNeeds, hoursElapsed float64) {
 	hungerRate := needs.HungerRate
 	if hungerRate <= 0 {
 		hungerRate = s.DefaultHungerRate
 	}
 	needs.Hunger = clampNeed(needs.Hunger + hungerRate*hoursElapsed)
+}
 
-	// Apply energy decrease (only when awake)
+// updateEnergy applies energy changes based on awake/asleep state.
+func (s *NPCNeedsSystem) updateEnergy(w *ecs.World, e ecs.Entity, needs *components.NPCNeeds, hoursElapsed float64) {
 	if s.isAwake(w, e) {
 		energyRate := needs.EnergyRate
 		if energyRate <= 0 {
@@ -71,11 +80,12 @@ func (s *NPCNeedsSystem) updateEntityNeeds(w *ecs.World, e ecs.Entity, hoursElap
 		}
 		needs.Energy = clampNeed(needs.Energy - energyRate*hoursElapsed)
 	} else {
-		// Sleeping restores energy
 		needs.Energy = clampNeed(needs.Energy + 0.1*hoursElapsed)
 	}
+}
 
-	// Apply social decay (only when alone)
+// updateSocial applies social need changes based on nearby NPCs.
+func (s *NPCNeedsSystem) updateSocial(w *ecs.World, e ecs.Entity, needs *components.NPCNeeds, hoursElapsed float64) {
 	if !s.hasNearbyNPCs(w, e) {
 		socialRate := needs.SocialDecayRate
 		if socialRate <= 0 {
@@ -83,12 +93,8 @@ func (s *NPCNeedsSystem) updateEntityNeeds(w *ecs.World, e ecs.Entity, hoursElap
 		}
 		needs.Social = clampNeed(needs.Social - socialRate*hoursElapsed)
 	} else {
-		// Social interaction restores social need
 		needs.Social = clampNeed(needs.Social + 0.05*hoursElapsed)
 	}
-
-	// Safety is affected by nearby threats
-	needs.Safety = s.calculateSafety(w, e)
 }
 
 // isAwake checks if an NPC is currently awake based on schedule.
@@ -137,40 +143,46 @@ func (s *NPCNeedsSystem) calculateSafety(w *ecs.World, e ecs.Entity) float64 {
 		return 1.0 // Default to safe
 	}
 	entityPos := pos.(*components.Position)
+	threatCount := s.countNearbyThreats(w, e, entityPos, 20.0)
+	safety := 1.0 - float64(threatCount)*0.2
+	return clampNeed(safety)
+}
 
-	// Check for nearby hostile entities
-	threatRange := 20.0
+// countNearbyThreats counts entities in combat within range.
+func (s *NPCNeedsSystem) countNearbyThreats(w *ecs.World, e ecs.Entity, entityPos *components.Position, threatRange float64) int {
 	threatCount := 0
+	rangeSq := threatRange * threatRange
 	for _, other := range w.Entities("Position", "CombatState") {
 		if other == e {
 			continue
 		}
-		otherPos, ok := w.GetComponent(other, "Position")
-		if !ok {
-			continue
-		}
-		combatComp, ok := w.GetComponent(other, "CombatState")
-		if !ok {
-			continue
-		}
-		combat := combatComp.(*components.CombatState)
-		if !combat.InCombat {
-			continue
-		}
-
-		otherPosition := otherPos.(*components.Position)
-		dx := entityPos.X - otherPosition.X
-		dy := entityPos.Y - otherPosition.Y
-		dz := entityPos.Z - otherPosition.Z
-		distSq := dx*dx + dy*dy + dz*dz
-		if distSq <= threatRange*threatRange {
+		if s.isThreatInRange(w, other, entityPos, rangeSq) {
 			threatCount++
 		}
 	}
+	return threatCount
+}
 
-	// Each nearby threat reduces safety
-	safety := 1.0 - float64(threatCount)*0.2
-	return clampNeed(safety)
+// isThreatInRange checks if another entity is a threat within range.
+func (s *NPCNeedsSystem) isThreatInRange(w *ecs.World, other ecs.Entity, entityPos *components.Position, rangeSq float64) bool {
+	otherPos, ok := w.GetComponent(other, "Position")
+	if !ok {
+		return false
+	}
+	combatComp, ok := w.GetComponent(other, "CombatState")
+	if !ok {
+		return false
+	}
+	combat := combatComp.(*components.CombatState)
+	if !combat.InCombat {
+		return false
+	}
+	otherPosition := otherPos.(*components.Position)
+	dx := entityPos.X - otherPosition.X
+	dy := entityPos.Y - otherPosition.Y
+	dz := entityPos.Z - otherPosition.Z
+	distSq := dx*dx + dy*dy + dz*dz
+	return distSq <= rangeSq
 }
 
 // GetNeedPriority returns the most pressing need for an NPC.

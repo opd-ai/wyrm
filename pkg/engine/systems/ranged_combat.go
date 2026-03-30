@@ -69,43 +69,64 @@ func (s *ProjectileSystem) checkProjectileCollisions(w *ecs.World) {
 	targets := w.Entities("Health", "Position")
 
 	for _, pe := range projectiles {
-		projComp, pOK := w.GetComponent(pe, "Projectile")
-		projPosComp, ppOK := w.GetComponent(pe, "Position")
-		if !pOK || !ppOK {
+		proj, projPos := s.getProjectileWithPosition(w, pe)
+		if proj == nil || projPos == nil {
 			continue
 		}
-		proj := projComp.(*components.Projectile)
-		projPos := projPosComp.(*components.Position)
+		s.checkProjectileAgainstTargets(w, pe, proj, projPos, targets)
+	}
+}
 
-		for _, te := range targets {
-			// Skip owner entity
-			if uint64(te) == proj.OwnerID {
-				continue
-			}
+// getProjectileWithPosition retrieves projectile and position components.
+func (s *ProjectileSystem) getProjectileWithPosition(w *ecs.World, pe ecs.Entity) (*components.Projectile, *components.Position) {
+	projComp, pOK := w.GetComponent(pe, "Projectile")
+	projPosComp, ppOK := w.GetComponent(pe, "Position")
+	if !pOK || !ppOK {
+		return nil, nil
+	}
+	return projComp.(*components.Projectile), projPosComp.(*components.Position)
+}
 
-			// Skip already hit entities (for pierce)
-			if proj.HitEntities != nil && proj.HitEntities[uint64(te)] {
-				continue
-			}
-
-			targetPosComp, tpOK := w.GetComponent(te, "Position")
-			if !tpOK {
-				continue
-			}
-			targetPos := targetPosComp.(*components.Position)
-
-			// Check collision
-			dx := targetPos.X - projPos.X
-			dy := targetPos.Y - projPos.Y
-			dz := targetPos.Z - projPos.Z
-			distSq := dx*dx + dy*dy + dz*dz
-			hitRadiusSq := proj.HitRadius * proj.HitRadius
-
-			if distSq <= hitRadiusSq {
-				s.applyProjectileHit(w, pe, te, proj)
-			}
+// checkProjectileAgainstTargets tests a single projectile against all targets.
+func (s *ProjectileSystem) checkProjectileAgainstTargets(w *ecs.World, pe ecs.Entity, proj *components.Projectile, projPos *components.Position, targets []ecs.Entity) {
+	for _, te := range targets {
+		if s.shouldSkipTarget(proj, te) {
+			continue
+		}
+		if s.isHit(w, projPos, proj.HitRadius, te) {
+			s.applyProjectileHit(w, pe, te, proj)
 		}
 	}
+}
+
+// shouldSkipTarget returns true if target should not be considered for collision.
+func (s *ProjectileSystem) shouldSkipTarget(proj *components.Projectile, te ecs.Entity) bool {
+	if uint64(te) == proj.OwnerID {
+		return true
+	}
+	if proj.HitEntities != nil && proj.HitEntities[uint64(te)] {
+		return true
+	}
+	return false
+}
+
+// isHit checks if projectile is within hit radius of target.
+func (s *ProjectileSystem) isHit(w *ecs.World, projPos *components.Position, hitRadius float64, te ecs.Entity) bool {
+	targetPosComp, ok := w.GetComponent(te, "Position")
+	if !ok {
+		return false
+	}
+	targetPos := targetPosComp.(*components.Position)
+	distSq := distanceSquared(targetPos, projPos)
+	return distSq <= hitRadius*hitRadius
+}
+
+// distanceSquared calculates squared distance between two positions.
+func distanceSquared(p1, p2 *components.Position) float64 {
+	dx := p1.X - p2.X
+	dy := p1.Y - p2.Y
+	dz := p1.Z - p2.Z
+	return dx*dx + dy*dy + dz*dz
 }
 
 // applyProjectileHit applies damage and handles pierce/despawn.

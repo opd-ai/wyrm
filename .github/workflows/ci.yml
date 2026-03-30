@@ -46,17 +46,18 @@ jobs:
           sudo apt-get install -y xvfb libasound2-dev libgl1-mesa-dev xorg-dev
 
       - name: Run tests
-        run: go test -race -coverprofile=coverage.out ./...
+        run: xvfb-run -a go test -race -coverprofile=coverage.out ./...
 
       - name: Run tests with build tags (noebiten)
         run: |
           go test -tags=noebiten -coverprofile=coverage-adapters.out ./pkg/procgen/adapters/...
           go test -tags=noebiten -coverprofile=coverage-raycast.out ./pkg/rendering/raycast/...
+          go test -tags=noebiten -coverprofile=coverage-client.out ./cmd/client/...
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
-          files: coverage.out,coverage-adapters.out,coverage-raycast.out
+          files: coverage.out,coverage-adapters.out,coverage-raycast.out,coverage-client.out
           fail_ci_if_error: false
 
   lint:

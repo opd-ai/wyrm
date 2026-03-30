@@ -5,6 +5,13 @@ package audio
 
 import "sync"
 
+const (
+	// AudioSampleRate is the sample rate for audio playback.
+	AudioSampleRate = 44100
+	// BytesPerSample is 4 bytes for 16-bit stereo.
+	BytesPerSample = 4
+)
+
 // Player is a stub for non-Ebitengine builds.
 type Player struct {
 	samples   []float64
@@ -79,6 +86,17 @@ func (s *SampleStream) Read(p []byte) (n int, err error) {
 	return n, nil
 }
 
+// Seek implements io.Seeker (required by Ebitengine but not used for streaming).
+func (s *SampleStream) Seek(offset int64, whence int) (int64, error) {
+	return 0, nil
+}
+
+// Length returns the length of the stream (required by Ebitengine).
+func (s *SampleStream) Length() int64 {
+	// Return a large value for streaming audio
+	return 1<<62 - 1
+}
+
 // Clear empties the sample buffer.
 func (s *SampleStream) Clear() {
 	s.mu.Lock()
@@ -91,4 +109,12 @@ func (s *SampleStream) BufferLength() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.buffer)
+}
+
+// min returns the minimum of two integers.
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

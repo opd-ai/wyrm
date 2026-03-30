@@ -393,31 +393,33 @@ func (s *WeatherSystem) IsDaytime(worldDay, hour int) bool {
 // GetAmbientLightLevel returns light level based on time and weather (0.0-1.0).
 func (s *WeatherSystem) GetAmbientLightLevel(worldDay, hour int) float64 {
 	sunrise, sunset := s.GetDaylightInfo(worldDay)
-
-	// Base light level from time of day
-	var baseLight float64
-	if hour < sunrise {
-		// Pre-dawn
-		baseLight = 0.1 + 0.1*float64(hour)/float64(sunrise)
-	} else if hour < sunrise+1 {
-		// Dawn transition
-		baseLight = 0.3 + 0.4*float64(hour-sunrise)
-	} else if hour < sunset-1 {
-		// Full daylight
-		baseLight = 1.0
-	} else if hour < sunset {
-		// Dusk transition
-		baseLight = 1.0 - 0.4*float64(hour-sunset+1)
-	} else {
-		// Night
-		hoursAfterSunset := hour - sunset
-		baseLight = 0.3 - 0.2*float64(hoursAfterSunset)/float64(24-sunset)
-		if baseLight < 0.1 {
-			baseLight = 0.1
-		}
-	}
-
-	// Apply weather modifier
+	baseLight := s.calculateBaseLightLevel(hour, sunrise, sunset)
 	weatherMods := s.GetWeatherModifiers()
 	return baseLight * weatherMods.Visibility
+}
+
+// calculateBaseLightLevel determines base light from time of day.
+func (s *WeatherSystem) calculateBaseLightLevel(hour, sunrise, sunset int) float64 {
+	switch {
+	case hour < sunrise:
+		return 0.1 + 0.1*float64(hour)/float64(sunrise)
+	case hour < sunrise+1:
+		return 0.3 + 0.4*float64(hour-sunrise)
+	case hour < sunset-1:
+		return 1.0
+	case hour < sunset:
+		return 1.0 - 0.4*float64(hour-sunset+1)
+	default:
+		return s.calculateNightLightLevel(hour, sunset)
+	}
+}
+
+// calculateNightLightLevel returns light level for nighttime hours.
+func (s *WeatherSystem) calculateNightLightLevel(hour, sunset int) float64 {
+	hoursAfterSunset := hour - sunset
+	baseLight := 0.3 - 0.2*float64(hoursAfterSunset)/float64(24-sunset)
+	if baseLight < 0.1 {
+		baseLight = 0.1
+	}
+	return baseLight
 }

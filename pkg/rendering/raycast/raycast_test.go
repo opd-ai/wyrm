@@ -198,7 +198,7 @@ func TestGetWallColorDifferentTypes(t *testing.T) {
 	}
 }
 
-func TestGetWallColorDistanceFog(t *testing.T) {
+func TestGetWallColorDistanceFogBrightness(t *testing.T) {
 	r := NewRenderer(640, 480)
 
 	near := r.getWallColor(1, 1.0)

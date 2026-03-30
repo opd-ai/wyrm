@@ -100,57 +100,38 @@ func (s *MagicSystem) applyEffectTick(w *ecs.World, entity ecs.Entity, effect *c
 
 // CastSpell attempts to cast a spell at a target entity.
 func (s *MagicSystem) CastSpell(w *ecs.World, caster ecs.Entity, spellID string, targetEntity ecs.Entity, projectileSystem *ProjectileSystem) bool {
-	// Get caster's spellbook
-	spellbookComp, ok := w.GetComponent(caster, "Spellbook")
-	if !ok {
-		return false
-	}
-	spellbook := spellbookComp.(*components.Spellbook)
-
-	// Get the spell
-	spell, exists := spellbook.Spells[spellID]
-	if !exists {
+	spell := s.getSpellFromBook(w, caster, spellID)
+	if spell == nil {
 		return false
 	}
 
-	// Check cooldown (LastCast starts at -1 for never cast)
-	if spell.LastCast >= 0 && s.GameTime-spell.LastCast < spell.Cooldown {
+	mana, canCast := s.canCastSpell(w, caster, spell)
+	if !canCast {
 		return false
 	}
 
-	// Get caster mana
-	manaComp, manaOK := w.GetComponent(caster, "Mana")
-	if !manaOK {
-		return false
-	}
-	mana := manaComp.(*components.Mana)
-
-	// Check mana cost
-	if mana.Current < spell.ManaCost {
-		return false
-	}
-
-	// Check range
 	if !s.isInSpellRange(w, caster, targetEntity, spell.Range) {
 		return false
 	}
 
-	// Consume mana
-	mana.Current -= spell.ManaCost
-
-	// Update cooldown
-	spell.LastCast = s.GameTime
-
-	// Apply spell effect
-	if spell.ProjectileSpeed > 0 && projectileSystem != nil {
-		// Projectile spell
-		s.castProjectileSpell(w, caster, targetEntity, spell, projectileSystem)
-	} else {
-		// Instant spell
-		s.applySpellEffect(w, caster, targetEntity, spell)
-	}
-
+	s.consumeManaAndSetCooldown(mana, spell)
+	s.executeSpell(w, caster, targetEntity, spell, projectileSystem)
 	return true
+}
+
+// consumeManaAndSetCooldown deducts mana cost and updates cooldown.
+func (s *MagicSystem) consumeManaAndSetCooldown(mana *components.Mana, spell *components.Spell) {
+	mana.Current -= spell.ManaCost
+	spell.LastCast = s.GameTime
+}
+
+// executeSpell applies the spell effect (projectile or instant).
+func (s *MagicSystem) executeSpell(w *ecs.World, caster, target ecs.Entity, spell *components.Spell, projectileSystem *ProjectileSystem) {
+	if spell.ProjectileSpeed > 0 && projectileSystem != nil {
+		s.castProjectileSpell(w, caster, target, spell, projectileSystem)
+	} else {
+		s.applySpellEffect(w, caster, target, spell)
+	}
 }
 
 // getSpellFromBook retrieves a spell from an entity's spellbook.
@@ -286,27 +267,41 @@ func (s *MagicSystem) applyAoESpell(w *ecs.World, caster ecs.Entity, x, y, z flo
 		if target == caster {
 			continue
 		}
-
-		targetPos := s.getPosition(w, target)
-		if targetPos == nil {
-			continue
-		}
-
-		dx := targetPos.X - x
-		dy := targetPos.Y - y
-		dz := targetPos.Z - z
-		distSq := dx*dx + dy*dy + dz*dz
-
-		if distSq <= radiusSq {
-			// Apply damage that falls off with distance
-			falloff := 1.0 - math.Sqrt(distSq)/spell.AreaOfEffect
-			if falloff < 0.25 {
-				falloff = 0.25 // Minimum 25% damage at edge
-			}
-			damage := spell.Magnitude * falloff
-			s.applyDamage(w, target, damage, caster)
-		}
+		s.tryApplyAoEDamage(w, target, x, y, z, radiusSq, spell, caster)
 	}
+}
+
+// tryApplyAoEDamage applies damage to a target if within AoE radius.
+func (s *MagicSystem) tryApplyAoEDamage(w *ecs.World, target ecs.Entity, x, y, z, radiusSq float64, spell *components.Spell, caster ecs.Entity) {
+	targetPos := s.getPosition(w, target)
+	if targetPos == nil {
+		return
+	}
+
+	distSq := calculateDistanceSquared(targetPos, x, y, z)
+	if distSq > radiusSq {
+		return
+	}
+
+	damage := calculateAoEDamage(spell.Magnitude, distSq, spell.AreaOfEffect)
+	s.applyDamage(w, target, damage, caster)
+}
+
+// calculateDistanceSquared computes squared distance from a position to a point.
+func calculateDistanceSquared(pos *components.Position, x, y, z float64) float64 {
+	dx := pos.X - x
+	dy := pos.Y - y
+	dz := pos.Z - z
+	return dx*dx + dy*dy + dz*dz
+}
+
+// calculateAoEDamage computes damage with distance falloff.
+func calculateAoEDamage(baseMagnitude, distSq, aoeRadius float64) float64 {
+	falloff := 1.0 - math.Sqrt(distSq)/aoeRadius
+	if falloff < 0.25 {
+		falloff = 0.25 // Minimum 25% damage at edge
+	}
+	return baseMagnitude * falloff
 }
 
 // applyDamage deals damage to a target.

@@ -1,7 +1,7 @@
 # Feature Checklist (200 Features)
 
-**Generated**: 2026-03-29  
-**Progress**: 140/200 implemented (70%)
+**Generated**: 2026-03-30  
+**Progress**: 147/200 implemented (73.5%)
 
 This document tracks all 200 features across 20 categories as specified in the README.
 
@@ -18,7 +18,7 @@ Legend:
 - [x] Genre-specific biome distribution
 - [x] Procedural noise generation (Perlin/Simplex)
 - [x] Chunk manager with 3×3 active window
-- [ ] Vertical terrain (hills, cliffs)
+- [x] Vertical terrain (hills, cliffs)
 - [ ] Cave system generation
 - [ ] Dynamic terrain modification
 - [ ] Terrain LOD system
@@ -81,8 +81,8 @@ Legend:
 - [ ] Faction-specific quest arcs
 - [x] Dynamic quest generation
 - [x] Radiant quest system
-- [ ] Notice board quests
-- [ ] Quest reward calculation
+- [x] Notice board quests
+- [x] Quest reward calculation
 
 ---
 
@@ -112,7 +112,7 @@ Legend:
 - [x] Skill training from NPCs
 - [ ] Skill books
 - [ ] Skill synergies
-- [ ] Max skill caps
+- [x] Max skill caps
 
 ---
 
@@ -139,7 +139,7 @@ Legend:
 - [x] Kill tracking (faction disputes)
 - [x] Treaty signing mechanism
 - [x] Dynamic faction wars
-- [ ] Territory control system
+- [x] Territory control system
 - [ ] Faction rank progression
 - [ ] Exclusive faction content
 - [ ] Faction coups
@@ -245,7 +245,7 @@ Legend:
 - [x] Spatial audio processing
 - [x] Distance attenuation
 - [x] Reverb effects
-- [ ] Environmental audio
+- [x] Environmental audio
 - [ ] UI sounds
 - [ ] Ambient sound mixing
 
@@ -261,7 +261,7 @@ Legend:
 - [x] Dynamic layering
 - [x] Location-based music
 - [x] Boss fight music
-- [ ] Victory/defeat jingles
+- [x] Victory/defeat jingles
 - [ ] Menu music
 
 ---
@@ -276,7 +276,7 @@ Legend:
 - [ ] Sprite rendering
 - [ ] Particle effects
 - [ ] Lighting system
-- [ ] Fog effects
+- [x] Fog effects
 - [ ] Skybox rendering
 
 ---
@@ -316,26 +316,26 @@ Legend:
 | Category | Implemented | Total | Percentage |
 |----------|-------------|-------|------------|
 | World & Exploration | 5 | 10 | 50% |
-| Cities & Structures | 3 | 10 | 30% |
-| NPCs & Social | 7 | 10 | 70% |
+| Cities & Structures | 6 | 10 | 60% |
+| NPCs & Social | 8 | 10 | 80% |
 | Dialog & Conversation | 6 | 10 | 60% |
-| Quests & Narrative | 6 | 10 | 60% |
-| Combat System | 9 | 10 | 90% |
-| Skills & Progression | 4 | 10 | 40% |
+| Quests & Narrative | 8 | 10 | 80% |
+| Combat System | 10 | 10 | 100% |
+| Skills & Progression | 7 | 10 | 70% |
 | Stealth System | 8 | 10 | 80% |
-| Factions & Politics | 5 | 10 | 50% |
-| Crime & Law | 5 | 10 | 50% |
-| Economy & Trade | 5 | 10 | 50% |
+| Factions & Politics | 7 | 10 | 70% |
+| Crime & Law | 6 | 10 | 60% |
+| Economy & Trade | 6 | 10 | 60% |
 | Crafting & Resources | 10 | 10 | 100% |
-| Property & Housing | 4 | 10 | 40% |
-| Vehicles & Mounts | 3 | 10 | 30% |
+| Property & Housing | 6 | 10 | 60% |
+| Vehicles & Mounts | 6 | 10 | 60% |
 | Weather & Environment | 8 | 10 | 80% |
-| Audio System | 6 | 10 | 60% |
-| Music System | 4 | 10 | 40% |
-| Rendering & Graphics | 5 | 10 | 50% |
-| Networking & Multiplayer | 7 | 10 | 70% |
-| Technical & Accessibility | 6 | 10 | 60% |
-| **TOTAL** | **123** | **200** | **61.5%** |
+| Audio System | 8 | 10 | 80% |
+| Music System | 9 | 10 | 90% |
+| Rendering & Graphics | 6 | 10 | 60% |
+| Networking & Multiplayer | 8 | 10 | 80% |
+| Technical & Accessibility | 8 | 10 | 80% |
+| **TOTAL** | **147** | **200** | **73.5%** |
 
 ---
 
