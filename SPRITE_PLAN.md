@@ -1,6 +1,6 @@
 # SPRITE_PLAN.md — Wyrm Entity Rendering System Design
 
-**Status**: Pre-Implementation (FEATURES.md item 18.6 — Sprite rendering)
+**Status**: Pre-Implementation (FEATURES.md §18 — Sprite rendering)
 **Phase**: Planned for Phase 4 (Entity Rendering) per ROADMAP.md
 **Last Updated**: 2026-03-30
 
@@ -29,7 +29,7 @@
 ## 1. Executive Summary
 
 Wyrm's first-person raycasting renderer currently supports textured walls, floors, and ceilings
-with genre-specific color palettes and 13 post-processing effects. It does **not** render entities
+with genre-specific color palettes and 11 post-processing effects. It does **not** render entities
 (NPCs, creatures, vehicles, objects) in the 3D view. This document specifies the complete
 architecture for adding billboard-based sprite rendering to the existing pipeline.
 
@@ -41,7 +41,7 @@ architecture for adding billboard-based sprite rendering to the existing pipelin
 | Procedural texture generation | ✅ `pkg/rendering/texture/generator.go` (132 LOC) |
 | Genre-specific color palettes | ✅ 5 genres × 4 colors each |
 | Wall/floor/ceiling rendering | ✅ `pkg/rendering/raycast/draw.go` (209 LOC) |
-| Post-processing effects | ✅ 13 effect types, `pkg/rendering/postprocess/effects.go` (523 LOC) |
+| Post-processing effects | ✅ 11 effect types, `pkg/rendering/postprocess/effects.go` (523 LOC) |
 | **Sprite rendering** | ❌ **Not implemented** |
 | Particle effects | ❌ Not implemented |
 | Lighting system | ❌ Not implemented |
@@ -163,8 +163,9 @@ sprite rendering must happen **before** post-processing to receive the same trea
 | Cyberpunk | ChromaticAberration(3) → Bloom(0.5, 0.5) → NeonGlow(0.4) |
 | Post-Apoc | Sepia(0.8) → FilmGrain(0.15) → Desaturate(0.3) |
 
-13 total effect types: WarmColorGrade, CoolColorGrade, Scanlines, Bloom, Desaturate,
-Vignette, DarkenOverall, ChromaticAberration, NeonGlow, Sepia, FilmGrain, Fog, LightRays.
+11 total implemented effect types: WarmColorGrade, CoolColorGrade, Scanlines, Bloom, Desaturate,
+Vignette, DarkenOverall, ChromaticAberration, NeonGlow, Sepia, FilmGrain. Future/planned
+post-process effects (not yet implemented in `pkg/rendering/postprocess/effects.go`): Fog, LightRays.
 
 ### 2.6 Noise Generation (`pkg/procgen/noise/generator.go`)
 
@@ -209,12 +210,16 @@ SpawnNPC(world, data, x, y, factionID) → Entity with {Position, Health, Factio
 
 **Vehicles** are created via `pkg/procgen/adapters/vehicle.go`:
 ```go
-SpawnVehicleEntity(world, vehicleData, x, y, z) → Entity with {Position, Vehicle, VehiclePhysics, VehicleState}
+SpawnVehicleEntity(world, vehicleData, x, y, z) → Entity with {Position, Vehicle}
+// Note: VehiclePhysics and VehicleState are not yet attached by the current adapter.
 ```
 
-**Companions** are created via `pkg/companion/companion.go`:
+**Companions** are generated via `CompanionManager` in `pkg/companion/companion.go`:
 ```go
-CreateCompanion(seed, genre, role) → Companion struct (not yet ECS-integrated)
+// CompanionManager.CreateCompanion deterministically generates a Companion.
+// Seed and genre are threaded through the manager; see pkg/companion/companion.go for details.
+func (cm *CompanionManager) CreateCompanion(playerID uint64, genre string, preferredRole CombatRole) *Companion
+// Returns a data-only Companion struct — not yet spawned as an ECS entity.
 ```
 
 ### 3.4 Current RenderSystem (`pkg/engine/systems/render.go` — 18 LOC, stub)
@@ -306,14 +311,24 @@ components. Modify the adapters:
 
 **Entity adapter** (`pkg/procgen/adapters/entity.go`):
 ```go
-func SpawnNPC(world *ecs.World, data *NPCData, x, y float64, factionID string) (ecs.Entity, error) {
+func SpawnNPC(world *ecs.World, data *NPCData, x, y float64, factionID string, genre string) (ecs.Entity, error) {
     e := world.CreateEntity()
-    world.AddComponent(e, &components.Position{X: x, Y: y})
-    world.AddComponent(e, &components.Health{Current: data.Health, Max: data.Health})
-    world.AddComponent(e, &components.Faction{ID: factionID})
-    world.AddComponent(e, &components.Schedule{})
+    if err := world.AddComponent(e, &components.Position{X: x, Y: y}); err != nil {
+        return 0, fmt.Errorf("failed to add Position: %w", err)
+    }
+    if err := world.AddComponent(e, &components.Health{Current: data.Health, Max: data.Health}); err != nil {
+        return 0, fmt.Errorf("failed to add Health: %w", err)
+    }
+    if err := world.AddComponent(e, &components.Faction{ID: factionID}); err != nil {
+        return 0, fmt.Errorf("failed to add Faction: %w", err)
+    }
+    if err := world.AddComponent(e, &components.Schedule{}); err != nil {
+        return 0, fmt.Errorf("failed to add Schedule: %w", err)
+    }
     // NEW: Add Appearance based on NPC tags and genre
-    world.AddComponent(e, generateNPCAppearance(data, genre))
+    if err := world.AddComponent(e, generateNPCAppearance(data, genre)); err != nil {
+        return 0, fmt.Errorf("failed to add Appearance: %w", err)
+    }
     return e, nil
 }
 ```
@@ -346,7 +361,9 @@ func SpawnVehicleEntity(world *ecs.World, v *VehicleData, x, y, z float64) ecs.E
 ### 5.1 Architecture
 
 Sprites are procedurally generated pixel arrays, cached by a composite key of
-`(SpriteCategory, BodyPlan, GenreID, PrimaryColor, SecondaryColor, AnimState, AnimFrame)`.
+`(SpriteCategory, BodyPlan, GenreID, PrimaryColor, SecondaryColor, QuantizedScale)`.
+`AnimState` selects which animation sequence/sheet to use for a given cached sprite,
+and `AnimFrame` is an index into that sequence — neither is part of the cache key itself.
 
 ```
 pkg/rendering/sprite/
@@ -481,12 +498,12 @@ type SpriteCache struct {
 }
 
 type SpriteCacheKey struct {
-    Category  string
-    BodyPlan  string
-    Genre     string
-    Primary   uint32
-    Secondary uint32
-    Scale     float64
+    Category       string
+    BodyPlan       string
+    Genre          string
+    Primary        uint32
+    Secondary      uint32
+    QuantizedScale uint32 // fixed-point scale (e.g., scale*1000, rounded) to avoid float map-key issues
 }
 ```
 
@@ -498,8 +515,9 @@ Cache eviction uses LRU. Memory is estimated as `width × height × 4 × frameCo
 
 ### 6.1 Modified Draw Pipeline
 
-The draw pipeline must be extended to render sprites between floor/ceiling and walls, using
-a depth buffer (z-buffer) to correctly occlude sprites behind wall columns.
+The draw pipeline must be extended to render sprites after `drawWalls()` (and before any
+post-processing), using the wall-populated depth buffer (z-buffer) to correctly occlude
+sprites behind wall columns.
 
 **New pipeline:**
 
@@ -507,7 +525,7 @@ a depth buffer (z-buffer) to correctly occlude sprites behind wall columns.
 Draw(screen)
 ├── drawFloorCeiling(screen)          ← existing (unchanged)
 ├── drawWalls(screen, zBuffer)        ← modified: populate z-buffer per column
-└── drawSprites(screen, zBuffer)      ← NEW: render sprites with depth test
+└── drawSprites(screen, zBuffer)      ← NEW: billboard sprites with depth test (after walls)
 ```
 
 ### 6.2 Z-Buffer
@@ -679,14 +697,15 @@ Weather conditions (from `pkg/engine/systems/weather.go`) affect sprite renderin
 | rain | 0.7 | Blue tint overlay, slight vertical streaks |
 | fog / mist | 0.3 | Increased fog falloff, reduced contrast |
 | thunderstorm | 0.4 | Flash-lit intermittently, heavy rain overlay |
-| dust / dust_storm | 0.6–0.3 | Sepia tint, particle overlay |
-| blood_moon | 0.8 | Red tint, enhanced shadow contrast |
-| smog | 0.7 | Yellow-grey tint, reduced saturation |
+| dust | 0.5 | Sepia tint, particle overlay |
+| dust_storm | 0.2 | Heavy sepia tint, dense particle overlay |
+| blood_moon | 0.5 | Red tint, enhanced shadow contrast |
+| smog | 0.6 | Yellow-grey tint, reduced saturation |
 | acid_rain | 0.7 | Green tint, damage particle overlay |
 | ion_storm | 0.6 | Blue-white flicker, scanline distortion |
 | radiation_burst | 0.8 | Green glow overlay, distortion |
-| ash_fall | 0.6 | Grey tint, falling particle overlay |
-| neon_haze | 0.8 | Bloom around bright sprite colors |
+| ash_fall | 0.5 | Grey tint, falling particle overlay |
+| neon_haze | 0.75 | Bloom around bright sprite colors |
 
 ### 7.3 Genre Post-Processing Interaction
 
