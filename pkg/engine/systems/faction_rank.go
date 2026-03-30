@@ -189,18 +189,28 @@ func (s *FactionRankSystem) LeaveFaction(w *ecs.World, entity ecs.Entity, factio
 	return true
 }
 
-// AddXP adds experience points to a player's faction membership.
-func (s *FactionRankSystem) AddXP(w *ecs.World, entity ecs.Entity, factionID string, xp int) {
+// getMemberInfo retrieves the FactionMemberInfo for a player's faction membership.
+// Returns nil if the entity has no membership component or is not a member of the faction.
+func (s *FactionRankSystem) getMemberInfo(w *ecs.World, entity ecs.Entity, factionID string) *components.FactionMemberInfo {
 	comp, ok := w.GetComponent(entity, "FactionMembership")
 	if !ok {
-		return
+		return nil
 	}
 	membership := comp.(*components.FactionMembership)
 	if membership.Memberships == nil {
-		return
+		return nil
 	}
 	info, exists := membership.Memberships[factionID]
 	if !exists {
+		return nil
+	}
+	return info
+}
+
+// AddXP adds experience points to a player's faction membership.
+func (s *FactionRankSystem) AddXP(w *ecs.World, entity ecs.Entity, factionID string, xp int) {
+	info := s.getMemberInfo(w, entity, factionID)
+	if info == nil {
 		return
 	}
 	info.XP += xp
@@ -209,16 +219,8 @@ func (s *FactionRankSystem) AddXP(w *ecs.World, entity ecs.Entity, factionID str
 
 // AddQuestCompletion increments quest completion count and adds bonus XP.
 func (s *FactionRankSystem) AddQuestCompletion(w *ecs.World, entity ecs.Entity, factionID string) {
-	comp, ok := w.GetComponent(entity, "FactionMembership")
-	if !ok {
-		return
-	}
-	membership := comp.(*components.FactionMembership)
-	if membership.Memberships == nil {
-		return
-	}
-	info, exists := membership.Memberships[factionID]
-	if !exists {
+	info := s.getMemberInfo(w, entity, factionID)
+	if info == nil {
 		return
 	}
 	info.QuestsCompleted++
@@ -230,16 +232,8 @@ func (s *FactionRankSystem) AddQuestCompletion(w *ecs.World, entity ecs.Entity, 
 
 // AddDonation records a donation and adds XP based on amount.
 func (s *FactionRankSystem) AddDonation(w *ecs.World, entity ecs.Entity, factionID string, amount int) {
-	comp, ok := w.GetComponent(entity, "FactionMembership")
-	if !ok {
-		return
-	}
-	membership := comp.(*components.FactionMembership)
-	if membership.Memberships == nil {
-		return
-	}
-	info, exists := membership.Memberships[factionID]
-	if !exists {
+	info := s.getMemberInfo(w, entity, factionID)
+	if info == nil {
 		return
 	}
 	info.DonationTotal += amount

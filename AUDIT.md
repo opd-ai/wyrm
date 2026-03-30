@@ -101,7 +101,7 @@ None identified. All critical path features are implemented and tested.
 
 - [ ] **Code duplication: vehicle.go clone pairs** — `pkg/engine/systems/vehicle.go` — 4 clone pairs detected (10-12 lines each) for vehicle state handling. — **Remediation:** Extract common patterns into helper functions. Validation: `go-stats-generator analyze . --skip-tests | grep -A5 "Clone Pairs"` shows ≤20 pairs.
 
-- [ ] **Code duplication: faction_rank.go exact clones** — `pkg/engine/systems/faction_rank.go`:194-244 — 3 exact 12-line clones for rank progression. — **Remediation:** Consolidate into generic `progressRank()` function with faction-type parameter. Validation: No exact clones in file.
+- [x] **Code duplication: faction_rank.go exact clones** — `pkg/engine/systems/faction_rank.go`:194-244 — 3 exact 12-line clones for rank progression. — **Remediation:** Consolidated into generic `getMemberInfo()` helper function. AddXP, AddQuestCompletion, AddDonation now use the helper. Validation: No exact clones in file. **COMPLETED: Extracted getMemberInfo helper, reduced each of 3 functions by 10 lines.**
 
 - [ ] **Code duplication: stealth.go renamed clones** — `pkg/engine/systems/stealth.go`:659-709 — 8 renamed clones (6-7 lines each) for visibility calculations. — **Remediation:** Extract into parameterized `calculateVisibilityFactor()` helper. Validation: Clone count reduced by 50%.
 
