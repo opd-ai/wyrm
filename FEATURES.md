@@ -1,7 +1,7 @@
 # Feature Checklist (200 Features)
 
 **Generated**: 2026-03-29  
-**Progress**: ~108/200 implemented (54%)
+**Progress**: ~110/200 implemented (55%)
 
 This document tracks all 200 features across 20 categories as specified in the README.
 
@@ -226,11 +226,11 @@ Legend:
 - [x] Weather system with genre pools
 - [x] Weather transitions
 - [x] Duration-based weather
-- [ ] Weather effects on gameplay
+- [x] Weather effects on gameplay
 - [ ] Seasonal changes
 - [ ] Day/night visual changes
 - [ ] Environmental sounds
-- [ ] Weather-affected movement
+- [x] Weather-affected movement
 - [ ] Indoor/outdoor detection
 - [ ] Extreme weather events
 
