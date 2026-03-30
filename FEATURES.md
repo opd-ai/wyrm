@@ -268,6 +268,8 @@ Legend:
 
 ## 18. Rendering & Graphics (10 features)
 
+> **Design Spec**: [SPRITE_PLAN.md](SPRITE_PLAN.md) provides the complete architecture for billboard-based entity sprite rendering, including the Appearance component, sprite generation, z-buffer integration, animation system, and genre-specific visual specifications.
+
 - [x] First-person raycaster (DDA)
 - [x] Procedural texture generation
 - [x] Genre-specific color palettes

@@ -34,7 +34,7 @@ Wyrm is described as a **"100% procedurally generated first-person open-world RP
 | **Entrypoints** | `cmd/client`, `cmd/server` | Game client (Ebitengine) and authoritative server |
 | **ECS Core** | `pkg/engine/ecs`, `pkg/engine/components`, `pkg/engine/systems` | Entity-Component-System with 40 system files (43,747 LOC) |
 | **World** | `pkg/world/chunk`, `pkg/world/housing`, `pkg/world/persist`, `pkg/world/pvp` | Chunk streaming, player housing, persistence, PvP zones |
-| **Rendering** | `pkg/rendering/raycast`, `pkg/rendering/texture`, `pkg/rendering/postprocess` | First-person raycaster with procedural textures and 13 post-processing effects |
+| **Rendering** | `pkg/rendering/raycast`, `pkg/rendering/texture`, `pkg/rendering/postprocess` | First-person raycaster with procedural textures and 13 post-processing effects. Entity sprite rendering planned per [SPRITE_PLAN.md](SPRITE_PLAN.md) |
 | **Procgen** | `pkg/procgen/adapters`, `pkg/procgen/city`, `pkg/procgen/dungeon`, `pkg/procgen/noise` | V-Series adapters (34 files) and local generators |
 | **Audio** | `pkg/audio`, `pkg/audio/ambient`, `pkg/audio/music` | Procedural synthesis with adaptive music |
 | **Network** | `pkg/network`, `pkg/network/federation` | Client-server with federation support |
@@ -186,6 +186,8 @@ Per FEATURES.md, 12 features remain:
 | Rendering & Graphics | Sprite rendering, Particle effects, Lighting system, Skybox rendering |
 | Networking & Multiplayer | Party system, Player trading |
 | Technical & Accessibility | Subtitle system, Key rebinding |
+
+> **Note**: Sprite rendering has a comprehensive design specification in [SPRITE_PLAN.md](SPRITE_PLAN.md) covering billboard math, z-buffer integration, Appearance component, animation system, genre-specific visuals, and a 5-phase implementation roadmap.
 
 **Implementation Priority**:
 1. **Indoor/outdoor detection** — Extend existing `IndoorOutdoorSystem`
@@ -376,6 +378,7 @@ go-stats-generator analyze . --skip-tests
 | `pkg/world/persist/persist.go` | World persistence | 747 |
 | `pkg/network/server.go` | TCP server, client handling | ~400 |
 | `pkg/rendering/raycast/core.go` | DDA raycaster | ~385 |
+| `SPRITE_PLAN.md` | Entity rendering system design (billboard sprites, animation, genre visuals) | 1,126 |
 
 ---
 
