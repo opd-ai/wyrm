@@ -215,8 +215,8 @@ Legend:
 - [x] First-person cockpit view
 - [x] Vehicle combat
 - [x] Vehicle customization
-- [ ] Mount system
-- [ ] Naval vehicles
+- [x] Mount system
+- [x] Naval vehicles
 - [ ] Flying vehicles
 
 ---
