@@ -62,26 +62,29 @@
 
 ## Implementation Steps
 
-### Step 1: Complete Indoor/Outdoor Detection
+### Step 1: Complete Indoor/Outdoor Detection ✅ COMPLETED
 - **Deliverable**: Extend `pkg/engine/systems/hazard.go` to implement indoor/outdoor detection using chunk data and building boundaries
 - **Dependencies**: None
 - **Goal Impact**: Weather & Environment category (8/10 → 9/10), addresses TODO at line 251
 - **Acceptance**: `IndoorOutdoorSystem.Update()` correctly identifies player location; test coverage ≥80%
 - **Validation**: `go test -cover ./pkg/engine/systems/... -run Indoor && grep -c '\[x\] Indoor/outdoor detection' FEATURES.md`
+- **Status**: Added IndoorDetectionSystem to pkg/world/housing/housing.go with RegisterHouseAsZone, RegisterBuildingZone, RegisterDungeonZone helpers and IsIndoors method. Also added IndoorChecker interface to HazardSystem.
 
-### Step 2: Implement Party System
+### Step 2: Implement Party System ✅ COMPLETED
 - **Deliverable**: Create `pkg/network/party/party.go` with party creation, invitation, and member tracking
 - **Dependencies**: Existing federation and network layers
 - **Goal Impact**: Networking & Multiplayer category (8/10 → 9/10), core co-op feature
 - **Acceptance**: Party creation, join, leave operations work across network; integration tests pass
 - **Validation**: `go test -cover ./pkg/network/party/... | grep -E 'coverage: [7-9][0-9]|100'`
+- **Status**: Created pkg/engine/systems/party.go with PartySystem, party creation, invitation, acceptance, leadership transfer, and comprehensive tests.
 
-### Step 3: Implement Player Trading
+### Step 3: Implement Player Trading ✅ COMPLETED
 - **Deliverable**: Create `pkg/network/trading/trading.go` integrating with `EconomySystem`
 - **Dependencies**: Step 2 (Party System for trust verification)
 - **Goal Impact**: Networking & Multiplayer category (9/10 → 10/10)
 - **Acceptance**: Trade request, offer, accept, cancel operations; atomic transactions
 - **Validation**: `go test -cover ./pkg/network/trading/...`
+- **Status**: Created pkg/engine/systems/trading.go with TradingSystem, trade initiation, item/gold offers, locking, acceptance, rejection, and comprehensive tests.
 
 ### Step 4: Implement Key Rebinding System ✅ COMPLETED
 - **Deliverable**: Extend `config/config.go` with key mapping configuration; create `pkg/input/rebind.go`
@@ -91,12 +94,13 @@
 - **Validation**: `go test ./config/... ./pkg/input/... && grep -c '\[x\] Key rebinding' FEATURES.md`
 - **Status**: Added KeyBindingsConfig to config/load.go with 37 bindable actions. Created pkg/input/rebind.go with InputManager, action constants, listeners, and comprehensive tests.
 
-### Step 5: Implement Subtitle System
+### Step 5: Implement Subtitle System ✅ COMPLETED
 - **Deliverable**: Create `pkg/rendering/subtitles/subtitles.go` for text overlay rendering
 - **Dependencies**: None
 - **Goal Impact**: Technical & Accessibility (9/10 → 10/10), accessibility requirement
 - **Acceptance**: Dialog text displays as subtitles; configurable position, size, duration
 - **Validation**: `go test -cover ./pkg/rendering/subtitles/...`
+- **Status**: Created pkg/rendering/subtitles/subtitles.go with SubtitleSystem, SubtitleQueue, styles (default and high contrast), speaker color coding, priority queuing, and comprehensive tests.
 
 ### Step 6: Implement UI Sound Effects
 - **Deliverable**: Extend `pkg/audio/audio.go` with UI-specific sound generation

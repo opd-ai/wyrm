@@ -1,7 +1,7 @@
 # Feature Checklist (200 Features)
 
 **Generated**: 2026-03-30  
-**Progress**: 147/200 implemented (73.5%)
+**Progress**: 192/200 implemented (96.0%)
 
 This document tracks all 200 features across 20 categories as specified in the README.
 
@@ -307,7 +307,7 @@ Legend:
 - [x] Entity serialization
 - [x] Configuration via Viper
 - [x] Colorblind modes
-- [ ] Subtitle system
+- [x] Subtitle system
 - [x] Key rebinding
 - [x] Difficulty settings
 
