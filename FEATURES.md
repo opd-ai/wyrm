@@ -1,7 +1,7 @@
 # Feature Checklist (200 Features)
 
 **Generated**: 2026-03-29  
-**Progress**: ~106/200 implemented (53%)
+**Progress**: ~108/200 implemented (54%)
 
 This document tracks all 200 features across 20 categories as specified in the README.
 
@@ -211,8 +211,8 @@ Legend:
 - [x] Vehicle system foundation
 - [x] Genre-specific vehicle archetypes
 - [x] Fuel consumption
-- [ ] Vehicle physics (steering, acceleration)
-- [ ] First-person cockpit view
+- [x] Vehicle physics (steering, acceleration)
+- [x] First-person cockpit view
 - [ ] Vehicle combat
 - [ ] Vehicle customization
 - [ ] Mount system

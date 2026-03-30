@@ -92,6 +92,62 @@ type Vehicle struct {
 // Type returns the component type identifier for Vehicle.
 func (v *Vehicle) Type() string { return "Vehicle" }
 
+// VehiclePhysics adds detailed physics simulation to a vehicle.
+type VehiclePhysics struct {
+	// CurrentSpeed is the current forward speed in units/second.
+	CurrentSpeed float64
+	// MaxSpeed is the maximum speed for this vehicle.
+	MaxSpeed float64
+	// Acceleration is the rate of speed increase per second.
+	Acceleration float64
+	// Deceleration is the rate of speed decrease per second (braking).
+	Deceleration float64
+	// FrictionDecel is the passive speed loss per second (no input).
+	FrictionDecel float64
+	// SteeringAngle is the current wheel/rudder angle in radians.
+	SteeringAngle float64
+	// MaxSteeringAngle is the maximum steering angle in radians.
+	MaxSteeringAngle float64
+	// SteeringSpeed is how fast steering changes (radians/second).
+	SteeringSpeed float64
+	// TurningRadius is the minimum turning circle radius.
+	TurningRadius float64
+	// Mass affects acceleration and handling.
+	Mass float64
+	// Throttle is current acceleration input (-1 to 1, negative = reverse).
+	Throttle float64
+	// Steering is current steering input (-1 = left, 1 = right).
+	Steering float64
+	// IsBraking indicates if brakes are applied.
+	IsBraking bool
+	// InReverse indicates if moving backward.
+	InReverse bool
+}
+
+// Type returns the component type identifier for VehiclePhysics.
+func (vp *VehiclePhysics) Type() string { return "VehiclePhysics" }
+
+// VehicleState tracks operational state of a vehicle.
+type VehicleState struct {
+	// IsOccupied indicates if a driver is in the vehicle.
+	IsOccupied bool
+	// DriverEntity is the entity ID of the driver (0 = no driver).
+	DriverEntity uint64
+	// PassengerEntities lists passenger entity IDs.
+	PassengerEntities []uint64
+	// MaxPassengers is the maximum number of passengers.
+	MaxPassengers int
+	// InCockpitView indicates if player sees cockpit view.
+	InCockpitView bool
+	// EngineRunning indicates if the engine is on.
+	EngineRunning bool
+	// DamagePercent is vehicle damage (0 = pristine, 100 = destroyed).
+	DamagePercent float64
+}
+
+// Type returns the component type identifier for VehicleState.
+func (vs *VehicleState) Type() string { return "VehicleState" }
+
 // VehicleArchetype defines a vehicle template with genre-specific properties.
 type VehicleArchetype struct {
 	ID          string
