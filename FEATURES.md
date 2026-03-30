@@ -214,7 +214,7 @@ Legend:
 - [x] Vehicle physics (steering, acceleration)
 - [x] First-person cockpit view
 - [x] Vehicle combat
-- [ ] Vehicle customization
+- [x] Vehicle customization
 - [ ] Mount system
 - [ ] Naval vehicles
 - [ ] Flying vehicles
