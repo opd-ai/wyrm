@@ -168,52 +168,62 @@ func (s *EconomicEventSystem) applyToNode(w *ecs.World, nodeID ecs.Entity, event
 	if node.PriceTable == nil || node.Supply == nil || node.Demand == nil {
 		return
 	}
-	// Determine which items to affect
-	items := event.AffectedItems
-	if len(items) == 0 {
-		// Affect all items
-		items = make([]string, 0)
-		for item := range node.PriceTable {
-			items = append(items, item)
-		}
-	}
-	// Apply modifiers gradually
+	items := s.getAffectedItems(node, event)
 	effectStrength := event.Progress * 0.01 // Apply 1% per tick
 	for _, item := range items {
-		// Price modifier
-		if event.PriceModifier != 1.0 {
-			currentPrice := node.PriceTable[item]
-			targetPrice := currentPrice * event.PriceModifier
-			node.PriceTable[item] = currentPrice + (targetPrice-currentPrice)*effectStrength
-		}
-		// Supply modifier
-		if event.SupplyModifier != 1.0 {
-			currentSupply := node.Supply[item]
-			targetSupply := int(float64(currentSupply) * event.SupplyModifier)
-			diff := targetSupply - currentSupply
-			if diff > 0 {
-				node.Supply[item] = currentSupply + int(float64(diff)*effectStrength)
-			} else if diff < 0 {
-				node.Supply[item] = currentSupply + int(float64(diff)*effectStrength)
-				if node.Supply[item] < 0 {
-					node.Supply[item] = 0
-				}
-			}
-		}
-		// Demand modifier
-		if event.DemandModifier != 1.0 {
-			currentDemand := node.Demand[item]
-			targetDemand := int(float64(currentDemand) * event.DemandModifier)
-			diff := targetDemand - currentDemand
-			if diff > 0 {
-				node.Demand[item] = currentDemand + int(float64(diff)*effectStrength)
-			} else if diff < 0 {
-				node.Demand[item] = currentDemand + int(float64(diff)*effectStrength)
-				if node.Demand[item] < 0 {
-					node.Demand[item] = 0
-				}
-			}
-		}
+		s.applyPriceModifier(node, item, event.PriceModifier, effectStrength)
+		s.applySupplyModifier(node, item, event.SupplyModifier, effectStrength)
+		s.applyDemandModifier(node, item, event.DemandModifier, effectStrength)
+	}
+}
+
+// getAffectedItems returns which items to affect, defaulting to all if not specified.
+func (s *EconomicEventSystem) getAffectedItems(node *components.EconomyNode, event *EconomicEvent) []string {
+	if len(event.AffectedItems) > 0 {
+		return event.AffectedItems
+	}
+	items := make([]string, 0, len(node.PriceTable))
+	for item := range node.PriceTable {
+		items = append(items, item)
+	}
+	return items
+}
+
+// applyPriceModifier adjusts an item's price toward target based on effect strength.
+func (s *EconomicEventSystem) applyPriceModifier(node *components.EconomyNode, item string, modifier, strength float64) {
+	if modifier == 1.0 {
+		return
+	}
+	currentPrice := node.PriceTable[item]
+	targetPrice := currentPrice * modifier
+	node.PriceTable[item] = currentPrice + (targetPrice-currentPrice)*strength
+}
+
+// applySupplyModifier adjusts an item's supply toward target based on effect strength.
+func (s *EconomicEventSystem) applySupplyModifier(node *components.EconomyNode, item string, modifier, strength float64) {
+	if modifier == 1.0 {
+		return
+	}
+	currentSupply := node.Supply[item]
+	targetSupply := int(float64(currentSupply) * modifier)
+	diff := targetSupply - currentSupply
+	node.Supply[item] = currentSupply + int(float64(diff)*strength)
+	if node.Supply[item] < 0 {
+		node.Supply[item] = 0
+	}
+}
+
+// applyDemandModifier adjusts an item's demand toward target based on effect strength.
+func (s *EconomicEventSystem) applyDemandModifier(node *components.EconomyNode, item string, modifier, strength float64) {
+	if modifier == 1.0 {
+		return
+	}
+	currentDemand := node.Demand[item]
+	targetDemand := int(float64(currentDemand) * modifier)
+	diff := targetDemand - currentDemand
+	node.Demand[item] = currentDemand + int(float64(diff)*strength)
+	if node.Demand[item] < 0 {
+		node.Demand[item] = 0
 	}
 }
 

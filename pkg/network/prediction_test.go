@@ -382,3 +382,611 @@ func BenchmarkHitTest(b *testing.B) {
 		lc.HitTest(1, 2, origin, direction, time.Now(), 100*time.Millisecond)
 	}
 }
+
+// ============================================================================
+// PvP Validator Tests
+// ============================================================================
+
+func TestNewPvPValidator(t *testing.T) {
+	lc := NewLagCompensator()
+	pv := NewPvPValidator(lc)
+	if pv == nil {
+		t.Fatal("NewPvPValidator returned nil")
+	}
+
+	// Verify default damage rates are set
+	if pv.maxDamageRates[PvPMeleeAttack] <= 0 {
+		t.Error("melee damage rate should be set")
+	}
+	if pv.maxDamageRates[PvPRangedAttack] <= 0 {
+		t.Error("ranged damage rate should be set")
+	}
+	if pv.maxDamageRates[PvPMagicAttack] <= 0 {
+		t.Error("magic damage rate should be set")
+	}
+}
+
+func TestPvPValidatorZoneConfig(t *testing.T) {
+	lc := NewLagCompensator()
+	pv := NewPvPValidator(lc)
+
+	// Initially not enabled
+	if pv.IsZonePvPEnabled("test_zone") {
+		t.Error("zone should not be PvP enabled by default")
+	}
+
+	// Enable PvP
+	pv.SetZonePvPEnabled("test_zone", true)
+	if !pv.IsZonePvPEnabled("test_zone") {
+		t.Error("zone should be PvP enabled after SetZonePvPEnabled(true)")
+	}
+
+	// Disable PvP
+	pv.SetZonePvPEnabled("test_zone", false)
+	if pv.IsZonePvPEnabled("test_zone") {
+		t.Error("zone should not be PvP enabled after SetZonePvPEnabled(false)")
+	}
+}
+
+func TestPvPValidatorValidateActionZoneNotEnabled(t *testing.T) {
+	lc := NewLagCompensator()
+	pv := NewPvPValidator(lc)
+
+	action := &PvPCombatAction{
+		AttackerID:  1,
+		TargetID:    2,
+		ActionType:  PvPMeleeAttack,
+		DamageClaim: 10.0,
+		ClientTime:  time.Now(),
+	}
+
+	result := pv.ValidateAction(action, 100*time.Millisecond, "disabled_zone")
+
+	if result.Valid {
+		t.Error("action should be invalid in non-PvP zone")
+	}
+	if result.RejectionReason != "PvP not enabled in zone" {
+		t.Errorf("wrong rejection reason: %s", result.RejectionReason)
+	}
+}
+
+func TestPvPValidatorValidateActionDamageRateExceeded(t *testing.T) {
+	lc := NewLagCompensator()
+	pv := NewPvPValidator(lc)
+
+	pv.SetZonePvPEnabled("pvp_zone", true)
+
+	// Set up target entity for hit detection
+	targetPos := Position3D{X: 10, Y: 1, Z: 0}
+	hitMin := Position3D{X: -1, Y: -1, Z: -1}
+	hitMax := Position3D{X: 1, Y: 1, Z: 1}
+	lc.RecordEntityState(2, targetPos, 0, hitMin, hitMax)
+
+	action := &PvPCombatAction{
+		AttackerID:  1,
+		TargetID:    2,
+		ActionType:  PvPMeleeAttack,
+		DamageClaim: 1000.0, // Way over the limit
+		ClientTime:  time.Now(),
+		Position:    Position3D{X: 0, Y: 1, Z: 0},
+		Direction:   Position3D{X: 1, Y: 0, Z: 0},
+	}
+
+	result := pv.ValidateAction(action, 100*time.Millisecond, "pvp_zone")
+
+	if result.Valid {
+		t.Error("action should be invalid with excessive damage")
+	}
+	if result.RejectionReason != "damage rate exceeded" {
+		t.Errorf("wrong rejection reason: %s", result.RejectionReason)
+	}
+}
+
+func TestPvPValidatorValidateActionCooldown(t *testing.T) {
+	lc := NewLagCompensator()
+	pv := NewPvPValidator(lc)
+
+	pv.SetZonePvPEnabled("pvp_zone", true)
+
+	// Set up target entity
+	targetPos := Position3D{X: 10, Y: 1, Z: 0}
+	hitMin := Position3D{X: -1, Y: -1, Z: -1}
+	hitMax := Position3D{X: 1, Y: 1, Z: 1}
+	lc.RecordEntityState(2, targetPos, 0, hitMin, hitMax)
+
+	action := &PvPCombatAction{
+		AttackerID:  1,
+		TargetID:    2,
+		ActionType:  PvPMagicAttack,
+		DamageClaim: 30.0,
+		ClientTime:  time.Now(),
+		Position:    Position3D{X: 0, Y: 1, Z: 0},
+		Direction:   Position3D{X: 1, Y: 0, Z: 0},
+		AbilityID:   "fireball",
+	}
+
+	// First use should succeed
+	result1 := pv.ValidateAction(action, 100*time.Millisecond, "pvp_zone")
+	if !result1.Valid {
+		t.Errorf("first use should be valid: %s", result1.RejectionReason)
+	}
+
+	// Immediate second use should fail (cooldown)
+	result2 := pv.ValidateAction(action, 100*time.Millisecond, "pvp_zone")
+	if result2.Valid {
+		t.Error("immediate second use should be on cooldown")
+	}
+	if result2.RejectionReason != "ability on cooldown" {
+		t.Errorf("wrong rejection reason: %s", result2.RejectionReason)
+	}
+}
+
+func TestPvPValidatorValidateActionBasicAttackNoCooldown(t *testing.T) {
+	lc := NewLagCompensator()
+	pv := NewPvPValidator(lc)
+
+	pv.SetZonePvPEnabled("pvp_zone", true)
+
+	// Set up target entity
+	targetPos := Position3D{X: 10, Y: 1, Z: 0}
+	hitMin := Position3D{X: -1, Y: -1, Z: -1}
+	hitMax := Position3D{X: 1, Y: 1, Z: 1}
+	lc.RecordEntityState(2, targetPos, 0, hitMin, hitMax)
+
+	action := &PvPCombatAction{
+		AttackerID:  1,
+		TargetID:    2,
+		ActionType:  PvPMeleeAttack,
+		DamageClaim: 30.0,
+		ClientTime:  time.Now(),
+		Position:    Position3D{X: 0, Y: 1, Z: 0},
+		Direction:   Position3D{X: 1, Y: 0, Z: 0},
+		AbilityID:   "", // Empty = basic attack
+	}
+
+	// Both should succeed (no cooldown for basic attacks)
+	result1 := pv.ValidateAction(action, 100*time.Millisecond, "pvp_zone")
+	if !result1.Valid {
+		t.Errorf("first basic attack should be valid: %s", result1.RejectionReason)
+	}
+
+	result2 := pv.ValidateAction(action, 100*time.Millisecond, "pvp_zone")
+	if !result2.Valid {
+		t.Errorf("second basic attack should be valid (no cooldown): %s", result2.RejectionReason)
+	}
+}
+
+func TestPvPValidatorGetCooldownRemaining(t *testing.T) {
+	lc := NewLagCompensator()
+	pv := NewPvPValidator(lc)
+
+	// No cooldown initially
+	remaining := pv.GetCooldownRemaining(1, "fireball")
+	if remaining != 0 {
+		t.Errorf("should have no cooldown initially, got %v", remaining)
+	}
+
+	// Record a cooldown manually
+	pv.mu.Lock()
+	pv.cooldowns[1] = make(map[string]time.Time)
+	pv.cooldowns[1]["fireball"] = time.Now()
+	pv.mu.Unlock()
+
+	// Should have some cooldown remaining
+	remaining = pv.GetCooldownRemaining(1, "fireball")
+	if remaining <= 0 {
+		t.Error("should have cooldown remaining after use")
+	}
+	if remaining > time.Second {
+		t.Errorf("cooldown should be at most 1 second, got %v", remaining)
+	}
+}
+
+func TestPvPValidatorCleanupCooldowns(t *testing.T) {
+	lc := NewLagCompensator()
+	pv := NewPvPValidator(lc)
+
+	// Add old cooldown
+	pv.mu.Lock()
+	pv.cooldowns[1] = make(map[string]time.Time)
+	pv.cooldowns[1]["old_ability"] = time.Now().Add(-2 * time.Minute)
+	pv.cooldowns[1]["recent_ability"] = time.Now()
+	pv.mu.Unlock()
+
+	// Cleanup entries older than 1 minute
+	pv.CleanupCooldowns(1 * time.Minute)
+
+	pv.mu.RLock()
+	_, hasOld := pv.cooldowns[1]["old_ability"]
+	_, hasRecent := pv.cooldowns[1]["recent_ability"]
+	pv.mu.RUnlock()
+
+	if hasOld {
+		t.Error("old cooldown should have been cleaned up")
+	}
+	if !hasRecent {
+		t.Error("recent cooldown should not have been cleaned up")
+	}
+}
+
+func TestPvPValidatorCleanupEmptyEntity(t *testing.T) {
+	lc := NewLagCompensator()
+	pv := NewPvPValidator(lc)
+
+	// Add only old cooldowns for an entity
+	pv.mu.Lock()
+	pv.cooldowns[1] = make(map[string]time.Time)
+	pv.cooldowns[1]["old_ability"] = time.Now().Add(-2 * time.Minute)
+	pv.mu.Unlock()
+
+	// Cleanup should remove the entity entirely
+	pv.CleanupCooldowns(1 * time.Minute)
+
+	pv.mu.RLock()
+	_, hasEntity := pv.cooldowns[1]
+	pv.mu.RUnlock()
+
+	if hasEntity {
+		t.Error("empty entity cooldown map should be removed")
+	}
+}
+
+func TestPvPValidatorHitNotConfirmed(t *testing.T) {
+	lc := NewLagCompensator()
+	pv := NewPvPValidator(lc)
+
+	pv.SetZonePvPEnabled("pvp_zone", true)
+
+	// Set up target entity at position far away
+	targetPos := Position3D{X: 100, Y: 1, Z: 100}
+	hitMin := Position3D{X: -1, Y: -1, Z: -1}
+	hitMax := Position3D{X: 1, Y: 1, Z: 1}
+	lc.RecordEntityState(2, targetPos, 0, hitMin, hitMax)
+
+	action := &PvPCombatAction{
+		AttackerID:  1,
+		TargetID:    2,
+		ActionType:  PvPMeleeAttack,
+		DamageClaim: 30.0,
+		ClientTime:  time.Now(),
+		Position:    Position3D{X: 0, Y: 1, Z: 0},
+		Direction:   Position3D{X: 0, Y: 0, Z: -1}, // Wrong direction
+	}
+
+	result := pv.ValidateAction(action, 100*time.Millisecond, "pvp_zone")
+
+	if result.Valid {
+		t.Error("action should be invalid when hit not confirmed")
+	}
+	if result.RejectionReason != "hit not confirmed" {
+		t.Errorf("wrong rejection reason: %s", result.RejectionReason)
+	}
+}
+
+func TestPvPValidatorSuccessfulHit(t *testing.T) {
+	lc := NewLagCompensator()
+	pv := NewPvPValidator(lc)
+
+	pv.SetZonePvPEnabled("pvp_zone", true)
+
+	// Set up target entity
+	targetPos := Position3D{X: 10, Y: 1, Z: 0}
+	hitMin := Position3D{X: -1, Y: -1, Z: -1}
+	hitMax := Position3D{X: 1, Y: 1, Z: 1}
+	lc.RecordEntityState(2, targetPos, 0, hitMin, hitMax)
+
+	action := &PvPCombatAction{
+		AttackerID:  1,
+		TargetID:    2,
+		ActionType:  PvPMeleeAttack,
+		DamageClaim: 30.0,
+		ClientTime:  time.Now(),
+		Position:    Position3D{X: 0, Y: 1, Z: 0},
+		Direction:   Position3D{X: 1, Y: 0, Z: 0}, // Toward target
+	}
+
+	result := pv.ValidateAction(action, 100*time.Millisecond, "pvp_zone")
+
+	if !result.Valid {
+		t.Errorf("action should be valid: %s", result.RejectionReason)
+	}
+	if result.ActualDamage != 30.0 {
+		t.Errorf("actual damage should be 30.0, got %f", result.ActualDamage)
+	}
+}
+
+func TestPvPCombatTypes(t *testing.T) {
+	// Verify all combat types exist and have different values
+	types := []PvPCombatType{
+		PvPMeleeAttack,
+		PvPRangedAttack,
+		PvPMagicAttack,
+		PvPAreaEffect,
+		PvPStatusEffect,
+	}
+
+	seen := make(map[PvPCombatType]bool)
+	for _, ct := range types {
+		if seen[ct] {
+			t.Errorf("duplicate combat type value: %d", ct)
+		}
+		seen[ct] = true
+	}
+
+	if len(seen) != 5 {
+		t.Errorf("expected 5 unique combat types, got %d", len(seen))
+	}
+}
+
+// ============================================================================
+// Additional Lag Compensator Edge Case Tests
+// ============================================================================
+
+func TestStateHistoryGetAtTimeNoMatching(t *testing.T) {
+	sh := NewStateHistory()
+
+	// Record entity 1
+	sh.Record(EntitySnapshot{
+		EntityID:  1,
+		Timestamp: time.Now(),
+		Position:  Position3D{X: 10, Y: 0, Z: 0},
+	})
+
+	// Try to get entity 2 (doesn't exist)
+	result := sh.GetAtTime(2, time.Now())
+	if result != nil {
+		t.Error("should return nil for non-existent entity")
+	}
+}
+
+func TestStateHistoryGetAtTimeOutsideWindow(t *testing.T) {
+	sh := NewStateHistory()
+
+	// Record entity with very old timestamp
+	oldTime := time.Now().Add(-1 * time.Second)
+	sh.Record(EntitySnapshot{
+		EntityID:  1,
+		Timestamp: oldTime,
+		Position:  Position3D{X: 10, Y: 0, Z: 0},
+	})
+
+	// Try to get state at a time way after the snapshot (beyond 500ms window)
+	result := sh.GetAtTime(1, time.Now())
+	if result != nil {
+		t.Error("should return nil when snapshot is outside max rewind window")
+	}
+}
+
+func TestHitTestTargetNotTracked(t *testing.T) {
+	lc := NewLagCompensator()
+
+	// No entities recorded
+	origin := Position3D{X: 0, Y: 1, Z: 0}
+	direction := Position3D{X: 1, Y: 0, Z: 0}
+
+	result := lc.HitTest(1, 2, origin, direction, time.Now(), 100*time.Millisecond)
+
+	if result.Hit {
+		t.Error("should not hit when target is not tracked")
+	}
+}
+
+func TestRayAABBIntersectParallelRay(t *testing.T) {
+	// Ray parallel to X axis, passing through box
+	origin := Position3D{X: 0, Y: 0.5, Z: 0.5}
+	direction := Position3D{X: 1, Y: 0, Z: 0}
+	boxMin := Position3D{X: -1, Y: -1, Z: -1}
+	boxMax := Position3D{X: 1, Y: 1, Z: 1}
+	boxCenter := Position3D{X: 5, Y: 0, Z: 0}
+
+	hit, dist := rayAABBIntersect(origin, direction, boxMin, boxMax, boxCenter)
+
+	if !hit {
+		t.Error("ray should hit box")
+	}
+	if dist <= 0 {
+		t.Errorf("distance should be positive, got %f", dist)
+	}
+}
+
+func TestRayAABBIntersectParallelMiss(t *testing.T) {
+	// Ray parallel to X axis but above the box
+	origin := Position3D{X: 0, Y: 10, Z: 0}
+	direction := Position3D{X: 1, Y: 0, Z: 0}
+	boxMin := Position3D{X: -1, Y: -1, Z: -1}
+	boxMax := Position3D{X: 1, Y: 1, Z: 1}
+	boxCenter := Position3D{X: 5, Y: 0, Z: 0}
+
+	hit, _ := rayAABBIntersect(origin, direction, boxMin, boxMax, boxCenter)
+
+	if hit {
+		t.Error("ray parallel but outside should miss")
+	}
+}
+
+func TestTranslateBox(t *testing.T) {
+	boxMin := Position3D{X: -1, Y: -2, Z: -3}
+	boxMax := Position3D{X: 1, Y: 2, Z: 3}
+	center := Position3D{X: 10, Y: 20, Z: 30}
+
+	worldMin, worldMax := translateBox(boxMin, boxMax, center)
+
+	expectedMin := Position3D{X: 9, Y: 18, Z: 27}
+	expectedMax := Position3D{X: 11, Y: 22, Z: 33}
+
+	if worldMin != expectedMin {
+		t.Errorf("wrong world min: got %+v, expected %+v", worldMin, expectedMin)
+	}
+	if worldMax != expectedMax {
+		t.Errorf("wrong world max: got %+v, expected %+v", worldMax, expectedMax)
+	}
+}
+
+func TestSlabIntersect(t *testing.T) {
+	// Test non-parallel case
+	tmin, tmax, ok := slabIntersect(0, 1, 5, 10, 0, 100)
+	if !ok {
+		t.Error("should intersect")
+	}
+	if tmin != 5 || tmax != 10 {
+		t.Errorf("wrong t values: tmin=%f, tmax=%f", tmin, tmax)
+	}
+
+	// Test parallel inside case
+	tmin2, tmax2, ok2 := slabIntersect(7, 0, 5, 10, 0, 100)
+	if !ok2 {
+		t.Error("parallel inside should intersect")
+	}
+	if tmin2 != 0 || tmax2 != 100 {
+		t.Errorf("parallel inside should not modify t: tmin=%f, tmax=%f", tmin2, tmax2)
+	}
+
+	// Test parallel outside case
+	_, _, ok3 := slabIntersect(15, 0, 5, 10, 0, 100)
+	if ok3 {
+		t.Error("parallel outside should not intersect")
+	}
+}
+
+// ============================================================================
+// Concurrent Access Tests
+// ============================================================================
+
+func TestLagCompensatorConcurrent(t *testing.T) {
+	lc := NewLagCompensator()
+
+	done := make(chan bool)
+	for i := 0; i < 10; i++ {
+		go func(id int) {
+			for j := 0; j < 100; j++ {
+				entityID := uint64(id*100 + j)
+				pos := Position3D{X: float32(j), Y: 0, Z: 0}
+				hitMin := Position3D{X: -1, Y: -1, Z: -1}
+				hitMax := Position3D{X: 1, Y: 1, Z: 1}
+				lc.RecordEntityState(entityID, pos, 0, hitMin, hitMax)
+				_ = lc.EntityCount()
+				lc.RemoveEntity(entityID)
+			}
+			done <- true
+		}(i)
+	}
+
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+}
+
+func TestPvPValidatorConcurrent(t *testing.T) {
+	lc := NewLagCompensator()
+	pv := NewPvPValidator(lc)
+
+	done := make(chan bool)
+	for i := 0; i < 10; i++ {
+		go func(id int) {
+			zone := "zone_" + string(rune('A'+id))
+			for j := 0; j < 100; j++ {
+				pv.SetZonePvPEnabled(zone, j%2 == 0)
+				_ = pv.IsZonePvPEnabled(zone)
+				_ = pv.GetCooldownRemaining(uint64(id), "ability")
+			}
+			done <- true
+		}(i)
+	}
+
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+}
+
+// ============================================================================
+// Math Helper Tests
+// ============================================================================
+
+func TestCosHelper(t *testing.T) {
+	// Test cos at known values
+	// Note: This uses a Taylor series approximation, so larger epsilon needed
+	tests := []struct {
+		input    float64
+		expected float64
+		epsilon  float64
+	}{
+		{0, 1.0, 0.01},
+		{1.5707963268, 0.0, 0.1},   // pi/2
+		{3.14159265359, -1.0, 0.3}, // pi (larger epsilon due to Taylor approximation)
+	}
+
+	for _, tc := range tests {
+		result := cos(tc.input)
+		if diff := result - tc.expected; diff < -tc.epsilon || diff > tc.epsilon {
+			t.Errorf("cos(%f) = %f, expected %f (within %f)", tc.input, result, tc.expected, tc.epsilon)
+		}
+	}
+}
+
+func TestSinHelper(t *testing.T) {
+	// Test sin at known values
+	tests := []struct {
+		input    float64
+		expected float64
+		epsilon  float64
+	}{
+		{0, 0.0, 0.01},
+		{1.5707963268, 1.0, 0.01},
+		{3.14159265359, 0.0, 0.01},
+	}
+
+	for _, tc := range tests {
+		result := sin(tc.input)
+		if diff := result - tc.expected; diff < -tc.epsilon || diff > tc.epsilon {
+			t.Errorf("sin(%f) = %f, expected %f", tc.input, result, tc.expected)
+		}
+	}
+}
+
+func TestModHelper(t *testing.T) {
+	tests := []struct {
+		a, b, expected float64
+	}{
+		{5.0, 3.0, 2.0},
+		{7.0, 3.0, 1.0},
+		{-1.0, 3.0, 2.0},
+		{6.0, 3.0, 0.0},
+	}
+
+	for _, tc := range tests {
+		result := mod(tc.a, tc.b)
+		if result != tc.expected {
+			t.Errorf("mod(%f, %f) = %f, expected %f", tc.a, tc.b, result, tc.expected)
+		}
+	}
+}
+
+// ============================================================================
+// Benchmarks
+// ============================================================================
+
+func BenchmarkPvPValidateAction(b *testing.B) {
+	lc := NewLagCompensator()
+	pv := NewPvPValidator(lc)
+	pv.SetZonePvPEnabled("pvp_zone", true)
+
+	targetPos := Position3D{X: 10, Y: 1, Z: 0}
+	hitMin := Position3D{X: -1, Y: -1, Z: -1}
+	hitMax := Position3D{X: 1, Y: 1, Z: 1}
+	lc.RecordEntityState(2, targetPos, 0, hitMin, hitMax)
+
+	action := &PvPCombatAction{
+		AttackerID:  1,
+		TargetID:    2,
+		ActionType:  PvPMeleeAttack,
+		DamageClaim: 30.0,
+		Position:    Position3D{X: 0, Y: 1, Z: 0},
+		Direction:   Position3D{X: 1, Y: 0, Z: 0},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		action.ClientTime = time.Now()
+		pv.ValidateAction(action, 100*time.Millisecond, "pvp_zone")
+	}
+}
