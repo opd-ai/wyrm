@@ -281,7 +281,7 @@ func TestCrewManagement(t *testing.T) {
 	}
 }
 
-func TestCargoManagement(t *testing.T) {
+func TestNavalCargoManagement(t *testing.T) {
 	sys := NewNavalVehicleSystem("fantasy")
 	entity := ecs.Entity(1)
 	sys.SpawnVessel(entity, NavalSailboat)
@@ -317,7 +317,7 @@ func TestCargoManagement(t *testing.T) {
 	}
 }
 
-func TestFuelManagement(t *testing.T) {
+func TestNavalFuelManagement(t *testing.T) {
 	sys := NewNavalVehicleSystem("sci-fi")
 	entity := ecs.Entity(1)
 	sys.SpawnVessel(entity, NavalSpeedboat)
@@ -492,7 +492,7 @@ func TestNavalUpdateCooldowns(t *testing.T) {
 	}
 }
 
-func TestUpdateFuelConsumption(t *testing.T) {
+func TestNavalUpdateFuelConsumption(t *testing.T) {
 	sys := NewNavalVehicleSystem("sci-fi")
 	entity := ecs.Entity(1)
 	sys.SpawnVessel(entity, NavalSpeedboat)
@@ -542,7 +542,7 @@ func TestConcurrentNavalAccess(t *testing.T) {
 	wg.Wait()
 }
 
-func TestSciFiArchetypes(t *testing.T) {
+func TestNavalSciFiArchetypes(t *testing.T) {
 	sys := NewNavalVehicleSystem("sci-fi")
 	archetypes := sys.GetArchetypes()
 
@@ -560,7 +560,7 @@ func TestSciFiArchetypes(t *testing.T) {
 	}
 }
 
-func TestHorrorArchetypes(t *testing.T) {
+func TestNavalHorrorArchetypes(t *testing.T) {
 	sys := NewNavalVehicleSystem("horror")
 	archetypes := sys.GetArchetypes()
 
@@ -572,7 +572,7 @@ func TestHorrorArchetypes(t *testing.T) {
 	}
 }
 
-func TestCyberpunkArchetypes(t *testing.T) {
+func TestNavalCyberpunkArchetypes(t *testing.T) {
 	sys := NewNavalVehicleSystem("cyberpunk")
 	archetypes := sys.GetArchetypes()
 
@@ -584,7 +584,7 @@ func TestCyberpunkArchetypes(t *testing.T) {
 	}
 }
 
-func TestPostApocArchetypes(t *testing.T) {
+func TestNavalPostApocArchetypes(t *testing.T) {
 	sys := NewNavalVehicleSystem("post-apocalyptic")
 	archetypes := sys.GetArchetypes()
 
@@ -656,7 +656,7 @@ func TestVesselNotFound(t *testing.T) {
 	}
 }
 
-func TestGetCurrentCargoEmpty(t *testing.T) {
+func TestNavalGetCurrentCargoEmpty(t *testing.T) {
 	sys := NewNavalVehicleSystem("fantasy")
 	entity := ecs.Entity(999)
 
@@ -665,7 +665,7 @@ func TestGetCurrentCargoEmpty(t *testing.T) {
 	}
 }
 
-func TestHeadingWrap(t *testing.T) {
+func TestNavalHeadingWrap(t *testing.T) {
 	sys := NewNavalVehicleSystem("sci-fi")
 	entity := ecs.Entity(1)
 	sys.SpawnVessel(entity, NavalHovercraft)

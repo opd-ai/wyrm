@@ -217,7 +217,7 @@ Legend:
 - [x] Vehicle customization
 - [x] Mount system
 - [x] Naval vehicles
-- [ ] Flying vehicles
+- [x] Flying vehicles
 
 ---
 
