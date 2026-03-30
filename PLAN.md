@@ -302,20 +302,27 @@
 
 ---
 
-### Step 9: Add Vehicle Physics and Cockpit View
+### Step 9: Add Vehicle Physics and Cockpit View [COMPLETED]
 
 - **Deliverable**: Vehicles with steering, acceleration, fuel; first-person cockpit rendering
 - **Dependencies**: None
 - **Goal Impact**: Advances Vehicles & Mounts from 30% to 60%+; vehicle system exists but lacks gameplay depth
 - **Acceptance**: Player enters vehicle; first-person view changes to cockpit; WASD controls steering/acceleration
 - **Validation**: `go test ./pkg/engine/systems/... -run TestVehiclePhysics` passes
+- **Status**: ✅ Completed - VehiclePhysics and VehicleState components added; VehiclePhysicsSystem with bicycle steering model, acceleration/braking, fuel consumption, damage tracking, and cockpit view state
 
-**System enhancements in `pkg/engine/systems/vehicle.go`:**
-- Add `steeringAngle`, `currentSpeed` fields to `VehicleState` component
-- Implement acceleration/deceleration based on input
-- Implement steering with turning radius
-- Track fuel consumption per distance traveled
-- Add cockpit view flag for render system
+**Components added in `pkg/engine/components/types.go`:**
+- VehiclePhysics (Mass, MaxSpeed, Acceleration, BrakeStrength, TurningRadius, FuelConsumptionRate, CurrentSpeed, Throttle, Steering)
+- VehicleState (IsEngineOn, IsMoving, IsReversing, IsBraking, DamagePercent, InCockpitView, Driver, Passengers)
+
+**System added in `pkg/engine/systems/vehicle_physics.go`:**
+- VehiclePhysicsSystem.Update() handles physics simulation per tick
+- Bicycle steering model: angular_velocity = speed * tan(steering) / turning_radius
+- CreateVehicle() with all physics components and genre-appropriate defaults
+- EnterVehicle()/ExitVehicle() manages occupancy and cockpit view state
+- SetThrottle()/SetSteering()/SetBraking()/SetReverse() for input control
+- DamageVehicle()/RepairVehicle()/RefuelVehicle() for vehicle state management
+- Fuel consumption based on speed (rate * speed * dt)
 
 ---
 
