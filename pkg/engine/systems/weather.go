@@ -220,3 +220,204 @@ func (s *WeatherSystem) Update(w *ecs.World, dt float64) {
 		s.CurrentWeather = pool[s.weatherIndex]
 	}
 }
+
+// Season constants.
+const (
+	SeasonSpring = "spring"
+	SeasonSummer = "summer"
+	SeasonAutumn = "autumn"
+	SeasonWinter = "winter"
+	// DaysPerSeason is the number of game days per season.
+	DaysPerSeason = 30
+	// DaysPerYear is the total days in a game year.
+	DaysPerYear = 120
+)
+
+// SeasonalModifiers contains season-specific effects.
+type SeasonalModifiers struct {
+	// Temperature affects survival mechanics (-1.0 = freezing, 1.0 = scorching).
+	Temperature float64
+	// DaylightHours affects the length of daylight.
+	DaylightHours float64
+	// GrowthRate affects plant/crop growth speed.
+	GrowthRate float64
+	// WeatherBias adjusts weather probabilities.
+	WeatherBias map[string]float64
+}
+
+// GetCurrentSeason returns the season based on world day.
+func (s *WeatherSystem) GetCurrentSeason(worldDay int) string {
+	dayOfYear := worldDay % DaysPerYear
+	switch {
+	case dayOfYear < DaysPerSeason:
+		return SeasonSpring
+	case dayOfYear < DaysPerSeason*2:
+		return SeasonSummer
+	case dayOfYear < DaysPerSeason*3:
+		return SeasonAutumn
+	default:
+		return SeasonWinter
+	}
+}
+
+// GetSeasonalModifiers returns modifiers for the current season.
+func (s *WeatherSystem) GetSeasonalModifiers(worldDay int) SeasonalModifiers {
+	season := s.GetCurrentSeason(worldDay)
+
+	mods := SeasonalModifiers{
+		WeatherBias: make(map[string]float64),
+	}
+
+	switch season {
+	case SeasonSpring:
+		mods.Temperature = 0.2
+		mods.DaylightHours = 13.0
+		mods.GrowthRate = 1.5
+		mods.WeatherBias["rain"] = 1.3
+		mods.WeatherBias["clear"] = 0.9
+	case SeasonSummer:
+		mods.Temperature = 0.7
+		mods.DaylightHours = 16.0
+		mods.GrowthRate = 1.2
+		mods.WeatherBias["clear"] = 1.4
+		mods.WeatherBias["thunderstorm"] = 1.2
+		mods.WeatherBias["rain"] = 0.7
+	case SeasonAutumn:
+		mods.Temperature = 0.1
+		mods.DaylightHours = 11.0
+		mods.GrowthRate = 0.5
+		mods.WeatherBias["fog"] = 1.5
+		mods.WeatherBias["cloudy"] = 1.3
+		mods.WeatherBias["rain"] = 1.1
+	case SeasonWinter:
+		mods.Temperature = -0.5
+		mods.DaylightHours = 8.0
+		mods.GrowthRate = 0.0
+		mods.WeatherBias["fog"] = 1.3
+		mods.WeatherBias["clear"] = 0.8
+		// Add snow for applicable genres
+		if s.Genre == "fantasy" || s.Genre == "post-apocalyptic" {
+			mods.WeatherBias["snow"] = 1.5
+		}
+	}
+
+	return mods
+}
+
+// EnvironmentalSound represents an ambient sound triggered by weather/environment.
+type EnvironmentalSound struct {
+	// SoundID identifies the sound to play.
+	SoundID string
+	// Volume is the playback volume (0.0-1.0).
+	Volume float64
+	// Looping indicates if the sound should loop.
+	Looping bool
+	// Priority determines which sound plays if limited channels.
+	Priority int
+}
+
+// GetEnvironmentalSounds returns sounds appropriate for current weather.
+func (s *WeatherSystem) GetEnvironmentalSounds() []EnvironmentalSound {
+	sounds := []EnvironmentalSound{}
+
+	switch s.CurrentWeather {
+	case "clear":
+		sounds = append(sounds, EnvironmentalSound{SoundID: "ambient_wind_light", Volume: 0.2, Looping: true, Priority: 1})
+	case "cloudy", "overcast":
+		sounds = append(sounds, EnvironmentalSound{SoundID: "ambient_wind_medium", Volume: 0.3, Looping: true, Priority: 1})
+	case "rain":
+		sounds = append(sounds, EnvironmentalSound{SoundID: "rain_steady", Volume: 0.6, Looping: true, Priority: 2})
+		sounds = append(sounds, EnvironmentalSound{SoundID: "ambient_wind_light", Volume: 0.2, Looping: true, Priority: 1})
+	case "fog", "mist":
+		sounds = append(sounds, EnvironmentalSound{SoundID: "ambient_eerie", Volume: 0.3, Looping: true, Priority: 1})
+	case "thunderstorm":
+		sounds = append(sounds, EnvironmentalSound{SoundID: "rain_heavy", Volume: 0.8, Looping: true, Priority: 3})
+		sounds = append(sounds, EnvironmentalSound{SoundID: "thunder_rolling", Volume: 0.7, Looping: false, Priority: 4})
+		sounds = append(sounds, EnvironmentalSound{SoundID: "ambient_wind_strong", Volume: 0.5, Looping: true, Priority: 2})
+	case "dust", "dust_storm":
+		sounds = append(sounds, EnvironmentalSound{SoundID: "wind_howling", Volume: 0.7, Looping: true, Priority: 3})
+		sounds = append(sounds, EnvironmentalSound{SoundID: "sand_particles", Volume: 0.4, Looping: true, Priority: 2})
+	case "ion_storm":
+		sounds = append(sounds, EnvironmentalSound{SoundID: "electrical_crackle", Volume: 0.6, Looping: true, Priority: 3})
+		sounds = append(sounds, EnvironmentalSound{SoundID: "static_hum", Volume: 0.3, Looping: true, Priority: 2})
+	case "radiation_burst", "radiation_fog":
+		sounds = append(sounds, EnvironmentalSound{SoundID: "geiger_counter", Volume: 0.5, Looping: true, Priority: 3})
+		sounds = append(sounds, EnvironmentalSound{SoundID: "ambient_ominous", Volume: 0.4, Looping: true, Priority: 2})
+	case "blood_moon":
+		sounds = append(sounds, EnvironmentalSound{SoundID: "ambient_horror", Volume: 0.5, Looping: true, Priority: 2})
+		sounds = append(sounds, EnvironmentalSound{SoundID: "distant_howl", Volume: 0.3, Looping: false, Priority: 3})
+	case "smog":
+		sounds = append(sounds, EnvironmentalSound{SoundID: "industrial_hum", Volume: 0.4, Looping: true, Priority: 2})
+	case "acid_rain":
+		sounds = append(sounds, EnvironmentalSound{SoundID: "rain_sizzle", Volume: 0.6, Looping: true, Priority: 3})
+		sounds = append(sounds, EnvironmentalSound{SoundID: "chemical_drip", Volume: 0.3, Looping: true, Priority: 2})
+	case "neon_haze":
+		sounds = append(sounds, EnvironmentalSound{SoundID: "city_ambient", Volume: 0.5, Looping: true, Priority: 2})
+		sounds = append(sounds, EnvironmentalSound{SoundID: "neon_buzz", Volume: 0.2, Looping: true, Priority: 1})
+	case "ash_fall":
+		sounds = append(sounds, EnvironmentalSound{SoundID: "ambient_wind_light", Volume: 0.3, Looping: true, Priority: 1})
+		sounds = append(sounds, EnvironmentalSound{SoundID: "ash_settling", Volume: 0.2, Looping: true, Priority: 2})
+	case "scorching":
+		sounds = append(sounds, EnvironmentalSound{SoundID: "heat_shimmer", Volume: 0.3, Looping: true, Priority: 2})
+		sounds = append(sounds, EnvironmentalSound{SoundID: "desert_wind", Volume: 0.4, Looping: true, Priority: 1})
+	}
+
+	return sounds
+}
+
+// GetDaylightInfo returns sunrise/sunset times for a given day.
+func (s *WeatherSystem) GetDaylightInfo(worldDay int) (sunriseHour, sunsetHour int) {
+	seasonMods := s.GetSeasonalModifiers(worldDay)
+	daylightHours := seasonMods.DaylightHours
+
+	// Center daylight around noon (hour 12)
+	sunriseHour = 12 - int(daylightHours/2)
+	sunsetHour = 12 + int(daylightHours/2)
+
+	if sunriseHour < 0 {
+		sunriseHour = 0
+	}
+	if sunsetHour > 24 {
+		sunsetHour = 24
+	}
+
+	return sunriseHour, sunsetHour
+}
+
+// IsDaytime returns true if the current hour is during daylight.
+func (s *WeatherSystem) IsDaytime(worldDay, hour int) bool {
+	sunrise, sunset := s.GetDaylightInfo(worldDay)
+	return hour >= sunrise && hour < sunset
+}
+
+// GetAmbientLightLevel returns light level based on time and weather (0.0-1.0).
+func (s *WeatherSystem) GetAmbientLightLevel(worldDay, hour int) float64 {
+	sunrise, sunset := s.GetDaylightInfo(worldDay)
+
+	// Base light level from time of day
+	var baseLight float64
+	if hour < sunrise {
+		// Pre-dawn
+		baseLight = 0.1 + 0.1*float64(hour)/float64(sunrise)
+	} else if hour < sunrise+1 {
+		// Dawn transition
+		baseLight = 0.3 + 0.4*float64(hour-sunrise)
+	} else if hour < sunset-1 {
+		// Full daylight
+		baseLight = 1.0
+	} else if hour < sunset {
+		// Dusk transition
+		baseLight = 1.0 - 0.4*float64(hour-sunset+1)
+	} else {
+		// Night
+		hoursAfterSunset := hour - sunset
+		baseLight = 0.3 - 0.2*float64(hoursAfterSunset)/float64(24-sunset)
+		if baseLight < 0.1 {
+			baseLight = 0.1
+		}
+	}
+
+	// Apply weather modifier
+	weatherMods := s.GetWeatherModifiers()
+	return baseLight * weatherMods.Visibility
+}

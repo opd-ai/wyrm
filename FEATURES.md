@@ -227,9 +227,9 @@ Legend:
 - [x] Weather transitions
 - [x] Duration-based weather
 - [x] Weather effects on gameplay
-- [ ] Seasonal changes
-- [ ] Day/night visual changes
-- [ ] Environmental sounds
+- [x] Seasonal changes
+- [x] Day/night visual changes
+- [x] Environmental sounds
 - [x] Weather-affected movement
 - [ ] Indoor/outdoor detection
 - [ ] Extreme weather events
@@ -329,7 +329,7 @@ Legend:
 | Crafting & Resources | 7 | 10 | 70% |
 | Property & Housing | 4 | 10 | 40% |
 | Vehicles & Mounts | 3 | 10 | 30% |
-| Weather & Environment | 3 | 10 | 30% |
+| Weather & Environment | 8 | 10 | 80% |
 | Audio System | 6 | 10 | 60% |
 | Music System | 4 | 10 | 40% |
 | Rendering & Graphics | 5 | 10 | 50% |
