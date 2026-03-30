@@ -200,7 +200,7 @@ Legend:
 - [x] First-person furniture placement
 - [x] Property purchasing
 - [x] Rent collection
-- [ ] Home upgrades
+- [x] Home upgrades
 - [ ] Guild halls
 - [ ] Shared storage
 

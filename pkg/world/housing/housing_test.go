@@ -1217,3 +1217,519 @@ func TestRegisterProperty(t *testing.T) {
 		t.Errorf("Owner properties count = %d, want 1", len(ownerProps))
 	}
 }
+
+// ============================================================================
+// Home Upgrades System Tests
+// ============================================================================
+
+func TestNewHomeUpgradeSystem(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+
+	if hus.Seed != 12345 {
+		t.Errorf("Seed = %d, want 12345", hus.Seed)
+	}
+	if hus.Genre != "fantasy" {
+		t.Errorf("Genre = %s, want fantasy", hus.Genre)
+	}
+	if len(hus.AvailableUpgrades) == 0 {
+		t.Error("No available upgrades initialized")
+	}
+}
+
+func TestHomeUpgradeSystemGenreNames(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+
+	for _, genre := range genres {
+		hus := NewHomeUpgradeSystem(12345, genre)
+		lock := hus.AvailableUpgrades["lock_basic"]
+		if lock == nil {
+			t.Errorf("lock_basic not found for genre %s", genre)
+			continue
+		}
+		if lock.Name == "" {
+			t.Errorf("lock_basic has no name for genre %s", genre)
+		}
+		// Each genre should have a different name
+		t.Logf("%s: %s", genre, lock.Name)
+	}
+}
+
+func TestRegisterHome(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+
+	home := hus.RegisterHome("house1")
+
+	if home == nil {
+		t.Fatal("RegisterHome returned nil")
+	}
+	if home.HouseID != "house1" {
+		t.Errorf("HouseID = %s, want house1", home.HouseID)
+	}
+	if home.StorageSlots != 10 {
+		t.Errorf("Base StorageSlots = %d, want 10", home.StorageSlots)
+	}
+
+	// Verify it's tracked
+	got := hus.GetUpgradedHome("house1")
+	if got == nil {
+		t.Error("Home not tracked after registration")
+	}
+}
+
+func TestGetAvailableUpgrades(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	available := hus.GetAvailableUpgrades("house1")
+
+	if len(available) == 0 {
+		t.Error("No available upgrades for new home")
+	}
+
+	// Level 1 upgrades should be available
+	foundBasicLock := false
+	for _, upgrade := range available {
+		if upgrade.ID == "lock_basic" {
+			foundBasicLock = true
+			if upgrade.Status != UpgradeStatusAvailable {
+				t.Errorf("lock_basic status = %d, want UpgradeStatusAvailable", upgrade.Status)
+			}
+		}
+	}
+
+	if !foundBasicLock {
+		t.Error("lock_basic should be available for new home")
+	}
+}
+
+func TestCanInstallUpgrade(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	// Basic upgrade should be installable
+	can, reason := hus.CanInstallUpgrade("house1", "lock_basic")
+	if !can {
+		t.Errorf("Should be able to install lock_basic: %s", reason)
+	}
+
+	// Advanced upgrade should not be installable (missing prerequisite)
+	can, reason = hus.CanInstallUpgrade("house1", "lock_advanced")
+	if can {
+		t.Error("Should not be able to install lock_advanced without lock_basic")
+	}
+	if reason == "" {
+		t.Error("Should provide reason for failure")
+	}
+
+	// Non-existent home
+	can, reason = hus.CanInstallUpgrade("nonexistent", "lock_basic")
+	if can {
+		t.Error("Should fail for non-existent home")
+	}
+
+	// Non-existent upgrade
+	can, reason = hus.CanInstallUpgrade("house1", "nonexistent")
+	if can {
+		t.Error("Should fail for non-existent upgrade")
+	}
+}
+
+func TestStartInstallation(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	upgrade := hus.AvailableUpgrades["lock_basic"]
+	cost, err := hus.StartInstallation("house1", "lock_basic", 1000.0)
+	if err != nil {
+		t.Errorf("StartInstallation failed: %v", err)
+	}
+	if cost != upgrade.Cost {
+		t.Errorf("Cost = %f, want %f", cost, upgrade.Cost)
+	}
+
+	// Check upgrade is in progress
+	home := hus.GetUpgradedHome("house1")
+	installed := home.Upgrades["lock_basic"]
+	if installed == nil {
+		t.Fatal("Upgrade not tracked after start")
+	}
+	if installed.Status != UpgradeStatusInProgress {
+		t.Errorf("Status = %d, want UpgradeStatusInProgress", installed.Status)
+	}
+}
+
+func TestStartInstallationErrors(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	// Insufficient gold
+	_, err := hus.StartInstallation("house1", "lock_basic", 10.0)
+	if err == nil {
+		t.Error("Should fail with insufficient gold")
+	}
+
+	// Missing prerequisite
+	_, err = hus.StartInstallation("house1", "lock_advanced", 10000.0)
+	if err == nil {
+		t.Error("Should fail with missing prerequisite")
+	}
+
+	// Non-existent home
+	_, err = hus.StartInstallation("nonexistent", "lock_basic", 1000.0)
+	if err == nil {
+		t.Error("Should fail for non-existent home")
+	}
+
+	// Non-existent upgrade
+	_, err = hus.StartInstallation("house1", "nonexistent", 1000.0)
+	if err == nil {
+		t.Error("Should fail for non-existent upgrade")
+	}
+
+	// Already installed
+	hus.StartInstallation("house1", "lock_basic", 1000.0)
+	hus.CompleteInstallation("house1", "lock_basic")
+	_, err = hus.StartInstallation("house1", "lock_basic", 1000.0)
+	if err == nil {
+		t.Error("Should fail for already installed upgrade")
+	}
+}
+
+func TestCompleteInstallation(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	hus.StartInstallation("house1", "lock_basic", 1000.0)
+	err := hus.CompleteInstallation("house1", "lock_basic")
+	if err != nil {
+		t.Errorf("CompleteInstallation failed: %v", err)
+	}
+
+	// Check upgrade is completed
+	home := hus.GetUpgradedHome("house1")
+	installed := home.Upgrades["lock_basic"]
+	if installed.Status != UpgradeStatusCompleted {
+		t.Errorf("Status = %d, want UpgradeStatusCompleted", installed.Status)
+	}
+	if installed.Progress != 1.0 {
+		t.Errorf("Progress = %f, want 1.0", installed.Progress)
+	}
+
+	// Effects should be applied
+	if home.SecurityLevel <= 0 {
+		t.Error("Security level should have increased")
+	}
+}
+
+func TestCompleteInstallationErrors(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	// Non-existent home
+	err := hus.CompleteInstallation("nonexistent", "lock_basic")
+	if err == nil {
+		t.Error("Should fail for non-existent home")
+	}
+
+	// Upgrade not started
+	err = hus.CompleteInstallation("house1", "lock_basic")
+	if err == nil {
+		t.Error("Should fail for upgrade not in home")
+	}
+}
+
+func TestHomeUpgradeSystemUpdate(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	// Start a short installation
+	hus.StartInstallation("house1", "bedding_basic", 1000.0)
+
+	home := hus.GetUpgradedHome("house1")
+	upgrade := home.Upgrades["bedding_basic"]
+	initialProgress := upgrade.Progress
+
+	// Update with enough time to complete (0.5 hours install time)
+	hus.Update(3600.0 * 2) // 2 hours (in seconds converted to hours)
+
+	// Should have progressed or completed
+	if upgrade.Progress <= initialProgress && upgrade.Status != UpgradeStatusCompleted {
+		t.Error("Upgrade should have progressed")
+	}
+}
+
+func TestHomeUpgradeSystemUpdateCompletion(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	// Start installation
+	hus.StartInstallation("house1", "bedding_basic", 1000.0) // 0.5 hour install
+
+	// Update with enough time to complete
+	hus.Update(3600.0 * 10) // 10 hours worth of updates
+
+	home := hus.GetUpgradedHome("house1")
+	upgrade := home.Upgrades["bedding_basic"]
+
+	if upgrade.Status != UpgradeStatusCompleted {
+		t.Errorf("Status = %d, want UpgradeStatusCompleted", upgrade.Status)
+	}
+
+	// Effects should be applied
+	if home.ComfortLevel <= 0 {
+		t.Error("Comfort level should have increased")
+	}
+}
+
+func TestHasUpgrade(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	// Not installed
+	if hus.HasUpgrade("house1", "lock_basic") {
+		t.Error("Should not have lock_basic before installation")
+	}
+
+	// Install and complete
+	hus.StartInstallation("house1", "lock_basic", 1000.0)
+	hus.CompleteInstallation("house1", "lock_basic")
+
+	// Should have it now
+	if !hus.HasUpgrade("house1", "lock_basic") {
+		t.Error("Should have lock_basic after installation")
+	}
+}
+
+func TestHasSpecialEffect(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	// Workbench has "home_crafting" effect
+	if hus.HasSpecialEffect("house1", "home_crafting") {
+		t.Error("Should not have home_crafting before installation")
+	}
+
+	hus.StartInstallation("house1", "workbench", 1000.0)
+	hus.CompleteInstallation("house1", "workbench")
+
+	if !hus.HasSpecialEffect("house1", "home_crafting") {
+		t.Error("Should have home_crafting after workbench installation")
+	}
+}
+
+func TestGetHomeStats(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	security, _, _, _, storage := hus.GetHomeStats("house1")
+
+	// Base stats for new home
+	if storage != 10 {
+		t.Errorf("Base storage = %d, want 10", storage)
+	}
+	if security != 0 {
+		t.Errorf("Base security = %f, want 0", security)
+	}
+
+	// Install upgrades
+	hus.StartInstallation("house1", "lock_basic", 1000.0)
+	hus.CompleteInstallation("house1", "lock_basic")
+	hus.StartInstallation("house1", "chest_basic", 1000.0)
+	hus.CompleteInstallation("house1", "chest_basic")
+
+	security, _, _, value, storage := hus.GetHomeStats("house1")
+
+	if security <= 0 {
+		t.Error("Security should have increased after lock_basic")
+	}
+	if storage <= 10 {
+		t.Error("Storage should have increased after chest_basic")
+	}
+	if value <= 0 {
+		t.Error("Value should have increased")
+	}
+}
+
+func TestGetUpgradesByCategory(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+
+	security := hus.GetUpgradesByCategory(UpgradeCategorySecurity)
+	if len(security) == 0 {
+		t.Error("No security upgrades found")
+	}
+
+	for _, upgrade := range security {
+		if upgrade.Category != UpgradeCategorySecurity {
+			t.Errorf("Wrong category: %d, want UpgradeCategorySecurity", upgrade.Category)
+		}
+	}
+
+	comfort := hus.GetUpgradesByCategory(UpgradeCategoryComfort)
+	if len(comfort) == 0 {
+		t.Error("No comfort upgrades found")
+	}
+}
+
+func TestGetTenantBonus(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	bonus := hus.GetTenantBonus("house1")
+	if bonus != 0 {
+		t.Errorf("Initial tenant bonus = %f, want 0", bonus)
+	}
+
+	// Install heating which has tenant bonus
+	hus.StartInstallation("house1", "heating", 1000.0)
+	hus.CompleteInstallation("house1", "heating")
+
+	bonus = hus.GetTenantBonus("house1")
+	if bonus <= 0 {
+		t.Error("Tenant bonus should increase after heating installation")
+	}
+}
+
+func TestGetCraftingBonus(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	bonus := hus.GetCraftingBonus("house1")
+	if bonus != 0 {
+		t.Errorf("Initial crafting bonus = %f, want 0", bonus)
+	}
+
+	// Install workbench
+	hus.StartInstallation("house1", "workbench", 1000.0)
+	hus.CompleteInstallation("house1", "workbench")
+
+	bonus = hus.GetCraftingBonus("house1")
+	if bonus <= 0 {
+		t.Error("Crafting bonus should increase after workbench installation")
+	}
+}
+
+func TestGetInstalledUpgrades(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	installed := hus.GetInstalledUpgrades("house1")
+	if len(installed) != 0 {
+		t.Errorf("New home has %d installed upgrades, want 0", len(installed))
+	}
+
+	hus.StartInstallation("house1", "lock_basic", 1000.0)
+	hus.CompleteInstallation("house1", "lock_basic")
+	hus.StartInstallation("house1", "chest_basic", 1000.0)
+	hus.CompleteInstallation("house1", "chest_basic")
+
+	installed = hus.GetInstalledUpgrades("house1")
+	if len(installed) != 2 {
+		t.Errorf("Home has %d installed upgrades, want 2", len(installed))
+	}
+}
+
+func TestGetUpgradeProgress(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	// Not started
+	progress, inProgress := hus.GetUpgradeProgress("house1", "lock_basic")
+	if inProgress {
+		t.Error("Should not be in progress before start")
+	}
+
+	// Start installation
+	hus.StartInstallation("house1", "lock_basic", 1000.0)
+
+	progress, inProgress = hus.GetUpgradeProgress("house1", "lock_basic")
+	if !inProgress {
+		t.Error("Should be in progress after start")
+	}
+	if progress != 0 {
+		t.Errorf("Initial progress = %f, want 0", progress)
+	}
+
+	// Complete it
+	hus.CompleteInstallation("house1", "lock_basic")
+
+	progress, inProgress = hus.GetUpgradeProgress("house1", "lock_basic")
+	if inProgress {
+		t.Error("Should not be in progress after completion")
+	}
+}
+
+func TestUpgradeCount(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	count := hus.UpgradeCount("house1")
+	if count != 0 {
+		t.Errorf("New home count = %d, want 0", count)
+	}
+
+	hus.StartInstallation("house1", "lock_basic", 1000.0)
+	hus.CompleteInstallation("house1", "lock_basic")
+
+	count = hus.UpgradeCount("house1")
+	if count != 1 {
+		t.Errorf("After 1 install, count = %d, want 1", count)
+	}
+
+	hus.StartInstallation("house1", "chest_basic", 1000.0)
+	hus.CompleteInstallation("house1", "chest_basic")
+
+	count = hus.UpgradeCount("house1")
+	if count != 2 {
+		t.Errorf("After 2 installs, count = %d, want 2", count)
+	}
+}
+
+func TestPrerequisiteChain(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	// Cannot install advanced lock without basic
+	can, _ := hus.CanInstallUpgrade("house1", "lock_advanced")
+	if can {
+		t.Error("Should not be able to install lock_advanced without lock_basic")
+	}
+
+	// Install basic lock
+	hus.StartInstallation("house1", "lock_basic", 1000.0)
+	hus.CompleteInstallation("house1", "lock_basic")
+
+	// Now can install advanced
+	can, _ = hus.CanInstallUpgrade("house1", "lock_advanced")
+	if !can {
+		t.Error("Should be able to install lock_advanced after lock_basic")
+	}
+}
+
+func TestMultiplePrerequisites(t *testing.T) {
+	hus := NewHomeUpgradeSystem(12345, "fantasy")
+	hus.RegisterHome("house1")
+
+	// Alchemy lab requires workbench AND study
+	can, _ := hus.CanInstallUpgrade("house1", "alchemy_lab")
+	if can {
+		t.Error("Should not be able to install alchemy_lab without prerequisites")
+	}
+
+	// Install only workbench
+	hus.StartInstallation("house1", "workbench", 1000.0)
+	hus.CompleteInstallation("house1", "workbench")
+
+	can, _ = hus.CanInstallUpgrade("house1", "alchemy_lab")
+	if can {
+		t.Error("Should not be able to install alchemy_lab with only workbench")
+	}
+
+	// Install study
+	hus.StartInstallation("house1", "study", 1000.0)
+	hus.CompleteInstallation("house1", "study")
+
+	can, _ = hus.CanInstallUpgrade("house1", "alchemy_lab")
+	if !can {
+		t.Error("Should be able to install alchemy_lab with both prerequisites")
+	}
+}

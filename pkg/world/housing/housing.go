@@ -1292,3 +1292,1564 @@ func clampFloat64(value, min, max float64) float64 {
 	}
 	return value
 }
+
+// ============================================================================
+// Home Upgrades System
+// ============================================================================
+
+// UpgradeCategory represents a category of home upgrades.
+type UpgradeCategory int
+
+const (
+	UpgradeCategorySecurity UpgradeCategory = iota
+	UpgradeCategoryComfort
+	UpgradeCategoryStorage
+	UpgradeCategoryAesthetics
+	UpgradeCategoryUtility
+	UpgradeCategoryDefense
+)
+
+// UpgradeStatus represents the status of an upgrade.
+type UpgradeStatus int
+
+const (
+	UpgradeStatusAvailable UpgradeStatus = iota
+	UpgradeStatusInProgress
+	UpgradeStatusCompleted
+	UpgradeStatusLocked
+)
+
+// HomeUpgrade represents a purchasable home upgrade.
+type HomeUpgrade struct {
+	ID            string
+	Name          string
+	Description   string
+	Category      UpgradeCategory
+	Cost          float64        // Gold cost
+	MaterialCost  map[string]int // Required materials
+	InstallTime   float64        // Hours to install
+	Status        UpgradeStatus
+	Progress      float64        // 0-1 installation progress
+	Effects       UpgradeEffects // What the upgrade provides
+	Prerequisites []string       // Required upgrade IDs
+	Genre         string         // Genre-specific upgrade
+	Level         int            // Upgrade tier (1-5)
+}
+
+// UpgradeEffects describes what a home upgrade provides.
+type UpgradeEffects struct {
+	SecurityBonus float64 // Reduces theft/break-in chance
+	ComfortBonus  float64 // Increases rest effectiveness
+	StorageBonus  int     // Additional storage slots
+	ValueBonus    float64 // Increases property value
+	TenantBonus   float64 // Increases rent potential
+	CraftingBonus float64 // Improves crafting in home
+	DefenseBonus  float64 // Combat defense bonus at home
+	SpecialEffect string  // Special effect identifier
+}
+
+// UpgradedHome tracks upgrades applied to a house.
+type UpgradedHome struct {
+	HouseID       string
+	Upgrades      map[string]*HomeUpgrade // Upgrade ID -> upgrade
+	TotalValue    float64
+	SecurityLevel float64
+	ComfortLevel  float64
+	StorageSlots  int
+	DefenseLevel  float64
+	InstalledDate map[string]float64 // Upgrade ID -> installation time
+}
+
+// HomeUpgradeSystem manages home upgrades.
+type HomeUpgradeSystem struct {
+	mu                sync.RWMutex
+	Seed              int64
+	Genre             string
+	AvailableUpgrades map[string]*HomeUpgrade  // All possible upgrades
+	HomeUpgrades      map[string]*UpgradedHome // HouseID -> upgrades
+	GameTime          float64
+	counter           uint64
+}
+
+// NewHomeUpgradeSystem creates a new home upgrade system.
+func NewHomeUpgradeSystem(seed int64, genre string) *HomeUpgradeSystem {
+	sys := &HomeUpgradeSystem{
+		Seed:              seed,
+		Genre:             genre,
+		AvailableUpgrades: make(map[string]*HomeUpgrade),
+		HomeUpgrades:      make(map[string]*UpgradedHome),
+	}
+	sys.initializeUpgrades()
+	return sys
+}
+
+// pseudoRandom generates a deterministic pseudo-random number.
+func (s *HomeUpgradeSystem) pseudoRandom() float64 {
+	s.counter++
+	x := uint64(s.Seed) + s.counter*6364136223846793005
+	x ^= x >> 12
+	x ^= x << 25
+	x ^= x >> 27
+	return float64(x%10000) / 10000.0
+}
+
+// initializeUpgrades populates the available upgrades based on genre.
+func (s *HomeUpgradeSystem) initializeUpgrades() {
+	// Security upgrades (all genres)
+	s.addUpgrade(&HomeUpgrade{
+		ID:          "lock_basic",
+		Name:        s.getGenreName("Basic Lock", "Basic Lock", "Basic Lock", "Basic Keypad", "Basic Lock"),
+		Description: "A simple lock for your door",
+		Category:    UpgradeCategorySecurity,
+		Cost:        100,
+		InstallTime: 1.0,
+		Status:      UpgradeStatusAvailable,
+		Effects:     UpgradeEffects{SecurityBonus: 0.1},
+		Level:       1,
+	})
+
+	s.addUpgrade(&HomeUpgrade{
+		ID:            "lock_advanced",
+		Name:          s.getGenreName("Reinforced Lock", "Biometric Lock", "Warded Lock", "Quantum Lock", "Reinforced Lock"),
+		Description:   "An advanced locking mechanism",
+		Category:      UpgradeCategorySecurity,
+		Cost:          500,
+		InstallTime:   2.0,
+		Status:        UpgradeStatusLocked,
+		Effects:       UpgradeEffects{SecurityBonus: 0.25},
+		Prerequisites: []string{"lock_basic"},
+		Level:         2,
+	})
+
+	s.addUpgrade(&HomeUpgrade{
+		ID:            "alarm_system",
+		Name:          s.getGenreName("Guard Bell", "Motion Sensors", "Spirit Ward", "Security Drones", "Trip Wires"),
+		Description:   "Alerts you to intruders",
+		Category:      UpgradeCategorySecurity,
+		Cost:          1000,
+		InstallTime:   4.0,
+		Status:        UpgradeStatusLocked,
+		Effects:       UpgradeEffects{SecurityBonus: 0.35, SpecialEffect: "intruder_alert"},
+		Prerequisites: []string{"lock_advanced"},
+		Level:         3,
+	})
+
+	s.addUpgrade(&HomeUpgrade{
+		ID:            "vault",
+		Name:          s.getGenreName("Iron Vault", "Secure Vault", "Cursed Vault", "Quantum Vault", "Bunker Safe"),
+		Description:   "A secure vault for valuables",
+		Category:      UpgradeCategorySecurity,
+		Cost:          2500,
+		InstallTime:   8.0,
+		Status:        UpgradeStatusLocked,
+		Effects:       UpgradeEffects{SecurityBonus: 0.5, StorageBonus: 10, SpecialEffect: "secure_storage"},
+		Prerequisites: []string{"alarm_system"},
+		Level:         4,
+	})
+
+	// Comfort upgrades
+	s.addUpgrade(&HomeUpgrade{
+		ID:          "bedding_basic",
+		Name:        s.getGenreName("Straw Mattress", "Foam Mattress", "Simple Cot", "Gel Mattress", "Salvaged Bed"),
+		Description: "Basic sleeping accommodations",
+		Category:    UpgradeCategoryComfort,
+		Cost:        50,
+		InstallTime: 0.5,
+		Status:      UpgradeStatusAvailable,
+		Effects:     UpgradeEffects{ComfortBonus: 0.1},
+		Level:       1,
+	})
+
+	s.addUpgrade(&HomeUpgrade{
+		ID:            "bedding_luxury",
+		Name:          s.getGenreName("Feather Bed", "Memory Foam", "Restful Bed", "Neural Rest Pod", "Luxury Mattress"),
+		Description:   "Luxurious sleeping quarters",
+		Category:      UpgradeCategoryComfort,
+		Cost:          300,
+		InstallTime:   1.0,
+		Status:        UpgradeStatusLocked,
+		Effects:       UpgradeEffects{ComfortBonus: 0.25, SpecialEffect: "better_rest"},
+		Prerequisites: []string{"bedding_basic"},
+		Level:         2,
+	})
+
+	s.addUpgrade(&HomeUpgrade{
+		ID:          "heating",
+		Name:        s.getGenreName("Stone Fireplace", "Climate Control", "Brazier", "Thermal System", "Wood Stove"),
+		Description: "Temperature control for comfort",
+		Category:    UpgradeCategoryComfort,
+		Cost:        400,
+		InstallTime: 4.0,
+		Status:      UpgradeStatusAvailable,
+		Effects:     UpgradeEffects{ComfortBonus: 0.15, TenantBonus: 0.1},
+		Level:       2,
+	})
+
+	s.addUpgrade(&HomeUpgrade{
+		ID:            "bath",
+		Name:          s.getGenreName("Copper Tub", "Shower Unit", "Ritual Bath", "Sonic Cleaner", "Rain Barrel"),
+		Description:   "Bathing facilities",
+		Category:      UpgradeCategoryComfort,
+		Cost:          600,
+		InstallTime:   6.0,
+		Status:        UpgradeStatusLocked,
+		Effects:       UpgradeEffects{ComfortBonus: 0.2, TenantBonus: 0.15, SpecialEffect: "cleanse"},
+		Prerequisites: []string{"heating"},
+		Level:         3,
+	})
+
+	// Storage upgrades
+	s.addUpgrade(&HomeUpgrade{
+		ID:          "chest_basic",
+		Name:        s.getGenreName("Wooden Chest", "Storage Locker", "Trunk", "Storage Unit", "Footlocker"),
+		Description: "Basic storage container",
+		Category:    UpgradeCategoryStorage,
+		Cost:        75,
+		InstallTime: 0.5,
+		Status:      UpgradeStatusAvailable,
+		Effects:     UpgradeEffects{StorageBonus: 20},
+		Level:       1,
+	})
+
+	s.addUpgrade(&HomeUpgrade{
+		ID:            "wardrobe",
+		Name:          s.getGenreName("Oak Wardrobe", "Closet System", "Armoire", "Nano-Closet", "Salvaged Cabinet"),
+		Description:   "Organized clothing storage",
+		Category:      UpgradeCategoryStorage,
+		Cost:          200,
+		InstallTime:   2.0,
+		Status:        UpgradeStatusLocked,
+		Effects:       UpgradeEffects{StorageBonus: 30, SpecialEffect: "outfit_storage"},
+		Prerequisites: []string{"chest_basic"},
+		Level:         2,
+	})
+
+	s.addUpgrade(&HomeUpgrade{
+		ID:            "pantry",
+		Name:          s.getGenreName("Root Cellar", "Refrigeration Unit", "Cold Storage", "Stasis Chamber", "Food Cache"),
+		Description:   "Food preservation storage",
+		Category:      UpgradeCategoryStorage,
+		Cost:          350,
+		InstallTime:   4.0,
+		Status:        UpgradeStatusLocked,
+		Effects:       UpgradeEffects{StorageBonus: 25, SpecialEffect: "food_preservation"},
+		Prerequisites: []string{"chest_basic"},
+		Level:         2,
+	})
+
+	s.addUpgrade(&HomeUpgrade{
+		ID:            "armory",
+		Name:          s.getGenreName("Weapon Rack", "Arsenal", "Dark Armory", "Weapon Cache", "Gun Locker"),
+		Description:   "Secure weapon storage",
+		Category:      UpgradeCategoryStorage,
+		Cost:          500,
+		InstallTime:   3.0,
+		Status:        UpgradeStatusLocked,
+		Effects:       UpgradeEffects{StorageBonus: 15, SecurityBonus: 0.1, SpecialEffect: "weapon_storage"},
+		Prerequisites: []string{"wardrobe"},
+		Level:         3,
+	})
+
+	// Aesthetics upgrades
+	s.addUpgrade(&HomeUpgrade{
+		ID:          "decor_basic",
+		Name:        s.getGenreName("Tapestries", "Wall Art", "Candles", "Holograms", "Salvaged Decor"),
+		Description: "Basic decorative items",
+		Category:    UpgradeCategoryAesthetics,
+		Cost:        100,
+		InstallTime: 1.0,
+		Status:      UpgradeStatusAvailable,
+		Effects:     UpgradeEffects{ComfortBonus: 0.05, ValueBonus: 0.1},
+		Level:       1,
+	})
+
+	s.addUpgrade(&HomeUpgrade{
+		ID:            "decor_luxury",
+		Name:          s.getGenreName("Fine Art", "Designer Pieces", "Occult Artifacts", "Cyber Art", "Pre-War Relics"),
+		Description:   "Luxurious decorations",
+		Category:      UpgradeCategoryAesthetics,
+		Cost:          750,
+		InstallTime:   2.0,
+		Status:        UpgradeStatusLocked,
+		Effects:       UpgradeEffects{ComfortBonus: 0.15, ValueBonus: 0.3, TenantBonus: 0.2},
+		Prerequisites: []string{"decor_basic"},
+		Level:         3,
+	})
+
+	s.addUpgrade(&HomeUpgrade{
+		ID:          "garden",
+		Name:        s.getGenreName("Herb Garden", "Hydroponic Bay", "Cursed Garden", "Rooftop Garden", "Survival Garden"),
+		Description: "A small garden area",
+		Category:    UpgradeCategoryAesthetics,
+		Cost:        400,
+		InstallTime: 6.0,
+		Status:      UpgradeStatusAvailable,
+		Effects:     UpgradeEffects{ComfortBonus: 0.1, ValueBonus: 0.15, SpecialEffect: "ingredient_source"},
+		Level:       2,
+	})
+
+	// Utility upgrades
+	s.addUpgrade(&HomeUpgrade{
+		ID:          "workbench",
+		Name:        s.getGenreName("Crafting Table", "Fabricator", "Ritual Table", "Nano-Printer", "Workshop Bench"),
+		Description: "A place to craft items",
+		Category:    UpgradeCategoryUtility,
+		Cost:        300,
+		InstallTime: 3.0,
+		Status:      UpgradeStatusAvailable,
+		Effects:     UpgradeEffects{CraftingBonus: 0.1, SpecialEffect: "home_crafting"},
+		Level:       1,
+	})
+
+	s.addUpgrade(&HomeUpgrade{
+		ID:            "workbench_advanced",
+		Name:          s.getGenreName("Master Forge", "Advanced Fabricator", "Dark Forge", "Matter Compiler", "Full Workshop"),
+		Description:   "Advanced crafting station",
+		Category:      UpgradeCategoryUtility,
+		Cost:          1500,
+		InstallTime:   8.0,
+		Status:        UpgradeStatusLocked,
+		Effects:       UpgradeEffects{CraftingBonus: 0.3, SpecialEffect: "advanced_crafting"},
+		Prerequisites: []string{"workbench"},
+		Level:         3,
+	})
+
+	s.addUpgrade(&HomeUpgrade{
+		ID:          "study",
+		Name:        s.getGenreName("Study Desk", "Data Terminal", "Occult Library", "Neural Interface", "Research Station"),
+		Description: "A place to study and research",
+		Category:    UpgradeCategoryUtility,
+		Cost:        250,
+		InstallTime: 2.0,
+		Status:      UpgradeStatusAvailable,
+		Effects:     UpgradeEffects{SpecialEffect: "skill_training"},
+		Level:       1,
+	})
+
+	s.addUpgrade(&HomeUpgrade{
+		ID:            "alchemy_lab",
+		Name:          s.getGenreName("Alchemy Lab", "Chem Lab", "Dark Lab", "Synthesis Lab", "Chem Station"),
+		Description:   "Laboratory for creating potions and chemicals",
+		Category:      UpgradeCategoryUtility,
+		Cost:          800,
+		InstallTime:   6.0,
+		Status:        UpgradeStatusLocked,
+		Effects:       UpgradeEffects{CraftingBonus: 0.2, SpecialEffect: "potion_crafting"},
+		Prerequisites: []string{"workbench", "study"},
+		Level:         3,
+	})
+
+	// Defense upgrades
+	s.addUpgrade(&HomeUpgrade{
+		ID:          "fortification_basic",
+		Name:        s.getGenreName("Wooden Shutters", "Blast Shutters", "Iron Bars", "Armored Panels", "Barricades"),
+		Description: "Basic fortifications",
+		Category:    UpgradeCategoryDefense,
+		Cost:        200,
+		InstallTime: 4.0,
+		Status:      UpgradeStatusAvailable,
+		Effects:     UpgradeEffects{DefenseBonus: 0.1, SecurityBonus: 0.1},
+		Level:       1,
+	})
+
+	s.addUpgrade(&HomeUpgrade{
+		ID:            "fortification_advanced",
+		Name:          s.getGenreName("Stone Walls", "Force Fields", "Warded Walls", "Energy Shields", "Reinforced Walls"),
+		Description:   "Advanced fortifications",
+		Category:      UpgradeCategoryDefense,
+		Cost:          1200,
+		InstallTime:   12.0,
+		Status:        UpgradeStatusLocked,
+		Effects:       UpgradeEffects{DefenseBonus: 0.3, SecurityBonus: 0.25},
+		Prerequisites: []string{"fortification_basic"},
+		Level:         3,
+	})
+
+	s.addUpgrade(&HomeUpgrade{
+		ID:            "turret",
+		Name:          s.getGenreName("Guard Golem", "Auto-Turret", "Spirit Guardian", "Defense Drone", "Mounted Gun"),
+		Description:   "Automated defense system",
+		Category:      UpgradeCategoryDefense,
+		Cost:          3000,
+		InstallTime:   16.0,
+		Status:        UpgradeStatusLocked,
+		Effects:       UpgradeEffects{DefenseBonus: 0.5, SecurityBonus: 0.4, SpecialEffect: "auto_defense"},
+		Prerequisites: []string{"fortification_advanced", "alarm_system"},
+		Level:         5,
+	})
+}
+
+// getGenreName returns the appropriate name based on genre.
+func (s *HomeUpgradeSystem) getGenreName(fantasy, scifi, horror, cyberpunk, postapoc string) string {
+	switch s.Genre {
+	case "sci-fi":
+		return scifi
+	case "horror":
+		return horror
+	case "cyberpunk":
+		return cyberpunk
+	case "post-apocalyptic":
+		return postapoc
+	default:
+		return fantasy
+	}
+}
+
+// addUpgrade adds an upgrade to available upgrades.
+func (s *HomeUpgradeSystem) addUpgrade(upgrade *HomeUpgrade) {
+	upgrade.Genre = s.Genre
+	s.AvailableUpgrades[upgrade.ID] = upgrade
+}
+
+// RegisterHome registers a home for upgrades.
+func (s *HomeUpgradeSystem) RegisterHome(houseID string) *UpgradedHome {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	home := &UpgradedHome{
+		HouseID:       houseID,
+		Upgrades:      make(map[string]*HomeUpgrade),
+		StorageSlots:  10, // Base storage
+		InstalledDate: make(map[string]float64),
+	}
+	s.HomeUpgrades[houseID] = home
+	return home
+}
+
+// GetUpgradedHome returns upgrade info for a home.
+func (s *HomeUpgradeSystem) GetUpgradedHome(houseID string) *UpgradedHome {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.HomeUpgrades[houseID]
+}
+
+// GetAvailableUpgrades returns all upgrades available for a home.
+func (s *HomeUpgradeSystem) GetAvailableUpgrades(houseID string) []*HomeUpgrade {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	home := s.HomeUpgrades[houseID]
+	if home == nil {
+		return nil
+	}
+
+	available := make([]*HomeUpgrade, 0)
+	for _, upgrade := range s.AvailableUpgrades {
+		status := s.getUpgradeStatus(home, upgrade)
+		if status == UpgradeStatusAvailable {
+			upgradeCopy := *upgrade
+			upgradeCopy.Status = status
+			available = append(available, &upgradeCopy)
+		}
+	}
+	return available
+}
+
+// getUpgradeStatus determines the current status of an upgrade for a home.
+func (s *HomeUpgradeSystem) getUpgradeStatus(home *UpgradedHome, upgrade *HomeUpgrade) UpgradeStatus {
+	// Already installed
+	if _, ok := home.Upgrades[upgrade.ID]; ok {
+		return UpgradeStatusCompleted
+	}
+
+	// Check prerequisites
+	for _, prereq := range upgrade.Prerequisites {
+		if _, ok := home.Upgrades[prereq]; !ok {
+			return UpgradeStatusLocked
+		}
+	}
+
+	return UpgradeStatusAvailable
+}
+
+// CanInstallUpgrade checks if an upgrade can be installed.
+func (s *HomeUpgradeSystem) CanInstallUpgrade(houseID, upgradeID string) (bool, string) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	home := s.HomeUpgrades[houseID]
+	if home == nil {
+		return false, "home not registered"
+	}
+
+	upgrade := s.AvailableUpgrades[upgradeID]
+	if upgrade == nil {
+		return false, "upgrade not found"
+	}
+
+	// Already installed
+	if _, ok := home.Upgrades[upgradeID]; ok {
+		return false, "upgrade already installed"
+	}
+
+	// Check prerequisites
+	for _, prereq := range upgrade.Prerequisites {
+		if _, ok := home.Upgrades[prereq]; !ok {
+			prereqUpgrade := s.AvailableUpgrades[prereq]
+			if prereqUpgrade != nil {
+				return false, fmt.Sprintf("requires %s", prereqUpgrade.Name)
+			}
+			return false, "missing prerequisite"
+		}
+	}
+
+	return true, ""
+}
+
+// StartInstallation begins installing an upgrade.
+func (s *HomeUpgradeSystem) StartInstallation(houseID, upgradeID string, playerGold float64) (float64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	home := s.HomeUpgrades[houseID]
+	if home == nil {
+		return 0, fmt.Errorf("home not registered")
+	}
+
+	upgrade := s.AvailableUpgrades[upgradeID]
+	if upgrade == nil {
+		return 0, fmt.Errorf("upgrade not found")
+	}
+
+	// Check prerequisites
+	for _, prereq := range upgrade.Prerequisites {
+		if _, ok := home.Upgrades[prereq]; !ok {
+			return 0, fmt.Errorf("missing prerequisite: %s", prereq)
+		}
+	}
+
+	// Check if already installed
+	if _, ok := home.Upgrades[upgradeID]; ok {
+		return 0, fmt.Errorf("upgrade already installed")
+	}
+
+	// Check cost
+	if playerGold < upgrade.Cost {
+		return 0, fmt.Errorf("insufficient gold: need %.0f, have %.0f", upgrade.Cost, playerGold)
+	}
+
+	// Start installation
+	newUpgrade := *upgrade
+	newUpgrade.Status = UpgradeStatusInProgress
+	newUpgrade.Progress = 0
+	home.Upgrades[upgradeID] = &newUpgrade
+
+	return upgrade.Cost, nil
+}
+
+// CompleteInstallation instantly completes an upgrade installation.
+func (s *HomeUpgradeSystem) CompleteInstallation(houseID, upgradeID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	home := s.HomeUpgrades[houseID]
+	if home == nil {
+		return fmt.Errorf("home not registered")
+	}
+
+	upgrade := home.Upgrades[upgradeID]
+	if upgrade == nil {
+		return fmt.Errorf("upgrade not found in home")
+	}
+
+	upgrade.Status = UpgradeStatusCompleted
+	upgrade.Progress = 1.0
+	home.InstalledDate[upgradeID] = s.GameTime
+
+	// Apply effects
+	s.applyUpgradeEffects(home, upgrade)
+
+	return nil
+}
+
+// applyUpgradeEffects applies the effects of an upgrade to a home.
+func (s *HomeUpgradeSystem) applyUpgradeEffects(home *UpgradedHome, upgrade *HomeUpgrade) {
+	home.SecurityLevel += upgrade.Effects.SecurityBonus
+	home.ComfortLevel += upgrade.Effects.ComfortBonus
+	home.StorageSlots += upgrade.Effects.StorageBonus
+	home.TotalValue += upgrade.Cost * (1 + upgrade.Effects.ValueBonus)
+	home.DefenseLevel += upgrade.Effects.DefenseBonus
+}
+
+// Update processes upgrade installations.
+func (s *HomeUpgradeSystem) Update(dt float64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.GameTime += dt
+	hoursDelta := dt / 3600.0
+
+	for _, home := range s.HomeUpgrades {
+		for _, upgrade := range home.Upgrades {
+			if upgrade.Status == UpgradeStatusInProgress {
+				// Progress installation
+				progressRate := 1.0 / upgrade.InstallTime // Progress per hour
+				upgrade.Progress += progressRate * hoursDelta
+
+				if upgrade.Progress >= 1.0 {
+					upgrade.Progress = 1.0
+					upgrade.Status = UpgradeStatusCompleted
+					home.InstalledDate[upgrade.ID] = s.GameTime
+					s.applyUpgradeEffects(home, upgrade)
+				}
+			}
+		}
+	}
+}
+
+// GetUpgradesByCategory returns upgrades filtered by category.
+func (s *HomeUpgradeSystem) GetUpgradesByCategory(category UpgradeCategory) []*HomeUpgrade {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	upgrades := make([]*HomeUpgrade, 0)
+	for _, upgrade := range s.AvailableUpgrades {
+		if upgrade.Category == category {
+			upgrades = append(upgrades, upgrade)
+		}
+	}
+	return upgrades
+}
+
+// GetHomeStats returns aggregate stats for a home.
+func (s *HomeUpgradeSystem) GetHomeStats(houseID string) (security, comfort, defense, value float64, storage int) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	home := s.HomeUpgrades[houseID]
+	if home == nil {
+		return 0, 0, 0, 0, 10
+	}
+
+	return home.SecurityLevel, home.ComfortLevel, home.DefenseLevel, home.TotalValue, home.StorageSlots
+}
+
+// HasUpgrade checks if a home has a specific upgrade installed.
+func (s *HomeUpgradeSystem) HasUpgrade(houseID, upgradeID string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	home := s.HomeUpgrades[houseID]
+	if home == nil {
+		return false
+	}
+
+	upgrade, ok := home.Upgrades[upgradeID]
+	return ok && upgrade.Status == UpgradeStatusCompleted
+}
+
+// HasSpecialEffect checks if a home has a specific special effect.
+func (s *HomeUpgradeSystem) HasSpecialEffect(houseID, effect string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	home := s.HomeUpgrades[houseID]
+	if home == nil {
+		return false
+	}
+
+	for _, upgrade := range home.Upgrades {
+		if upgrade.Status == UpgradeStatusCompleted && upgrade.Effects.SpecialEffect == effect {
+			return true
+		}
+	}
+	return false
+}
+
+// GetTenantBonus calculates total tenant bonus for rental properties.
+func (s *HomeUpgradeSystem) GetTenantBonus(houseID string) float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	home := s.HomeUpgrades[houseID]
+	if home == nil {
+		return 0
+	}
+
+	bonus := 0.0
+	for _, upgrade := range home.Upgrades {
+		if upgrade.Status == UpgradeStatusCompleted {
+			bonus += upgrade.Effects.TenantBonus
+		}
+	}
+	return bonus
+}
+
+// GetCraftingBonus calculates total crafting bonus for a home.
+func (s *HomeUpgradeSystem) GetCraftingBonus(houseID string) float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	home := s.HomeUpgrades[houseID]
+	if home == nil {
+		return 0
+	}
+
+	bonus := 0.0
+	for _, upgrade := range home.Upgrades {
+		if upgrade.Status == UpgradeStatusCompleted {
+			bonus += upgrade.Effects.CraftingBonus
+		}
+	}
+	return bonus
+}
+
+// GetInstalledUpgrades returns all installed upgrades for a home.
+func (s *HomeUpgradeSystem) GetInstalledUpgrades(houseID string) []*HomeUpgrade {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	home := s.HomeUpgrades[houseID]
+	if home == nil {
+		return nil
+	}
+
+	installed := make([]*HomeUpgrade, 0)
+	for _, upgrade := range home.Upgrades {
+		if upgrade.Status == UpgradeStatusCompleted {
+			installed = append(installed, upgrade)
+		}
+	}
+	return installed
+}
+
+// GetUpgradeProgress returns the progress of an in-progress upgrade.
+func (s *HomeUpgradeSystem) GetUpgradeProgress(houseID, upgradeID string) (float64, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	home := s.HomeUpgrades[houseID]
+	if home == nil {
+		return 0, false
+	}
+
+	upgrade, ok := home.Upgrades[upgradeID]
+	if !ok {
+		return 0, false
+	}
+
+	return upgrade.Progress, upgrade.Status == UpgradeStatusInProgress
+}
+
+// UpgradeCount returns the number of installed upgrades.
+func (s *HomeUpgradeSystem) UpgradeCount(houseID string) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	home := s.HomeUpgrades[houseID]
+	if home == nil {
+		return 0
+	}
+
+	count := 0
+	for _, upgrade := range home.Upgrades {
+		if upgrade.Status == UpgradeStatusCompleted {
+			count++
+		}
+	}
+	return count
+}
+
+// ============================================================================
+// Guild Halls System
+// ============================================================================
+
+// GuildHallTier represents the tier of a guild hall.
+type GuildHallTier int
+
+const (
+	GuildHallTierBasic GuildHallTier = iota + 1
+	GuildHallTierStandard
+	GuildHallTierGrand
+	GuildHallTierImperial
+	GuildHallTierLegendary
+)
+
+// GuildRank represents a member's rank in a guild.
+type GuildRank int
+
+const (
+	GuildRankMember GuildRank = iota
+	GuildRankOfficer
+	GuildRankVeteran
+	GuildRankCouncil
+	GuildRankLeader
+)
+
+// GuildFacility represents a facility in a guild hall.
+type GuildFacility struct {
+	ID          string
+	Name        string
+	Description string
+	Type        string // crafting, training, storage, defense, social
+	Level       int    // 1-5
+	Operational bool
+	Capacity    int     // How many can use at once
+	CurrentUse  int     // Current users
+	Cooldown    float64 // Time between uses
+	Bonuses     FacilityBonuses
+}
+
+// FacilityBonuses describes bonuses from a facility.
+type FacilityBonuses struct {
+	CraftingBonus float64
+	TrainingBonus float64
+	StorageBonus  int
+	DefenseBonus  float64
+	SocialBonus   float64
+	IncomeBonus   float64
+}
+
+// GuildHall represents a guild's headquarters.
+type GuildHall struct {
+	ID            string
+	GuildID       string
+	Name          string
+	Tier          GuildHallTier
+	Location      [3]float64
+	Facilities    map[string]*GuildFacility
+	TreasuryGold  float64
+	BankCapacity  int      // Shared storage capacity
+	BankItems     []string // Item IDs in guild bank
+	DefenseRating float64
+	Upkeep        float64 // Daily upkeep cost
+	Founded       float64 // Game time when founded
+	LastUpkeep    float64 // Last upkeep payment time
+	InDebt        bool    // Guild is in debt
+	DebtDays      int     // Days in debt
+}
+
+// GuildHallSystem manages guild halls.
+type GuildHallSystem struct {
+	mu          sync.RWMutex
+	Seed        int64
+	Genre       string
+	GuildHalls  map[string]*GuildHall           // GuildID -> Hall
+	MemberRanks map[string]map[uint64]GuildRank // GuildID -> MemberID -> Rank
+	Permissions map[GuildRank][]string          // Rank -> allowed actions
+	GameTime    float64
+	counter     uint64
+}
+
+// NewGuildHallSystem creates a new guild hall system.
+func NewGuildHallSystem(seed int64, genre string) *GuildHallSystem {
+	sys := &GuildHallSystem{
+		Seed:        seed,
+		Genre:       genre,
+		GuildHalls:  make(map[string]*GuildHall),
+		MemberRanks: make(map[string]map[uint64]GuildRank),
+		Permissions: make(map[GuildRank][]string),
+	}
+	sys.initializePermissions()
+	return sys
+}
+
+// pseudoRandom generates a deterministic pseudo-random number.
+func (s *GuildHallSystem) pseudoRandom() float64 {
+	s.counter++
+	x := uint64(s.Seed) + s.counter*6364136223846793005
+	x ^= x >> 12
+	x ^= x << 25
+	x ^= x >> 27
+	return float64(x%10000) / 10000.0
+}
+
+// initializePermissions sets up rank-based permissions.
+func (s *GuildHallSystem) initializePermissions() {
+	s.Permissions[GuildRankMember] = []string{
+		"use_facilities", "access_bank_personal", "view_roster",
+	}
+	s.Permissions[GuildRankOfficer] = []string{
+		"use_facilities", "access_bank_personal", "view_roster",
+		"access_bank_guild", "invite_members",
+	}
+	s.Permissions[GuildRankVeteran] = []string{
+		"use_facilities", "access_bank_personal", "view_roster",
+		"access_bank_guild", "invite_members", "kick_members",
+	}
+	s.Permissions[GuildRankCouncil] = []string{
+		"use_facilities", "access_bank_personal", "view_roster",
+		"access_bank_guild", "invite_members", "kick_members",
+		"manage_facilities", "access_treasury",
+	}
+	s.Permissions[GuildRankLeader] = []string{
+		"use_facilities", "access_bank_personal", "view_roster",
+		"access_bank_guild", "invite_members", "kick_members",
+		"manage_facilities", "access_treasury", "manage_ranks",
+		"upgrade_hall", "disband_guild",
+	}
+}
+
+// CreateGuildHall creates a new guild hall.
+func (s *GuildHallSystem) CreateGuildHall(guildID, hallName string, leaderID uint64, location [3]float64) (*GuildHall, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, exists := s.GuildHalls[guildID]; exists {
+		return nil, fmt.Errorf("guild already has a hall")
+	}
+
+	hall := &GuildHall{
+		ID:           fmt.Sprintf("hall_%s", guildID),
+		GuildID:      guildID,
+		Name:         hallName,
+		Tier:         GuildHallTierBasic,
+		Location:     location,
+		Facilities:   make(map[string]*GuildFacility),
+		BankCapacity: 50,
+		BankItems:    make([]string, 0),
+		Upkeep:       10.0,
+		Founded:      s.GameTime,
+		LastUpkeep:   s.GameTime,
+	}
+
+	// Add basic facilities
+	s.addBasicFacilities(hall)
+
+	s.GuildHalls[guildID] = hall
+
+	// Set up ranks
+	s.MemberRanks[guildID] = make(map[uint64]GuildRank)
+	s.MemberRanks[guildID][leaderID] = GuildRankLeader
+
+	return hall, nil
+}
+
+// addBasicFacilities adds starting facilities to a guild hall.
+func (s *GuildHallSystem) addBasicFacilities(hall *GuildHall) {
+	hall.Facilities["meeting_hall"] = &GuildFacility{
+		ID:          "meeting_hall",
+		Name:        s.getGenreFacilityName("meeting_hall"),
+		Description: "A place for guild members to gather",
+		Type:        "social",
+		Level:       1,
+		Operational: true,
+		Capacity:    20,
+		Bonuses:     FacilityBonuses{SocialBonus: 0.1},
+	}
+
+	hall.Facilities["storage_room"] = &GuildFacility{
+		ID:          "storage_room",
+		Name:        s.getGenreFacilityName("storage_room"),
+		Description: "Basic guild storage",
+		Type:        "storage",
+		Level:       1,
+		Operational: true,
+		Capacity:    1,
+		Bonuses:     FacilityBonuses{StorageBonus: 50},
+	}
+}
+
+// getGenreFacilityName returns genre-appropriate facility names.
+func (s *GuildHallSystem) getGenreFacilityName(facilityType string) string {
+	names := map[string]map[string]string{
+		"meeting_hall": {
+			"fantasy":          "Great Hall",
+			"sci-fi":           "Conference Deck",
+			"horror":           "Gathering Chamber",
+			"cyberpunk":        "NetHub",
+			"post-apocalyptic": "Community Room",
+		},
+		"storage_room": {
+			"fantasy":          "Vault Chamber",
+			"sci-fi":           "Cargo Bay",
+			"horror":           "Storage Cellar",
+			"cyberpunk":        "Secure Locker",
+			"post-apocalyptic": "Supply Cache",
+		},
+		"training_ground": {
+			"fantasy":          "Training Grounds",
+			"sci-fi":           "Simulation Deck",
+			"horror":           "Dark Arena",
+			"cyberpunk":        "Combat Sim",
+			"post-apocalyptic": "Fighting Pit",
+		},
+		"crafting_hall": {
+			"fantasy":          "Artisan Workshop",
+			"sci-fi":           "Fabrication Lab",
+			"horror":           "Ritual Forge",
+			"cyberpunk":        "Tech Lab",
+			"post-apocalyptic": "Workshop",
+		},
+		"defense_tower": {
+			"fantasy":          "Guard Tower",
+			"sci-fi":           "Defense Array",
+			"horror":           "Watchtower",
+			"cyberpunk":        "Security Node",
+			"post-apocalyptic": "Sniper Nest",
+		},
+	}
+
+	if facilityNames, ok := names[facilityType]; ok {
+		if name, ok := facilityNames[s.Genre]; ok {
+			return name
+		}
+		return facilityNames["fantasy"]
+	}
+	return facilityType
+}
+
+// GetGuildHall returns a guild's hall.
+func (s *GuildHallSystem) GetGuildHall(guildID string) *GuildHall {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.GuildHalls[guildID]
+}
+
+// UpgradeGuildHall upgrades a guild hall to the next tier.
+func (s *GuildHallSystem) UpgradeGuildHall(guildID string, memberID uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	hall := s.GuildHalls[guildID]
+	if hall == nil {
+		return fmt.Errorf("guild hall not found")
+	}
+
+	if !s.hasPermission(guildID, memberID, "upgrade_hall") {
+		return fmt.Errorf("insufficient rank to upgrade hall")
+	}
+
+	if hall.Tier >= GuildHallTierLegendary {
+		return fmt.Errorf("hall is already at maximum tier")
+	}
+
+	// Check treasury for upgrade cost
+	cost := s.getUpgradeCost(hall.Tier)
+	if hall.TreasuryGold < cost {
+		return fmt.Errorf("insufficient treasury funds: need %.0f, have %.0f", cost, hall.TreasuryGold)
+	}
+
+	hall.TreasuryGold -= cost
+	hall.Tier++
+	hall.BankCapacity += 50
+	hall.Upkeep *= 1.5
+
+	// Add new facilities for higher tiers
+	s.addTierFacilities(hall)
+
+	return nil
+}
+
+// getUpgradeCost returns the cost to upgrade from current tier.
+func (s *GuildHallSystem) getUpgradeCost(currentTier GuildHallTier) float64 {
+	costs := map[GuildHallTier]float64{
+		GuildHallTierBasic:    1000,
+		GuildHallTierStandard: 5000,
+		GuildHallTierGrand:    25000,
+		GuildHallTierImperial: 100000,
+	}
+	return costs[currentTier]
+}
+
+// addTierFacilities adds facilities appropriate for the hall's tier.
+func (s *GuildHallSystem) addTierFacilities(hall *GuildHall) {
+	switch hall.Tier {
+	case GuildHallTierStandard:
+		hall.Facilities["training_ground"] = &GuildFacility{
+			ID:          "training_ground",
+			Name:        s.getGenreFacilityName("training_ground"),
+			Description: "Train combat and skills",
+			Type:        "training",
+			Level:       1,
+			Operational: true,
+			Capacity:    5,
+			Cooldown:    3600, // 1 hour
+			Bonuses:     FacilityBonuses{TrainingBonus: 0.15},
+		}
+	case GuildHallTierGrand:
+		hall.Facilities["crafting_hall"] = &GuildFacility{
+			ID:          "crafting_hall",
+			Name:        s.getGenreFacilityName("crafting_hall"),
+			Description: "Advanced crafting facilities",
+			Type:        "crafting",
+			Level:       2,
+			Operational: true,
+			Capacity:    3,
+			Cooldown:    1800, // 30 min
+			Bonuses:     FacilityBonuses{CraftingBonus: 0.2},
+		}
+	case GuildHallTierImperial:
+		hall.Facilities["defense_tower"] = &GuildFacility{
+			ID:          "defense_tower",
+			Name:        s.getGenreFacilityName("defense_tower"),
+			Description: "Defensive fortifications",
+			Type:        "defense",
+			Level:       3,
+			Operational: true,
+			Capacity:    2,
+			Bonuses:     FacilityBonuses{DefenseBonus: 0.3},
+		}
+	case GuildHallTierLegendary:
+		// Upgrade all existing facilities
+		for _, facility := range hall.Facilities {
+			facility.Level++
+			facility.Capacity++
+		}
+	}
+}
+
+// AddMemberRank adds or updates a member's rank.
+func (s *GuildHallSystem) AddMemberRank(guildID string, memberID uint64, rank GuildRank) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.MemberRanks[guildID] == nil {
+		s.MemberRanks[guildID] = make(map[uint64]GuildRank)
+	}
+	s.MemberRanks[guildID][memberID] = rank
+}
+
+// GetMemberRank returns a member's rank.
+func (s *GuildHallSystem) GetMemberRank(guildID string, memberID uint64) GuildRank {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if ranks, ok := s.MemberRanks[guildID]; ok {
+		return ranks[memberID]
+	}
+	return GuildRankMember
+}
+
+// PromoteMember promotes a member to a higher rank.
+func (s *GuildHallSystem) PromoteMember(guildID string, promoterID, targetID uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.hasPermissionLocked(guildID, promoterID, "manage_ranks") {
+		return fmt.Errorf("insufficient rank to promote members")
+	}
+
+	promoterRank := s.MemberRanks[guildID][promoterID]
+	currentRank := s.MemberRanks[guildID][targetID]
+
+	if currentRank >= promoterRank {
+		return fmt.Errorf("cannot promote to equal or higher rank")
+	}
+
+	if currentRank >= GuildRankCouncil {
+		return fmt.Errorf("cannot promote beyond council")
+	}
+
+	s.MemberRanks[guildID][targetID] = currentRank + 1
+	return nil
+}
+
+// DemoteMember demotes a member to a lower rank.
+func (s *GuildHallSystem) DemoteMember(guildID string, demoterID, targetID uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.hasPermissionLocked(guildID, demoterID, "manage_ranks") {
+		return fmt.Errorf("insufficient rank to demote members")
+	}
+
+	demoterRank := s.MemberRanks[guildID][demoterID]
+	currentRank := s.MemberRanks[guildID][targetID]
+
+	if currentRank >= demoterRank {
+		return fmt.Errorf("cannot demote equal or higher rank")
+	}
+
+	if currentRank <= GuildRankMember {
+		return fmt.Errorf("cannot demote below member")
+	}
+
+	s.MemberRanks[guildID][targetID] = currentRank - 1
+	return nil
+}
+
+// hasPermission checks if a member has a specific permission.
+func (s *GuildHallSystem) hasPermission(guildID string, memberID uint64, permission string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.hasPermissionLocked(guildID, memberID, permission)
+}
+
+// hasPermissionLocked checks permission without locking (caller must hold lock).
+func (s *GuildHallSystem) hasPermissionLocked(guildID string, memberID uint64, permission string) bool {
+	rank := s.MemberRanks[guildID][memberID]
+	perms := s.Permissions[rank]
+	for _, p := range perms {
+		if p == permission {
+			return true
+		}
+	}
+	return false
+}
+
+// HasPermission checks if a member has a specific permission (public).
+func (s *GuildHallSystem) HasPermission(guildID string, memberID uint64, permission string) bool {
+	return s.hasPermission(guildID, memberID, permission)
+}
+
+// DepositToTreasury adds gold to the guild treasury.
+func (s *GuildHallSystem) DepositToTreasury(guildID string, memberID uint64, amount float64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	hall := s.GuildHalls[guildID]
+	if hall == nil {
+		return fmt.Errorf("guild hall not found")
+	}
+
+	hall.TreasuryGold += amount
+	if hall.InDebt && hall.TreasuryGold >= hall.Upkeep {
+		hall.InDebt = false
+		hall.DebtDays = 0
+	}
+
+	return nil
+}
+
+// WithdrawFromTreasury removes gold from the guild treasury.
+func (s *GuildHallSystem) WithdrawFromTreasury(guildID string, memberID uint64, amount float64) (float64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	hall := s.GuildHalls[guildID]
+	if hall == nil {
+		return 0, fmt.Errorf("guild hall not found")
+	}
+
+	if !s.hasPermissionLocked(guildID, memberID, "access_treasury") {
+		return 0, fmt.Errorf("insufficient rank to access treasury")
+	}
+
+	if hall.TreasuryGold < amount {
+		return 0, fmt.Errorf("insufficient treasury funds")
+	}
+
+	hall.TreasuryGold -= amount
+	return amount, nil
+}
+
+// GetTreasuryBalance returns the guild treasury balance.
+func (s *GuildHallSystem) GetTreasuryBalance(guildID string) float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	hall := s.GuildHalls[guildID]
+	if hall == nil {
+		return 0
+	}
+	return hall.TreasuryGold
+}
+
+// DepositToBank adds an item to the guild bank.
+func (s *GuildHallSystem) DepositToBank(guildID string, memberID uint64, itemID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	hall := s.GuildHalls[guildID]
+	if hall == nil {
+		return fmt.Errorf("guild hall not found")
+	}
+
+	if !s.hasPermissionLocked(guildID, memberID, "access_bank_guild") {
+		return fmt.Errorf("insufficient rank to deposit to guild bank")
+	}
+
+	if len(hall.BankItems) >= hall.BankCapacity {
+		return fmt.Errorf("guild bank is full")
+	}
+
+	hall.BankItems = append(hall.BankItems, itemID)
+	return nil
+}
+
+// WithdrawFromBank removes an item from the guild bank.
+func (s *GuildHallSystem) WithdrawFromBank(guildID string, memberID uint64, itemID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	hall := s.GuildHalls[guildID]
+	if hall == nil {
+		return fmt.Errorf("guild hall not found")
+	}
+
+	if !s.hasPermissionLocked(guildID, memberID, "access_bank_guild") {
+		return fmt.Errorf("insufficient rank to withdraw from guild bank")
+	}
+
+	for i, id := range hall.BankItems {
+		if id == itemID {
+			hall.BankItems = append(hall.BankItems[:i], hall.BankItems[i+1:]...)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("item not found in guild bank")
+}
+
+// GetBankContents returns the guild bank contents.
+func (s *GuildHallSystem) GetBankContents(guildID string, memberID uint64) ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	hall := s.GuildHalls[guildID]
+	if hall == nil {
+		return nil, fmt.Errorf("guild hall not found")
+	}
+
+	// Any member can view, but we check for basic access
+	if _, ok := s.MemberRanks[guildID][memberID]; !ok {
+		return nil, fmt.Errorf("not a guild member")
+	}
+
+	return hall.BankItems, nil
+}
+
+// UseFacility marks a facility as being used.
+func (s *GuildHallSystem) UseFacility(guildID string, memberID uint64, facilityID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	hall := s.GuildHalls[guildID]
+	if hall == nil {
+		return fmt.Errorf("guild hall not found")
+	}
+
+	if !s.hasPermissionLocked(guildID, memberID, "use_facilities") {
+		return fmt.Errorf("insufficient rank to use facilities")
+	}
+
+	facility := hall.Facilities[facilityID]
+	if facility == nil {
+		return fmt.Errorf("facility not found")
+	}
+
+	if !facility.Operational {
+		return fmt.Errorf("facility is not operational")
+	}
+
+	if facility.CurrentUse >= facility.Capacity {
+		return fmt.Errorf("facility is at capacity")
+	}
+
+	facility.CurrentUse++
+	return nil
+}
+
+// ReleaseFacility releases a facility slot.
+func (s *GuildHallSystem) ReleaseFacility(guildID, facilityID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	hall := s.GuildHalls[guildID]
+	if hall == nil {
+		return
+	}
+
+	facility := hall.Facilities[facilityID]
+	if facility == nil {
+		return
+	}
+
+	if facility.CurrentUse > 0 {
+		facility.CurrentUse--
+	}
+}
+
+// GetFacility returns a specific facility.
+func (s *GuildHallSystem) GetFacility(guildID, facilityID string) *GuildFacility {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	hall := s.GuildHalls[guildID]
+	if hall == nil {
+		return nil
+	}
+	return hall.Facilities[facilityID]
+}
+
+// GetAllFacilities returns all facilities in a guild hall.
+func (s *GuildHallSystem) GetAllFacilities(guildID string) []*GuildFacility {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	hall := s.GuildHalls[guildID]
+	if hall == nil {
+		return nil
+	}
+
+	facilities := make([]*GuildFacility, 0, len(hall.Facilities))
+	for _, f := range hall.Facilities {
+		facilities = append(facilities, f)
+	}
+	return facilities
+}
+
+// UpgradeFacility upgrades a specific facility.
+func (s *GuildHallSystem) UpgradeFacility(guildID string, memberID uint64, facilityID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	hall := s.GuildHalls[guildID]
+	if hall == nil {
+		return fmt.Errorf("guild hall not found")
+	}
+
+	if !s.hasPermissionLocked(guildID, memberID, "manage_facilities") {
+		return fmt.Errorf("insufficient rank to manage facilities")
+	}
+
+	facility := hall.Facilities[facilityID]
+	if facility == nil {
+		return fmt.Errorf("facility not found")
+	}
+
+	if facility.Level >= 5 {
+		return fmt.Errorf("facility is at maximum level")
+	}
+
+	cost := float64(facility.Level) * 500
+	if hall.TreasuryGold < cost {
+		return fmt.Errorf("insufficient treasury funds")
+	}
+
+	hall.TreasuryGold -= cost
+	facility.Level++
+	facility.Capacity++
+
+	// Increase bonuses
+	facility.Bonuses.CraftingBonus *= 1.25
+	facility.Bonuses.TrainingBonus *= 1.25
+	facility.Bonuses.StorageBonus += 10
+	facility.Bonuses.DefenseBonus *= 1.25
+	facility.Bonuses.SocialBonus *= 1.25
+
+	return nil
+}
+
+// Update processes guild hall upkeep.
+func (s *GuildHallSystem) Update(dt float64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.GameTime += dt
+	dayLength := 24.0 * 3600.0 // 24 hours in seconds
+
+	for _, hall := range s.GuildHalls {
+		// Check for daily upkeep
+		if s.GameTime-hall.LastUpkeep >= dayLength {
+			hall.LastUpkeep = s.GameTime
+
+			if hall.TreasuryGold >= hall.Upkeep {
+				hall.TreasuryGold -= hall.Upkeep
+				hall.InDebt = false
+				hall.DebtDays = 0
+			} else {
+				hall.InDebt = true
+				hall.DebtDays++
+
+				// Facilities become non-operational after 3 days in debt
+				if hall.DebtDays >= 3 {
+					for _, facility := range hall.Facilities {
+						facility.Operational = false
+					}
+				}
+			}
+		}
+	}
+}
+
+// GetGuildHallStats returns aggregate stats for a guild hall.
+func (s *GuildHallSystem) GetGuildHallStats(guildID string) (tier GuildHallTier, treasury float64, bankUsed, bankCap int, defense float64) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	hall := s.GuildHalls[guildID]
+	if hall == nil {
+		return 0, 0, 0, 0, 0
+	}
+
+	// Calculate defense from facilities
+	for _, f := range hall.Facilities {
+		if f.Operational {
+			defense += f.Bonuses.DefenseBonus
+		}
+	}
+
+	return hall.Tier, hall.TreasuryGold, len(hall.BankItems), hall.BankCapacity, defense
+}
+
+// GetTotalBonuses calculates total bonuses from all operational facilities.
+func (s *GuildHallSystem) GetTotalBonuses(guildID string) FacilityBonuses {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	hall := s.GuildHalls[guildID]
+	if hall == nil {
+		return FacilityBonuses{}
+	}
+
+	total := FacilityBonuses{}
+	for _, f := range hall.Facilities {
+		if f.Operational {
+			total.CraftingBonus += f.Bonuses.CraftingBonus
+			total.TrainingBonus += f.Bonuses.TrainingBonus
+			total.StorageBonus += f.Bonuses.StorageBonus
+			total.DefenseBonus += f.Bonuses.DefenseBonus
+			total.SocialBonus += f.Bonuses.SocialBonus
+			total.IncomeBonus += f.Bonuses.IncomeBonus
+		}
+	}
+	return total
+}
+
+// IsInDebt returns whether a guild is in debt.
+func (s *GuildHallSystem) IsInDebt(guildID string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	hall := s.GuildHalls[guildID]
+	if hall == nil {
+		return false
+	}
+	return hall.InDebt
+}
+
+// DisbandGuildHall removes a guild hall.
+func (s *GuildHallSystem) DisbandGuildHall(guildID string, memberID uint64) (float64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	hall := s.GuildHalls[guildID]
+	if hall == nil {
+		return 0, fmt.Errorf("guild hall not found")
+	}
+
+	if !s.hasPermissionLocked(guildID, memberID, "disband_guild") {
+		return 0, fmt.Errorf("only the leader can disband the guild hall")
+	}
+
+	// Return remaining treasury
+	remaining := hall.TreasuryGold
+
+	delete(s.GuildHalls, guildID)
+	delete(s.MemberRanks, guildID)
+
+	return remaining, nil
+}
+
+// GetMemberCount returns the number of members in a guild.
+func (s *GuildHallSystem) GetMemberCount(guildID string) int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if ranks, ok := s.MemberRanks[guildID]; ok {
+		return len(ranks)
+	}
+	return 0
+}
+
+// RemoveMember removes a member from the guild hall system.
+func (s *GuildHallSystem) RemoveMember(guildID string, memberID uint64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if ranks, ok := s.MemberRanks[guildID]; ok {
+		delete(ranks, memberID)
+	}
+}
