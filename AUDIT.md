@@ -109,7 +109,7 @@ None identified. All critical path features are implemented and tested.
 
 - [ ] **Generic file names** — `cmd/client/util.go`, `cmd/server/util.go`, `pkg/engine/systems/constants.go` — Generic names reduce discoverability. — **Remediation:** Rename to domain-specific names: `client_helpers.go`, `server_init.go`, `system_constants.go`. Validation: No files named `util.go` or `constants.go`.
 
-- [ ] **Two TODO comments in hazard.go** — `pkg/engine/systems/hazard.go`:lines with TODO — Indoor/shelter check and WorldClock access are incomplete. — **Remediation:** Implement indoor detection using Housing system proximity or add explicit `IsIndoors` component. Validation: `grep -c TODO pkg/engine/systems/hazard.go` returns 0.
+- [x] **Two TODO comments in hazard.go** — `pkg/engine/systems/hazard.go` — Indoor/shelter check and WorldClock access are incomplete. — **Remediation:** Implemented indoor detection using IndoorChecker interface and added getCurrentTime() method using WorldClockSystem. Validation: `grep -c TODO pkg/engine/systems/hazard.go` returns 0. **COMPLETED: Added IndoorChecker interface for shelter detection in weather hazards, converted getCurrentTime from standalone function to HazardSystem method, added ElapsedTime method to WorldClockSystem.**
 
 - [ ] **Identifier naming violations** — Various files — 23 identifiers have package-stuttering names (e.g., `DialogManager` in `dialog` package, `CompanionManager` in `companion` package). — **Remediation:** Rename to non-stuttering alternatives: `Manager`, `Template`, `Response`. Validation: `go-stats-generator analyze . --skip-tests | grep "Identifier Violations"` shows ≤10.
 
