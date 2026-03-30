@@ -51,8 +51,8 @@ Legend:
 - [x] Gossip network propagation
 - [x] Emotional states
 - [x] NPC needs (hunger, sleep, social)
-- [ ] NPC pathfinding to schedule locations
-- [ ] NPC occupation behaviors
+- [x] NPC pathfinding to schedule locations
+- [x] NPC occupation behaviors
 
 ---
 
@@ -64,8 +64,8 @@ Legend:
 - [x] Genre-appropriate vocabulary
 - [x] Persuasion skill checks
 - [x] Intimidation skill checks
-- [ ] Dialog consequences
-- [ ] Dialog memory
+- [x] Dialog consequences
+- [x] Dialog memory
 - [ ] Multi-NPC conversations
 - [ ] Voice synthesis integration
 

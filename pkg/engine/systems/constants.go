@@ -307,3 +307,60 @@ const (
 	// NPCDefaultMaxStuckTime is the time before giving up on a path.
 	NPCDefaultMaxStuckTime = 5.0
 )
+
+// NPC occupation constants.
+const (
+	// OccupationFatigueRate is fatigue accumulation per second while working.
+	OccupationFatigueRate = 0.001
+	// OccupationFatigueRecoveryRate is fatigue recovery per second while resting.
+	OccupationFatigueRecoveryRate = 0.005
+	// OccupationFatiguePenalty is the efficiency reduction at full fatigue.
+	OccupationFatiguePenalty = 0.5
+	// OccupationMinEfficiency is the minimum work efficiency.
+	OccupationMinEfficiency = 0.2
+	// OccupationTaskDurationBase is the base task duration in seconds.
+	OccupationTaskDurationBase = 30.0
+	// OccupationSkillGainRate is skill improvement per completed task.
+	OccupationSkillGainRate = 0.001
+	// OccupationServiceTimeBase is base time to serve a customer.
+	OccupationServiceTimeBase = 10.0
+)
+
+// Occupation type constants.
+const (
+	OccupationMerchant      = "merchant"
+	OccupationBlacksmith    = "blacksmith"
+	OccupationGuard         = "guard"
+	OccupationInnkeeper     = "innkeeper"
+	OccupationHealer        = "healer"
+	OccupationFarmer        = "farmer"
+	OccupationMiner         = "miner"
+	OccupationScribe        = "scribe"
+	OccupationBard          = "bard"
+	OccupationPriest        = "priest"
+	OccupationTechnician    = "technician"
+	OccupationScientist     = "scientist"
+	OccupationPilot         = "pilot"
+	OccupationEngineer      = "engineer"
+	OccupationMedic         = "medic"
+	OccupationMortician     = "mortician"
+	OccupationHunter        = "hunter"
+	OccupationHerbalist     = "herbalist"
+	OccupationGravedigger   = "gravedigger"
+	OccupationHacker        = "hacker"
+	OccupationFixer         = "fixer"
+	OccupationBodyguard     = "bodyguard"
+	OccupationStreetVendor  = "street_vendor"
+	OccupationTechDealer    = "tech_dealer"
+	OccupationScavenger     = "scavenger"
+	OccupationMechanic      = "mechanic"
+	OccupationWaterMerchant = "water_merchant"
+)
+
+// Dialog system constants.
+const (
+	// DialogMemoryMaxEvents is max events to remember per NPC.
+	DialogMemoryMaxEvents = 50
+	// DialogHistoryMaxLength is max exchanges to keep in current conversation.
+	DialogHistoryMaxLength = 100
+)

@@ -1225,3 +1225,206 @@ type CityEventRequirements struct {
 	// RequiredItems lists items needed to participate.
 	RequiredItems []string
 }
+
+// NPCOccupation defines an NPC's job role and work behaviors.
+type NPCOccupation struct {
+	// OccupationType is the type of occupation (merchant, guard, blacksmith, etc.)
+	OccupationType string
+	// SkillLevel is the NPC's proficiency at their job (0.0-1.0).
+	SkillLevel float64
+	// WorkplaceID is the entity ID or location ID where the NPC works.
+	WorkplaceID string
+	// CurrentTask is what the NPC is currently doing at work.
+	CurrentTask string
+	// TaskProgress is progress on current task (0.0-1.0).
+	TaskProgress float64
+	// TaskDuration is the base duration of tasks in seconds.
+	TaskDuration float64
+	// GoldPerHour is base income when working.
+	GoldPerHour float64
+	// CanTrade indicates if NPC can trade with players.
+	CanTrade bool
+	// CanCraft indicates if NPC can craft items.
+	CanCraft bool
+	// CanProvideQuests indicates if NPC can give quests.
+	CanProvideQuests bool
+	// CanTrain indicates if NPC can train player skills.
+	CanTrain bool
+	// TrainableSkills lists skills this NPC can teach.
+	TrainableSkills []string
+	// Inventory tracks work-related items (for merchants, craftsmen).
+	WorkInventory []OccupationItem
+	// CustomerQueue tracks entities waiting for service.
+	CustomerQueue []uint64
+	// IsWorking indicates if NPC is actively working.
+	IsWorking bool
+	// WorkEfficiency modifies task speed (1.0 = normal).
+	WorkEfficiency float64
+	// Fatigue reduces efficiency over time (0.0 = fresh, 1.0 = exhausted).
+	Fatigue float64
+	// LastRestTime is when the NPC last rested.
+	LastRestTime float64
+}
+
+// Type returns the component type identifier for NPCOccupation.
+func (o *NPCOccupation) Type() string { return "NPCOccupation" }
+
+// OccupationItem represents an item in an NPC's work inventory.
+type OccupationItem struct {
+	// ItemID is the item type identifier.
+	ItemID string
+	// Quantity is how many of this item the NPC has.
+	Quantity int
+	// BasePrice is the base price for this item.
+	BasePrice float64
+	// Quality affects price and effectiveness (0.0-1.0).
+	Quality float64
+}
+
+// DialogState tracks an entity's current dialog status and available options.
+type DialogState struct {
+	// IsInDialog indicates if the entity is currently in a conversation.
+	IsInDialog bool
+	// ConversationPartner is the entity ID of who they're talking to.
+	ConversationPartner uint64
+	// CurrentTopicID is the current topic or node in the dialog tree.
+	CurrentTopicID string
+	// AvailableResponses are the current dialog options.
+	AvailableResponses []DialogOption
+	// DialogHistory tracks recent exchanges in this conversation.
+	DialogHistory []DialogExchange
+	// StartTime is when the conversation began.
+	StartTime float64
+}
+
+// Type returns the component type identifier for DialogState.
+func (d *DialogState) Type() string { return "DialogState" }
+
+// DialogOption represents a single dialog choice.
+type DialogOption struct {
+	// ID uniquely identifies this option.
+	ID string
+	// Text is the displayed response text.
+	Text string
+	// NextTopicID is where this option leads.
+	NextTopicID string
+	// Requirements are conditions needed to show this option.
+	Requirements DialogRequirements
+	// Consequences are effects triggered when selected.
+	Consequences DialogConsequences
+	// IsVisible indicates if the option is currently shown.
+	IsVisible bool
+	// IsEnabled indicates if the option can be selected.
+	IsEnabled bool
+}
+
+// DialogRequirements specifies conditions for a dialog option.
+type DialogRequirements struct {
+	// MinReputation is minimum faction reputation needed.
+	MinReputation float64
+	// RequiredItems are items the player must have.
+	RequiredItems []string
+	// RequiredSkill is a skill check (skill_name:level).
+	RequiredSkill string
+	// RequiredQuest is a quest that must be active/complete.
+	RequiredQuest string
+	// RequiredFlag is a world flag that must be set.
+	RequiredFlag string
+	// MinGold is minimum gold required.
+	MinGold float64
+}
+
+// DialogConsequences defines effects of selecting a dialog option.
+type DialogConsequences struct {
+	// ReputationChange adjusts faction reputation.
+	ReputationChange float64
+	// FactionID specifies which faction's reputation changes.
+	FactionID string
+	// GoldChange adds/removes gold (positive = gain).
+	GoldChange float64
+	// ItemsGiven are items the player receives.
+	ItemsGiven []string
+	// ItemsTaken are items removed from the player.
+	ItemsTaken []string
+	// QuestStart is a quest ID to begin.
+	QuestStart string
+	// QuestProgress is a quest stage to advance to.
+	QuestProgress string
+	// QuestComplete is a quest ID to mark complete.
+	QuestComplete string
+	// FlagSet is a world flag to set.
+	FlagSet string
+	// FlagClear is a world flag to clear.
+	FlagClear string
+	// RelationshipChange adjusts NPC relationship.
+	RelationshipChange float64
+	// TriggerCombat starts combat with this NPC.
+	TriggerCombat bool
+	// NPCMood changes the NPC's emotional state.
+	NPCMood string
+	// SpawnEntity creates a new entity (NPC, item, etc).
+	SpawnEntity string
+	// TeleportPlayer moves the player to a location.
+	TeleportPlayer string
+}
+
+// DialogExchange records a single exchange in dialog history.
+type DialogExchange struct {
+	// Speaker is the entity ID who spoke.
+	Speaker uint64
+	// Text is what was said.
+	Text string
+	// OptionID is the ID of the selected option (for player).
+	OptionID string
+	// Timestamp is when this exchange occurred.
+	Timestamp float64
+}
+
+// DialogMemory tracks an NPC's memory of past conversations.
+type DialogMemory struct {
+	// ConversationCount is total conversations with this entity.
+	ConversationCount int
+	// LastConversationTime is when the last conversation ended.
+	LastConversationTime float64
+	// TopicsDiscussed maps topic IDs to times discussed.
+	TopicsDiscussed map[string]int
+	// ImportantEvents records significant dialog outcomes.
+	ImportantEvents []DialogMemoryEvent
+	// Attitude is the NPC's overall attitude toward this entity (-1 to 1).
+	Attitude float64
+	// KnownFacts are facts the NPC knows about the player.
+	KnownFacts map[string]bool
+	// GiftsReceived tracks gifts given by the player.
+	GiftsReceived []string
+	// PromisesMade tracks promises made in conversation.
+	PromisesMade []DialogPromise
+}
+
+// Type returns the component type identifier for DialogMemory.
+func (m *DialogMemory) Type() string { return "DialogMemory" }
+
+// DialogMemoryEvent records a significant dialog outcome.
+type DialogMemoryEvent struct {
+	// EventType categorizes the event (quest_given, insulted, helped, etc).
+	EventType string
+	// Description is a brief description of what happened.
+	Description string
+	// Timestamp is when this event occurred.
+	Timestamp float64
+	// Sentiment is how the NPC felt about this (-1 to 1).
+	Sentiment float64
+}
+
+// DialogPromise tracks a promise made during conversation.
+type DialogPromise struct {
+	// PromiseID uniquely identifies this promise.
+	PromiseID string
+	// Description is what was promised.
+	Description string
+	// Deadline is when the promise should be fulfilled (0 = no deadline).
+	Deadline float64
+	// IsFulfilled indicates if the promise was kept.
+	IsFulfilled bool
+	// IsBroken indicates if the promise was broken.
+	IsBroken bool
+}
