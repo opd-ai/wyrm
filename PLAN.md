@@ -1,0 +1,270 @@
+# Implementation Plan: Complete 200-Feature Target & Code Quality
+
+## Project Context
+- **What it does**: Wyrm is a 100% procedurally generated first-person open-world RPG built in Go on Ebitengine, generating every element at runtime from a deterministic seed with zero external assets.
+- **Current goal**: Complete the 200-feature target (currently 73.5%) and improve code quality metrics
+- **Estimated Scope**: Medium (5–15 items above thresholds)
+
+## Goal-Achievement Status
+
+| Stated Goal | Current Status | This Plan Addresses |
+|-------------|---------------|---------------------|
+| 200 features across 20 categories | ⚠️ 147/200 (73.5%) | Yes |
+| Zero external assets | ✅ Achieved | No |
+| ECS architecture with 11+ systems | ✅ 40 systems, 43,747 LOC | No |
+| Five genre themes | ✅ Fully implemented | No |
+| 60 FPS at 1280×720 | ⚠️ Unverified | Yes (benchmarks) |
+| 200–5000ms latency tolerance | ✅ Tor-mode implemented | No |
+| Chunk streaming (512×512) | ✅ 95% test coverage | No |
+| V-Series integration | ✅ 34 adapters, 89.2% coverage | No |
+| Test coverage ≥70% | ⚠️ 1 package below (music: 62.9%) | Yes |
+| Cyclomatic complexity ≤10 | ⚠️ 56 functions above 9, 10 above 13 | Yes |
+| Code duplication <3% | ✅ 1.18% (539 lines) | No |
+
+## Metrics Summary
+
+| Metric | Value | Threshold | Status |
+|--------|-------|-----------|--------|
+| Total LOC (non-test) | 24,642 | — | Substantial |
+| Total functions/methods | 2,273 | — | Well-structured |
+| Functions above complexity 9.0 | 56 | <5 | ⚠️ Large |
+| Functions above complexity 13.0 | 10 | 0 | ⚠️ Needs attention |
+| Duplication ratio | 1.18% (539 lines) | <3% | ✅ Good |
+| Test coverage (avg) | 87.3% | ≥70% | ✅ Excellent |
+| Music package coverage | 62.9% | ≥70% | ⚠️ Below target |
+| Undocumented exported funcs | 3 | 0 | ✅ Good |
+| Circular dependencies | 0 | 0 | ✅ Excellent |
+
+### High Complexity Functions (Critical Path)
+
+| Function | File | Complexity | Impact |
+|----------|------|------------|--------|
+| `applyToNode` | `pkg/engine/systems/economic_event.go` | 22.0 | Economy system |
+| `updateMount` | `pkg/engine/systems/vehicle.go` | 17.9 | Vehicle physics |
+| `completeReading` | `pkg/engine/systems/skill_progression.go` | 15.8 | Skill system |
+| `generateSceneEvidence` | `pkg/engine/systems/evidence.go` | 15.3 | Crime system |
+| `InstallCustomization` | `pkg/engine/systems/vehicle.go` | 14.5 | Vehicle system |
+| `CompleteObjective` | `pkg/engine/systems/quest.go` | 14.0 | Quest system |
+| `CanHide` | `pkg/engine/systems/stealth.go` | 14.0 | Stealth system |
+
+### Missing Features by Category (from FEATURES.md)
+
+| Category | Missing | Features |
+|----------|---------|----------|
+| Weather & Environment | 2 | Indoor/outdoor detection, Extreme weather events |
+| Audio System | 2 | UI sounds, Ambient sound mixing |
+| Music System | 1 | Menu music |
+| Rendering & Graphics | 4 | Sprite rendering, Particle effects, Lighting system, Skybox rendering |
+| Networking & Multiplayer | 2 | Party system, Player trading |
+| Technical & Accessibility | 2 | Subtitle system, Key rebinding |
+
+---
+
+## Implementation Steps
+
+### Step 1: Complete Indoor/Outdoor Detection
+- **Deliverable**: Extend `pkg/engine/systems/hazard.go` to implement indoor/outdoor detection using chunk data and building boundaries
+- **Dependencies**: None
+- **Goal Impact**: Weather & Environment category (8/10 → 9/10), addresses TODO at line 251
+- **Acceptance**: `IndoorOutdoorSystem.Update()` correctly identifies player location; test coverage ≥80%
+- **Validation**: `go test -cover ./pkg/engine/systems/... -run Indoor && grep -c '\[x\] Indoor/outdoor detection' FEATURES.md`
+
+### Step 2: Implement Party System
+- **Deliverable**: Create `pkg/network/party/party.go` with party creation, invitation, and member tracking
+- **Dependencies**: Existing federation and network layers
+- **Goal Impact**: Networking & Multiplayer category (8/10 → 9/10), core co-op feature
+- **Acceptance**: Party creation, join, leave operations work across network; integration tests pass
+- **Validation**: `go test -cover ./pkg/network/party/... | grep -E 'coverage: [7-9][0-9]|100'`
+
+### Step 3: Implement Player Trading
+- **Deliverable**: Create `pkg/network/trading/trading.go` integrating with `EconomySystem`
+- **Dependencies**: Step 2 (Party System for trust verification)
+- **Goal Impact**: Networking & Multiplayer category (9/10 → 10/10)
+- **Acceptance**: Trade request, offer, accept, cancel operations; atomic transactions
+- **Validation**: `go test -cover ./pkg/network/trading/...`
+
+### Step 4: Implement Key Rebinding System
+- **Deliverable**: Extend `config/config.go` with key mapping configuration; create `pkg/input/rebind.go`
+- **Dependencies**: None
+- **Goal Impact**: Technical & Accessibility (8/10 → 9/10), accessibility requirement
+- **Acceptance**: All player inputs configurable via config.yaml; changes apply without restart
+- **Validation**: `go test ./config/... ./pkg/input/... && grep -c '\[x\] Key rebinding' FEATURES.md`
+
+### Step 5: Implement Subtitle System
+- **Deliverable**: Create `pkg/rendering/subtitles/subtitles.go` for text overlay rendering
+- **Dependencies**: None
+- **Goal Impact**: Technical & Accessibility (9/10 → 10/10), accessibility requirement
+- **Acceptance**: Dialog text displays as subtitles; configurable position, size, duration
+- **Validation**: `go test -cover ./pkg/rendering/subtitles/...`
+
+### Step 6: Implement UI Sound Effects
+- **Deliverable**: Extend `pkg/audio/audio.go` with UI-specific sound generation
+- **Dependencies**: None
+- **Goal Impact**: Audio System category (8/10 → 9/10)
+- **Acceptance**: Menu navigation, button clicks, notifications have distinct sounds
+- **Validation**: `go test -cover ./pkg/audio/... | grep -E 'coverage: [8-9][0-9]|100'`
+
+### Step 7: Implement Ambient Sound Mixing
+- **Deliverable**: Extend `pkg/audio/ambient/ambient.go` with multi-layer mixing and crossfade
+- **Dependencies**: Step 6 (UI Sounds for audio system integration)
+- **Goal Impact**: Audio System category (9/10 → 10/10)
+- **Acceptance**: Multiple ambient tracks blend smoothly; genre-appropriate selection
+- **Validation**: `go test -cover ./pkg/audio/ambient/...`
+
+### Step 8: Implement Menu Music
+- **Deliverable**: Extend `pkg/audio/music/adaptive.go` with menu music state
+- **Dependencies**: None
+- **Goal Impact**: Music System category (9/10 → 10/10)
+- **Acceptance**: Title screen and pause menu have procedural music distinct from gameplay
+- **Validation**: `go test -cover ./pkg/audio/music/... | grep -E 'coverage: [7-9][0-9]|100'`
+
+### Step 9: Improve Music Package Test Coverage (62.9% → 80%)
+- **Deliverable**: Add tests for `pkg/audio/music/adaptive.go` edge cases (motif transitions, intensity changes, combat detection)
+- **Dependencies**: Step 8 (Menu Music adds code that needs testing)
+- **Goal Impact**: Addresses only package below 70% target
+- **Acceptance**: Music package reaches ≥80% test coverage
+- **Validation**: `go test -cover ./pkg/audio/music/... | grep -E 'coverage: [8-9][0-9]|100'`
+
+### Step 10: Implement Sprite Rendering
+- **Deliverable**: Extend `pkg/rendering/raycast/` with sprite rendering for NPCs and items
+- **Dependencies**: None
+- **Goal Impact**: Rendering & Graphics category (6/10 → 7/10), visual fidelity
+- **Acceptance**: Entities rendered as scaled, distance-attenuated sprites in first-person view
+- **Validation**: `go test -tags=noebiten -cover ./pkg/rendering/raycast/... | grep -E 'coverage: [8-9][0-9]|100'`
+
+### Step 11: Implement Particle Effects System
+- **Deliverable**: Create `pkg/rendering/particles/particles.go` for weather, combat, and environmental effects
+- **Dependencies**: Step 10 (Sprite Rendering for particle display)
+- **Goal Impact**: Rendering & Graphics (7/10 → 8/10)
+- **Acceptance**: Rain, snow, spell effects, explosion particles render correctly
+- **Validation**: `go test -cover ./pkg/rendering/particles/...`
+
+### Step 12: Implement Basic Lighting System
+- **Deliverable**: Create `pkg/rendering/lighting/lighting.go` for dynamic light sources
+- **Dependencies**: Step 10 (Sprite Rendering for light sprite effects)
+- **Goal Impact**: Rendering & Graphics (8/10 → 9/10)
+- **Acceptance**: Torches, spells, and time-of-day affect scene brightness
+- **Validation**: `go test -cover ./pkg/rendering/lighting/...`
+
+### Step 13: Implement Skybox Rendering
+- **Deliverable**: Extend `pkg/rendering/raycast/` with procedural skybox generation
+- **Dependencies**: Step 12 (Lighting for skybox integration)
+- **Goal Impact**: Rendering & Graphics (9/10 → 10/10)
+- **Acceptance**: Sky with genre-appropriate colors, sun/moon position, weather effects
+- **Validation**: `go test -tags=noebiten -cover ./pkg/rendering/raycast/... -run Sky`
+
+### Step 14: Implement Extreme Weather Events
+- **Deliverable**: Extend `pkg/engine/systems/weather.go` with extreme event generation and effects
+- **Dependencies**: Step 1 (Indoor/Outdoor for shelter detection), Step 11 (Particles for visual effects)
+- **Goal Impact**: Weather & Environment (9/10 → 10/10)
+- **Acceptance**: Storms, blizzards, radiation storms affect gameplay and visuals
+- **Validation**: `go test -cover ./pkg/engine/systems/... -run Weather`
+
+### Step 15: Refactor High Complexity Functions (10 → 0 above complexity 13)
+- **Deliverable**: Extract helper functions from the 10 highest-complexity functions
+- **Dependencies**: Steps 1–14 (all feature work complete to avoid churn)
+- **Goal Impact**: Code maintainability, reduces bug risk
+- **Acceptance**: No function exceeds cyclomatic complexity 13; all tests pass
+- **Validation**: `go-stats-generator analyze . --skip-tests --format json 2>/dev/null | jq '[.functions[] | select(.complexity.overall > 13)] | length' # should output 0`
+
+**Refactoring targets:**
+| Function | File | Current | Strategy |
+|----------|------|---------|----------|
+| `applyToNode` | economic_event.go | 22.0 | Extract `applyPriceChange`, `applySupplyChange`, `applyDemandChange` |
+| `updateMount` | vehicle.go | 17.9 | Extract `calculateMountSpeed`, `applyMountMovement`, `handleMountStamina` |
+| `completeReading` | skill_progression.go | 15.8 | Extract `validateReading`, `applyReadingBonus`, `updateSkillFromBook` |
+| `generateSceneEvidence` | evidence.go | 15.3 | Extract evidence type generators per crime type |
+| `InstallCustomization` | vehicle.go | 14.5 | Extract `validateCustomization`, `applyCustomization`, `calculateCost` |
+| `CompleteObjective` | quest.go | 14.0 | Extract `checkObjectiveConditions`, `applyObjectiveRewards` |
+| `CanHide` | stealth.go | 14.0 | Extract `checkEnvironmentCover`, `checkLightLevel`, `checkNPCProximity` |
+
+### Step 16: Add Performance Benchmarks
+- **Deliverable**: Create benchmark tests for raycaster, ECS update loop, and server tick
+- **Dependencies**: Steps 1–14 (feature-complete for accurate benchmarking)
+- **Goal Impact**: Verifies "60 FPS at 1280×720" claim
+- **Acceptance**: Benchmarks show ≤16ms frame time, <500MB RAM
+- **Validation**: `go test -bench=. -benchmem ./pkg/rendering/raycast/... ./pkg/engine/ecs/...`
+
+---
+
+## Completion Criteria
+
+| Milestone | Target | Validation |
+|-----------|--------|------------|
+| Feature completion | 200/200 (100%) | `grep -c '\[x\]' FEATURES.md` outputs 200 |
+| Music package coverage | ≥80% | `go test -cover ./pkg/audio/music/...` |
+| High complexity functions | 0 above 13 | `go-stats-generator` query returns 0 |
+| Performance verified | ≤16ms frame | Benchmark tests pass |
+| All tests pass | 100% | `go test -race ./...` exits 0 |
+
+---
+
+## Risk Mitigation
+
+| Risk | Impact | Mitigation |
+|------|--------|------------|
+| Sprite/particle rendering breaks raycaster | High | Add noebiten build tag tests first |
+| Network features break existing federation | High | Integration tests before each merge |
+| Refactoring introduces regressions | Medium | Ensure 100% test coverage on modified functions |
+| Performance benchmarks reveal issues | Medium | Profile before committing to optimizations |
+
+---
+
+## Dependency Graph
+
+```
+Step 1 (Indoor/Outdoor) ─────────────────────────────────────────┐
+                                                                 │
+Step 2 (Party System) ─────────→ Step 3 (Player Trading)        │
+                                                                 │
+Step 4 (Key Rebinding)                                           │
+                                                                 │
+Step 5 (Subtitle System)                                         │
+                                                                 │
+Step 6 (UI Sounds) ─────────────→ Step 7 (Ambient Mixing)       │
+                                                                 │
+Step 8 (Menu Music) ────────────→ Step 9 (Music Coverage)       │
+                                                                 │
+Step 10 (Sprite Rendering) ────→ Step 11 (Particles) ──┐        │
+                   │                                    │        │
+                   └────────────→ Step 12 (Lighting) ──┤        │
+                                          │            │        │
+                                          └──→ Step 13 (Skybox)  │
+                                                       │        │
+                                                       └────────┴──→ Step 14 (Extreme Weather)
+                                                                              │
+                                                                              v
+                                                                    Step 15 (Refactor)
+                                                                              │
+                                                                              v
+                                                                    Step 16 (Benchmarks)
+```
+
+---
+
+## Estimated Timeline
+
+| Phase | Steps | Effort | Duration |
+|-------|-------|--------|----------|
+| Accessibility & Audio | 4–9 | Low-Medium | 2 weeks |
+| Networking Features | 2–3 | Medium | 1 week |
+| Rendering Enhancements | 10–13 | High | 3 weeks |
+| Weather & Polish | 1, 14 | Medium | 1 week |
+| Refactoring & Benchmarks | 15–16 | Low | 1 week |
+| **Total** | **16 steps** | — | **~8 weeks** |
+
+---
+
+## Notes
+
+- All dependencies listed from go.mod are current and have no known security vulnerabilities
+- Ebitengine v2.9.3 deprecated vector APIs are not used by this codebase
+- Project uses Go 1.24.5, meeting Ebitengine v2.9 requirements
+- Venture integration (opd-ai/venture v0.0.0-20260321) provides 25+ generators already wrapped in adapters
+- No GitHub issues or community discussions found indicating external user priorities
+
+---
+
+*Generated: 2026-03-30*  
+*Tool: go-stats-generator v1.0.0*  
+*Baseline: 24,642 LOC across 110 source files, 23 packages*
