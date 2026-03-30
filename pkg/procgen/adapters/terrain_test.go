@@ -1,4 +1,4 @@
-//go:build !noebiten
+//go:build noebiten
 
 package adapters
 

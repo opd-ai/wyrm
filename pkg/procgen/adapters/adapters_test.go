@@ -1,8 +1,7 @@
-//go:build !noebiten
+//go:build noebiten
 
-// This test file requires X11/display because the Venture faction generator
-// imports ebiten, which requires GLFW/X11 initialization at import time.
-// Run with: xvfb-run go test ./pkg/procgen/adapters/...
+// This test file uses stub implementations for headless testing.
+// Build with -tags=noebiten to run without X11/display.
 
 package adapters
 
