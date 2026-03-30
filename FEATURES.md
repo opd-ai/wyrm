@@ -293,8 +293,8 @@ Legend:
 - [x] Federation node structure
 - [x] Gossip protocol
 - [x] PvP combat validation
-- [ ] Party system
-- [ ] Player trading
+- [x] Party system
+- [x] Player trading
 
 ---
 

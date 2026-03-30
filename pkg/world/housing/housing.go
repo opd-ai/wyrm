@@ -3408,3 +3408,229 @@ func (s *SharedStorageSystem) ItemCount(storageID string) int {
 	}
 	return len(storage.Items)
 }
+
+// ============================================================================
+// Indoor/Outdoor Detection System
+// ============================================================================
+
+// LocationType represents whether a position is indoors or outdoors.
+type LocationType int
+
+const (
+	LocationOutdoor LocationType = iota
+	LocationIndoor
+	LocationDungeon
+	LocationCave
+	LocationBuilding
+)
+
+// IndoorZone represents a region that is considered "indoors".
+type IndoorZone struct {
+	ID       string
+	Name     string
+	Type     LocationType
+	MinX     float64
+	MaxX     float64
+	MinY     float64 // Height bounds
+	MaxY     float64
+	MinZ     float64
+	MaxZ     float64
+	Priority int // Higher priority zones override lower ones
+}
+
+// IndoorDetectionSystem tracks indoor/outdoor areas for position checks.
+type IndoorDetectionSystem struct {
+	mu           sync.RWMutex
+	Zones        map[string]*IndoorZone
+	DefaultType  LocationType
+	zoneCounter  uint64
+	HouseManager *HouseManager
+}
+
+// NewIndoorDetectionSystem creates a new indoor detection system.
+func NewIndoorDetectionSystem(hm *HouseManager) *IndoorDetectionSystem {
+	return &IndoorDetectionSystem{
+		Zones:        make(map[string]*IndoorZone),
+		DefaultType:  LocationOutdoor,
+		HouseManager: hm,
+	}
+}
+
+// RegisterZone adds an indoor zone to the detection system.
+func (s *IndoorDetectionSystem) RegisterZone(zone *IndoorZone) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if zone.ID == "" {
+		s.zoneCounter++
+		zone.ID = "zone_" + fmt.Sprintf("%d", s.zoneCounter)
+	}
+	s.Zones[zone.ID] = zone
+}
+
+// UnregisterZone removes an indoor zone.
+func (s *IndoorDetectionSystem) UnregisterZone(zoneID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.Zones, zoneID)
+}
+
+// GetLocationType returns the location type at a given position.
+func (s *IndoorDetectionSystem) GetLocationType(x, y, z float64) LocationType {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var bestZone *IndoorZone
+	for _, zone := range s.Zones {
+		if s.pointInZone(x, y, z, zone) {
+			if bestZone == nil || zone.Priority > bestZone.Priority {
+				bestZone = zone
+			}
+		}
+	}
+
+	if bestZone != nil {
+		return bestZone.Type
+	}
+	return s.DefaultType
+}
+
+// IsIndoors checks if a position is considered indoors.
+func (s *IndoorDetectionSystem) IsIndoors(x, y, z float64) bool {
+	locType := s.GetLocationType(x, y, z)
+	return locType != LocationOutdoor
+}
+
+// IsOutdoors checks if a position is considered outdoors.
+func (s *IndoorDetectionSystem) IsOutdoors(x, y, z float64) bool {
+	return s.GetLocationType(x, y, z) == LocationOutdoor
+}
+
+// GetZoneAt returns the zone containing the given position.
+func (s *IndoorDetectionSystem) GetZoneAt(x, y, z float64) *IndoorZone {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var bestZone *IndoorZone
+	for _, zone := range s.Zones {
+		if s.pointInZone(x, y, z, zone) {
+			if bestZone == nil || zone.Priority > bestZone.Priority {
+				bestZone = zone
+			}
+		}
+	}
+	return bestZone
+}
+
+// GetAllZonesAt returns all zones containing the given position.
+func (s *IndoorDetectionSystem) GetAllZonesAt(x, y, z float64) []*IndoorZone {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	zones := make([]*IndoorZone, 0)
+	for _, zone := range s.Zones {
+		if s.pointInZone(x, y, z, zone) {
+			zones = append(zones, zone)
+		}
+	}
+	return zones
+}
+
+// RegisterHouseAsZone creates an indoor zone for a player house.
+func (s *IndoorDetectionSystem) RegisterHouseAsZone(house *House, width, height, depth float64) {
+	zone := &IndoorZone{
+		ID:       "house_" + house.ID,
+		Name:     "House Interior",
+		Type:     LocationIndoor,
+		MinX:     house.WorldX - width/2,
+		MaxX:     house.WorldX + width/2,
+		MinY:     0,
+		MaxY:     height,
+		MinZ:     house.WorldZ - depth/2,
+		MaxZ:     house.WorldZ + depth/2,
+		Priority: 10,
+	}
+	s.RegisterZone(zone)
+}
+
+// RegisterBuildingZone creates an indoor zone for a building.
+func (s *IndoorDetectionSystem) RegisterBuildingZone(id, name string, x, z, width, height, depth float64) {
+	zone := &IndoorZone{
+		ID:       "building_" + id,
+		Name:     name,
+		Type:     LocationBuilding,
+		MinX:     x - width/2,
+		MaxX:     x + width/2,
+		MinY:     0,
+		MaxY:     height,
+		MinZ:     z - depth/2,
+		MaxZ:     z + depth/2,
+		Priority: 5,
+	}
+	s.RegisterZone(zone)
+}
+
+// RegisterDungeonZone creates an indoor zone for a dungeon area.
+func (s *IndoorDetectionSystem) RegisterDungeonZone(id, name string, minX, maxX, minY, maxY, minZ, maxZ float64) {
+	zone := &IndoorZone{
+		ID:       "dungeon_" + id,
+		Name:     name,
+		Type:     LocationDungeon,
+		MinX:     minX,
+		MaxX:     maxX,
+		MinY:     minY,
+		MaxY:     maxY,
+		MinZ:     minZ,
+		MaxZ:     maxZ,
+		Priority: 15,
+	}
+	s.RegisterZone(zone)
+}
+
+// RegisterCaveZone creates an indoor zone for a cave area.
+func (s *IndoorDetectionSystem) RegisterCaveZone(id, name string, minX, maxX, minY, maxY, minZ, maxZ float64) {
+	zone := &IndoorZone{
+		ID:       "cave_" + id,
+		Name:     name,
+		Type:     LocationCave,
+		MinX:     minX,
+		MaxX:     maxX,
+		MinY:     minY,
+		MaxY:     maxY,
+		MinZ:     minZ,
+		MaxZ:     maxZ,
+		Priority: 12,
+	}
+	s.RegisterZone(zone)
+}
+
+// pointInZone checks if a point is within a zone's bounds.
+func (s *IndoorDetectionSystem) pointInZone(x, y, z float64, zone *IndoorZone) bool {
+	return x >= zone.MinX && x <= zone.MaxX &&
+		y >= zone.MinY && y <= zone.MaxY &&
+		z >= zone.MinZ && z <= zone.MaxZ
+}
+
+// ZoneCount returns the number of registered zones.
+func (s *IndoorDetectionSystem) ZoneCount() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.Zones)
+}
+
+// GetLocationTypeName returns a human-readable name for a location type.
+func GetLocationTypeName(locType LocationType) string {
+	switch locType {
+	case LocationOutdoor:
+		return "Outdoors"
+	case LocationIndoor:
+		return "Indoors"
+	case LocationDungeon:
+		return "Dungeon"
+	case LocationCave:
+		return "Cave"
+	case LocationBuilding:
+		return "Building"
+	default:
+		return "Unknown"
+	}
+}
