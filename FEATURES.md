@@ -66,7 +66,7 @@ Legend:
 - [x] Intimidation skill checks
 - [x] Dialog consequences
 - [x] Dialog memory
-- [ ] Multi-NPC conversations
+- [x] Multi-NPC conversations
 - [ ] Voice synthesis integration
 
 ---

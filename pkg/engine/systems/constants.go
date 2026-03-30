@@ -364,3 +364,11 @@ const (
 	// DialogHistoryMaxLength is max exchanges to keep in current conversation.
 	DialogHistoryMaxLength = 100
 )
+
+// Multi-NPC conversation constants.
+const (
+	// MultiNPCConversationMaxDistance is max distance between participants.
+	MultiNPCConversationMaxDistance = 10.0
+	// MultiNPCConversationDefaultMaxTurns is default turn limit.
+	MultiNPCConversationDefaultMaxTurns = 20
+)
