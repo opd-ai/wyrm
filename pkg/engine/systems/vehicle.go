@@ -1577,29 +1577,43 @@ func (s *MountSystem) Update(dt float64) {
 }
 
 func (s *MountSystem) updateMount(mount *MountState, dt float64) {
-	// Hunger increases over time
+	s.updateMountHunger(mount, dt)
+	s.updateMountMood(mount, dt)
+	s.updateMountStamina(mount, dt)
+	s.updateMountHealth(mount, dt)
+}
+
+// updateMountHunger increases hunger over time and affects mood.
+func (s *MountSystem) updateMountHunger(mount *MountState, dt float64) {
 	mount.Hunger += dt * 0.01 // ~1% per 100 seconds
 	if mount.Hunger > 100 {
 		mount.Hunger = 100
 	}
-
 	// Mood decreases if hungry
 	if mount.Hunger > 70 {
 		mount.Mood -= dt * 0.05
 	}
+}
 
-	// Stamina management
+// updateMountMood clamps mood to valid range.
+func (s *MountSystem) updateMountMood(mount *MountState, dt float64) {
+	if mount.Mood < 0 {
+		mount.Mood = 0
+	}
+}
+
+// updateMountStamina manages stamina drain and regeneration.
+func (s *MountSystem) updateMountStamina(mount *MountState, dt float64) {
 	if mount.IsMounted {
+		drainRate := 1.0 // Normal riding
 		if mount.IsSprinting {
-			mount.Stats.Stamina -= dt * 5 // Sprinting drains stamina fast
-		} else {
-			mount.Stats.Stamina -= dt * 1 // Normal riding drains slowly
+			drainRate = 5.0 // Sprinting drains faster
 		}
+		mount.Stats.Stamina -= dt * drainRate
 	} else {
-		// Regen stamina when not mounted
 		mount.Stats.Stamina += mount.Stats.StaminaRegen * dt
 	}
-
+	// Clamp stamina
 	if mount.Stats.Stamina < 0 {
 		mount.Stats.Stamina = 0
 		mount.IsSprinting = false
@@ -1607,31 +1621,32 @@ func (s *MountSystem) updateMount(mount *MountState, dt float64) {
 	if mount.Stats.Stamina > mount.Stats.MaxStamina {
 		mount.Stats.Stamina = mount.Stats.MaxStamina
 	}
+}
 
-	// Health regeneration
-	hasRegenTrait := false
+// updateMountHealth handles health regeneration.
+func (s *MountSystem) updateMountHealth(mount *MountState, dt float64) {
+	hasRegenTrait := s.mountHasTrait(mount, TraitRegenerating)
+	if !hasRegenTrait && mount.IsMounted {
+		return // No regen while mounted without trait
+	}
+	regenRate := mount.Stats.HealthRegen
+	if hasRegenTrait {
+		regenRate *= 2
+	}
+	mount.Stats.Health += regenRate * dt
+	if mount.Stats.Health > mount.Stats.MaxHealth {
+		mount.Stats.Health = mount.Stats.MaxHealth
+	}
+}
+
+// mountHasTrait checks if a mount has a specific trait.
+func (s *MountSystem) mountHasTrait(mount *MountState, trait MountTrait) bool {
 	for _, t := range mount.Traits {
-		if t == TraitRegenerating {
-			hasRegenTrait = true
-			break
+		if t == trait {
+			return true
 		}
 	}
-
-	if hasRegenTrait || !mount.IsMounted {
-		regenRate := mount.Stats.HealthRegen
-		if hasRegenTrait {
-			regenRate *= 2
-		}
-		mount.Stats.Health += regenRate * dt
-		if mount.Stats.Health > mount.Stats.MaxHealth {
-			mount.Stats.Health = mount.Stats.MaxHealth
-		}
-	}
-
-	// Mood clamp
-	if mount.Mood < 0 {
-		mount.Mood = 0
-	}
+	return false
 }
 
 // DamageMount applies damage to a mount.

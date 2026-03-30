@@ -610,52 +610,87 @@ func (s *CrimeEvidenceSystem) InvestigateCrimeScene(crimeID string) int {
 // generateSceneEvidence creates evidence appropriate for the crime.
 func (s *CrimeEvidenceSystem) generateSceneEvidence(record *CrimeRecord) int {
 	count := 0
-	// Always try to find fingerprints
+	count += s.generateCommonEvidence(record)
+	count += s.generateCrimeTypeEvidence(record)
+	count += s.generateGenreEvidence(record)
+	return count
+}
+
+// generateCommonEvidence generates fingerprints and footprints.
+func (s *CrimeEvidenceSystem) generateCommonEvidence(record *CrimeRecord) int {
+	count := 0
 	if s.pseudoRandom() < 0.7 {
 		s.CreateEvidence(record.ID, EvidenceTypeFingerprint, record.CriminalID, record.LocationX, record.LocationZ, 0.6+s.pseudoRandom()*0.3)
 		count++
 	}
-	// Footprints
 	if s.pseudoRandom() < 0.6 {
 		s.CreateEvidence(record.ID, EvidenceTypeFootprint, record.CriminalID, record.LocationX, record.LocationZ, 0.5+s.pseudoRandom()*0.4)
 		count++
 	}
-	// Crime-type specific evidence
+	return count
+}
+
+// generateCrimeTypeEvidence generates evidence specific to the crime type.
+func (s *CrimeEvidenceSystem) generateCrimeTypeEvidence(record *CrimeRecord) int {
+	count := 0
 	switch record.CrimeType {
 	case "murder", "assault":
-		if s.pseudoRandom() < 0.8 {
-			s.CreateEvidence(record.ID, EvidenceTypeBlood, record.CriminalID, record.LocationX, record.LocationZ, 0.7+s.pseudoRandom()*0.2)
-			count++
-		}
-		if s.pseudoRandom() < 0.5 {
-			s.CreateEvidence(record.ID, EvidenceTypeWeapon, record.CriminalID, record.LocationX, record.LocationZ, 0.8)
-			count++
-		}
+		count += s.generateViolentCrimeEvidence(record)
 	case "theft", "robbery":
-		if s.pseudoRandom() < 0.4 {
-			s.CreateEvidence(record.ID, EvidenceTypeStolenGoods, record.CriminalID, record.LocationX, record.LocationZ, 0.9)
-			count++
-		}
+		count += s.generateTheftEvidence(record)
 	case "fraud", "forgery":
-		if s.pseudoRandom() < 0.7 {
-			s.CreateEvidence(record.ID, EvidenceTypeDocument, record.CriminalID, record.LocationX, record.LocationZ, 0.7)
-			count++
-		}
+		count += s.generateFraudEvidence(record)
 	}
-	// Genre-specific evidence
+	return count
+}
+
+// generateViolentCrimeEvidence generates blood and weapon evidence.
+func (s *CrimeEvidenceSystem) generateViolentCrimeEvidence(record *CrimeRecord) int {
+	count := 0
+	if s.pseudoRandom() < 0.8 {
+		s.CreateEvidence(record.ID, EvidenceTypeBlood, record.CriminalID, record.LocationX, record.LocationZ, 0.7+s.pseudoRandom()*0.2)
+		count++
+	}
+	if s.pseudoRandom() < 0.5 {
+		s.CreateEvidence(record.ID, EvidenceTypeWeapon, record.CriminalID, record.LocationX, record.LocationZ, 0.8)
+		count++
+	}
+	return count
+}
+
+// generateTheftEvidence generates stolen goods evidence.
+func (s *CrimeEvidenceSystem) generateTheftEvidence(record *CrimeRecord) int {
+	if s.pseudoRandom() < 0.4 {
+		s.CreateEvidence(record.ID, EvidenceTypeStolenGoods, record.CriminalID, record.LocationX, record.LocationZ, 0.9)
+		return 1
+	}
+	return 0
+}
+
+// generateFraudEvidence generates document evidence.
+func (s *CrimeEvidenceSystem) generateFraudEvidence(record *CrimeRecord) int {
+	if s.pseudoRandom() < 0.7 {
+		s.CreateEvidence(record.ID, EvidenceTypeDocument, record.CriminalID, record.LocationX, record.LocationZ, 0.7)
+		return 1
+	}
+	return 0
+}
+
+// generateGenreEvidence generates evidence specific to the game genre.
+func (s *CrimeEvidenceSystem) generateGenreEvidence(record *CrimeRecord) int {
 	switch s.genre {
 	case "fantasy":
 		if s.pseudoRandom() < 0.3 {
 			s.CreateEvidence(record.ID, EvidenceTypeMagical, record.CriminalID, record.LocationX, record.LocationZ, 0.6+s.pseudoRandom()*0.3)
-			count++
+			return 1
 		}
 	case "sci-fi", "cyberpunk":
 		if s.pseudoRandom() < 0.5 {
 			s.CreateEvidence(record.ID, EvidenceTypeDigital, record.CriminalID, record.LocationX, record.LocationZ, 0.8+s.pseudoRandom()*0.15)
-			count++
+			return 1
 		}
 	}
-	return count
+	return 0
 }
 
 // pseudoRandom generates a deterministic pseudo-random number 0.0-1.0.

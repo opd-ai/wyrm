@@ -1266,48 +1266,60 @@ func (s *SkillBookSystem) completeReading(w *ecs.World, entity ecs.Entity) {
 	if !ok {
 		return
 	}
+	defer delete(s.ActiveReaders, entityID)
 
 	book := s.Books[reading.BookID]
 	if book == nil {
-		delete(s.ActiveReaders, entityID)
 		return
 	}
 
 	comp, ok := w.GetComponent(entity, "Skills")
 	if !ok {
-		delete(s.ActiveReaders, entityID)
 		return
 	}
 	skills := comp.(*components.Skills)
 
-	// Apply XP or level grant
+	s.applyBookBonus(skills, book)
+	s.markBookAsRead(entityID, reading.BookID, book)
+}
+
+// applyBookBonus applies XP or level grant from a skill book.
+func (s *SkillBookSystem) applyBookBonus(skills *components.Skills, book *SkillBook) {
 	if book.LevelGrant > 0 {
-		// Direct level grant
-		if skills.Levels == nil {
-			skills.Levels = make(map[string]int)
-		}
-		skills.Levels[book.SkillID] += book.LevelGrant
-		if skills.Levels[book.SkillID] > s.ProgressionSystem.LevelCap {
-			skills.Levels[book.SkillID] = s.ProgressionSystem.LevelCap
-		}
+		s.applyLevelGrant(skills, book)
 	} else if book.XPGrant > 0 {
-		// XP grant
-		if skills.Experience == nil {
-			skills.Experience = make(map[string]float64)
-		}
-		skills.Experience[book.SkillID] += book.XPGrant
+		s.applyXPGrant(skills, book)
 	}
+}
 
-	// Mark book as read
-	if book.IsOneTimeUse {
-		if s.PlayerBooks[entityID] == nil {
-			s.PlayerBooks[entityID] = make(map[string]bool)
-		}
-		s.PlayerBooks[entityID][reading.BookID] = true
+// applyLevelGrant directly increases skill levels.
+func (s *SkillBookSystem) applyLevelGrant(skills *components.Skills, book *SkillBook) {
+	if skills.Levels == nil {
+		skills.Levels = make(map[string]int)
 	}
+	skills.Levels[book.SkillID] += book.LevelGrant
+	if skills.Levels[book.SkillID] > s.ProgressionSystem.LevelCap {
+		skills.Levels[book.SkillID] = s.ProgressionSystem.LevelCap
+	}
+}
 
-	// Clean up
-	delete(s.ActiveReaders, entityID)
+// applyXPGrant adds experience points to a skill.
+func (s *SkillBookSystem) applyXPGrant(skills *components.Skills, book *SkillBook) {
+	if skills.Experience == nil {
+		skills.Experience = make(map[string]float64)
+	}
+	skills.Experience[book.SkillID] += book.XPGrant
+}
+
+// markBookAsRead records that a player has read a one-time-use book.
+func (s *SkillBookSystem) markBookAsRead(entityID uint64, bookID string, book *SkillBook) {
+	if !book.IsOneTimeUse {
+		return
+	}
+	if s.PlayerBooks[entityID] == nil {
+		s.PlayerBooks[entityID] = make(map[string]bool)
+	}
+	s.PlayerBooks[entityID][bookID] = true
 }
 
 // CancelReading stops reading a book without gaining benefits.
