@@ -124,6 +124,7 @@ func calculateSideDist(playerX, playerY float64, mapX, mapY int, rayDirX, rayDir
 }
 
 // castRay performs DDA raycasting and returns distance and wall type.
+// This is a simpler version used for testing; the full renderer uses castRayWithTexCoord.
 func (r *Renderer) castRay(rayDirX, rayDirY float64) (float64, int) {
 	mapX := int(r.PlayerX)
 	mapY := int(r.PlayerY)

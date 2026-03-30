@@ -34,6 +34,8 @@ type FactionTerritory struct {
 	Vertices []Point2D
 	// KillTracker tracks kills by player entity ID.
 	KillTracker map[uint64]int
+	// ControlLevel represents how much control the faction has (0-1).
+	ControlLevel float64
 }
 
 // Type returns the component type identifier for FactionTerritory.
@@ -234,6 +236,24 @@ type Witness struct {
 
 // Type returns the component type identifier for Witness.
 func (w *Witness) Type() string { return "Witness" }
+
+// Guard represents a guard NPC with pursuit AI state.
+type Guard struct {
+	State        int     // Current AI state (patrol, alert, pursue, etc.)
+	TargetEntity uint64  // Entity being pursued
+	LastKnownX   float64 // Last known X position of target
+	LastKnownZ   float64 // Last known Z position of target
+	SearchTimer  float64 // Time remaining in search mode
+	AlertTimer   float64 // Time remaining in alert mode
+	PatrolTimer  float64 // Time spent patrolling
+	PursuitSpeed float64 // Movement speed during pursuit
+	PatrolSpeed  float64 // Movement speed during patrol
+	SightRange   float64 // How far the guard can see
+	HearingRange float64 // How far the guard can hear
+}
+
+// Type returns the component type identifier for Guard.
+func (g *Guard) Type() string { return "Guard" }
 
 // EconomyNode represents a location with supply/demand pricing.
 type EconomyNode struct {

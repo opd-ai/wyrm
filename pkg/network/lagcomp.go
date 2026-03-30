@@ -270,3 +270,207 @@ func rayAABBIntersect(origin, direction, boxMin, boxMax, boxCenter Position3D) (
 
 	return tmin >= 0, tmin
 }
+
+// PvPCombatType represents a type of PvP combat action.
+type PvPCombatType int
+
+const (
+	PvPMeleeAttack PvPCombatType = iota
+	PvPRangedAttack
+	PvPMagicAttack
+	PvPAreaEffect
+	PvPStatusEffect
+)
+
+// PvPCombatAction represents a PvP combat action from a client.
+type PvPCombatAction struct {
+	AttackerID  uint64
+	TargetID    uint64
+	ActionType  PvPCombatType
+	DamageClaim float64
+	ClientTime  time.Time
+	Position    Position3D
+	Direction   Position3D
+	AbilityID   string
+}
+
+// PvPValidationResult contains the result of validating a PvP action.
+type PvPValidationResult struct {
+	Valid             bool
+	ActualDamage      float64
+	RejectionReason   string
+	ServerTime        time.Time
+	PositionCorrected bool
+	CorrectedPosition Position3D
+}
+
+// PvPValidator validates PvP combat actions.
+type PvPValidator struct {
+	mu             sync.RWMutex
+	lagComp        *LagCompensator
+	maxDamageRates map[PvPCombatType]float64       // Max damage per second per type
+	cooldowns      map[uint64]map[string]time.Time // entityID -> abilityID -> lastUse
+	zoneConfig     map[string]bool                 // Zone names where PvP is enabled
+}
+
+// NewPvPValidator creates a new PvP validator.
+func NewPvPValidator(lagComp *LagCompensator) *PvPValidator {
+	pv := &PvPValidator{
+		lagComp:        lagComp,
+		maxDamageRates: make(map[PvPCombatType]float64),
+		cooldowns:      make(map[uint64]map[string]time.Time),
+		zoneConfig:     make(map[string]bool),
+	}
+	pv.initDefaults()
+	return pv
+}
+
+// initDefaults sets up default damage rate limits.
+func (pv *PvPValidator) initDefaults() {
+	pv.maxDamageRates[PvPMeleeAttack] = 50.0  // 50 damage per second max
+	pv.maxDamageRates[PvPRangedAttack] = 40.0 // 40 damage per second max
+	pv.maxDamageRates[PvPMagicAttack] = 60.0  // 60 damage per second max
+	pv.maxDamageRates[PvPAreaEffect] = 30.0   // 30 damage per second max
+	pv.maxDamageRates[PvPStatusEffect] = 20.0 // 20 damage per second max
+}
+
+// SetZonePvPEnabled configures PvP enabled status for a zone.
+func (pv *PvPValidator) SetZonePvPEnabled(zoneName string, enabled bool) {
+	pv.mu.Lock()
+	defer pv.mu.Unlock()
+	pv.zoneConfig[zoneName] = enabled
+}
+
+// IsZonePvPEnabled returns whether PvP is enabled in a zone.
+func (pv *PvPValidator) IsZonePvPEnabled(zoneName string) bool {
+	pv.mu.RLock()
+	defer pv.mu.RUnlock()
+	enabled, ok := pv.zoneConfig[zoneName]
+	return ok && enabled
+}
+
+// ValidateAction validates a PvP combat action.
+func (pv *PvPValidator) ValidateAction(action *PvPCombatAction, rtt time.Duration, zoneName string) *PvPValidationResult {
+	pv.mu.Lock()
+	defer pv.mu.Unlock()
+
+	result := &PvPValidationResult{
+		ServerTime: time.Now(),
+	}
+
+	// Check if PvP is allowed in this zone
+	if !pv.zoneConfig[zoneName] {
+		result.Valid = false
+		result.RejectionReason = "PvP not enabled in zone"
+		return result
+	}
+
+	// Validate cooldowns
+	if !pv.validateCooldown(action) {
+		result.Valid = false
+		result.RejectionReason = "ability on cooldown"
+		return result
+	}
+
+	// Validate damage claim against rate limits
+	if !pv.validateDamageRate(action) {
+		result.Valid = false
+		result.RejectionReason = "damage rate exceeded"
+		result.ActualDamage = pv.maxDamageRates[action.ActionType]
+		return result
+	}
+
+	// Use lag compensation to validate hit
+	hitResult := pv.lagComp.HitTest(
+		action.AttackerID,
+		action.TargetID,
+		action.Position,
+		action.Direction,
+		action.ClientTime,
+		rtt,
+	)
+
+	if !hitResult.Hit {
+		result.Valid = false
+		result.RejectionReason = "hit not confirmed"
+		return result
+	}
+
+	// Record cooldown
+	pv.recordCooldown(action)
+
+	result.Valid = true
+	result.ActualDamage = action.DamageClaim
+	return result
+}
+
+// validateCooldown checks if an ability is off cooldown.
+func (pv *PvPValidator) validateCooldown(action *PvPCombatAction) bool {
+	if action.AbilityID == "" {
+		return true // Basic attacks have no cooldown
+	}
+	entityCooldowns := pv.cooldowns[action.AttackerID]
+	if entityCooldowns == nil {
+		return true
+	}
+	lastUse, ok := entityCooldowns[action.AbilityID]
+	if !ok {
+		return true
+	}
+	// Default 1 second cooldown
+	return time.Since(lastUse) > time.Second
+}
+
+// validateDamageRate checks if damage claim is within acceptable rates.
+func (pv *PvPValidator) validateDamageRate(action *PvPCombatAction) bool {
+	maxRate := pv.maxDamageRates[action.ActionType]
+	// Allow instant damage up to max rate (assumes 1 action per second)
+	return action.DamageClaim <= maxRate
+}
+
+// recordCooldown records when an ability was used.
+func (pv *PvPValidator) recordCooldown(action *PvPCombatAction) {
+	if action.AbilityID == "" {
+		return
+	}
+	if pv.cooldowns[action.AttackerID] == nil {
+		pv.cooldowns[action.AttackerID] = make(map[string]time.Time)
+	}
+	pv.cooldowns[action.AttackerID][action.AbilityID] = time.Now()
+}
+
+// CleanupCooldowns removes old cooldown entries.
+func (pv *PvPValidator) CleanupCooldowns(olderThan time.Duration) {
+	pv.mu.Lock()
+	defer pv.mu.Unlock()
+	cutoff := time.Now().Add(-olderThan)
+	for entityID, abilities := range pv.cooldowns {
+		for abilityID, lastUse := range abilities {
+			if lastUse.Before(cutoff) {
+				delete(abilities, abilityID)
+			}
+		}
+		if len(abilities) == 0 {
+			delete(pv.cooldowns, entityID)
+		}
+	}
+}
+
+// GetCooldownRemaining returns the remaining cooldown for an ability.
+func (pv *PvPValidator) GetCooldownRemaining(entityID uint64, abilityID string) time.Duration {
+	pv.mu.RLock()
+	defer pv.mu.RUnlock()
+	entityCooldowns := pv.cooldowns[entityID]
+	if entityCooldowns == nil {
+		return 0
+	}
+	lastUse, ok := entityCooldowns[abilityID]
+	if !ok {
+		return 0
+	}
+	remaining := time.Second - time.Since(lastUse)
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
+}

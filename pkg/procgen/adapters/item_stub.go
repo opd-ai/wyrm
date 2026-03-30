@@ -85,11 +85,16 @@ func (a *ItemAdapter) GenerateShopInventory(seed int64, genre string, cityWealth
 
 // GetItemValue returns adjusted item value.
 func GetItemValue(data *ItemData, conditionPercent float64) int {
-	return int(float64(data.Value) * conditionPercent)
+	baseValue := data.Stats.Value
+	return int(float64(baseValue) * conditionPercent)
 }
 
 // IsItemEquippable checks if item can be equipped.
-func IsItemEquippable(data *ItemData) bool { return data.Equippable }
+func IsItemEquippable(data *ItemData) bool {
+	return data.Type == "weapon" || data.Type == "armor" || data.Type == "accessory"
+}
 
 // IsItemConsumable checks if item can be consumed.
-func IsItemConsumable(data *ItemData) bool { return data.Consumable }
+func IsItemConsumable(data *ItemData) bool {
+	return data.Type == "consumable"
+}

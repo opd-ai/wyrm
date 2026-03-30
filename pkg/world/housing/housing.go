@@ -7,6 +7,7 @@ package housing
 import (
 	"encoding/gob"
 	"fmt"
+	"math"
 	"sync"
 )
 
@@ -381,4 +382,408 @@ func (m *GuildManager) ImportMembers(members map[string][]uint64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.members = members
+}
+
+// ============================================================================
+// Property Purchasing System
+// ============================================================================
+
+// PropertyListing represents a house available for purchase.
+type PropertyListing struct {
+	ID          string
+	Name        string
+	Description string
+	WorldX      float64
+	WorldZ      float64
+	BasePrice   int
+	Size        int     // Small=1, Medium=2, Large=3
+	Quality     float64 // 0.0-1.0 affects price
+	DistrictID  string
+	Genre       string
+}
+
+// PropertyMarket manages property listings and transactions.
+type PropertyMarket struct {
+	mu           sync.RWMutex
+	listings     map[string]*PropertyListing
+	priceFactors map[string]float64 // District -> price multiplier
+	houseManager *HouseManager
+}
+
+// NewPropertyMarket creates a new property market.
+func NewPropertyMarket(houseManager *HouseManager) *PropertyMarket {
+	return &PropertyMarket{
+		listings:     make(map[string]*PropertyListing),
+		priceFactors: make(map[string]float64),
+		houseManager: houseManager,
+	}
+}
+
+// AddListing adds a property to the market.
+func (m *PropertyMarket) AddListing(listing *PropertyListing) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.listings[listing.ID] = listing
+}
+
+// RemoveListing removes a property from the market.
+func (m *PropertyMarket) RemoveListing(listingID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.listings, listingID)
+}
+
+// SetDistrictPriceFactor sets price multiplier for a district.
+func (m *PropertyMarket) SetDistrictPriceFactor(districtID string, factor float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.priceFactors[districtID] = factor
+}
+
+// GetCurrentPrice calculates current price with district factor.
+func (m *PropertyMarket) GetCurrentPrice(listingID string) int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	listing := m.listings[listingID]
+	if listing == nil {
+		return 0
+	}
+
+	factor := m.priceFactors[listing.DistrictID]
+	if factor <= 0 {
+		factor = 1.0
+	}
+
+	// Price = base * quality * size * district factor
+	price := float64(listing.BasePrice) * (0.5 + listing.Quality*0.5)
+	price *= float64(listing.Size)
+	price *= factor
+
+	return int(price)
+}
+
+// GetAvailableListings returns all available properties.
+func (m *PropertyMarket) GetAvailableListings() []*PropertyListing {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	listings := make([]*PropertyListing, 0, len(m.listings))
+	for _, l := range m.listings {
+		listings = append(listings, l)
+	}
+	return listings
+}
+
+// GetListingsByDistrict filters listings by district.
+func (m *PropertyMarket) GetListingsByDistrict(districtID string) []*PropertyListing {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var listings []*PropertyListing
+	for _, l := range m.listings {
+		if l.DistrictID == districtID {
+			listings = append(listings, l)
+		}
+	}
+	return listings
+}
+
+// PurchaseResult contains the outcome of a property purchase.
+type PurchaseResult struct {
+	Success   bool
+	House     *House
+	Message   string
+	PricePaid int
+}
+
+// PurchaseProperty attempts to purchase a property for a player.
+func (m *PropertyMarket) PurchaseProperty(
+	listingID string,
+	buyerID uint64,
+	buyerGold int,
+	currentDay int,
+) PurchaseResult {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	listing := m.listings[listingID]
+	if listing == nil {
+		return PurchaseResult{
+			Success: false,
+			Message: "Property not found",
+		}
+	}
+
+	// Calculate price
+	factor := m.priceFactors[listing.DistrictID]
+	if factor <= 0 {
+		factor = 1.0
+	}
+	price := float64(listing.BasePrice) * (0.5 + listing.Quality*0.5)
+	price *= float64(listing.Size)
+	price *= factor
+	finalPrice := int(price)
+
+	// Check if buyer can afford
+	if buyerGold < finalPrice {
+		return PurchaseResult{
+			Success: false,
+			Message: "Insufficient gold",
+		}
+	}
+
+	// Create the house
+	house := &House{
+		ID:          listing.ID,
+		OwnerID:     buyerID,
+		WorldX:      listing.WorldX,
+		WorldZ:      listing.WorldZ,
+		InteriorID:  listing.ID + "-interior",
+		Furniture:   []FurnitureItem{},
+		PurchaseDay: currentDay,
+	}
+
+	// Register with house manager
+	m.houseManager.RegisterHouse(house)
+
+	// Remove from listings
+	delete(m.listings, listingID)
+
+	return PurchaseResult{
+		Success:   true,
+		House:     house,
+		Message:   "Property purchased successfully",
+		PricePaid: finalPrice,
+	}
+}
+
+// ListingCount returns the number of available listings.
+func (m *PropertyMarket) ListingCount() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.listings)
+}
+
+// ============================================================================
+// First-Person Furniture Placement System
+// ============================================================================
+
+// PlacementMode represents the furniture placement UI mode.
+type PlacementMode int
+
+const (
+	PlacementModeNone PlacementMode = iota
+	PlacementModePlace
+	PlacementModeMove
+	PlacementModeRotate
+	PlacementModeRemove
+)
+
+// FurniturePlacement manages first-person furniture placement UI state.
+type FurniturePlacement struct {
+	mu            sync.RWMutex
+	Mode          PlacementMode
+	SelectedID    string  // Currently selected furniture ID
+	SelectedType  string  // Type of furniture being placed
+	PreviewX      float64 // Preview position X
+	PreviewY      float64 // Preview position Y
+	PreviewZ      float64 // Preview position Z
+	PreviewRot    float64 // Preview rotation
+	CurrentHouse  string  // Current house being edited
+	SnapToGrid    bool    // Whether to snap to grid
+	GridSize      float64 // Grid snap size
+	ValidPosition bool    // Whether preview position is valid
+}
+
+// NewFurniturePlacement creates a new furniture placement controller.
+func NewFurniturePlacement() *FurniturePlacement {
+	return &FurniturePlacement{
+		Mode:       PlacementModeNone,
+		SnapToGrid: true,
+		GridSize:   0.5, // Half-unit grid
+	}
+}
+
+// StartPlaceMode enters furniture placement mode.
+func (fp *FurniturePlacement) StartPlaceMode(houseID, furnitureType string) {
+	fp.mu.Lock()
+	defer fp.mu.Unlock()
+
+	fp.Mode = PlacementModePlace
+	fp.CurrentHouse = houseID
+	fp.SelectedType = furnitureType
+	fp.SelectedID = ""
+	fp.ValidPosition = false
+}
+
+// StartMoveMode enters furniture move mode.
+func (fp *FurniturePlacement) StartMoveMode(houseID, furnitureID string) {
+	fp.mu.Lock()
+	defer fp.mu.Unlock()
+
+	fp.Mode = PlacementModeMove
+	fp.CurrentHouse = houseID
+	fp.SelectedID = furnitureID
+	fp.SelectedType = ""
+	fp.ValidPosition = false
+}
+
+// StartRotateMode enters furniture rotation mode.
+func (fp *FurniturePlacement) StartRotateMode(houseID, furnitureID string) {
+	fp.mu.Lock()
+	defer fp.mu.Unlock()
+
+	fp.Mode = PlacementModeRotate
+	fp.CurrentHouse = houseID
+	fp.SelectedID = furnitureID
+}
+
+// StartRemoveMode enters furniture removal mode.
+func (fp *FurniturePlacement) StartRemoveMode(houseID, furnitureID string) {
+	fp.mu.Lock()
+	defer fp.mu.Unlock()
+
+	fp.Mode = PlacementModeRemove
+	fp.CurrentHouse = houseID
+	fp.SelectedID = furnitureID
+}
+
+// ExitMode exits the current placement mode.
+func (fp *FurniturePlacement) ExitMode() {
+	fp.mu.Lock()
+	defer fp.mu.Unlock()
+
+	fp.Mode = PlacementModeNone
+	fp.SelectedID = ""
+	fp.SelectedType = ""
+	fp.CurrentHouse = ""
+	fp.ValidPosition = false
+}
+
+// UpdatePreview updates the preview position from player view direction.
+func (fp *FurniturePlacement) UpdatePreview(playerX, playerZ, viewAngle, distance float64) {
+	fp.mu.Lock()
+	defer fp.mu.Unlock()
+
+	if fp.Mode == PlacementModeNone {
+		return
+	}
+
+	// Calculate position in front of player
+	newX := playerX + math.Cos(viewAngle)*distance
+	newZ := playerZ + math.Sin(viewAngle)*distance
+
+	// Apply grid snap if enabled
+	if fp.SnapToGrid && fp.GridSize > 0 {
+		newX = math.Floor(newX/fp.GridSize) * fp.GridSize
+		newZ = math.Floor(newZ/fp.GridSize) * fp.GridSize
+	}
+
+	fp.PreviewX = newX
+	fp.PreviewY = 0 // Ground level by default
+	fp.PreviewZ = newZ
+	fp.ValidPosition = true
+}
+
+// RotatePreview rotates the preview furniture.
+func (fp *FurniturePlacement) RotatePreview(deltaAngle float64) {
+	fp.mu.Lock()
+	defer fp.mu.Unlock()
+
+	fp.PreviewRot += deltaAngle
+	// Normalize to 0-2π
+	for fp.PreviewRot < 0 {
+		fp.PreviewRot += 2 * 3.14159265
+	}
+	for fp.PreviewRot >= 2*3.14159265 {
+		fp.PreviewRot -= 2 * 3.14159265
+	}
+}
+
+// SetGridSnap enables or disables grid snapping.
+func (fp *FurniturePlacement) SetGridSnap(enabled bool, gridSize float64) {
+	fp.mu.Lock()
+	defer fp.mu.Unlock()
+
+	fp.SnapToGrid = enabled
+	if gridSize > 0 {
+		fp.GridSize = gridSize
+	}
+}
+
+// GetPreviewState returns current preview state for rendering.
+func (fp *FurniturePlacement) GetPreviewState() (mode PlacementMode, x, y, z, rot float64, valid bool) {
+	fp.mu.RLock()
+	defer fp.mu.RUnlock()
+
+	return fp.Mode, fp.PreviewX, fp.PreviewY, fp.PreviewZ, fp.PreviewRot, fp.ValidPosition
+}
+
+// ConfirmPlacement commits the current placement to the house.
+func (fp *FurniturePlacement) ConfirmPlacement(houseManager *HouseManager, newID string) error {
+	fp.mu.Lock()
+	defer fp.mu.Unlock()
+
+	if fp.Mode == PlacementModeNone || !fp.ValidPosition {
+		return fmt.Errorf("no valid placement to confirm")
+	}
+
+	switch fp.Mode {
+	case PlacementModePlace:
+		item := FurnitureItem{
+			ID:        newID,
+			Type:      fp.SelectedType,
+			X:         fp.PreviewX,
+			Y:         fp.PreviewY,
+			Z:         fp.PreviewZ,
+			Rotation:  fp.PreviewRot,
+			Condition: 1.0,
+		}
+		err := houseManager.PlaceFurniture(fp.CurrentHouse, item)
+		if err != nil {
+			return err
+		}
+
+	case PlacementModeMove:
+		err := houseManager.MoveFurniture(
+			fp.CurrentHouse,
+			fp.SelectedID,
+			fp.PreviewX,
+			fp.PreviewY,
+			fp.PreviewZ,
+			fp.PreviewRot,
+		)
+		if err != nil {
+			return err
+		}
+
+	case PlacementModeRemove:
+		err := houseManager.RemoveFurniture(fp.CurrentHouse, fp.SelectedID)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Reset mode
+	fp.Mode = PlacementModeNone
+	fp.SelectedID = ""
+	fp.SelectedType = ""
+	fp.ValidPosition = false
+
+	return nil
+}
+
+// IsInPlacementMode returns whether placement UI is active.
+func (fp *FurniturePlacement) IsInPlacementMode() bool {
+	fp.mu.RLock()
+	defer fp.mu.RUnlock()
+	return fp.Mode != PlacementModeNone
+}
+
+// GetCurrentHouse returns the house being edited.
+func (fp *FurniturePlacement) GetCurrentHouse() string {
+	fp.mu.RLock()
+	defer fp.mu.RUnlock()
+	return fp.CurrentHouse
 }

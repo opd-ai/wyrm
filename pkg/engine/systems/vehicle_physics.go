@@ -109,49 +109,70 @@ func (s *VehiclePhysicsSystem) updateSteering(physics *components.VehiclePhysics
 // updateSpeed adjusts current speed based on input.
 func (s *VehiclePhysicsSystem) updateSpeed(physics *components.VehiclePhysics, vehicle *components.Vehicle, dt float64) {
 	if physics.IsBraking {
-		// Apply brakes
-		if physics.CurrentSpeed > 0 {
-			physics.CurrentSpeed -= physics.Deceleration * dt
-			if physics.CurrentSpeed < 0 {
-				physics.CurrentSpeed = 0
-			}
-		} else if physics.CurrentSpeed < 0 {
-			physics.CurrentSpeed += physics.Deceleration * dt
-			if physics.CurrentSpeed > 0 {
-				physics.CurrentSpeed = 0
-			}
-		}
-		return
-	}
-
-	maxSpeed := physics.MaxSpeed
-	if physics.InReverse {
-		maxSpeed *= ReverseSpeedMultiplier
-	}
-
-	if physics.Throttle > 0 && !physics.InReverse {
-		// Accelerate forward
-		physics.CurrentSpeed += physics.Acceleration * physics.Throttle * dt
-		if physics.CurrentSpeed > maxSpeed {
-			physics.CurrentSpeed = maxSpeed
-		}
-	} else if physics.Throttle < 0 || physics.InReverse {
-		// Accelerate backward (reverse)
-		throttle := physics.Throttle
-		if physics.InReverse && physics.Throttle > 0 {
-			throttle = -physics.Throttle
-		}
-		physics.CurrentSpeed += physics.Acceleration * throttle * dt
-		if physics.CurrentSpeed < -maxSpeed {
-			physics.CurrentSpeed = -maxSpeed
-		}
+		s.applyBrakes(physics, dt)
 	} else {
-		// No input - apply friction
-		s.applyFriction(physics, dt)
+		s.applyThrottle(physics, dt)
 	}
 
 	// Update vehicle Speed field for compatibility
 	vehicle.Speed = math.Abs(physics.CurrentSpeed)
+}
+
+// applyBrakes reduces speed toward zero.
+func (s *VehiclePhysicsSystem) applyBrakes(physics *components.VehiclePhysics, dt float64) {
+	if physics.CurrentSpeed > 0 {
+		physics.CurrentSpeed -= physics.Deceleration * dt
+		if physics.CurrentSpeed < 0 {
+			physics.CurrentSpeed = 0
+		}
+	} else if physics.CurrentSpeed < 0 {
+		physics.CurrentSpeed += physics.Deceleration * dt
+		if physics.CurrentSpeed > 0 {
+			physics.CurrentSpeed = 0
+		}
+	}
+}
+
+// applyThrottle handles acceleration, reverse, and friction.
+func (s *VehiclePhysicsSystem) applyThrottle(physics *components.VehiclePhysics, dt float64) {
+	maxSpeed := s.getMaxSpeed(physics)
+
+	if physics.Throttle > 0 && !physics.InReverse {
+		s.accelerateForward(physics, maxSpeed, dt)
+	} else if physics.Throttle < 0 || physics.InReverse {
+		s.accelerateReverse(physics, maxSpeed, dt)
+	} else {
+		s.applyFriction(physics, dt)
+	}
+}
+
+// getMaxSpeed returns the current maximum speed considering reverse mode.
+func (s *VehiclePhysicsSystem) getMaxSpeed(physics *components.VehiclePhysics) float64 {
+	maxSpeed := physics.MaxSpeed
+	if physics.InReverse {
+		maxSpeed *= ReverseSpeedMultiplier
+	}
+	return maxSpeed
+}
+
+// accelerateForward increases speed in the forward direction.
+func (s *VehiclePhysicsSystem) accelerateForward(physics *components.VehiclePhysics, maxSpeed, dt float64) {
+	physics.CurrentSpeed += physics.Acceleration * physics.Throttle * dt
+	if physics.CurrentSpeed > maxSpeed {
+		physics.CurrentSpeed = maxSpeed
+	}
+}
+
+// accelerateReverse increases speed in the reverse direction.
+func (s *VehiclePhysicsSystem) accelerateReverse(physics *components.VehiclePhysics, maxSpeed, dt float64) {
+	throttle := physics.Throttle
+	if physics.InReverse && physics.Throttle > 0 {
+		throttle = -physics.Throttle
+	}
+	physics.CurrentSpeed += physics.Acceleration * throttle * dt
+	if physics.CurrentSpeed < -maxSpeed {
+		physics.CurrentSpeed = -maxSpeed
+	}
 }
 
 // applyFriction slows the vehicle passively.

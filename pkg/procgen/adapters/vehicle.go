@@ -140,24 +140,6 @@ func SpawnVehicleEntity(world *ecs.World, v *VehicleData, x, y, z float64) ecs.E
 	return entity
 }
 
-// mapVehicleType converts string type to Wyrm's Vehicle component type constant.
-func mapVehicleType(vehicleType string) int {
-	switch vehicleType {
-	case "Mount":
-		return 0
-	case "Cart":
-		return 1
-	case "Boat":
-		return 2
-	case "Glider":
-		return 3
-	case "Mech":
-		return 4
-	default:
-		return 0
-	}
-}
-
 // VehicleRarityMultiplier returns the stat multiplier for a given rarity.
 func VehicleRarityMultiplier(rarity string) float64 {
 	switch rarity {

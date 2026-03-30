@@ -224,3 +224,255 @@ func (e *Engine) applyMetallicSheen(samples []float64) []float64 {
 	}
 	return result
 }
+
+// ============================================================================
+// Reverb Effects System
+// ============================================================================
+
+// ReverbConfig holds reverb effect parameters.
+type ReverbConfig struct {
+	RoomSize  float64 // 0-1, larger = longer reverb tail
+	Damping   float64 // 0-1, higher = more high frequency absorption
+	WetMix    float64 // 0-1, amount of reverb in final mix
+	DryMix    float64 // 0-1, amount of original in final mix
+	PreDelay  float64 // seconds of delay before reverb starts
+	DecayTime float64 // seconds for reverb to decay
+}
+
+// DefaultReverbConfig returns a standard reverb configuration.
+func DefaultReverbConfig() *ReverbConfig {
+	return &ReverbConfig{
+		RoomSize:  0.5,
+		Damping:   0.4,
+		WetMix:    0.3,
+		DryMix:    0.7,
+		PreDelay:  0.02,
+		DecayTime: 1.5,
+	}
+}
+
+// GenreReverbConfig returns reverb settings appropriate for a genre.
+func GenreReverbConfig(genre string) *ReverbConfig {
+	switch genre {
+	case "fantasy":
+		return &ReverbConfig{
+			RoomSize:  0.6,
+			Damping:   0.3,
+			WetMix:    0.35,
+			DryMix:    0.65,
+			PreDelay:  0.025,
+			DecayTime: 1.8,
+		}
+	case "sci-fi":
+		return &ReverbConfig{
+			RoomSize:  0.7,
+			Damping:   0.2,
+			WetMix:    0.4,
+			DryMix:    0.6,
+			PreDelay:  0.03,
+			DecayTime: 2.0,
+		}
+	case "horror":
+		return &ReverbConfig{
+			RoomSize:  0.9,
+			Damping:   0.5,
+			WetMix:    0.5,
+			DryMix:    0.5,
+			PreDelay:  0.05,
+			DecayTime: 3.0,
+		}
+	case "cyberpunk":
+		return &ReverbConfig{
+			RoomSize:  0.4,
+			Damping:   0.6,
+			WetMix:    0.25,
+			DryMix:    0.75,
+			PreDelay:  0.01,
+			DecayTime: 1.0,
+		}
+	case "post-apocalyptic":
+		return &ReverbConfig{
+			RoomSize:  0.8,
+			Damping:   0.4,
+			WetMix:    0.45,
+			DryMix:    0.55,
+			PreDelay:  0.04,
+			DecayTime: 2.5,
+		}
+	default:
+		return DefaultReverbConfig()
+	}
+}
+
+// ReverbProcessor applies reverb effects to audio.
+type ReverbProcessor struct {
+	config     *ReverbConfig
+	sampleRate int
+
+	// Delay lines for Schroeder reverb algorithm
+	combDelays     [][]float64
+	combIndices    []int
+	allpassDelays  [][]float64
+	allpassIndices []int
+
+	// Comb filter feedback gains
+	combGains []float64
+}
+
+// NewReverbProcessor creates a new reverb processor.
+func NewReverbProcessor(config *ReverbConfig, sampleRate int) *ReverbProcessor {
+	rp := &ReverbProcessor{
+		config:     config,
+		sampleRate: sampleRate,
+	}
+	rp.initialize()
+	return rp
+}
+
+// initialize sets up the reverb delay lines.
+func (rp *ReverbProcessor) initialize() {
+	// Schroeder reverb uses 4 parallel comb filters + 2 series allpass filters
+	combDelayMs := []float64{29.7, 37.1, 41.1, 43.7}
+	allpassDelayMs := []float64{5.0, 1.7}
+
+	rp.combDelays = make([][]float64, 4)
+	rp.combIndices = make([]int, 4)
+	rp.combGains = make([]float64, 4)
+
+	for i, delayMs := range combDelayMs {
+		// Scale delay by room size
+		scaledDelay := delayMs * rp.config.RoomSize * 2
+		delaySamples := int(scaledDelay * float64(rp.sampleRate) / 1000.0)
+		if delaySamples < 1 {
+			delaySamples = 1
+		}
+		rp.combDelays[i] = make([]float64, delaySamples)
+		rp.combIndices[i] = 0
+
+		// Calculate feedback gain based on decay time and delay
+		rt60 := rp.config.DecayTime
+		gain := math.Pow(0.001, float64(delaySamples)/float64(rp.sampleRate)/rt60)
+		// Apply damping
+		rp.combGains[i] = gain * (1.0 - rp.config.Damping*0.3)
+	}
+
+	rp.allpassDelays = make([][]float64, 2)
+	rp.allpassIndices = make([]int, 2)
+
+	for i, delayMs := range allpassDelayMs {
+		delaySamples := int(delayMs * float64(rp.sampleRate) / 1000.0)
+		if delaySamples < 1 {
+			delaySamples = 1
+		}
+		rp.allpassDelays[i] = make([]float64, delaySamples)
+		rp.allpassIndices[i] = 0
+	}
+}
+
+// Process applies reverb to the input samples.
+func (rp *ReverbProcessor) Process(input []float64) []float64 {
+	output := make([]float64, len(input))
+
+	// Pre-delay (circular buffer simulation)
+	preDelaySamples := int(rp.config.PreDelay * float64(rp.sampleRate))
+	if preDelaySamples > len(input) {
+		preDelaySamples = len(input)
+	}
+
+	for i := range input {
+		// Get input with pre-delay
+		delayedIdx := i - preDelaySamples
+		var delayedInput float64
+		if delayedIdx >= 0 {
+			delayedInput = input[delayedIdx]
+		}
+
+		// Sum of 4 parallel comb filters
+		combSum := 0.0
+		for c := 0; c < 4; c++ {
+			combSum += rp.processComb(c, delayedInput)
+		}
+		combSum /= 4.0
+
+		// Series allpass filters
+		allpassOut := rp.processAllpass(0, combSum)
+		allpassOut = rp.processAllpass(1, allpassOut)
+
+		// Mix dry and wet
+		output[i] = input[i]*rp.config.DryMix + allpassOut*rp.config.WetMix
+	}
+
+	return output
+}
+
+// processComb processes a single comb filter.
+func (rp *ReverbProcessor) processComb(index int, input float64) float64 {
+	delay := rp.combDelays[index]
+	idx := rp.combIndices[index]
+
+	// Read from delay line
+	output := delay[idx]
+
+	// Write new value with feedback
+	delay[idx] = input + output*rp.combGains[index]
+
+	// Advance index
+	rp.combIndices[index] = (idx + 1) % len(delay)
+
+	return output
+}
+
+// processAllpass processes a single allpass filter.
+func (rp *ReverbProcessor) processAllpass(index int, input float64) float64 {
+	delay := rp.allpassDelays[index]
+	idx := rp.allpassIndices[index]
+	g := 0.5 // allpass coefficient
+
+	// Read from delay line
+	delayed := delay[idx]
+
+	// Allpass formula
+	output := -g*input + delayed + g*delayed
+
+	// Write to delay line
+	delay[idx] = input + delayed*g
+
+	// Advance index
+	rp.allpassIndices[index] = (idx + 1) % len(delay)
+
+	return output
+}
+
+// Reset clears the reverb delay lines.
+func (rp *ReverbProcessor) Reset() {
+	for i := range rp.combDelays {
+		for j := range rp.combDelays[i] {
+			rp.combDelays[i][j] = 0
+		}
+		rp.combIndices[i] = 0
+	}
+	for i := range rp.allpassDelays {
+		for j := range rp.allpassDelays[i] {
+			rp.allpassDelays[i][j] = 0
+		}
+		rp.allpassIndices[i] = 0
+	}
+}
+
+// SetConfig updates the reverb configuration.
+func (rp *ReverbProcessor) SetConfig(config *ReverbConfig) {
+	rp.config = config
+	rp.initialize()
+}
+
+// GetConfig returns the current reverb configuration.
+func (rp *ReverbProcessor) GetConfig() *ReverbConfig {
+	return rp.config
+}
+
+// ApplyReverb applies reverb to samples using the engine's genre settings.
+func (e *Engine) ApplyReverb(samples []float64) []float64 {
+	config := GenreReverbConfig(e.Genre)
+	processor := NewReverbProcessor(config, e.SampleRate)
+	return processor.Process(samples)
+}

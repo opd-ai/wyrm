@@ -46,7 +46,7 @@ func NewSoundscape(region RegionType, genre string, seed int64) *Soundscape {
 // GenerateSamples creates ambient audio samples for the duration.
 func (s *Soundscape) GenerateSamples(duration float64) []float64 {
 	numSamples := int(duration * float64(s.sampleRate))
-	samples := make([]float64, numSamples)
+	var samples []float64
 
 	switch s.regionType {
 	case RegionPlains:

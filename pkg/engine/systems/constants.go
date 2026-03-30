@@ -150,3 +150,119 @@ const (
 	// LevelScalingFactor is the XP increase per level (0.1 = 10% per level).
 	LevelScalingFactor = 0.1
 )
+
+// Crafting constants for quality, tool efficiency, and gathering.
+const (
+	// CancelCraftMaterialReturn is the fraction of materials returned when canceling (50%).
+	CancelCraftMaterialReturn = 0.5
+	// MaterialReturnDivisor is the divisor for calculating material returns.
+	MaterialReturnDivisor = 2
+	// GatheringSkillQualityBonus is quality bonus per gathering skill level (+0.5% per level).
+	GatheringSkillQualityBonus = 0.005
+	// CraftingSkillQualityBonus is quality bonus per crafting skill level (+1% per level).
+	CraftingSkillQualityBonus = 0.01
+	// QualityVarianceFactor is the quality variance multiplier (+/- 10%).
+	QualityVarianceFactor = 0.2
+	// QualityVarianceCenter is the center of the variance range.
+	QualityVarianceCenter = 0.5
+	// MinimumQuality is the minimum allowed quality value.
+	MinimumQuality = 0.1
+	// MaximumQuality is the maximum allowed quality value.
+	MaximumQuality = 1.0
+	// ZeroQuality is zero quality for calculations.
+	ZeroQuality = 0.0
+	// BaseGatherAmount is the minimum amount gathered per action.
+	BaseGatherAmount = 1
+	// DefaultToolDurabilityLoss is durability lost per tool use.
+	DefaultToolDurabilityLoss = 1.0
+)
+
+// Quality tier thresholds for item rarity.
+const (
+	// LegendaryQualityThreshold is the minimum quality for Legendary items.
+	LegendaryQualityThreshold = 0.95
+	// EpicQualityThreshold is the minimum quality for Epic items.
+	EpicQualityThreshold = 0.85
+	// RareQualityThreshold is the minimum quality for Rare items.
+	RareQualityThreshold = 0.70
+	// UncommonQualityThreshold is the minimum quality for Uncommon items.
+	UncommonQualityThreshold = 0.50
+)
+
+// Tool efficiency multipliers based on tier difference.
+const (
+	// ToolMuchBetterEfficiency is the multiplier when tool is 2+ tiers above resource.
+	ToolMuchBetterEfficiency = 2.0
+	// ToolSlightlyBetterEfficiency is the multiplier when tool is 1 tier above resource.
+	ToolSlightlyBetterEfficiency = 1.5
+	// ToolMatchedEfficiency is the multiplier when tool matches resource tier.
+	ToolMatchedEfficiency = 1.0
+	// ToolSlightlyWorseEfficiency is the multiplier when tool is 1 tier below resource.
+	ToolSlightlyWorseEfficiency = 0.5
+	// ToolMuchWorseEfficiency is the multiplier when tool is 2+ tiers below resource.
+	ToolMuchWorseEfficiency = 0.25
+)
+
+// Minigame score thresholds.
+const (
+	// MinigameExcellentThreshold is the score for excellent performance (90%+).
+	MinigameExcellentThreshold = 0.9
+	// MinigameGoodThreshold is the score for good performance (70%+).
+	MinigameGoodThreshold = 0.7
+	// MinigamePoorThreshold is the score below which penalties apply (30%-).
+	MinigamePoorThreshold = 0.3
+	// MinigamePassThreshold is the minimum score to succeed (50%+).
+	MinigamePassThreshold = 0.5
+	// MinigameGoodTimingMultiplier is the score multiplier for good (not perfect) timing.
+	MinigameGoodTimingMultiplier = 0.5
+	// MinigamePrecisionGoodScore is the score for good precision (0.7 of perfect).
+	MinigamePrecisionGoodScore = 0.7
+	// MinigameSequenceWrongPenalty is the score penalty for wrong sequence input.
+	MinigameSequenceWrongPenalty = 0.1
+)
+
+// Minigame timing constants.
+const (
+	// MinigameDefaultMaxAttempts is the default number of minigame steps.
+	MinigameDefaultMaxAttempts = 3
+	// MinigameSequenceLength is the length of sequence minigames.
+	MinigameSequenceLength = 4
+	// MinigameTimingWindowDouble is 2x the timing window for "good" hits.
+	MinigameTimingWindowDouble = 2
+	// MinigamePrecisionWindowHalf is 0.5x the timing window for "perfect" precision.
+	MinigamePrecisionWindowHalf = 0.5
+)
+
+// Timing minigame target ranges.
+const (
+	// TimingMinTargetDelay is the minimum delay before next timing target (seconds).
+	TimingMinTargetDelay = 1.0
+	// TimingMaxTargetVariance is the random variance added to timing target (seconds).
+	TimingMaxTargetVariance = 2.0
+	// PrecisionMinTargetDelay is the minimum delay for precision targets (seconds).
+	PrecisionMinTargetDelay = 0.5
+	// PrecisionMaxTargetVariance is the random variance for precision targets (seconds).
+	PrecisionMaxTargetVariance = 0.5
+)
+
+// Quest generation thresholds for world state conditions.
+const (
+	// WorldStateHighThreshold is the level at which world state triggers quest generation.
+	WorldStateHighThreshold = 0.5
+)
+
+// Default skill and progression caps.
+const (
+	// DefaultLevelCap is the default maximum skill level.
+	DefaultLevelCap = 100
+	// DefaultTrainingCostBase is the base cost for training sessions.
+	DefaultTrainingCostBase = 50.0
+	// TrainingCostMultiplier is the multiplier per skill level for training cost.
+	TrainingCostMultiplier = 10.0
+	// TrainingXPGain is the base XP granted per training session.
+	TrainingXPGain = 25.0
+	// MaxTrainerLevel is the maximum level a trainer can teach to.
+	MaxTrainerLevel = 75
+	// TrainingXPFraction is the fraction of XP per level granted during training.
+	TrainingXPFraction = 0.1
+)

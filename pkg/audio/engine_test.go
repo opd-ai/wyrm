@@ -477,3 +477,186 @@ func TestSampleStreamPartialRead(t *testing.T) {
 		t.Error("expected silence after draining buffer")
 	}
 }
+
+// ============================================================================
+// Reverb Effect Tests
+// ============================================================================
+
+func TestDefaultReverbConfig(t *testing.T) {
+	config := DefaultReverbConfig()
+	if config == nil {
+		t.Fatal("DefaultReverbConfig returned nil")
+	}
+
+	if config.RoomSize < 0 || config.RoomSize > 1 {
+		t.Errorf("RoomSize %f out of range [0,1]", config.RoomSize)
+	}
+	if config.Damping < 0 || config.Damping > 1 {
+		t.Errorf("Damping %f out of range [0,1]", config.Damping)
+	}
+	if config.WetMix+config.DryMix > 1.5 { // Allow some flexibility
+		t.Error("WetMix + DryMix too high")
+	}
+	if config.DecayTime <= 0 {
+		t.Errorf("DecayTime %f should be positive", config.DecayTime)
+	}
+}
+
+func TestGenreReverbConfig(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic", "unknown"}
+
+	for _, genre := range genres {
+		config := GenreReverbConfig(genre)
+		if config == nil {
+			t.Errorf("genre %s: GenreReverbConfig returned nil", genre)
+			continue
+		}
+
+		if config.RoomSize < 0 || config.RoomSize > 1 {
+			t.Errorf("genre %s: RoomSize out of range", genre)
+		}
+		if config.Damping < 0 || config.Damping > 1 {
+			t.Errorf("genre %s: Damping out of range", genre)
+		}
+		if config.DecayTime <= 0 {
+			t.Errorf("genre %s: DecayTime should be positive", genre)
+		}
+	}
+}
+
+func TestGenreReverbVariation(t *testing.T) {
+	// Horror should have more reverb than cyberpunk
+	horror := GenreReverbConfig("horror")
+	cyberpunk := GenreReverbConfig("cyberpunk")
+
+	if horror.RoomSize <= cyberpunk.RoomSize {
+		t.Error("horror should have larger room size than cyberpunk")
+	}
+	if horror.DecayTime <= cyberpunk.DecayTime {
+		t.Error("horror should have longer decay than cyberpunk")
+	}
+	if horror.WetMix <= cyberpunk.WetMix {
+		t.Error("horror should have more wet mix than cyberpunk")
+	}
+}
+
+func TestNewReverbProcessor(t *testing.T) {
+	config := DefaultReverbConfig()
+	processor := NewReverbProcessor(config, 44100)
+
+	if processor == nil {
+		t.Fatal("NewReverbProcessor returned nil")
+	}
+
+	if processor.sampleRate != 44100 {
+		t.Errorf("sampleRate = %d, want 44100", processor.sampleRate)
+	}
+
+	if len(processor.combDelays) != 4 {
+		t.Errorf("expected 4 comb filters, got %d", len(processor.combDelays))
+	}
+
+	if len(processor.allpassDelays) != 2 {
+		t.Errorf("expected 2 allpass filters, got %d", len(processor.allpassDelays))
+	}
+}
+
+func TestReverbProcessorProcess(t *testing.T) {
+	config := DefaultReverbConfig()
+	processor := NewReverbProcessor(config, 44100)
+
+	// Create test input (impulse)
+	input := make([]float64, 44100)
+	input[0] = 1.0
+
+	output := processor.Process(input)
+
+	if len(output) != len(input) {
+		t.Errorf("output length %d != input length %d", len(output), len(input))
+	}
+
+	// Output should have some energy beyond the impulse (reverb tail)
+	tailEnergy := 0.0
+	for i := 1000; i < len(output); i++ {
+		tailEnergy += output[i] * output[i]
+	}
+
+	if tailEnergy < 0.01 {
+		t.Error("reverb should produce a tail beyond the impulse")
+	}
+}
+
+func TestReverbProcessorReset(t *testing.T) {
+	config := DefaultReverbConfig()
+	processor := NewReverbProcessor(config, 44100)
+
+	// Process some input
+	input := make([]float64, 1000)
+	input[0] = 1.0
+	processor.Process(input)
+
+	// Reset
+	processor.Reset()
+
+	// Process silence - should produce silence
+	silence := make([]float64, 1000)
+	output := processor.Process(silence)
+
+	// Output should be very quiet
+	maxAmp := 0.0
+	for _, s := range output {
+		if math.Abs(s) > maxAmp {
+			maxAmp = math.Abs(s)
+		}
+	}
+
+	if maxAmp > 0.1 {
+		t.Errorf("after reset, output should be silent, got max amp %f", maxAmp)
+	}
+}
+
+func TestApplyReverb(t *testing.T) {
+	e := NewEngine("fantasy")
+
+	// Generate a tone
+	samples := e.GenerateSineWave(440.0, 0.5)
+
+	// Apply reverb
+	reverbed := e.ApplyReverb(samples)
+
+	if len(reverbed) != len(samples) {
+		t.Errorf("reverb changed sample count: %d -> %d", len(samples), len(reverbed))
+	}
+
+	// Verify samples are in valid range (may exceed slightly due to mixing)
+	for i, s := range reverbed {
+		if s < -2.0 || s > 2.0 {
+			t.Errorf("sample %d out of reasonable range: %f", i, s)
+			break
+		}
+	}
+}
+
+func TestReverbProcessorSetConfig(t *testing.T) {
+	config1 := DefaultReverbConfig()
+	processor := NewReverbProcessor(config1, 44100)
+
+	config2 := GenreReverbConfig("horror")
+	processor.SetConfig(config2)
+
+	if processor.GetConfig().RoomSize != config2.RoomSize {
+		t.Error("SetConfig did not update the configuration")
+	}
+}
+
+func BenchmarkReverbProcess(b *testing.B) {
+	config := DefaultReverbConfig()
+	processor := NewReverbProcessor(config, 44100)
+	input := make([]float64, 44100)
+	input[0] = 1.0
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = processor.Process(input)
+	}
+}

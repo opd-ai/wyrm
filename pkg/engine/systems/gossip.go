@@ -111,7 +111,7 @@ func (s *GossipSystem) exchangeGossip(g1, g2 *components.GossipNetwork, dt float
 
 // shareGossipOneWay transfers gossip from source to target.
 func (s *GossipSystem) shareGossipOneWay(source, target *components.GossipNetwork, dt float64) {
-	if source.KnownGossip == nil || len(source.KnownGossip) == 0 {
+	if len(source.KnownGossip) == 0 {
 		return
 	}
 

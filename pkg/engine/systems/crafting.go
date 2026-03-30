@@ -139,13 +139,13 @@ func (s *CraftingSystem) CancelCraft(w *ecs.World, crafter ecs.Entity) bool {
 		return false
 	}
 
-	// Return partial materials (50% of consumed)
+	// Return partial materials (CancelCraftMaterialReturn of consumed)
 	if state.ConsumedMaterials != nil {
 		invComp, invOK := w.GetComponent(crafter, "Inventory")
 		if invOK {
 			inv := invComp.(*components.Inventory)
 			for mat, qty := range state.ConsumedMaterials {
-				returnQty := qty / 2
+				returnQty := qty / MaterialReturnDivisor
 				if returnQty > 0 {
 					inv.Items = append(inv.Items, mat)
 					_ = returnQty // Would add returnQty times
@@ -170,7 +170,7 @@ type gatherToolBonus struct {
 
 // applyToolDurability reduces tool durability and returns bonuses.
 func applyToolDurability(w *ecs.World, gatherer ecs.Entity) gatherToolBonus {
-	result := gatherToolBonus{speed: 1.0, quality: 0.0}
+	result := gatherToolBonus{speed: ToolMatchedEfficiency, quality: ZeroQuality}
 
 	toolComp, toolOK := w.GetComponent(gatherer, "Tool")
 	if !toolOK {
@@ -183,7 +183,7 @@ func applyToolDurability(w *ecs.World, gatherer ecs.Entity) gatherToolBonus {
 
 	result.speed = tool.GatherSpeed
 	result.quality = tool.QualityBonus
-	tool.Durability -= 1.0
+	tool.Durability -= DefaultToolDurabilityLoss
 	if tool.Durability < 0 {
 		tool.Durability = 0
 	}
@@ -192,8 +192,8 @@ func applyToolDurability(w *ecs.World, gatherer ecs.Entity) gatherToolBonus {
 
 // calculateGatherAmount determines how much resource to gather.
 func calculateGatherAmount(available int, gatherSpeed float64) int {
-	amount := 1
-	if gatherSpeed > 1.0 {
+	amount := BaseGatherAmount
+	if gatherSpeed > ToolMatchedEfficiency {
 		amount = int(math.Ceil(float64(amount) * gatherSpeed))
 	}
 	if amount > available {
@@ -212,7 +212,7 @@ func applyGatheringSkillBonus(w *ecs.World, gatherer ecs.Entity, baseQuality flo
 	quality := baseQuality
 	for _, skillID := range []string{"herbalism", "mining", "woodcutting", "scavenging"} {
 		if level, ok := skills.Levels[skillID]; ok {
-			quality += float64(level) * 0.005 // +0.5% per skill level
+			quality += float64(level) * GatheringSkillQualityBonus
 		}
 	}
 	return clampQuality(quality)
@@ -220,11 +220,11 @@ func applyGatheringSkillBonus(w *ecs.World, gatherer ecs.Entity, baseQuality flo
 
 // clampQuality ensures quality stays in valid range [0, 1].
 func clampQuality(quality float64) float64 {
-	if quality > 1.0 {
-		return 1.0
+	if quality > MaximumQuality {
+		return MaximumQuality
 	}
-	if quality < 0.0 {
-		return 0.0
+	if quality < ZeroQuality {
+		return ZeroQuality
 	}
 	return quality
 }
@@ -367,21 +367,21 @@ func (s *CraftingSystem) CalculateCraftQuality(w *ecs.World, crafter, workbench 
 		skills := skillsComp.(*components.Skills)
 		for _, skillID := range []string{"smithing", "alchemy", "enchanting", "cooking", "crafting"} {
 			if level, ok := skills.Levels[skillID]; ok {
-				baseQuality += float64(level) * 0.01 // +1% per skill level
+				baseQuality += float64(level) * CraftingSkillQualityBonus
 			}
 		}
 	}
 
 	// Apply random variance (+/- 10%)
-	variance := (s.rng.Float64() - 0.5) * 0.2
+	variance := (s.rng.Float64() - QualityVarianceCenter) * QualityVarianceFactor
 	finalQuality := baseQuality + variance
 
 	// Clamp to valid range
-	if finalQuality < 0.1 {
-		finalQuality = 0.1
+	if finalQuality < MinimumQuality {
+		finalQuality = MinimumQuality
 	}
-	if finalQuality > 1.0 {
-		finalQuality = 1.0
+	if finalQuality > MaximumQuality {
+		finalQuality = MaximumQuality
 	}
 
 	return finalQuality
@@ -390,13 +390,13 @@ func (s *CraftingSystem) CalculateCraftQuality(w *ecs.World, crafter, workbench 
 // GetQualityTier returns the quality tier name for a quality value.
 func GetQualityTier(quality float64) string {
 	switch {
-	case quality >= 0.95:
+	case quality >= LegendaryQualityThreshold:
 		return "Legendary"
-	case quality >= 0.85:
+	case quality >= EpicQualityThreshold:
 		return "Epic"
-	case quality >= 0.70:
+	case quality >= RareQualityThreshold:
 		return "Rare"
-	case quality >= 0.50:
+	case quality >= UncommonQualityThreshold:
 		return "Uncommon"
 	default:
 		return "Common"
@@ -408,15 +408,15 @@ func GetToolEfficiency(toolTier, resourceTier int) float64 {
 	diff := toolTier - resourceTier
 	switch {
 	case diff >= 2:
-		return 2.0 // Tool much better than resource
+		return ToolMuchBetterEfficiency // Tool much better than resource
 	case diff == 1:
-		return 1.5 // Tool slightly better
+		return ToolSlightlyBetterEfficiency // Tool slightly better
 	case diff == 0:
-		return 1.0 // Matched
+		return ToolMatchedEfficiency // Matched
 	case diff == -1:
-		return 0.5 // Tool slightly worse
+		return ToolSlightlyWorseEfficiency // Tool slightly worse
 	default:
-		return 0.25 // Tool much worse
+		return ToolMuchWorseEfficiency // Tool much worse
 	}
 }
 
@@ -457,27 +457,27 @@ func (s *CraftingSystem) StartCraftingMinigame(recipeType string) *MinigameState
 
 	state := &MinigameState{
 		Type:        gameType,
-		Score:       0.0,
+		Score:       ZeroQuality,
 		Attempts:    0,
-		MaxAttempts: 3,
+		MaxAttempts: MinigameDefaultMaxAttempts,
 	}
 
 	switch gameType {
 	case "timing":
 		// Set up timing challenge
-		state.TargetTime = 1.0 + s.rng.Float64()*2.0 // Random between 1-3 seconds
+		state.TargetTime = TimingMinTargetDelay + s.rng.Float64()*TimingMaxTargetVariance // Random between 1-3 seconds
 		state.CurrentTime = 0
 	case "sequence":
 		// Generate random sequence
 		inputs := []string{"up", "down", "left", "right"}
-		state.Sequence = make([]string, 4)
+		state.Sequence = make([]string, MinigameSequenceLength)
 		for i := range state.Sequence {
 			state.Sequence[i] = inputs[s.rng.Intn(len(inputs))]
 		}
 		state.CurrentIndex = 0
 	case "precision":
 		// Precision is a series of timing windows
-		state.TargetTime = 0.5
+		state.TargetTime = PrecisionMinTargetDelay
 		state.CurrentTime = 0
 	}
 
@@ -506,68 +506,76 @@ func (s *CraftingSystem) ProcessMinigameInput(state *MinigameState, input string
 
 	switch state.Type {
 	case "timing":
-		state.CurrentTime = currentTime
-		timeDiff := math.Abs(state.CurrentTime - state.TargetTime)
-		if timeDiff <= MinigameTimingWindow {
-			// Perfect timing
-			state.Score += 1.0 / float64(state.MaxAttempts)
-		} else if timeDiff <= MinigameTimingWindow*2 {
-			// Good timing
-			state.Score += 0.5 / float64(state.MaxAttempts)
-		}
-		// Miss adds nothing
-		state.Attempts++
-		// Set up next timing target
-		state.TargetTime = currentTime + 1.0 + s.rng.Float64()*2.0
-
+		s.processTimingInput(state, currentTime)
 	case "sequence":
-		if state.CurrentIndex < len(state.Sequence) {
-			if input == state.Sequence[state.CurrentIndex] {
-				state.Score += 1.0 / float64(len(state.Sequence))
-				state.CurrentIndex++
-			} else {
-				// Wrong input - reset sequence
-				state.Score -= 0.1
-				if state.Score < 0 {
-					state.Score = 0
-				}
-				state.CurrentIndex = 0
-			}
-		}
-		state.Attempts++
-
+		s.processSequenceInput(state, input)
 	case "precision":
-		state.CurrentTime = currentTime
-		timeDiff := math.Abs(state.CurrentTime - state.TargetTime)
-		if timeDiff <= MinigameTimingWindow*0.5 {
-			// Perfect precision
-			state.Score += 1.0 / float64(state.MaxAttempts)
-		} else if timeDiff <= MinigameTimingWindow {
-			// Good precision
-			state.Score += 0.7 / float64(state.MaxAttempts)
-		}
-		state.Attempts++
-		state.TargetTime = currentTime + 0.5 + s.rng.Float64()*0.5
+		s.processPrecisionInput(state, currentTime)
 	}
 
-	// Check completion
-	if state.Type == "sequence" {
-		complete = state.CurrentIndex >= len(state.Sequence) || state.Attempts >= state.MaxAttempts*2
-	} else {
-		complete = state.Attempts >= state.MaxAttempts
-	}
-
-	success = state.Score >= 0.5
+	complete = s.isMinigameComplete(state)
+	success = state.Score >= MinigamePassThreshold
 	return complete, success
+}
+
+// processTimingInput handles a timing-based minigame input.
+func (s *CraftingSystem) processTimingInput(state *MinigameState, currentTime float64) {
+	state.CurrentTime = currentTime
+	timeDiff := math.Abs(state.CurrentTime - state.TargetTime)
+	if timeDiff <= MinigameTimingWindow {
+		state.Score += MaximumQuality / float64(state.MaxAttempts)
+	} else if timeDiff <= MinigameTimingWindow*MinigameTimingWindowDouble {
+		state.Score += MinigameGoodTimingMultiplier / float64(state.MaxAttempts)
+	}
+	state.Attempts++
+	state.TargetTime = currentTime + TimingMinTargetDelay + s.rng.Float64()*TimingMaxTargetVariance
+}
+
+// processSequenceInput handles a sequence-based minigame input.
+func (s *CraftingSystem) processSequenceInput(state *MinigameState, input string) {
+	if state.CurrentIndex < len(state.Sequence) {
+		if input == state.Sequence[state.CurrentIndex] {
+			state.Score += MaximumQuality / float64(len(state.Sequence))
+			state.CurrentIndex++
+		} else {
+			state.Score -= MinigameSequenceWrongPenalty
+			if state.Score < 0 {
+				state.Score = 0
+			}
+			state.CurrentIndex = 0
+		}
+	}
+	state.Attempts++
+}
+
+// processPrecisionInput handles a precision-based minigame input.
+func (s *CraftingSystem) processPrecisionInput(state *MinigameState, currentTime float64) {
+	state.CurrentTime = currentTime
+	timeDiff := math.Abs(state.CurrentTime - state.TargetTime)
+	if timeDiff <= MinigameTimingWindow*MinigamePrecisionWindowHalf {
+		state.Score += MaximumQuality / float64(state.MaxAttempts)
+	} else if timeDiff <= MinigameTimingWindow {
+		state.Score += MinigamePrecisionGoodScore / float64(state.MaxAttempts)
+	}
+	state.Attempts++
+	state.TargetTime = currentTime + PrecisionMinTargetDelay + s.rng.Float64()*PrecisionMaxTargetVariance
+}
+
+// isMinigameComplete determines if the minigame has ended.
+func (s *CraftingSystem) isMinigameComplete(state *MinigameState) bool {
+	if state.Type == "sequence" {
+		return state.CurrentIndex >= len(state.Sequence) || state.Attempts >= state.MaxAttempts*MinigameTimingWindowDouble
+	}
+	return state.Attempts >= state.MaxAttempts
 }
 
 // ApplyMinigameBonus modifies craft quality based on minigame performance.
 func (s *CraftingSystem) ApplyMinigameBonus(baseQuality, minigameScore float64) float64 {
-	if minigameScore >= 0.9 {
+	if minigameScore >= MinigameExcellentThreshold {
 		return baseQuality + MinigamePrecisionBonus
-	} else if minigameScore >= 0.7 {
-		return baseQuality + MinigamePrecisionBonus*0.5
-	} else if minigameScore < 0.3 {
+	} else if minigameScore >= MinigameGoodThreshold {
+		return baseQuality + MinigamePrecisionBonus*MinigameGoodTimingMultiplier
+	} else if minigameScore < MinigamePoorThreshold {
 		return baseQuality - MinigameFailurePenalty
 	}
 	return baseQuality
@@ -636,61 +644,71 @@ type Enchantment struct {
 
 // EnchantItem applies an enchantment to an item.
 func (s *CraftingSystem) EnchantItem(w *ecs.World, crafter, item ecs.Entity, enchantType EnchantmentType) (*Enchantment, bool) {
-	// Check crafter has mana
-	manaComp, manaOK := w.GetComponent(crafter, "Mana")
-	if !manaOK {
-		return nil, false
-	}
-	mana := manaComp.(*components.Mana)
-	if mana.Current < enchantType.ManaCost {
+	mana, ok := s.getCrafterMana(w, crafter)
+	if !ok || mana.Current < enchantType.ManaCost {
 		return nil, false
 	}
 
-	// Calculate success chance
-	successRate := BaseEnchantSuccessRate
-	skillsComp, skillsOK := w.GetComponent(crafter, "Skills")
-	if skillsOK {
-		skills := skillsComp.(*components.Skills)
-		if level, ok := skills.Levels["enchanting"]; ok {
-			successRate += float64(level) * EnchantSkillBonus
-		}
-	}
-	if successRate > 0.95 {
-		successRate = 0.95
-	}
+	enchantLevel := s.getEnchantingLevel(w, crafter)
+	successRate := s.calculateEnchantSuccessRate(enchantLevel)
 
-	// Consume mana
 	mana.Current -= enchantType.ManaCost
 
-	// Roll for success
 	if s.rng.Float64() > successRate {
 		return nil, false
 	}
 
-	// Calculate magnitude based on skill
-	magnitudeRange := enchantType.MaxMagnitude - enchantType.MinMagnitude
-	magnitude := enchantType.MinMagnitude + s.rng.Float64()*magnitudeRange
+	magnitude := s.calculateEnchantMagnitude(enchantType, enchantLevel)
 
-	// Skill bonus to magnitude
-	if skillsOK {
-		skills := skillsComp.(*components.Skills)
-		if level, ok := skills.Levels["enchanting"]; ok {
-			magnitude *= 1.0 + float64(level)*0.01
-		}
-	}
-	if magnitude > enchantType.MaxMagnitude*1.5 {
-		magnitude = enchantType.MaxMagnitude * 1.5
-	}
-
-	enchantment := &Enchantment{
+	return &Enchantment{
 		TypeID:    enchantType.ID,
 		Name:      enchantType.Name,
 		Effect:    enchantType.Effect,
 		Magnitude: magnitude,
-		Charges:   -1, // Permanent by default
-	}
+		Charges:   -1,
+	}, true
+}
 
-	return enchantment, true
+// getCrafterMana retrieves the Mana component from a crafter entity.
+func (s *CraftingSystem) getCrafterMana(w *ecs.World, crafter ecs.Entity) (*components.Mana, bool) {
+	manaComp, ok := w.GetComponent(crafter, "Mana")
+	if !ok {
+		return nil, false
+	}
+	return manaComp.(*components.Mana), true
+}
+
+// getEnchantingLevel returns the crafter's enchanting skill level.
+func (s *CraftingSystem) getEnchantingLevel(w *ecs.World, crafter ecs.Entity) int {
+	skillsComp, ok := w.GetComponent(crafter, "Skills")
+	if !ok {
+		return 0
+	}
+	skills := skillsComp.(*components.Skills)
+	if level, found := skills.Levels["enchanting"]; found {
+		return level
+	}
+	return 0
+}
+
+// calculateEnchantSuccessRate computes success rate based on skill level.
+func (s *CraftingSystem) calculateEnchantSuccessRate(enchantLevel int) float64 {
+	rate := BaseEnchantSuccessRate + float64(enchantLevel)*EnchantSkillBonus
+	if rate > 0.95 {
+		return 0.95
+	}
+	return rate
+}
+
+// calculateEnchantMagnitude computes the enchantment magnitude.
+func (s *CraftingSystem) calculateEnchantMagnitude(enchantType EnchantmentType, enchantLevel int) float64 {
+	magnitudeRange := enchantType.MaxMagnitude - enchantType.MinMagnitude
+	magnitude := enchantType.MinMagnitude + s.rng.Float64()*magnitudeRange
+	magnitude *= 1.0 + float64(enchantLevel)*0.01
+	if magnitude > enchantType.MaxMagnitude*1.5 {
+		magnitude = enchantType.MaxMagnitude * 1.5
+	}
+	return magnitude
 }
 
 // GetAvailableEnchantments returns enchantments available for a genre.
@@ -719,6 +737,9 @@ const (
 	RareMaterialChance = 0.1
 )
 
+// disassemblySkills are the skills that affect disassembly recovery rate.
+var disassemblySkills = []string{"crafting", "smithing", "engineering", "scavenging"}
+
 // DisassembleItem breaks down an item into materials.
 func (s *CraftingSystem) DisassembleItem(w *ecs.World, crafter ecs.Entity, itemQuality float64, itemType string) DisassemblyResult {
 	result := DisassemblyResult{
@@ -727,33 +748,45 @@ func (s *CraftingSystem) DisassembleItem(w *ecs.World, crafter ecs.Entity, itemQ
 		Success:       true,
 	}
 
-	// Calculate recovery rate
-	recoveryRate := BaseDisassemblyRate
-	skillsComp, skillsOK := w.GetComponent(crafter, "Skills")
-	if skillsOK {
+	recoveryRate := s.calculateRecoveryRate(w, crafter)
+	s.recoverBaseMaterials(&result, itemType, recoveryRate)
+	s.tryRecoverRareMaterial(&result, itemType, itemQuality)
+
+	result.Message = "Item successfully disassembled"
+	return result
+}
+
+// calculateRecoveryRate computes material recovery rate based on crafter skills.
+func (s *CraftingSystem) calculateRecoveryRate(w *ecs.World, crafter ecs.Entity) float64 {
+	rate := BaseDisassemblyRate
+	skillsComp, ok := w.GetComponent(crafter, "Skills")
+	if ok {
 		skills := skillsComp.(*components.Skills)
-		// Check for relevant skills
-		for _, skillID := range []string{"crafting", "smithing", "engineering", "scavenging"} {
-			if level, ok := skills.Levels[skillID]; ok {
-				recoveryRate += float64(level) * DisassemblySkillBonus
+		for _, skillID := range disassemblySkills {
+			if level, found := skills.Levels[skillID]; found {
+				rate += float64(level) * DisassemblySkillBonus
 			}
 		}
 	}
-	if recoveryRate > 0.9 {
-		recoveryRate = 0.9
+	if rate > 0.9 {
+		return 0.9
 	}
+	return rate
+}
 
-	// Determine materials based on item type
+// recoverBaseMaterials adds recovered materials to the result.
+func (s *CraftingSystem) recoverBaseMaterials(result *DisassemblyResult, itemType string, recoveryRate float64) {
 	baseMaterials := s.getItemBaseMaterials(itemType)
 	for mat, baseQty := range baseMaterials {
-		// Calculate recovered quantity
 		recovered := int(float64(baseQty) * recoveryRate * (0.8 + s.rng.Float64()*0.4))
 		if recovered > 0 {
 			result.Materials[mat] = recovered
 		}
 	}
+}
 
-	// Chance for rare material based on item quality
+// tryRecoverRareMaterial attempts to add a rare material based on item quality.
+func (s *CraftingSystem) tryRecoverRareMaterial(result *DisassemblyResult, itemType string, itemQuality float64) {
 	rareChance := RareMaterialChance * (1.0 + itemQuality)
 	if s.rng.Float64() < rareChance {
 		rareMat := s.getRareMaterialForType(itemType)
@@ -761,9 +794,6 @@ func (s *CraftingSystem) DisassembleItem(w *ecs.World, crafter ecs.Entity, itemQ
 			result.RareMaterials[rareMat] = 1
 		}
 	}
-
-	result.Message = "Item successfully disassembled"
-	return result
 }
 
 // getItemBaseMaterials returns materials that make up an item type.

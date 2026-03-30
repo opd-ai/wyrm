@@ -49,23 +49,22 @@ func (a *FactionAdapter) GenerateFactions(seed int64, genre string, depth int) (
 }
 
 // RegisterFactionsWithPoliticsSystem registers factions with the politics system.
-// Note: This stub uses SetRelation directly since FactionPoliticsSystem doesn't have RegisterFaction.
 func RegisterFactionsWithPoliticsSystem(fps *systems.FactionPoliticsSystem, factions []*FactionData) {
-	for _, f := range factions {
-		for other, rel := range f.Relationships {
-			fps.SetRelation(f.Name, other, relationshipToFactionRelation(rel))
+	for _, f1 := range factions {
+		for f2ID, relationship := range f1.Relationships {
+			rel := relationshipToFactionRelation(relationship)
+			fps.SetRelation(f1.ID, f2ID, rel)
 		}
 	}
 }
 
 // relationshipToFactionRelation converts numeric relationship to enum.
 func relationshipToFactionRelation(relationship int) systems.FactionRelation {
-	switch {
-	case relationship < -50:
+	if relationship <= -50 {
 		return systems.RelationHostile
-	case relationship < 50:
-		return systems.RelationNeutral
-	default:
+	}
+	if relationship >= 51 {
 		return systems.RelationAlly
 	}
+	return systems.RelationNeutral
 }

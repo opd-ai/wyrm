@@ -56,26 +56,36 @@ func (s *NPCMemorySystem) decayDispositions(w *ecs.World, dt float64) {
 			continue
 		}
 		memory := memComp.(*components.NPCMemory)
+		s.decayMemoryDispositions(memory, dt)
+	}
+}
 
-		decayRate := memory.MemoryDecayRate
-		if decayRate <= 0 {
-			decayRate = DefaultMemoryDecayRate
+// decayMemoryDispositions decays all dispositions in an NPC's memory.
+func (s *NPCMemorySystem) decayMemoryDispositions(memory *components.NPCMemory, dt float64) {
+	decayRate := memory.MemoryDecayRate
+	if decayRate <= 0 {
+		decayRate = DefaultMemoryDecayRate
+	}
+
+	for playerID, disposition := range memory.Disposition {
+		memory.Disposition[playerID] = decayTowardNeutral(disposition, decayRate, dt)
+	}
+}
+
+// decayTowardNeutral moves a value toward NeutralDisposition.
+func decayTowardNeutral(value, decayRate, dt float64) float64 {
+	if value > NeutralDisposition {
+		value -= decayRate * dt
+		if value < NeutralDisposition {
+			return NeutralDisposition
 		}
-
-		for playerID, disposition := range memory.Disposition {
-			if disposition > NeutralDisposition {
-				memory.Disposition[playerID] -= decayRate * dt
-				if memory.Disposition[playerID] < NeutralDisposition {
-					memory.Disposition[playerID] = NeutralDisposition
-				}
-			} else if disposition < NeutralDisposition {
-				memory.Disposition[playerID] += decayRate * dt
-				if memory.Disposition[playerID] > NeutralDisposition {
-					memory.Disposition[playerID] = NeutralDisposition
-				}
-			}
+	} else if value < NeutralDisposition {
+		value += decayRate * dt
+		if value > NeutralDisposition {
+			return NeutralDisposition
 		}
 	}
+	return value
 }
 
 // RecordEvent adds a memory event to an NPC's memory of a player.

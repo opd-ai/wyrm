@@ -66,10 +66,14 @@ func (a *MagicAdapter) GenerateSpell(seed int64, genre string) (*SpellData, erro
 }
 
 // IsOffensive checks if spell deals damage.
-func (s *SpellData) IsOffensive() bool { return s.Damage > 0 }
+func (s *SpellData) IsOffensive() bool {
+	return s.Type == "Offensive" || s.Type == "Debuff"
+}
 
 // IsSupport checks if spell is supportive.
-func (s *SpellData) IsSupport() bool { return s.Type == "Restoration" || s.Type == "Illusion" }
+func (s *SpellData) IsSupport() bool {
+	return s.Type == "Healing" || s.Type == "Buff" || s.Type == "Defensive"
+}
 
 // SpellRarityMultiplier returns rarity-based damage multiplier.
 func SpellRarityMultiplier(rarity string) float64 {

@@ -279,3 +279,241 @@ func BenchmarkGenerateResponse(b *testing.B) {
 		dm.GenerateResponse(1, 100, "fantasy", "topic", EmotionNeutral)
 	}
 }
+
+// Tests for Persuasion and Intimidation skill checks (FEATURES.md #4)
+
+func TestSkillCheckTypeString(t *testing.T) {
+	tests := []struct {
+		checkType SkillCheckType
+		want      string
+	}{
+		{SkillCheckPersuasion, "persuasion"},
+		{SkillCheckIntimidate, "intimidation"},
+		{SkillCheckType(99), "unknown"},
+	}
+
+	for _, tt := range tests {
+		if got := tt.checkType.String(); got != tt.want {
+			t.Errorf("%v.String() = %s, want %s", tt.checkType, got, tt.want)
+		}
+	}
+}
+
+func TestPersuasionSkillCheckSuccess(t *testing.T) {
+	// Use a fixed seed for deterministic testing
+	dm := NewDialogManager(42)
+
+	// High skill (80) against easy difficulty (25) should usually succeed
+	result := dm.AttemptPersuasion(1, 100, 80, DifficultyEasy, EmotionNeutral, "fantasy")
+
+	// The result should have all fields populated
+	if result.ResponseText == "" {
+		t.Error("ResponseText should not be empty")
+	}
+
+	// Check that emotion shift is applied
+	dm.mu.RLock()
+	memory := dm.memories[1][100]
+	dm.mu.RUnlock()
+
+	if memory == nil {
+		t.Fatal("Memory should be created after skill check")
+	}
+
+	// Topic should be recorded
+	if len(memory.Topics) == 0 {
+		t.Error("Skill check attempt should be recorded in topic history")
+	}
+}
+
+func TestPersuasionSkillCheckFailure(t *testing.T) {
+	dm := NewDialogManager(42)
+
+	// Low skill (10) against very hard difficulty (90) should fail
+	result := dm.AttemptPersuasion(1, 100, 10, DifficultyVeryHard, EmotionHostile, "cyberpunk")
+
+	// Should fail with margin below zero
+	if result.Success && result.Margin < 0 {
+		t.Error("Result with negative margin should not be success")
+	}
+
+	// Response should be genre-appropriate
+	if result.ResponseText == "" {
+		t.Error("ResponseText should not be empty even on failure")
+	}
+}
+
+func TestIntimidationSkillCheckSuccess(t *testing.T) {
+	dm := NewDialogManager(42)
+
+	// High skill against fearful NPC (easier to intimidate)
+	result := dm.AttemptIntimidate(1, 100, 70, DifficultyMedium, EmotionFearful, "horror")
+
+	if result.ResponseText == "" {
+		t.Error("ResponseText should not be empty")
+	}
+
+	// Successful intimidation should cause negative emotion shift
+	if result.Success && result.EmotionShift >= 0 {
+		t.Logf("Note: Successful intimidation usually causes fear (negative shift), got %f", result.EmotionShift)
+	}
+}
+
+func TestIntimidationSkillCheckFailure(t *testing.T) {
+	dm := NewDialogManager(42)
+
+	// Low skill against friendly NPC (harder to intimidate)
+	result := dm.AttemptIntimidate(1, 100, 15, DifficultyHard, EmotionFriendly, "sci-fi")
+
+	// Failed intimidation should also cause negative emotion (NPC becomes hostile)
+	if !result.Success && result.EmotionShift > 0 {
+		t.Errorf("Failed intimidation should cause negative emotion shift, got %f", result.EmotionShift)
+	}
+}
+
+func TestEmotionModifierPersuasion(t *testing.T) {
+	dm := NewDialogManager(42)
+
+	// Test that friendly NPCs are easier to persuade
+	modFriendly := dm.getEmotionModifier(SkillCheckPersuasion, EmotionFriendly)
+	modHostile := dm.getEmotionModifier(SkillCheckPersuasion, EmotionHostile)
+
+	if modFriendly <= modHostile {
+		t.Errorf("Friendly NPC should give better persuasion modifier than hostile: %d vs %d", modFriendly, modHostile)
+	}
+
+	// Hostile should be negative
+	if modHostile >= 0 {
+		t.Errorf("Hostile NPC should give negative persuasion modifier, got %d", modHostile)
+	}
+}
+
+func TestEmotionModifierIntimidation(t *testing.T) {
+	dm := NewDialogManager(42)
+
+	// Test that fearful NPCs are easier to intimidate
+	modFearful := dm.getEmotionModifier(SkillCheckIntimidate, EmotionFearful)
+	modFriendly := dm.getEmotionModifier(SkillCheckIntimidate, EmotionFriendly)
+
+	if modFearful <= modFriendly {
+		t.Errorf("Fearful NPC should give better intimidation modifier than friendly: %d vs %d", modFearful, modFriendly)
+	}
+
+	// Friendly should be negative for intimidation
+	if modFriendly >= 0 {
+		t.Errorf("Friendly NPC should give negative intimidation modifier, got %d", modFriendly)
+	}
+}
+
+func TestSkillCheckDifficultyLevels(t *testing.T) {
+	// Test that difficulty levels are ordered correctly
+	difficulties := []SkillCheckDifficulty{
+		DifficultyTrivial,
+		DifficultyEasy,
+		DifficultyMedium,
+		DifficultyHard,
+		DifficultyVeryHard,
+		DifficultyImpossible,
+	}
+
+	for i := 1; i < len(difficulties); i++ {
+		if difficulties[i] <= difficulties[i-1] {
+			t.Errorf("Difficulty levels should increase: %d should be > %d",
+				difficulties[i], difficulties[i-1])
+		}
+	}
+}
+
+func TestSkillCheckRecordsInMemory(t *testing.T) {
+	dm := NewDialogManager(42)
+
+	// Perform a skill check
+	dm.AttemptPersuasion(1, 100, 50, DifficultyMedium, EmotionNeutral, "fantasy")
+
+	// Check that the attempt was recorded
+	history := dm.GetTopicHistory(1, 100)
+	if len(history) == 0 {
+		t.Error("Skill check should be recorded in topic history")
+	}
+
+	// The topic should mention the skill check type
+	found := false
+	for _, topic := range history {
+		if topic.Topic != "" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("Topic record should exist for skill check")
+	}
+}
+
+func TestAllGenresHaveSkillCheckResponses(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+
+	for _, genre := range genres {
+		dm := NewDialogManager(42)
+
+		// Test persuasion
+		result := dm.AttemptPersuasion(1, 100, 50, DifficultyMedium, EmotionNeutral, genre)
+		if result.ResponseText == "" {
+			t.Errorf("Genre %s should produce persuasion response", genre)
+		}
+
+		// Test intimidation
+		result = dm.AttemptIntimidate(2, 100, 50, DifficultyMedium, EmotionNeutral, genre)
+		if result.ResponseText == "" {
+			t.Errorf("Genre %s should produce intimidation response", genre)
+		}
+	}
+}
+
+func TestCriticalSuccessAndFailure(t *testing.T) {
+	// Run multiple checks to see critical results
+	successCount := 0
+	failCount := 0
+	critSuccessCount := 0
+	critFailCount := 0
+
+	// Run many times to get statistical coverage
+	for seed := int64(0); seed < 100; seed++ {
+		dm := NewDialogManager(seed)
+		result := dm.AttemptPersuasion(1, 100, 50, DifficultyMedium, EmotionNeutral, "fantasy")
+
+		if result.Success {
+			successCount++
+		} else {
+			failCount++
+		}
+		if result.CriticalSuccess {
+			critSuccessCount++
+		}
+		if result.CriticalFailure {
+			critFailCount++
+		}
+	}
+
+	// Should have mix of outcomes
+	t.Logf("Outcomes over 100 checks: success=%d, fail=%d, critSuccess=%d, critFail=%d",
+		successCount, failCount, critSuccessCount, critFailCount)
+
+	// With medium difficulty and medium skill, should have some successes and failures
+	if successCount == 0 || failCount == 0 {
+		t.Error("Expected mix of success and failure outcomes")
+	}
+}
+
+func BenchmarkPersuasionSkillCheck(b *testing.B) {
+	dm := NewDialogManager(12345)
+	for i := 0; i < b.N; i++ {
+		dm.AttemptPersuasion(1, 100, 50, DifficultyMedium, EmotionNeutral, "fantasy")
+	}
+}
+
+func BenchmarkIntimidationSkillCheck(b *testing.B) {
+	dm := NewDialogManager(12345)
+	for i := 0; i < b.N; i++ {
+		dm.AttemptIntimidate(1, 100, 50, DifficultyMedium, EmotionNeutral, "fantasy")
+	}
+}

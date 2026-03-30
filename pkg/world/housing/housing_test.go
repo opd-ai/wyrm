@@ -344,3 +344,317 @@ func TestExportImportTerritories(t *testing.T) {
 		t.Error("Membership not preserved after import")
 	}
 }
+
+// ============================================================================
+// Property Market Tests
+// ============================================================================
+
+func TestPropertyMarketAddListing(t *testing.T) {
+	hm := NewHouseManager()
+	pm := NewPropertyMarket(hm)
+
+	listing := &PropertyListing{
+		ID:         "prop1",
+		Name:       "Cozy Cottage",
+		BasePrice:  1000,
+		Size:       1,
+		Quality:    1.0,
+		DistrictID: "residential",
+	}
+	pm.AddListing(listing)
+
+	if pm.ListingCount() != 1 {
+		t.Errorf("ListingCount = %d, want 1", pm.ListingCount())
+	}
+
+	listings := pm.GetAvailableListings()
+	if len(listings) != 1 {
+		t.Errorf("GetAvailableListings returned %d, want 1", len(listings))
+	}
+	if listings[0].Name != "Cozy Cottage" {
+		t.Errorf("Listing name = %s, want Cozy Cottage", listings[0].Name)
+	}
+}
+
+func TestPropertyMarketPricing(t *testing.T) {
+	hm := NewHouseManager()
+	pm := NewPropertyMarket(hm)
+
+	listing := &PropertyListing{
+		ID:         "prop1",
+		BasePrice:  1000,
+		Size:       2,   // Medium
+		Quality:    1.0, // Full quality
+		DistrictID: "noble",
+	}
+	pm.AddListing(listing)
+
+	// Without district factor, price = 1000 * 1.0 * 2 = 2000
+	price := pm.GetCurrentPrice("prop1")
+	if price != 2000 {
+		t.Errorf("Base price = %d, want 2000", price)
+	}
+
+	// With 1.5x district factor
+	pm.SetDistrictPriceFactor("noble", 1.5)
+	price = pm.GetCurrentPrice("prop1")
+	if price != 3000 {
+		t.Errorf("Price with factor = %d, want 3000", price)
+	}
+}
+
+func TestPropertyMarketPurchaseSuccess(t *testing.T) {
+	hm := NewHouseManager()
+	pm := NewPropertyMarket(hm)
+
+	listing := &PropertyListing{
+		ID:        "prop1",
+		Name:      "Starter Home",
+		BasePrice: 1000,
+		Size:      1,
+		Quality:   1.0,
+		WorldX:    100,
+		WorldZ:    200,
+	}
+	pm.AddListing(listing)
+
+	result := pm.PurchaseProperty("prop1", 1, 5000, 1)
+
+	if !result.Success {
+		t.Errorf("Purchase failed: %s", result.Message)
+	}
+	if result.PricePaid != 1000 {
+		t.Errorf("PricePaid = %d, want 1000", result.PricePaid)
+	}
+	if result.House == nil {
+		t.Fatal("Result house is nil")
+	}
+	if result.House.OwnerID != 1 {
+		t.Errorf("House owner = %d, want 1", result.House.OwnerID)
+	}
+
+	// Listing should be removed
+	if pm.ListingCount() != 0 {
+		t.Error("Listing should be removed after purchase")
+	}
+
+	// House should be registered
+	if hm.HouseCount() != 1 {
+		t.Error("House should be registered in manager")
+	}
+}
+
+func TestPropertyMarketPurchaseInsufficientFunds(t *testing.T) {
+	hm := NewHouseManager()
+	pm := NewPropertyMarket(hm)
+
+	listing := &PropertyListing{
+		ID:        "prop1",
+		BasePrice: 1000,
+		Size:      1,
+		Quality:   1.0,
+	}
+	pm.AddListing(listing)
+
+	result := pm.PurchaseProperty("prop1", 1, 500, 1) // Only 500 gold
+
+	if result.Success {
+		t.Error("Purchase should fail with insufficient funds")
+	}
+	if result.Message != "Insufficient gold" {
+		t.Errorf("Message = %s, want 'Insufficient gold'", result.Message)
+	}
+
+	// Listing should still exist
+	if pm.ListingCount() != 1 {
+		t.Error("Listing should remain after failed purchase")
+	}
+}
+
+func TestPropertyMarketPurchaseNotFound(t *testing.T) {
+	hm := NewHouseManager()
+	pm := NewPropertyMarket(hm)
+
+	result := pm.PurchaseProperty("nonexistent", 1, 5000, 1)
+
+	if result.Success {
+		t.Error("Purchase should fail for non-existent property")
+	}
+	if result.Message != "Property not found" {
+		t.Errorf("Message = %s, want 'Property not found'", result.Message)
+	}
+}
+
+func TestPropertyMarketGetByDistrict(t *testing.T) {
+	hm := NewHouseManager()
+	pm := NewPropertyMarket(hm)
+
+	pm.AddListing(&PropertyListing{ID: "prop1", DistrictID: "noble"})
+	pm.AddListing(&PropertyListing{ID: "prop2", DistrictID: "noble"})
+	pm.AddListing(&PropertyListing{ID: "prop3", DistrictID: "slums"})
+
+	noble := pm.GetListingsByDistrict("noble")
+	if len(noble) != 2 {
+		t.Errorf("Noble district has %d listings, want 2", len(noble))
+	}
+
+	slums := pm.GetListingsByDistrict("slums")
+	if len(slums) != 1 {
+		t.Errorf("Slums district has %d listings, want 1", len(slums))
+	}
+}
+
+// ============================================================================
+// Furniture Placement Tests
+// ============================================================================
+
+func TestFurniturePlacementModes(t *testing.T) {
+	fp := NewFurniturePlacement()
+
+	if fp.IsInPlacementMode() {
+		t.Error("Should not be in placement mode initially")
+	}
+
+	// Test place mode
+	fp.StartPlaceMode("house1", "bed")
+	if !fp.IsInPlacementMode() {
+		t.Error("Should be in placement mode after StartPlaceMode")
+	}
+	if fp.GetCurrentHouse() != "house1" {
+		t.Errorf("CurrentHouse = %s, want house1", fp.GetCurrentHouse())
+	}
+
+	fp.ExitMode()
+	if fp.IsInPlacementMode() {
+		t.Error("Should not be in placement mode after ExitMode")
+	}
+
+	// Test move mode
+	fp.StartMoveMode("house1", "bed1")
+	mode, _, _, _, _, _ := fp.GetPreviewState()
+	if mode != PlacementModeMove {
+		t.Errorf("Mode = %d, want PlacementModeMove", mode)
+	}
+
+	// Test rotate mode
+	fp.StartRotateMode("house1", "bed1")
+	mode, _, _, _, _, _ = fp.GetPreviewState()
+	if mode != PlacementModeRotate {
+		t.Errorf("Mode = %d, want PlacementModeRotate", mode)
+	}
+
+	// Test remove mode
+	fp.StartRemoveMode("house1", "bed1")
+	mode, _, _, _, _, _ = fp.GetPreviewState()
+	if mode != PlacementModeRemove {
+		t.Errorf("Mode = %d, want PlacementModeRemove", mode)
+	}
+}
+
+func TestFurniturePlacementUpdatePreview(t *testing.T) {
+	fp := NewFurniturePlacement()
+	fp.StartPlaceMode("house1", "bed")
+	fp.SetGridSnap(false, 0) // Disable snap for precise test
+
+	// Player at (0,0) looking at angle 0 (east), distance 2
+	fp.UpdatePreview(0, 0, 0, 2)
+
+	mode, x, _, z, _, valid := fp.GetPreviewState()
+	if mode != PlacementModePlace {
+		t.Errorf("Mode = %d, want PlacementModePlace", mode)
+	}
+	if !valid {
+		t.Error("Position should be valid after update")
+	}
+
+	// cos(0) = 1, sin(0) = 0, so position should be (2, 0)
+	if x < 1.9 || x > 2.1 {
+		t.Errorf("Preview X = %f, want ~2", x)
+	}
+	if z < -0.1 || z > 0.1 {
+		t.Errorf("Preview Z = %f, want ~0", z)
+	}
+}
+
+func TestFurniturePlacementGridSnap(t *testing.T) {
+	fp := NewFurniturePlacement()
+	fp.StartPlaceMode("house1", "bed")
+	fp.SetGridSnap(true, 1.0) // 1-unit grid
+
+	// Position that should snap
+	fp.UpdatePreview(0.3, 0.7, 0, 0) // Player at (0.3, 0.7)
+
+	_, x, _, z, _, _ := fp.GetPreviewState()
+	// With grid snap at 1.0, 0.3 floors to 0, 0.7 floors to 0
+	if x != 0 {
+		t.Errorf("Snapped X = %f, want 0", x)
+	}
+	if z != 0 {
+		t.Errorf("Snapped Z = %f, want 0", z)
+	}
+}
+
+func TestFurniturePlacementRotate(t *testing.T) {
+	fp := NewFurniturePlacement()
+	fp.StartPlaceMode("house1", "bed")
+
+	fp.RotatePreview(1.57) // ~90 degrees
+	_, _, _, _, rot, _ := fp.GetPreviewState()
+	if rot < 1.5 || rot > 1.6 {
+		t.Errorf("Rotation = %f, want ~1.57", rot)
+	}
+
+	// Rotate more to test normalization
+	fp.RotatePreview(6.28) // Full rotation
+	_, _, _, _, rot, _ = fp.GetPreviewState()
+	if rot < 1.5 || rot > 1.7 {
+		t.Errorf("Normalized rotation = %f, want ~1.57", rot)
+	}
+}
+
+func TestFurniturePlacementConfirm(t *testing.T) {
+	hm := NewHouseManager()
+	hm.RegisterHouse(&House{ID: "house1", OwnerID: 1})
+
+	fp := NewFurniturePlacement()
+	fp.StartPlaceMode("house1", "bed")
+	fp.SetGridSnap(false, 0)
+	fp.UpdatePreview(5, 5, 0, 0) // Place at (5, 5)
+
+	err := fp.ConfirmPlacement(hm, "bed1")
+	if err != nil {
+		t.Errorf("ConfirmPlacement failed: %v", err)
+	}
+
+	// Should exit placement mode
+	if fp.IsInPlacementMode() {
+		t.Error("Should exit placement mode after confirm")
+	}
+
+	// Furniture should be placed
+	house := hm.GetHouse("house1")
+	if len(house.Furniture) != 1 {
+		t.Errorf("House has %d furniture, want 1", len(house.Furniture))
+	}
+	if house.Furniture[0].ID != "bed1" {
+		t.Errorf("Furniture ID = %s, want bed1", house.Furniture[0].ID)
+	}
+}
+
+func TestFurniturePlacementConfirmNoValidPosition(t *testing.T) {
+	hm := NewHouseManager()
+	fp := NewFurniturePlacement()
+
+	// Not in placement mode
+	err := fp.ConfirmPlacement(hm, "bed1")
+	if err == nil {
+		t.Error("Should error when not in placement mode")
+	}
+
+	// In mode but no valid position
+	fp.StartPlaceMode("house1", "bed")
+	err = fp.ConfirmPlacement(hm, "bed1")
+	if err == nil {
+		t.Error("Should error with no valid position")
+	}
+}

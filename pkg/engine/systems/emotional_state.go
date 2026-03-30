@@ -56,39 +56,51 @@ func (s *EmotionalStateSystem) decayEmotions(w *ecs.World, dt float64) {
 			continue
 		}
 		emotion := emotionComp.(*components.EmotionalState)
+		s.decayEmotionalState(emotion, dt)
+	}
+}
 
-		// Decay intensity toward zero
-		if emotion.Intensity > 0 {
-			emotion.Intensity -= emotion.EmotionDecayRate * dt
-			if emotion.Intensity < 0 {
-				emotion.Intensity = 0
-			}
+// decayEmotionalState applies decay to a single entity's emotional state.
+func (s *EmotionalStateSystem) decayEmotionalState(emotion *components.EmotionalState, dt float64) {
+	decayIntensity(emotion, dt)
+	decayMoodTowardZero(emotion, dt)
+	decayStress(emotion, dt)
+}
+
+// decayIntensity reduces emotion intensity and resets to neutral when low.
+func decayIntensity(emotion *components.EmotionalState, dt float64) {
+	if emotion.Intensity > 0 {
+		emotion.Intensity -= emotion.EmotionDecayRate * dt
+		if emotion.Intensity < 0 {
+			emotion.Intensity = 0
 		}
+	}
+	if emotion.Intensity < EmotionIntensityThreshold {
+		emotion.CurrentEmotion = EmotionNeutral
+	}
+}
 
-		// Reset emotion to neutral when intensity is low
-		if emotion.Intensity < EmotionIntensityThreshold {
-			emotion.CurrentEmotion = EmotionNeutral
+// decayMoodTowardZero moves mood value toward zero from either direction.
+func decayMoodTowardZero(emotion *components.EmotionalState, dt float64) {
+	if emotion.Mood > 0 {
+		emotion.Mood -= emotion.MoodDecayRate * dt
+		if emotion.Mood < 0 {
+			emotion.Mood = 0
 		}
-
-		// Decay mood toward zero
+	} else if emotion.Mood < 0 {
+		emotion.Mood += emotion.MoodDecayRate * dt
 		if emotion.Mood > 0 {
-			emotion.Mood -= emotion.MoodDecayRate * dt
-			if emotion.Mood < 0 {
-				emotion.Mood = 0
-			}
-		} else if emotion.Mood < 0 {
-			emotion.Mood += emotion.MoodDecayRate * dt
-			if emotion.Mood > 0 {
-				emotion.Mood = 0
-			}
+			emotion.Mood = 0
 		}
+	}
+}
 
-		// Decay stress
-		if emotion.Stress > 0 {
-			emotion.Stress -= emotion.MoodDecayRate * dt * 0.5
-			if emotion.Stress < 0 {
-				emotion.Stress = 0
-			}
+// decayStress gradually reduces stress toward zero.
+func decayStress(emotion *components.EmotionalState, dt float64) {
+	if emotion.Stress > 0 {
+		emotion.Stress -= emotion.MoodDecayRate * dt * 0.5
+		if emotion.Stress < 0 {
+			emotion.Stress = 0
 		}
 	}
 }

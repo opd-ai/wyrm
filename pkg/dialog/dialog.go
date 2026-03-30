@@ -421,3 +421,324 @@ func (dm *DialogManager) ClearOldMemories(maxAge time.Duration) {
 		}
 	}
 }
+
+// SkillCheckType defines the type of dialog skill check.
+type SkillCheckType int
+
+const (
+	// SkillCheckPersuasion uses Speech/Charm skills to convince NPCs.
+	SkillCheckPersuasion SkillCheckType = iota
+	// SkillCheckIntimidate uses Strength/Intimidation skills to threaten NPCs.
+	SkillCheckIntimidate
+)
+
+// String returns the human-readable name of the skill check type.
+func (s SkillCheckType) String() string {
+	switch s {
+	case SkillCheckPersuasion:
+		return "persuasion"
+	case SkillCheckIntimidate:
+		return "intimidation"
+	default:
+		return "unknown"
+	}
+}
+
+// SkillCheckDifficulty defines how hard a dialog check is.
+type SkillCheckDifficulty int
+
+const (
+	DifficultyTrivial    SkillCheckDifficulty = 10
+	DifficultyEasy       SkillCheckDifficulty = 25
+	DifficultyMedium     SkillCheckDifficulty = 50
+	DifficultyHard       SkillCheckDifficulty = 75
+	DifficultyVeryHard   SkillCheckDifficulty = 90
+	DifficultyImpossible SkillCheckDifficulty = 100
+)
+
+// SkillCheckResult represents the outcome of a dialog skill check.
+type SkillCheckResult struct {
+	Success         bool
+	Margin          int     // Positive = exceeded DC, negative = failed by
+	CriticalSuccess bool    // Natural high roll + success
+	CriticalFailure bool    // Natural low roll + failure
+	EmotionShift    float64 // How much NPC emotion changes
+	ResponseText    string  // NPC response to the attempt
+}
+
+// SkillCheck contains parameters for a dialog skill check.
+type SkillCheck struct {
+	Type       SkillCheckType
+	Difficulty SkillCheckDifficulty
+	SkillLevel int            // Player's relevant skill level (0-100)
+	NPCState   EmotionalState // Current NPC emotional state
+	Genre      string         // For genre-appropriate responses
+}
+
+// PerformSkillCheck attempts a persuasion or intimidation check.
+func (dm *DialogManager) PerformSkillCheck(
+	npcID, playerID uint64,
+	check SkillCheck,
+) *SkillCheckResult {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+
+	// Base roll is skill level (0-100) plus random modifier (-20 to +20)
+	rollModifier := dm.rng.Intn(41) - 20
+	effectiveSkill := check.SkillLevel + rollModifier
+
+	// Apply emotional state modifiers
+	emotionMod := dm.getEmotionModifier(check.Type, check.NPCState)
+	effectiveSkill += emotionMod
+
+	// Calculate result
+	result := &SkillCheckResult{}
+	dc := int(check.Difficulty)
+	result.Margin = effectiveSkill - dc
+
+	// Check for critical success/failure
+	if rollModifier >= 15 && result.Margin >= 0 {
+		result.CriticalSuccess = true
+	}
+	if rollModifier <= -15 && result.Margin < 0 {
+		result.CriticalFailure = true
+	}
+
+	result.Success = result.Margin >= 0
+
+	// Determine emotion shift based on result
+	result.EmotionShift = dm.calculateEmotionShift(check.Type, result)
+
+	// Generate response text
+	result.ResponseText = dm.generateSkillCheckResponse(check, result)
+
+	// Apply emotion shift to NPC memory
+	dm.applyEmotionShiftUnlocked(npcID, playerID, result.EmotionShift)
+
+	// Record the attempt in memory
+	action := fmt.Sprintf("%s attempt (DC %d)", check.Type, dc)
+	outcome := "failed"
+	if result.Success {
+		outcome = "succeeded"
+	}
+	dm.recordTopicUnlocked(npcID, playerID, action, fmt.Sprintf("skill check %s", outcome), result.ResponseText)
+
+	return result
+}
+
+// getEmotionModifier returns skill check modifier based on NPC emotion.
+func (dm *DialogManager) getEmotionModifier(checkType SkillCheckType, state EmotionalState) int {
+	switch checkType {
+	case SkillCheckPersuasion:
+		switch state {
+		case EmotionFriendly:
+			return 20 // Friendly NPCs are easier to persuade
+		case EmotionHostile:
+			return -30 // Hostile NPCs resist persuasion
+		case EmotionFearful:
+			return 10 // Fearful NPCs are somewhat receptive
+		case EmotionSuspicious:
+			return -15 // Suspicious NPCs are harder to persuade
+		default:
+			return 0
+		}
+	case SkillCheckIntimidate:
+		switch state {
+		case EmotionFriendly:
+			return -20 // Friendly NPCs are harder to intimidate
+		case EmotionHostile:
+			return -10 // Hostile NPCs resist intimidation
+		case EmotionFearful:
+			return 30 // Fearful NPCs are easy to intimidate
+		case EmotionSuspicious:
+			return 5 // Suspicious NPCs are slightly easier to intimidate
+		default:
+			return 0
+		}
+	}
+	return 0
+}
+
+// calculateEmotionShift determines how much NPC emotion changes.
+func (dm *DialogManager) calculateEmotionShift(checkType SkillCheckType, result *SkillCheckResult) float64 {
+	baseShift := float64(result.Margin) / 5.0 // -20 to +20 based on margin
+
+	switch checkType {
+	case SkillCheckPersuasion:
+		if result.Success {
+			if result.CriticalSuccess {
+				return baseShift + 15 // Critical success = big friendship gain
+			}
+			return baseShift + 5 // Success = moderate friendship gain
+		}
+		// Failed persuasion has minimal negative impact
+		if result.CriticalFailure {
+			return baseShift - 5
+		}
+		return baseShift - 2
+
+	case SkillCheckIntimidate:
+		if result.Success {
+			if result.CriticalSuccess {
+				return baseShift - 30 // Critical intimidation = fear
+			}
+			return baseShift - 15 // Success = NPC becomes fearful/hostile
+		}
+		// Failed intimidation makes NPC hostile
+		if result.CriticalFailure {
+			return baseShift - 25 // Critical failure = NPC very angry
+		}
+		return baseShift - 10
+	}
+	return 0
+}
+
+// generateSkillCheckResponse creates NPC response text for skill check.
+func (dm *DialogManager) generateSkillCheckResponse(check SkillCheck, result *SkillCheckResult) string {
+	vocab := GetVocabulary(check.Genre)
+
+	switch check.Type {
+	case SkillCheckPersuasion:
+		return dm.generatePersuasionResponse(result, vocab)
+	case SkillCheckIntimidate:
+		return dm.generateIntimidationResponse(result, vocab)
+	}
+	return ""
+}
+
+// generatePersuasionResponse creates response for persuasion attempt.
+func (dm *DialogManager) generatePersuasionResponse(result *SkillCheckResult, vocab *GenreVocabulary) string {
+	if result.CriticalSuccess {
+		if len(vocab.Affirmatives) > 0 {
+			return vocab.Affirmatives[dm.rng.Intn(len(vocab.Affirmatives))] + " You make an excellent point. I'm convinced."
+		}
+		return "You make an excellent point. I'm convinced."
+	}
+	if result.Success {
+		if len(vocab.Affirmatives) > 0 {
+			return vocab.Affirmatives[dm.rng.Intn(len(vocab.Affirmatives))] + " I suppose you're right."
+		}
+		return "I suppose you're right."
+	}
+	if result.CriticalFailure {
+		if len(vocab.Negatives) > 0 {
+			return vocab.Negatives[dm.rng.Intn(len(vocab.Negatives))] + " Do you take me for a fool?"
+		}
+		return "Do you take me for a fool?"
+	}
+	if len(vocab.Negatives) > 0 {
+		return vocab.Negatives[dm.rng.Intn(len(vocab.Negatives))] + " I'm not convinced."
+	}
+	return "I'm not convinced."
+}
+
+// generateIntimidationResponse creates response for intimidation attempt.
+func (dm *DialogManager) generateIntimidationResponse(result *SkillCheckResult, vocab *GenreVocabulary) string {
+	if result.CriticalSuccess {
+		return "P-please! I'll do whatever you want! Just don't hurt me!"
+	}
+	if result.Success {
+		if len(vocab.Affirmatives) > 0 {
+			return vocab.Affirmatives[dm.rng.Intn(len(vocab.Affirmatives))] + " Fine! You've made your point."
+		}
+		return "Fine! You've made your point."
+	}
+	if result.CriticalFailure {
+		if len(vocab.Expletives) > 0 {
+			return vocab.Expletives[dm.rng.Intn(len(vocab.Expletives))] + " You dare threaten ME?!"
+		}
+		return "You dare threaten ME?!"
+	}
+	if len(vocab.Negatives) > 0 {
+		return vocab.Negatives[dm.rng.Intn(len(vocab.Negatives))] + " Your threats don't scare me."
+	}
+	return "Your threats don't scare me."
+}
+
+// applyEmotionShiftUnlocked applies emotion shift without locking (caller must hold lock).
+func (dm *DialogManager) applyEmotionShiftUnlocked(npcID, playerID uint64, shift float64) {
+	if dm.memories[npcID] == nil {
+		dm.memories[npcID] = make(map[uint64]*NPCMemory)
+	}
+
+	memory := dm.memories[npcID][playerID]
+	if memory == nil {
+		memory = &NPCMemory{
+			NPCID:    npcID,
+			PlayerID: playerID,
+			Topics:   make([]TopicMemory, 0),
+		}
+		dm.memories[npcID][playerID] = memory
+	}
+
+	memory.EmotionShift += shift
+	if memory.EmotionShift > 100 {
+		memory.EmotionShift = 100
+	}
+	if memory.EmotionShift < -100 {
+		memory.EmotionShift = -100
+	}
+}
+
+// recordTopicUnlocked records a topic without locking (caller must hold lock).
+func (dm *DialogManager) recordTopicUnlocked(npcID, playerID uint64, topic, playerAction, npcResponse string) {
+	if dm.memories[npcID] == nil {
+		dm.memories[npcID] = make(map[uint64]*NPCMemory)
+	}
+
+	memory := dm.memories[npcID][playerID]
+	if memory == nil {
+		memory = &NPCMemory{
+			NPCID:    npcID,
+			PlayerID: playerID,
+			Topics:   make([]TopicMemory, 0),
+		}
+		dm.memories[npcID][playerID] = memory
+	}
+
+	memory.Topics = append(memory.Topics, TopicMemory{
+		Topic:        topic,
+		Timestamp:    time.Now(),
+		PlayerAction: playerAction,
+		NPCResponse:  npcResponse,
+	})
+	memory.LastInteraction = time.Now()
+
+	if len(memory.Topics) > 20 {
+		memory.Topics = memory.Topics[len(memory.Topics)-20:]
+	}
+}
+
+// AttemptPersuasion is a convenience function for persuasion checks.
+func (dm *DialogManager) AttemptPersuasion(
+	npcID, playerID uint64,
+	speechSkill int,
+	difficulty SkillCheckDifficulty,
+	npcState EmotionalState,
+	genre string,
+) *SkillCheckResult {
+	return dm.PerformSkillCheck(npcID, playerID, SkillCheck{
+		Type:       SkillCheckPersuasion,
+		Difficulty: difficulty,
+		SkillLevel: speechSkill,
+		NPCState:   npcState,
+		Genre:      genre,
+	})
+}
+
+// AttemptIntimidate is a convenience function for intimidation checks.
+func (dm *DialogManager) AttemptIntimidate(
+	npcID, playerID uint64,
+	intimidationSkill int,
+	difficulty SkillCheckDifficulty,
+	npcState EmotionalState,
+	genre string,
+) *SkillCheckResult {
+	return dm.PerformSkillCheck(npcID, playerID, SkillCheck{
+		Type:       SkillCheckIntimidate,
+		Difficulty: difficulty,
+		SkillLevel: intimidationSkill,
+		NPCState:   npcState,
+		Genre:      genre,
+	})
+}

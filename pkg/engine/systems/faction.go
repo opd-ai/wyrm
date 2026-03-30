@@ -201,3 +201,282 @@ func (s *FactionPoliticsSystem) SignTreaty(w *ecs.World, playerEntity ecs.Entity
 	}
 	return true
 }
+
+// ============================================================================
+// Dynamic Faction Wars System
+// ============================================================================
+
+// WarState represents the state of a war between factions.
+type WarState int
+
+const (
+	WarStateNone WarState = iota
+	WarStateTension
+	WarStateActive
+	WarStateCeasefire
+)
+
+// FactionWar represents an active conflict between two factions.
+type FactionWar struct {
+	Faction1       string
+	Faction2       string
+	State          WarState
+	StartTime      float64 // Game time when war started
+	Duration       float64 // How long the war has been active
+	Faction1Score  int     // Territory captured, battles won
+	Faction2Score  int
+	CeasefireTimer float64 // Time until ceasefire expires
+}
+
+// DynamicFactionWarSystem manages dynamic faction wars.
+type DynamicFactionWarSystem struct {
+	wars              map[[2]string]*FactionWar
+	tensionThreshold  float64 // When tension triggers war
+	warDecayRate      float64 // How fast wars wind down
+	ceasefireDuration float64 // How long ceasefires last
+	politicsSystem    *FactionPoliticsSystem
+}
+
+// NewDynamicFactionWarSystem creates a new dynamic faction war system.
+func NewDynamicFactionWarSystem(politicsSystem *FactionPoliticsSystem) *DynamicFactionWarSystem {
+	return &DynamicFactionWarSystem{
+		wars:              make(map[[2]string]*FactionWar),
+		tensionThreshold:  0.7,
+		warDecayRate:      0.01,
+		ceasefireDuration: 300.0, // 5 minutes game time
+		politicsSystem:    politicsSystem,
+	}
+}
+
+// Update processes faction wars each tick.
+func (s *DynamicFactionWarSystem) Update(w *ecs.World, dt float64) {
+	s.updateExistingWars(dt)
+	s.checkForNewWars(w)
+	s.processWarEffects(w, dt)
+}
+
+// updateExistingWars updates the duration and state of active wars.
+func (s *DynamicFactionWarSystem) updateExistingWars(dt float64) {
+	for key, war := range s.wars {
+		war.Duration += dt
+		s.updateWarState(key, war, dt)
+	}
+}
+
+// updateWarState handles state transitions for a single war.
+func (s *DynamicFactionWarSystem) updateWarState(key [2]string, war *FactionWar, dt float64) {
+	switch war.State {
+	case WarStateActive:
+		s.checkVictoryConditions(war)
+	case WarStateCeasefire:
+		s.processCeasefire(key, war, dt)
+	case WarStateTension:
+		s.checkEscalation(war)
+	}
+}
+
+// checkVictoryConditions transitions to ceasefire if a side wins.
+func (s *DynamicFactionWarSystem) checkVictoryConditions(war *FactionWar) {
+	if war.Faction1Score >= 10 || war.Faction2Score >= 10 {
+		war.State = WarStateCeasefire
+		war.CeasefireTimer = s.ceasefireDuration
+	}
+}
+
+// processCeasefire counts down and ends wars.
+func (s *DynamicFactionWarSystem) processCeasefire(key [2]string, war *FactionWar, dt float64) {
+	war.CeasefireTimer -= dt
+	if war.CeasefireTimer <= 0 {
+		delete(s.wars, key)
+		if s.politicsSystem != nil {
+			s.politicsSystem.SetRelation(war.Faction1, war.Faction2, RelationNeutral)
+		}
+	}
+}
+
+// checkEscalation escalates tension to active war after threshold duration.
+func (s *DynamicFactionWarSystem) checkEscalation(war *FactionWar) {
+	if war.Duration > 60.0 {
+		war.State = WarStateActive
+		if s.politicsSystem != nil {
+			s.politicsSystem.SetRelation(war.Faction1, war.Faction2, RelationHostile)
+		}
+	}
+}
+
+// checkForNewWars looks for faction pairs that should start wars.
+func (s *DynamicFactionWarSystem) checkForNewWars(w *ecs.World) {
+	if s.politicsSystem == nil {
+		return
+	}
+
+	factions := s.collectFactionIDs(w)
+	s.checkHostilePairs(factions)
+}
+
+// collectFactionIDs gathers all unique faction IDs from territories.
+func (s *DynamicFactionWarSystem) collectFactionIDs(w *ecs.World) []string {
+	factionSet := make(map[string]bool)
+	for _, e := range w.Entities("FactionTerritory") {
+		comp, ok := w.GetComponent(e, "FactionTerritory")
+		if !ok {
+			continue
+		}
+		territory := comp.(*components.FactionTerritory)
+		factionSet[territory.FactionID] = true
+	}
+
+	factions := make([]string, 0, len(factionSet))
+	for id := range factionSet {
+		factions = append(factions, id)
+	}
+	return factions
+}
+
+// checkHostilePairs examines faction pairs and declares wars for hostile relations.
+func (s *DynamicFactionWarSystem) checkHostilePairs(factions []string) {
+	for i := 0; i < len(factions); i++ {
+		for j := i + 1; j < len(factions); j++ {
+			s.checkAndDeclareWar(factions[i], factions[j])
+		}
+	}
+}
+
+// checkAndDeclareWar declares war between two factions if they are hostile.
+func (s *DynamicFactionWarSystem) checkAndDeclareWar(f1, f2 string) {
+	key := factionPairKey(f1, f2)
+	if _, exists := s.wars[key]; exists {
+		return
+	}
+	if s.politicsSystem.GetRelation(f1, f2) == RelationHostile {
+		s.DeclareWar(f1, f2)
+	}
+}
+
+// processWarEffects applies war effects to the world.
+func (s *DynamicFactionWarSystem) processWarEffects(w *ecs.World, dt float64) {
+	for _, war := range s.wars {
+		if war.State != WarStateActive {
+			continue
+		}
+
+		// Process territory disputes
+		s.processWarTerritories(w, war, dt)
+	}
+}
+
+// processWarTerritories handles territory changes during wars.
+func (s *DynamicFactionWarSystem) processWarTerritories(w *ecs.World, war *FactionWar, dt float64) {
+	// Find contested territories (both factions have territories)
+	for _, e := range w.Entities("FactionTerritory") {
+		comp, ok := w.GetComponent(e, "FactionTerritory")
+		if !ok {
+			continue
+		}
+		territory := comp.(*components.FactionTerritory)
+
+		// Territory belongs to one of the warring factions
+		if territory.FactionID != war.Faction1 && territory.FactionID != war.Faction2 {
+			continue
+		}
+
+		// Reduce control during war
+		territory.ControlLevel -= dt * 0.01
+		if territory.ControlLevel < 0 {
+			territory.ControlLevel = 0
+		}
+
+		// Check for territory flip
+		if territory.ControlLevel < 0.2 {
+			// Territory is vulnerable
+			if territory.FactionID == war.Faction1 {
+				war.Faction2Score++
+			} else {
+				war.Faction1Score++
+			}
+			territory.ControlLevel = 0.5 // Reset after capture
+		}
+	}
+}
+
+// DeclareWar starts a war between two factions.
+func (s *DynamicFactionWarSystem) DeclareWar(faction1, faction2 string) {
+	key := factionPairKey(faction1, faction2)
+	if _, exists := s.wars[key]; exists {
+		return // Already at war
+	}
+
+	s.wars[key] = &FactionWar{
+		Faction1:  faction1,
+		Faction2:  faction2,
+		State:     WarStateTension,
+		StartTime: 0,
+		Duration:  0,
+	}
+
+	if s.politicsSystem != nil {
+		s.politicsSystem.SetRelation(faction1, faction2, RelationHostile)
+	}
+}
+
+// ForceWar immediately starts an active war.
+func (s *DynamicFactionWarSystem) ForceWar(faction1, faction2 string) {
+	key := factionPairKey(faction1, faction2)
+
+	s.wars[key] = &FactionWar{
+		Faction1:  faction1,
+		Faction2:  faction2,
+		State:     WarStateActive,
+		StartTime: 0,
+		Duration:  0,
+	}
+
+	if s.politicsSystem != nil {
+		s.politicsSystem.SetRelation(faction1, faction2, RelationHostile)
+	}
+}
+
+// RequestCeasefire attempts to end a war with a ceasefire.
+func (s *DynamicFactionWarSystem) RequestCeasefire(faction1, faction2 string) bool {
+	key := factionPairKey(faction1, faction2)
+	war, exists := s.wars[key]
+	if !exists || war.State != WarStateActive {
+		return false
+	}
+
+	war.State = WarStateCeasefire
+	war.CeasefireTimer = s.ceasefireDuration
+	return true
+}
+
+// GetWar returns the war between two factions, or nil if none.
+func (s *DynamicFactionWarSystem) GetWar(faction1, faction2 string) *FactionWar {
+	key := factionPairKey(faction1, faction2)
+	return s.wars[key]
+}
+
+// GetAllWars returns all active wars.
+func (s *DynamicFactionWarSystem) GetAllWars() []*FactionWar {
+	wars := make([]*FactionWar, 0, len(s.wars))
+	for _, war := range s.wars {
+		wars = append(wars, war)
+	}
+	return wars
+}
+
+// IsAtWar checks if two factions are at war.
+func (s *DynamicFactionWarSystem) IsAtWar(faction1, faction2 string) bool {
+	war := s.GetWar(faction1, faction2)
+	return war != nil && war.State == WarStateActive
+}
+
+// GetWarCount returns the number of active wars.
+func (s *DynamicFactionWarSystem) GetWarCount() int {
+	count := 0
+	for _, war := range s.wars {
+		if war.State == WarStateActive {
+			count++
+		}
+	}
+	return count
+}

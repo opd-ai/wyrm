@@ -203,70 +203,97 @@ func (s *ProjectileSystem) SpawnProjectile(w *ecs.World, owner ecs.Entity, targe
 
 // InitiateRangedAttack starts a ranged attack against a position.
 func (cs *CombatSystem) InitiateRangedAttack(w *ecs.World, attacker ecs.Entity, targetX, targetY, targetZ float64, projectileSystem *ProjectileSystem) bool {
-	// Check cooldown
-	combatComp, ok := w.GetComponent(attacker, "CombatState")
+	combat, ok := cs.getCombatStateReady(w, attacker)
 	if !ok {
 		return false
 	}
-	combat := combatComp.(*components.CombatState)
-	if combat.Cooldown > 0 {
+
+	weapon, ok := cs.getRangedWeapon(w, attacker)
+	if !ok {
 		return false
 	}
 
-	// Get weapon
-	weaponComp, wOK := w.GetComponent(attacker, "Weapon")
-	if !wOK {
-		return false // Need ranged weapon
-	}
-	weapon := weaponComp.(*components.Weapon)
-
-	// Check if weapon is ranged
-	if weapon.WeaponType != "ranged" && weapon.WeaponType != "bow" && weapon.WeaponType != "gun" && weapon.WeaponType != "crossbow" {
-		return false
-	}
-
-	// Check range
 	attackerPos := cs.getPosition(w, attacker)
-	if attackerPos == nil {
+	if attackerPos == nil || !cs.isInRange(attackerPos, targetX, targetY, targetZ, weapon.Range) {
 		return false
 	}
-	dx := targetX - attackerPos.X
-	dy := targetY - attackerPos.Y
-	dz := targetZ - attackerPos.Z
-	distSq := dx*dx + dy*dy + dz*dz
-	if distSq > weapon.Range*weapon.Range {
-		return false // Target too far
-	}
 
-	// Calculate damage with skill modifier
 	damage := weapon.Damage * cs.getRangedSkillModifier(w, attacker)
+	speed := cs.getProjectileSpeed(weapon)
+	projType := cs.determineProjectileType(weapon)
 
-	// Determine projectile speed
-	speed := DefaultProjectileSpeed
-	if weapon.AttackSpeed > 0 {
-		speed = DefaultProjectileSpeed * weapon.AttackSpeed
-	}
-
-	// Determine projectile type based on weapon
-	projType := "arrow"
-	switch weapon.WeaponType {
-	case "gun":
-		projType = "bullet"
-	case "crossbow":
-		projType = "bolt"
-	}
-
-	// Spawn projectile
 	if projectileSystem != nil {
 		projectileSystem.SpawnProjectile(w, attacker, targetX, targetY, targetZ, damage, speed, projType)
 	}
 
-	// Set cooldown
+	cs.setAttackCooldown(w, attacker, combat)
+	return true
+}
+
+// getCombatStateReady checks if attacker can attack (has combat state and no cooldown).
+func (cs *CombatSystem) getCombatStateReady(w *ecs.World, attacker ecs.Entity) (*components.CombatState, bool) {
+	combatComp, ok := w.GetComponent(attacker, "CombatState")
+	if !ok {
+		return nil, false
+	}
+	combat := combatComp.(*components.CombatState)
+	if combat.Cooldown > 0 {
+		return nil, false
+	}
+	return combat, true
+}
+
+// getRangedWeapon retrieves a ranged weapon from the attacker.
+func (cs *CombatSystem) getRangedWeapon(w *ecs.World, attacker ecs.Entity) (*components.Weapon, bool) {
+	weaponComp, ok := w.GetComponent(attacker, "Weapon")
+	if !ok {
+		return nil, false
+	}
+	weapon := weaponComp.(*components.Weapon)
+	if !isRangedWeaponType(weapon.WeaponType) {
+		return nil, false
+	}
+	return weapon, true
+}
+
+// isRangedWeaponType returns true if the weapon type is ranged.
+func isRangedWeaponType(weaponType string) bool {
+	return weaponType == "ranged" || weaponType == "bow" || weaponType == "gun" || weaponType == "crossbow"
+}
+
+// isInRange checks if target is within weapon range.
+func (cs *CombatSystem) isInRange(pos *components.Position, tx, ty, tz, weaponRange float64) bool {
+	dx := tx - pos.X
+	dy := ty - pos.Y
+	dz := tz - pos.Z
+	return dx*dx+dy*dy+dz*dz <= weaponRange*weaponRange
+}
+
+// getProjectileSpeed returns projectile speed based on weapon.
+func (cs *CombatSystem) getProjectileSpeed(weapon *components.Weapon) float64 {
+	if weapon.AttackSpeed > 0 {
+		return DefaultProjectileSpeed * weapon.AttackSpeed
+	}
+	return DefaultProjectileSpeed
+}
+
+// determineProjectileType returns the projectile type for a weapon.
+func (cs *CombatSystem) determineProjectileType(weapon *components.Weapon) string {
+	switch weapon.WeaponType {
+	case "gun":
+		return "bullet"
+	case "crossbow":
+		return "bolt"
+	default:
+		return "arrow"
+	}
+}
+
+// setAttackCooldown sets cooldown and marks combat state.
+func (cs *CombatSystem) setAttackCooldown(w *ecs.World, attacker ecs.Entity, combat *components.CombatState) {
 	combat.Cooldown = cs.getAttackCooldown(w, attacker)
 	combat.InCombat = true
 	combat.LastAttackTime = cs.GameTime
-
-	return true
 }
 
 // getRangedSkillModifier returns damage multiplier for ranged skills.

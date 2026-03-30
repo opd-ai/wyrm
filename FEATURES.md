@@ -1,7 +1,7 @@
 # Feature Checklist (200 Features)
 
 **Generated**: 2026-03-29  
-**Progress**: ~120/200 implemented (60.0%)
+**Progress**: 140/200 implemented (70%)
 
 This document tracks all 200 features across 20 categories as specified in the README.
 
@@ -62,8 +62,8 @@ Legend:
 - [x] Dialog sentiment model
 - [x] Response generation
 - [x] Genre-appropriate vocabulary
-- [ ] Persuasion skill checks
-- [ ] Intimidation skill checks
+- [x] Persuasion skill checks
+- [x] Intimidation skill checks
 - [ ] Dialog consequences
 - [ ] Dialog memory
 - [ ] Multi-NPC conversations
@@ -79,8 +79,8 @@ Legend:
 - [x] Consequence flag system
 - [ ] Persistent world consequences
 - [ ] Faction-specific quest arcs
-- [ ] Dynamic quest generation
-- [ ] Radiant quest system
+- [x] Dynamic quest generation
+- [x] Radiant quest system
 - [ ] Notice board quests
 - [ ] Quest reward calculation
 
@@ -107,9 +107,9 @@ Legend:
 - [x] Experience tracking per skill
 - [x] Skill progression system
 - [x] Genre-appropriate skill naming
-- [ ] 30+ unique skills
+- [x] 30+ unique skills
 - [ ] Skill-based action unlocks
-- [ ] Skill training from NPCs
+- [x] Skill training from NPCs
 - [ ] Skill books
 - [ ] Skill synergies
 - [ ] Max skill caps
@@ -138,7 +138,7 @@ Legend:
 - [x] Relation decay over time
 - [x] Kill tracking (faction disputes)
 - [x] Treaty signing mechanism
-- [ ] Dynamic faction wars
+- [x] Dynamic faction wars
 - [ ] Territory control system
 - [ ] Faction rank progression
 - [ ] Exclusive faction content
@@ -153,7 +153,7 @@ Legend:
 - [x] Bounty accumulation
 - [x] Wanted level decay
 - [x] Jail mechanic
-- [ ] Guard pursuit AI
+- [x] Guard pursuit AI
 - [ ] Bribery system
 - [ ] Crime evidence system
 - [ ] Criminal faction questlines
@@ -168,7 +168,7 @@ Legend:
 - [x] Price fluctuation over time
 - [x] Buy operation
 - [x] Sell operation
-- [ ] Player-owned shops
+- [x] Player-owned shops
 - [ ] Trade route system
 - [ ] Market manipulation
 - [ ] Investment system
@@ -197,8 +197,8 @@ Legend:
 - [x] Room definitions
 - [x] Furniture system
 - [x] Ownership tracking
-- [ ] First-person furniture placement
-- [ ] Property purchasing
+- [x] First-person furniture placement
+- [x] Property purchasing
 - [ ] Rent collection
 - [ ] Home upgrades
 - [ ] Guild halls
@@ -213,7 +213,7 @@ Legend:
 - [x] Fuel consumption
 - [x] Vehicle physics (steering, acceleration)
 - [x] First-person cockpit view
-- [ ] Vehicle combat
+- [x] Vehicle combat
 - [ ] Vehicle customization
 - [ ] Mount system
 - [ ] Naval vehicles
@@ -244,7 +244,7 @@ Legend:
 - [x] Genre-specific frequencies
 - [x] Spatial audio processing
 - [x] Distance attenuation
-- [ ] Reverb effects
+- [x] Reverb effects
 - [ ] Environmental audio
 - [ ] UI sounds
 - [ ] Ambient sound mixing
@@ -257,10 +257,10 @@ Legend:
 - [x] Music motif generation
 - [x] Intensity state tracking
 - [x] Combat music detection
-- [ ] Genre music styles
-- [ ] Dynamic layering
-- [ ] Location-based music
-- [ ] Boss fight music
+- [x] Genre music styles
+- [x] Dynamic layering
+- [x] Location-based music
+- [x] Boss fight music
 - [ ] Victory/defeat jingles
 - [ ] Menu music
 
@@ -290,7 +290,7 @@ Legend:
 - [x] Delta compression
 - [x] Federation node structure
 - [x] Gossip protocol
-- [ ] PvP combat validation
+- [x] PvP combat validation
 - [ ] Party system
 - [ ] Player trading
 
@@ -304,10 +304,10 @@ Legend:
 - [x] World persistence system
 - [x] Entity serialization
 - [x] Configuration via Viper
-- [ ] Colorblind modes
+- [x] Colorblind modes
 - [ ] Subtitle system
 - [ ] Key rebinding
-- [ ] Difficulty settings
+- [x] Difficulty settings
 
 ---
 
@@ -318,8 +318,8 @@ Legend:
 | World & Exploration | 5 | 10 | 50% |
 | Cities & Structures | 3 | 10 | 30% |
 | NPCs & Social | 7 | 10 | 70% |
-| Dialog & Conversation | 4 | 10 | 40% |
-| Quests & Narrative | 4 | 10 | 40% |
+| Dialog & Conversation | 6 | 10 | 60% |
+| Quests & Narrative | 6 | 10 | 60% |
 | Combat System | 9 | 10 | 90% |
 | Skills & Progression | 4 | 10 | 40% |
 | Stealth System | 8 | 10 | 80% |
@@ -335,7 +335,7 @@ Legend:
 | Rendering & Graphics | 5 | 10 | 50% |
 | Networking & Multiplayer | 7 | 10 | 70% |
 | Technical & Accessibility | 6 | 10 | 60% |
-| **TOTAL** | **119** | **200** | **59.5%** |
+| **TOTAL** | **123** | **200** | **61.5%** |
 
 ---
 

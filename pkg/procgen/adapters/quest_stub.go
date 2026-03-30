@@ -5,8 +5,10 @@
 package adapters
 
 import (
+	"fmt"
 	"math/rand"
 
+	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 	"github.com/opd-ai/wyrm/pkg/engine/systems"
 )
@@ -72,7 +74,19 @@ func (a *QuestAdapter) GenerateQuests(seed int64, genre string, count int, diffi
 // SpawnQuestEntity creates a quest entity in the ECS world.
 func SpawnQuestEntity(world *ecs.World, data *QuestData) (ecs.Entity, error) {
 	e := world.CreateEntity()
-	// Quest entities don't have position components
+
+	questComp := &components.Quest{
+		ID:             data.ID,
+		CurrentStage:   0,
+		Flags:          make(map[string]bool),
+		Completed:      false,
+		LockedBranches: make(map[string]bool),
+	}
+
+	if err := world.AddComponent(e, questComp); err != nil {
+		return 0, fmt.Errorf("failed to add Quest component: %w", err)
+	}
+
 	return e, nil
 }
 

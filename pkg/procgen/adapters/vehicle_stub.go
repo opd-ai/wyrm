@@ -97,17 +97,20 @@ func SpawnVehicleEntity(world *ecs.World, v *VehicleData, x, y, z float64) ecs.E
 
 // mapVehicleType converts vehicle type string to enum.
 func mapVehicleType(vehicleType string) int {
-	types := map[string]int{
-		"horse": 0, "cart": 1, "ship": 2,
-		"hover-bike": 3, "shuttle": 4, "mech": 5,
-		"bone-cart": 6, "hearse": 7, "barge": 8,
-		"motorbike": 9, "APC": 10, "drone": 11,
-		"buggy": 12, "bus": 13, "gyrocopter": 14,
+	switch vehicleType {
+	case "Mount":
+		return 0
+	case "Cart":
+		return 1
+	case "Boat":
+		return 2
+	case "Glider":
+		return 3
+	case "Mech":
+		return 4
+	default:
+		return 0
 	}
-	if t, ok := types[vehicleType]; ok {
-		return t
-	}
-	return 0
 }
 
 // VehicleRarityMultiplier returns rarity-based stat multiplier.
