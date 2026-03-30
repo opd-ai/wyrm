@@ -739,7 +739,8 @@ func (c *City) createGate(rng *rand.Rand, gateStyles []string, dir struct {
 	name   string
 	x, y   float64
 	facing string
-}) CityGate {
+},
+) CityGate {
 	style := gateStyles[rng.Intn(len(gateStyles))]
 	gate := CityGate{
 		Name:       fmt.Sprintf("%s %s", c.Name, dir.name),

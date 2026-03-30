@@ -157,7 +157,7 @@ Legend:
 - [x] Bribery system
 - [x] Crime evidence system
 - [x] Criminal faction questlines
-- [ ] Pardons and amnesty
+- [x] Pardons and amnesty
 
 ---
 
@@ -169,9 +169,9 @@ Legend:
 - [x] Buy operation
 - [x] Sell operation
 - [x] Player-owned shops
-- [ ] Trade route system
-- [ ] Market manipulation
-- [ ] Investment system
+- [x] Trade route system
+- [x] Market manipulation
+- [x] Investment system
 - [ ] Economic events
 
 ---
