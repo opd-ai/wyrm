@@ -134,14 +134,14 @@
 - **Validation**: `go test -cover ./pkg/audio/music/... | grep -E 'coverage: [8-9][0-9]|100'`
 - **Status**: Coverage reached 97.6% as part of Step 8 menu music implementation. Comprehensive tests added for all menu music functions.
 
-### Step 10: Implement Sprite Rendering — PHASE 1 COMPLETE
+### Step 10: Implement Sprite Rendering — PHASE 2/3 COMPLETE
 - **Deliverable**: Extend `pkg/rendering/raycast/` with sprite rendering for NPCs and items
 - **Design Spec**: See [SPRITE_PLAN.md](SPRITE_PLAN.md) for the complete entity rendering system design, including billboard math, z-buffer integration, animation state machine, genre-specific visuals, and performance budgets
 - **Dependencies**: None
 - **Goal Impact**: Rendering & Graphics category (6/10 → 7/10), visual fidelity
 - **Acceptance**: Entities rendered as scaled, distance-attenuated sprites in first-person view
 - **Validation**: `go test -tags=noebiten -cover ./pkg/rendering/raycast/... | grep -E 'coverage: [8-9][0-9]|100'`
-- **Status**: **Phase 1 (Foundation) COMPLETED:**
+- **Status**: **Phases 1-3 COMPLETED:**
   - ✅ Added `Appearance` component to `pkg/engine/components/types.go` with all fields per SPRITE_PLAN.md
   - ✅ Added `NewAppearance()` constructor function
   - ✅ Created `pkg/rendering/sprite/` package with doc.go, sprite.go, cache.go, generator.go
@@ -149,21 +149,48 @@
   - ✅ Implemented `SpriteCache` with LRU eviction (256 sheets, 20MB limit)
   - ✅ Implemented `Generator` with humanoid, creature, vehicle, object, effect sprite generation
   - ✅ Test coverage: 98.0% on sprite package
-  - ⏳ Remaining: z-buffer exposure, billboard rendering integration, raycaster draw loop
+  - ✅ Added `ZBuffer` field to Renderer, populated during drawWalls()
+  - ✅ Implemented `billboard.go` with full billboard transform math (world→screen)
+  - ✅ Implemented `SpriteEntity` type for ECS→renderer bridge
+  - ✅ Implemented depth-tested sprite column drawing against z-buffer
+  - ✅ Implemented back-to-front sprite sorting (painter's algorithm)
+  - ✅ Implemented frustum culling and distance culling
+  - ✅ Added fog application to sprites (matching wall fog formula)
+  - ✅ Added opacity support (alpha blending for stealth)
+  - ✅ Added FlipH facing-direction support
+  - ✅ All billboard tests pass, benchmarks added
+  - ⏳ Remaining: Animation system wiring (Phase 4), LOD optimization (Phase 5), integration polish (Phase 6)
 
-### Step 11: Implement Particle Effects System
+### Step 11: Implement Particle Effects System ✅ COMPLETED
 - **Deliverable**: Create `pkg/rendering/particles/particles.go` for weather, combat, and environmental effects
 - **Dependencies**: Step 10 (Sprite Rendering for particle display)
 - **Goal Impact**: Rendering & Graphics (7/10 → 8/10)
 - **Acceptance**: Rain, snow, spell effects, explosion particles render correctly
 - **Validation**: `go test -cover ./pkg/rendering/particles/...`
+- **Status**: Implemented full particle system with:
+  - ✅ Created `pkg/rendering/particles/` package with doc.go, particles.go, renderer.go
+  - ✅ 11 particle types: rain, snow, dust, ash, sparks, blood, magic, smoke, fire, fog_wisp, bubbles
+  - ✅ Particle emitters with type-specific defaults and deterministic RNG
+  - ✅ System with particle pooling, emission, update loop, and lifetime management
+  - ✅ Type-specific physics (gravity for sparks, oscillation for snow, spiral for magic)
+  - ✅ Renderer with alpha blending, type-specific drawing (rain drops, snowflakes, glows)
+  - ✅ Weather presets and combat effect helpers
+  - ✅ All tests pass, benchmarks added
 
-### Step 12: Implement Basic Lighting System
+### Step 12: Implement Basic Lighting System ✅ COMPLETED
 - **Deliverable**: Create `pkg/rendering/lighting/lighting.go` for dynamic light sources
 - **Dependencies**: Step 10 (Sprite Rendering for light sprite effects)
 - **Goal Impact**: Rendering & Graphics (8/10 → 9/10)
 - **Acceptance**: Torches, spells, and time-of-day affect scene brightness
 - **Validation**: `go test -cover ./pkg/rendering/lighting/...`
+- **Status**: Implemented full lighting system with:
+  - ✅ Created `pkg/rendering/lighting/` package with doc.go, lighting.go, lighting_test.go
+  - ✅ Light types: point, directional, spot, ambient
+  - ✅ System with time-of-day simulation, sun position tracking, indoor mode
+  - ✅ Genre-specific palettes for all 5 genres (fantasy, sci-fi, horror, cyberpunk, post-apocalyptic)
+  - ✅ Helper functions: CreateTorch, CreateMagicLight for game integration
+  - ✅ ApplyLighting for pixel buffer integration
+  - ✅ All 29 tests pass
 
 ### Step 13: Implement Skybox Rendering
 - **Deliverable**: Extend `pkg/rendering/raycast/` with procedural skybox generation

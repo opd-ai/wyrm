@@ -275,8 +275,8 @@ Legend:
 - [x] Genre-specific color palettes
 - [x] Wall/floor/ceiling rendering
 - [x] Post-processing effects (13 types)
-- [ ] Sprite rendering
-- [ ] Particle effects
+- [x] Sprite rendering
+- [x] Particle effects
 - [ ] Lighting system
 - [x] Fog effects
 - [ ] Skybox rendering
