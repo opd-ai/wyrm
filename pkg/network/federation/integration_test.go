@@ -223,31 +223,43 @@ func (s *FederationServer) Stop() error {
 	return nil
 }
 
-// TestFederationIntegrationTwoServers tests player transfer between two actual
-// TCP server instances, validating the complete transfer workflow.
-func TestFederationIntegrationTwoServers(t *testing.T) {
-	// Create two server instances on different ports
-	server1 := NewFederationServer("server-alpha", "127.0.0.1:17781")
-	server2 := NewFederationServer("server-beta", "127.0.0.1:17782")
+// setupTestServerPair creates, starts, and connects two test servers.
+// Returns the servers and a cleanup function. The cleanup function should be deferred.
+func setupTestServerPair(t *testing.T, name1, addr1, name2, addr2 string) (*FederationServer, *FederationServer, func()) {
+	t.Helper()
+	server1 := NewFederationServer(name1, addr1)
+	server2 := NewFederationServer(name2, addr2)
 
-	// Start both servers
 	if err := server1.Start(); err != nil {
 		t.Fatalf("Failed to start server1: %v", err)
 	}
-	defer server1.Stop()
-
 	if err := server2.Start(); err != nil {
+		server1.Stop()
 		t.Fatalf("Failed to start server2: %v", err)
 	}
-	defer server2.Stop()
 
-	// Give servers time to start listening
 	time.Sleep(50 * time.Millisecond)
 
-	// Server1 connects to Server2
-	if err := server1.ConnectToPeer("server-beta", "127.0.0.1:17782"); err != nil {
-		t.Fatalf("Failed to connect server1 to server2: %v", err)
+	if err := server1.ConnectToPeer(name2, addr2); err != nil {
+		server1.Stop()
+		server2.Stop()
+		t.Fatalf("Failed to connect servers: %v", err)
 	}
+
+	cleanup := func() {
+		server1.Stop()
+		server2.Stop()
+	}
+	return server1, server2, cleanup
+}
+
+// TestFederationIntegrationTwoServers tests player transfer between two actual
+// TCP server instances, validating the complete transfer workflow.
+func TestFederationIntegrationTwoServers(t *testing.T) {
+	server1, server2, cleanup := setupTestServerPair(t,
+		"server-alpha", "127.0.0.1:17781",
+		"server-beta", "127.0.0.1:17782")
+	defer cleanup()
 
 	// Create a comprehensive player transfer
 	transfer := &PlayerTransfer{
@@ -336,24 +348,10 @@ func TestFederationIntegrationTwoServers(t *testing.T) {
 // TestFederationPriceSynchronization tests economy price gossip protocol
 // between two federated servers.
 func TestFederationPriceSynchronization(t *testing.T) {
-	server1 := NewFederationServer("economy-server-1", "127.0.0.1:17783")
-	server2 := NewFederationServer("economy-server-2", "127.0.0.1:17784")
-
-	if err := server1.Start(); err != nil {
-		t.Fatalf("Failed to start server1: %v", err)
-	}
-	defer server1.Stop()
-
-	if err := server2.Start(); err != nil {
-		t.Fatalf("Failed to start server2: %v", err)
-	}
-	defer server2.Stop()
-
-	time.Sleep(50 * time.Millisecond)
-
-	if err := server1.ConnectToPeer("economy-server-2", "127.0.0.1:17784"); err != nil {
-		t.Fatalf("Failed to connect servers: %v", err)
-	}
+	server1, server2, cleanup := setupTestServerPair(t,
+		"economy-server-1", "127.0.0.1:17783",
+		"economy-server-2", "127.0.0.1:17784")
+	defer cleanup()
 
 	// Create price signal with market data
 	priceSignal := &PriceSignal{
@@ -408,24 +406,11 @@ func TestFederationPriceSynchronization(t *testing.T) {
 // TestFederationGlobalEventBroadcast tests world event broadcasting
 // between federated servers.
 func TestFederationGlobalEventBroadcast(t *testing.T) {
-	server1 := NewFederationServer("event-server-1", "127.0.0.1:17785")
-	server2 := NewFederationServer("event-server-2", "127.0.0.1:17786")
-
-	if err := server1.Start(); err != nil {
-		t.Fatalf("Failed to start server1: %v", err)
-	}
-	defer server1.Stop()
-
-	if err := server2.Start(); err != nil {
-		t.Fatalf("Failed to start server2: %v", err)
-	}
-	defer server2.Stop()
-
-	time.Sleep(50 * time.Millisecond)
-
-	if err := server1.ConnectToPeer("event-server-2", "127.0.0.1:17786"); err != nil {
-		t.Fatalf("Failed to connect servers: %v", err)
-	}
+	server1, server2, cleanup := setupTestServerPair(t,
+		"event-server-1", "127.0.0.1:17785",
+		"event-server-2", "127.0.0.1:17786")
+	defer cleanup()
+	_ = server2 // used for peer connection
 
 	// Create a global event
 	event := &GlobalEvent{
