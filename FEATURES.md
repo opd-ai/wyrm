@@ -277,9 +277,9 @@ Legend:
 - [x] Post-processing effects (13 types)
 - [x] Sprite rendering
 - [x] Particle effects
-- [ ] Lighting system
+- [x] Lighting system
 - [x] Fog effects
-- [ ] Skybox rendering
+- [x] Skybox rendering
 
 ---
 

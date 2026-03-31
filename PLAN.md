@@ -192,12 +192,21 @@
   - ✅ ApplyLighting for pixel buffer integration
   - ✅ All 29 tests pass
 
-### Step 13: Implement Skybox Rendering
+### Step 13: Implement Skybox Rendering ✅ COMPLETED
 - **Deliverable**: Extend `pkg/rendering/raycast/` with procedural skybox generation
 - **Dependencies**: Step 12 (Lighting for skybox integration)
 - **Goal Impact**: Rendering & Graphics (9/10 → 10/10)
 - **Acceptance**: Sky with genre-appropriate colors, sun/moon position, weather effects
 - **Validation**: `go test -tags=noebiten -cover ./pkg/rendering/raycast/... -run Sky`
+- **Status**: Implemented full skybox system with:
+  - ✅ Created `pkg/rendering/raycast/skybox.go` and `skybox_test.go`
+  - ✅ Genre-specific sky palettes for all 5 genres
+  - ✅ Time-of-day simulation with dawn/day/dusk/night transitions
+  - ✅ Sun and moon positioning based on time
+  - ✅ Weather integration (clear, overcast, rain, storm, snow, fog)
+  - ✅ Celestial body glow rendering (sun/moon)
+  - ✅ Indoor mode for ceiling color fallback
+  - ✅ All 32 tests pass with noebiten tag
 
 ### Step 14: Implement Extreme Weather Events
 - **Deliverable**: Extend `pkg/engine/systems/weather.go` with extreme event generation and effects
