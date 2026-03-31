@@ -228,11 +228,9 @@ func (s *TradingSystem) UnlockOffer(playerID ecs.Entity) error {
 	return nil
 }
 
-// CancelTrade cancels an active trade.
-func (s *TradingSystem) CancelTrade(playerID ecs.Entity) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+// endTradeWithStatus terminates a trade with the given status.
+// Caller must hold the write lock.
+func (s *TradingSystem) endTradeWithStatus(playerID ecs.Entity, status TradeStatus) error {
 	tradeID, ok := s.PlayerTrades[playerID]
 	if !ok {
 		return &TradeError{Code: ErrNotInTrade}
@@ -244,10 +242,16 @@ func (s *TradingSystem) CancelTrade(playerID ecs.Entity) error {
 		return &TradeError{Code: ErrTradeNotFound}
 	}
 
-	trade.Status = TradeStatusCancelled
+	trade.Status = status
 	s.endTrade(trade)
-
 	return nil
+}
+
+// CancelTrade cancels an active trade.
+func (s *TradingSystem) CancelTrade(playerID ecs.Entity) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.endTradeWithStatus(playerID, TradeStatusCancelled)
 }
 
 // AcceptTrade is an alias for LockOffer (both players locking = trade complete).
@@ -259,22 +263,7 @@ func (s *TradingSystem) AcceptTrade(playerID ecs.Entity) error {
 func (s *TradingSystem) DeclineTrade(playerID ecs.Entity) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	tradeID, ok := s.PlayerTrades[playerID]
-	if !ok {
-		return &TradeError{Code: ErrNotInTrade}
-	}
-
-	trade := s.Trades[tradeID]
-	if trade == nil {
-		delete(s.PlayerTrades, playerID)
-		return &TradeError{Code: ErrTradeNotFound}
-	}
-
-	trade.Status = TradeStatusDeclined
-	s.endTrade(trade)
-
-	return nil
+	return s.endTradeWithStatus(playerID, TradeStatusDeclined)
 }
 
 // GetTrade returns the active trade for a player.
