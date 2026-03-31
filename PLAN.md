@@ -118,7 +118,7 @@
 - **Validation**: `go test -cover ./pkg/audio/ambient/...`
 - **Status**: Added AmbientMixer with multi-layer support (up to 8 layers), priority ordering, per-layer volume/pan controls, smooth crossfading, stereo mixing, soft clipping. Test coverage 90.4%.
 
-### Step 8: Implement Menu Music
+### Step 8: Implement Menu Music ✅ COMPLETED
 - **Deliverable**: Extend `pkg/audio/music/adaptive.go` with menu music state
 - **Dependencies**: None
 - **Goal Impact**: Music System category (9/10 → 10/10)
