@@ -59,6 +59,91 @@ const (
 	ExtremeEventAcidStorm     = "acid_storm"
 )
 
+// extremeEventConfig holds default parameters for an extreme event type.
+type extremeEventConfig struct {
+	Intensity   float64
+	Duration    float64
+	DamageRate  float64
+	WarningTime float64
+	Radius      float64
+	Speed       float64
+}
+
+// extremeEventConfigs maps event types to their default configurations.
+var extremeEventConfigs = map[string]extremeEventConfig{
+	ExtremeEventTornado:       {0.8, 120.0, 10.0, 30.0, 50.0, 15.0},
+	ExtremeEventBlizzard:      {0.7, 600.0, 2.0, 60.0, 500.0, 0.0},
+	ExtremeEventHurricane:     {0.9, 300.0, 5.0, 120.0, 300.0, 8.0},
+	ExtremeEventSolarFlare:    {0.6, 60.0, 3.0, 15.0, 1000.0, 0.0},
+	ExtremeEventRadiationWave: {0.7, 180.0, 4.0, 45.0, 400.0, 20.0},
+	ExtremeEventMeteorShower:  {0.5, 90.0, 15.0, 20.0, 200.0, 0.0},
+	ExtremeEventEarthquake:    {0.8, 30.0, 8.0, 5.0, 300.0, 0.0},
+	ExtremeEventFlood:         {0.6, 900.0, 1.0, 180.0, 250.0, 5.0},
+	ExtremeEventDarkRitual:    {0.9, 180.0, 5.0, 60.0, 150.0, 0.0},
+	ExtremeEventDragonFlight:  {0.7, 120.0, 12.0, 30.0, 100.0, 30.0},
+	ExtremeEventAcidStorm:     {0.8, 240.0, 3.0, 45.0, 350.0, 10.0},
+}
+
+// extremeEventModifierConfig holds base modifiers for an extreme event type.
+// Values of 1.0 mean no effect; lower values mean more severe impact.
+type extremeEventModifierConfig struct {
+	Visibility float64
+	Movement   float64
+	Accuracy   float64
+	Stealth    float64
+}
+
+// extremeEventModifiers maps event types to their gameplay modifiers.
+var extremeEventModifiers = map[string]extremeEventModifierConfig{
+	ExtremeEventTornado:       {0.2, 0.3, 0.1, 0.3},
+	ExtremeEventBlizzard:      {0.1, 0.4, 0.2, 0.4},
+	ExtremeEventHurricane:     {0.3, 0.4, 0.2, 0.5},
+	ExtremeEventSolarFlare:    {0.5, 1.0, 0.6, 1.0},
+	ExtremeEventRadiationWave: {0.6, 0.8, 1.0, 1.0},
+	ExtremeEventMeteorShower:  {0.7, 0.9, 1.0, 0.8},
+	ExtremeEventEarthquake:    {1.0, 0.5, 0.4, 1.0},
+	ExtremeEventFlood:         {1.0, 0.3, 1.0, 0.6},
+	ExtremeEventDarkRitual:    {0.2, 1.0, 0.5, 0.3},
+	ExtremeEventDragonFlight:  {0.6, 0.9, 1.0, 0.8},
+	ExtremeEventAcidStorm:     {0.4, 0.7, 0.5, 1.0},
+}
+
+// weatherModifierConfig holds gameplay modifiers for a weather type.
+type weatherModifierConfig struct {
+	Visibility float64
+	Movement   float64
+	Accuracy   float64
+	Stealth    float64
+	Damage     float64
+}
+
+// weatherModifiers maps weather types to their gameplay effects.
+var weatherModifiers = map[string]weatherModifierConfig{
+	// Common weather types
+	"clear":        {1.0, 1.0, 1.0, 1.0, 0.0},
+	"cloudy":       {0.9, 1.0, 1.0, 1.0, 0.0},
+	"overcast":     {0.9, 1.0, 1.0, 1.0, 0.0},
+	"rain":         {0.7, 0.9, 0.85, 0.8, 0.0},
+	"fog":          {0.3, 1.0, 0.7, 0.5, 0.0},
+	"mist":         {0.3, 1.0, 0.7, 0.5, 0.0},
+	"thunderstorm": {0.4, 0.7, 0.6, 0.6, 0.5},
+	// Sci-fi weather
+	"dust":            {0.5, 1.0, 0.75, 0.7, 0.0},
+	"ion_storm":       {0.6, 1.0, 0.5, 1.0, 1.0},
+	"radiation_burst": {0.8, 0.8, 1.0, 1.0, 2.0},
+	// Horror weather
+	"blood_moon": {0.5, 1.0, 1.0, 1.2, 0.3},
+	// Cyberpunk weather
+	"smog":      {0.6, 0.95, 1.0, 0.75, 0.0},
+	"acid_rain": {0.7, 0.85, 1.0, 1.0, 0.8},
+	"neon_haze": {0.75, 1.0, 0.9, 1.0, 0.0},
+	// Post-apocalyptic weather
+	"dust_storm":    {0.2, 0.6, 0.4, 0.4, 0.3},
+	"ash_fall":      {0.5, 0.85, 0.8, 1.0, 0.0},
+	"radiation_fog": {0.3, 1.0, 1.0, 0.5, 1.5},
+	"scorching":     {1.0, 0.7, 1.0, 1.0, 1.0},
+}
+
 // GetExtremeEventPool returns genre-appropriate extreme events.
 func (s *WeatherSystem) GetExtremeEventPool() []string {
 	switch s.Genre {
@@ -92,114 +177,23 @@ func (s *WeatherSystem) GetExtremeEventPool() []string {
 // CreateExtremeEvent spawns a new extreme weather event.
 func (s *WeatherSystem) CreateExtremeEvent(eventType string, x, y float64) *ExtremeWeatherEvent {
 	event := &ExtremeWeatherEvent{
-		Type:      eventType,
-		CenterX:   x,
-		CenterY:   y,
-		Intensity: 0.5,
+		Type:    eventType,
+		CenterX: x,
+		CenterY: y,
 	}
 
-	// Set event-specific defaults
-	switch eventType {
-	case ExtremeEventTornado:
-		event.Intensity = 0.8
-		event.Duration = 120.0
-		event.MaxDuration = 120.0
-		event.DamageRate = 10.0
-		event.WarningTime = 30.0
-		event.Radius = 50.0
-		event.Speed = 15.0
-
-	case ExtremeEventBlizzard:
-		event.Intensity = 0.7
-		event.Duration = 600.0
-		event.MaxDuration = 600.0
-		event.DamageRate = 2.0
-		event.WarningTime = 60.0
-		event.Radius = 500.0
-		event.Speed = 0.0 // Stationary
-
-	case ExtremeEventHurricane:
-		event.Intensity = 0.9
-		event.Duration = 300.0
-		event.MaxDuration = 300.0
-		event.DamageRate = 5.0
-		event.WarningTime = 120.0
-		event.Radius = 300.0
-		event.Speed = 8.0
-
-	case ExtremeEventSolarFlare:
-		event.Intensity = 0.6
-		event.Duration = 60.0
-		event.MaxDuration = 60.0
-		event.DamageRate = 3.0
-		event.WarningTime = 15.0
-		event.Radius = 1000.0 // Global effect
-		event.Speed = 0.0
-
-	case ExtremeEventRadiationWave:
-		event.Intensity = 0.7
-		event.Duration = 180.0
-		event.MaxDuration = 180.0
-		event.DamageRate = 4.0
-		event.WarningTime = 45.0
-		event.Radius = 400.0
-		event.Speed = 20.0
-
-	case ExtremeEventMeteorShower:
+	// Apply configuration from map, or use defaults
+	if cfg, ok := extremeEventConfigs[eventType]; ok {
+		event.Intensity = cfg.Intensity
+		event.Duration = cfg.Duration
+		event.MaxDuration = cfg.Duration
+		event.DamageRate = cfg.DamageRate
+		event.WarningTime = cfg.WarningTime
+		event.Radius = cfg.Radius
+		event.Speed = cfg.Speed
+	} else {
+		// Fallback defaults for unknown event types
 		event.Intensity = 0.5
-		event.Duration = 90.0
-		event.MaxDuration = 90.0
-		event.DamageRate = 15.0 // High damage but random impacts
-		event.WarningTime = 20.0
-		event.Radius = 200.0
-		event.Speed = 0.0
-
-	case ExtremeEventEarthquake:
-		event.Intensity = 0.8
-		event.Duration = 30.0
-		event.MaxDuration = 30.0
-		event.DamageRate = 8.0
-		event.WarningTime = 5.0
-		event.Radius = 300.0
-		event.Speed = 0.0
-
-	case ExtremeEventFlood:
-		event.Intensity = 0.6
-		event.Duration = 900.0
-		event.MaxDuration = 900.0
-		event.DamageRate = 1.0
-		event.WarningTime = 180.0
-		event.Radius = 250.0
-		event.Speed = 5.0
-
-	case ExtremeEventDarkRitual:
-		event.Intensity = 0.9
-		event.Duration = 180.0
-		event.MaxDuration = 180.0
-		event.DamageRate = 5.0
-		event.WarningTime = 60.0
-		event.Radius = 150.0
-		event.Speed = 0.0
-
-	case ExtremeEventDragonFlight:
-		event.Intensity = 0.7
-		event.Duration = 120.0
-		event.MaxDuration = 120.0
-		event.DamageRate = 12.0
-		event.WarningTime = 30.0
-		event.Radius = 100.0
-		event.Speed = 30.0 // Fast moving
-
-	case ExtremeEventAcidStorm:
-		event.Intensity = 0.8
-		event.Duration = 240.0
-		event.MaxDuration = 240.0
-		event.DamageRate = 3.0
-		event.WarningTime = 45.0
-		event.Radius = 350.0
-		event.Speed = 10.0
-
-	default:
 		event.Duration = 60.0
 		event.MaxDuration = 60.0
 		event.DamageRate = 1.0
@@ -300,50 +294,12 @@ func (s *WeatherSystem) GetExtremeEventModifiers() WeatherModifiers {
 	e := s.ExtremeEvent
 	intensity := e.Intensity
 
-	switch e.Type {
-	case ExtremeEventTornado:
-		mods.Visibility = 0.2
-		mods.Movement = 0.3
-		mods.Accuracy = 0.1
-		mods.Stealth = 0.3
-	case ExtremeEventBlizzard:
-		mods.Visibility = 0.1
-		mods.Movement = 0.4
-		mods.Accuracy = 0.2
-		mods.Stealth = 0.4
-	case ExtremeEventHurricane:
-		mods.Visibility = 0.3
-		mods.Movement = 0.4
-		mods.Accuracy = 0.2
-		mods.Stealth = 0.5
-	case ExtremeEventSolarFlare:
-		mods.Visibility = 0.5 // Blinding light
-		mods.Accuracy = 0.6
-	case ExtremeEventRadiationWave:
-		mods.Visibility = 0.6
-		mods.Movement = 0.8
-	case ExtremeEventMeteorShower:
-		mods.Visibility = 0.7
-		mods.Movement = 0.9
-		mods.Stealth = 0.8
-	case ExtremeEventEarthquake:
-		mods.Movement = 0.5
-		mods.Accuracy = 0.4
-	case ExtremeEventFlood:
-		mods.Movement = 0.3
-		mods.Stealth = 0.6
-	case ExtremeEventDarkRitual:
-		mods.Visibility = 0.2
-		mods.Accuracy = 0.5
-		mods.Stealth = 0.3
-	case ExtremeEventDragonFlight:
-		mods.Visibility = 0.6
-		mods.Movement = 0.9
-		mods.Stealth = 0.8
-	case ExtremeEventAcidStorm:
-		mods.Visibility = 0.4
-		mods.Movement = 0.7
-		mods.Accuracy = 0.5
+	// Apply modifiers from config map
+	if cfg, ok := extremeEventModifiers[e.Type]; ok {
+		mods.Visibility = cfg.Visibility
+		mods.Movement = cfg.Movement
+		mods.Accuracy = cfg.Accuracy
+		mods.Stealth = cfg.Stealth
 	}
 
 	// Scale modifiers by intensity
@@ -485,79 +441,13 @@ func (s *WeatherSystem) GetWeatherModifiers() WeatherModifiers {
 		Stealth:    1.0,
 	}
 
-	switch s.CurrentWeather {
-	// Common weather types
-	case "clear":
-		// No modifications
-	case "cloudy", "overcast":
-		mods.Visibility = 0.9
-	case "rain":
-		mods.Visibility = 0.7
-		mods.Movement = 0.9
-		mods.Accuracy = 0.85
-		mods.Stealth = 0.8 // Rain makes it easier to hide
-	case "fog", "mist":
-		mods.Visibility = 0.3
-		mods.Accuracy = 0.7
-		mods.Stealth = 0.5 // Much easier to hide in fog
-	case "thunderstorm":
-		mods.Visibility = 0.4
-		mods.Movement = 0.7
-		mods.Accuracy = 0.6
-		mods.Stealth = 0.6
-		mods.Damage = 0.5 // Lightning risk
-
-	// Sci-fi weather
-	case "dust":
-		mods.Visibility = 0.5
-		mods.Accuracy = 0.75
-		mods.Stealth = 0.7
-	case "ion_storm":
-		mods.Visibility = 0.6
-		mods.Accuracy = 0.5 // Electronics interference
-		mods.Damage = 1.0
-	case "radiation_burst":
-		mods.Visibility = 0.8
-		mods.Damage = 2.0 // High radiation damage
-		mods.Movement = 0.8
-
-	// Horror weather
-	case "blood_moon":
-		mods.Visibility = 0.5
-		mods.Stealth = 1.2 // Enemies are more alert
-		mods.Damage = 0.3  // Cursed damage
-
-	// Cyberpunk weather
-	case "smog":
-		mods.Visibility = 0.6
-		mods.Movement = 0.95
-		mods.Stealth = 0.75
-	case "acid_rain":
-		mods.Visibility = 0.7
-		mods.Movement = 0.85
-		mods.Damage = 0.8 // Acid damage
-	case "neon_haze":
-		mods.Visibility = 0.75
-		mods.Accuracy = 0.9
-
-	// Post-apocalyptic weather
-	case "dust_storm":
-		mods.Visibility = 0.2
-		mods.Movement = 0.6
-		mods.Accuracy = 0.4
-		mods.Stealth = 0.4
-		mods.Damage = 0.3 // Abrasive damage
-	case "ash_fall":
-		mods.Visibility = 0.5
-		mods.Movement = 0.85
-		mods.Accuracy = 0.8
-	case "radiation_fog":
-		mods.Visibility = 0.3
-		mods.Damage = 1.5 // Radiation damage
-		mods.Stealth = 0.5
-	case "scorching":
-		mods.Movement = 0.7
-		mods.Damage = 1.0 // Heat damage
+	// Apply modifiers from config map
+	if cfg, ok := weatherModifiers[s.CurrentWeather]; ok {
+		mods.Visibility = cfg.Visibility
+		mods.Movement = cfg.Movement
+		mods.Accuracy = cfg.Accuracy
+		mods.Stealth = cfg.Stealth
+		mods.Damage = cfg.Damage
 	}
 
 	return mods
@@ -852,338 +742,4 @@ func (s *WeatherSystem) calculateNightLightLevel(hour, sunset int) float64 {
 // GetLightLevel returns ambient light level for a given hour, using day 0 as reference.
 func (s *WeatherSystem) GetLightLevel(hour int) float64 {
 	return s.GetAmbientLightLevel(0, hour)
-}
-
-// LocationType represents where an entity is located.
-type LocationType int
-
-const (
-	LocationOutdoor LocationType = iota
-	LocationIndoor
-	LocationUnderground
-	LocationUnderwater
-)
-
-// IndoorOutdoorZone represents a zone with indoor/outdoor properties.
-type IndoorOutdoorZone struct {
-	ID               string
-	LocationType     LocationType
-	MinX, MinY, MinZ float64
-	MaxX, MaxY, MaxZ float64
-	WeatherShielded  bool
-	LightOverride    float64
-	AmbientSound     string
-}
-
-// IndoorOutdoorSystem detects whether entities are inside or outside.
-type IndoorOutdoorSystem struct {
-	Zones       map[string]*IndoorOutdoorZone
-	EntityZones map[ecs.Entity]string
-	DefaultType LocationType
-	weatherSys  *WeatherSystem
-}
-
-// NewIndoorOutdoorSystem creates a new indoor/outdoor detection system.
-func NewIndoorOutdoorSystem(weatherSys *WeatherSystem) *IndoorOutdoorSystem {
-	return &IndoorOutdoorSystem{
-		Zones:       make(map[string]*IndoorOutdoorZone),
-		EntityZones: make(map[ecs.Entity]string),
-		DefaultType: LocationOutdoor,
-		weatherSys:  weatherSys,
-	}
-}
-
-// Update checks all entities' positions and updates their location status.
-func (s *IndoorOutdoorSystem) Update(w *ecs.World, dt float64) {
-	if w == nil {
-		return
-	}
-	for _, e := range w.Entities("Position") {
-		s.updateEntityLocation(w, e)
-	}
-}
-
-// updateEntityLocation determines which zone an entity is in.
-func (s *IndoorOutdoorSystem) updateEntityLocation(w *ecs.World, e ecs.Entity) {
-	posComp, ok := w.GetComponent(e, "Position")
-	if !ok {
-		return
-	}
-
-	type positioner interface {
-		GetX() float64
-		GetY() float64
-		GetZ() float64
-	}
-
-	if pos, ok := posComp.(positioner); ok {
-		x, y, z := pos.GetX(), pos.GetY(), pos.GetZ()
-		for id, zone := range s.Zones {
-			if s.isInZone(x, y, z, zone) {
-				s.EntityZones[e] = id
-				return
-			}
-		}
-	}
-	delete(s.EntityZones, e)
-}
-
-// isInZone checks if coordinates are within a zone's bounds.
-func (s *IndoorOutdoorSystem) isInZone(x, y, z float64, zone *IndoorOutdoorZone) bool {
-	return x >= zone.MinX && x <= zone.MaxX &&
-		y >= zone.MinY && y <= zone.MaxY &&
-		z >= zone.MinZ && z <= zone.MaxZ
-}
-
-// RegisterZone adds a new zone to the system.
-func (s *IndoorOutdoorSystem) RegisterZone(zone *IndoorOutdoorZone) {
-	s.Zones[zone.ID] = zone
-}
-
-// UnregisterZone removes a zone from the system.
-func (s *IndoorOutdoorSystem) UnregisterZone(id string) {
-	delete(s.Zones, id)
-	for e, zoneID := range s.EntityZones {
-		if zoneID == id {
-			delete(s.EntityZones, e)
-		}
-	}
-}
-
-// GetEntityLocationType returns the location type for an entity.
-func (s *IndoorOutdoorSystem) GetEntityLocationType(e ecs.Entity) LocationType {
-	if zoneID, ok := s.EntityZones[e]; ok {
-		if zone, ok := s.Zones[zoneID]; ok {
-			return zone.LocationType
-		}
-	}
-	return s.DefaultType
-}
-
-// GetEntityZone returns the zone ID for an entity, or empty string if outside.
-func (s *IndoorOutdoorSystem) GetEntityZone(e ecs.Entity) string {
-	return s.EntityZones[e]
-}
-
-// IsEntityIndoor checks if an entity is in an indoor location.
-func (s *IndoorOutdoorSystem) IsEntityIndoor(e ecs.Entity) bool {
-	return s.GetEntityLocationType(e) == LocationIndoor
-}
-
-// IsEntityOutdoor checks if an entity is in an outdoor location.
-func (s *IndoorOutdoorSystem) IsEntityOutdoor(e ecs.Entity) bool {
-	return s.GetEntityLocationType(e) == LocationOutdoor
-}
-
-// IsEntityUnderground checks if an entity is underground.
-func (s *IndoorOutdoorSystem) IsEntityUnderground(e ecs.Entity) bool {
-	return s.GetEntityLocationType(e) == LocationUnderground
-}
-
-// IsEntityUnderwater checks if an entity is underwater.
-func (s *IndoorOutdoorSystem) IsEntityUnderwater(e ecs.Entity) bool {
-	return s.GetEntityLocationType(e) == LocationUnderwater
-}
-
-// IsWeatherShielded checks if an entity is protected from weather effects.
-func (s *IndoorOutdoorSystem) IsWeatherShielded(e ecs.Entity) bool {
-	if zoneID, ok := s.EntityZones[e]; ok {
-		if zone, ok := s.Zones[zoneID]; ok {
-			return zone.WeatherShielded
-		}
-	}
-	return false
-}
-
-// GetEffectiveWeatherModifiers returns weather modifiers adjusted for location.
-func (s *IndoorOutdoorSystem) GetEffectiveWeatherModifiers(e ecs.Entity) WeatherModifiers {
-	if s.weatherSys == nil {
-		return WeatherModifiers{
-			Visibility: 1.0,
-			Movement:   1.0,
-			Accuracy:   1.0,
-			Damage:     0.0,
-			Stealth:    1.0,
-		}
-	}
-
-	baseMods := s.weatherSys.GetWeatherModifiers()
-
-	if s.IsWeatherShielded(e) {
-		return WeatherModifiers{
-			Visibility: 1.0,
-			Movement:   1.0,
-			Accuracy:   1.0,
-			Damage:     0.0,
-			Stealth:    baseMods.Stealth,
-		}
-	}
-
-	locType := s.GetEntityLocationType(e)
-	switch locType {
-	case LocationUnderground:
-		return WeatherModifiers{
-			Visibility: 0.5,
-			Movement:   1.0,
-			Accuracy:   1.0,
-			Damage:     0.0,
-			Stealth:    0.7,
-		}
-	case LocationUnderwater:
-		return WeatherModifiers{
-			Visibility: 0.4,
-			Movement:   0.6,
-			Accuracy:   0.5,
-			Damage:     0.0,
-			Stealth:    0.8,
-		}
-	}
-
-	return baseMods
-}
-
-// GetEffectiveLightLevel returns the light level adjusted for location.
-func (s *IndoorOutdoorSystem) GetEffectiveLightLevel(e ecs.Entity, hour int) float64 {
-	if zoneID, ok := s.EntityZones[e]; ok {
-		if zone, ok := s.Zones[zoneID]; ok {
-			if zone.LightOverride > 0 {
-				return zone.LightOverride
-			}
-			switch zone.LocationType {
-			case LocationIndoor:
-				return 0.7
-			case LocationUnderground:
-				return 0.2
-			case LocationUnderwater:
-				return 0.4
-			}
-		}
-	}
-
-	if s.weatherSys != nil {
-		return s.weatherSys.GetLightLevel(hour)
-	}
-	return 1.0
-}
-
-// GetAmbientSound returns the appropriate ambient sound for an entity's location.
-func (s *IndoorOutdoorSystem) GetAmbientSound(e ecs.Entity) string {
-	if zoneID, ok := s.EntityZones[e]; ok {
-		if zone, ok := s.Zones[zoneID]; ok {
-			if zone.AmbientSound != "" {
-				return zone.AmbientSound
-			}
-			switch zone.LocationType {
-			case LocationIndoor:
-				return "ambient_indoor"
-			case LocationUnderground:
-				return "ambient_cave"
-			case LocationUnderwater:
-				return "ambient_underwater"
-			}
-		}
-	}
-
-	if s.weatherSys != nil {
-		switch s.weatherSys.CurrentWeather {
-		case "rain", "thunderstorm", "acid_rain":
-			return "ambient_rain"
-		case "fog", "mist":
-			return "ambient_fog"
-		case "dust_storm", "ash_fall":
-			return "ambient_wind"
-		}
-	}
-	return "ambient_outdoor"
-}
-
-// CreateBuildingZone creates a standard indoor zone for a building.
-func (s *IndoorOutdoorSystem) CreateBuildingZone(id string, minX, minY, minZ, maxX, maxY, maxZ float64) *IndoorOutdoorZone {
-	zone := &IndoorOutdoorZone{
-		ID:              id,
-		LocationType:    LocationIndoor,
-		MinX:            minX,
-		MinY:            minY,
-		MinZ:            minZ,
-		MaxX:            maxX,
-		MaxY:            maxY,
-		MaxZ:            maxZ,
-		WeatherShielded: true,
-		LightOverride:   0.7,
-		AmbientSound:    "ambient_indoor",
-	}
-	s.RegisterZone(zone)
-	return zone
-}
-
-// CreateCaveZone creates a standard underground zone.
-func (s *IndoorOutdoorSystem) CreateCaveZone(id string, minX, minY, minZ, maxX, maxY, maxZ float64) *IndoorOutdoorZone {
-	zone := &IndoorOutdoorZone{
-		ID:              id,
-		LocationType:    LocationUnderground,
-		MinX:            minX,
-		MinY:            minY,
-		MinZ:            minZ,
-		MaxX:            maxX,
-		MaxY:            maxY,
-		MaxZ:            maxZ,
-		WeatherShielded: true,
-		LightOverride:   0.2,
-		AmbientSound:    "ambient_cave",
-	}
-	s.RegisterZone(zone)
-	return zone
-}
-
-// CreateUnderwaterZone creates a standard underwater zone.
-func (s *IndoorOutdoorSystem) CreateUnderwaterZone(id string, minX, minY, minZ, maxX, maxY, maxZ float64) *IndoorOutdoorZone {
-	zone := &IndoorOutdoorZone{
-		ID:              id,
-		LocationType:    LocationUnderwater,
-		MinX:            minX,
-		MinY:            minY,
-		MinZ:            minZ,
-		MaxX:            maxX,
-		MaxY:            maxY,
-		MaxZ:            maxZ,
-		WeatherShielded: true,
-		LightOverride:   0.4,
-		AmbientSound:    "ambient_underwater",
-	}
-	s.RegisterZone(zone)
-	return zone
-}
-
-// GetZoneCount returns the number of registered zones.
-func (s *IndoorOutdoorSystem) GetZoneCount() int {
-	return len(s.Zones)
-}
-
-// GetTrackedEntityCount returns the number of entities in zones.
-func (s *IndoorOutdoorSystem) GetTrackedEntityCount() int {
-	return len(s.EntityZones)
-}
-
-// ClearEntityTracking removes all entity zone associations.
-func (s *IndoorOutdoorSystem) ClearEntityTracking() {
-	s.EntityZones = make(map[ecs.Entity]string)
-}
-
-// GetZone returns a zone by ID.
-func (s *IndoorOutdoorSystem) GetZone(id string) *IndoorOutdoorZone {
-	return s.Zones[id]
-}
-
-// SetEntityZone manually sets an entity's zone.
-func (s *IndoorOutdoorSystem) SetEntityZone(e ecs.Entity, zoneID string) bool {
-	if _, ok := s.Zones[zoneID]; ok {
-		s.EntityZones[e] = zoneID
-		return true
-	}
-	return false
-}
-
-// ClearEntityZone removes an entity's zone association.
-func (s *IndoorOutdoorSystem) ClearEntityZone(e ecs.Entity) {
-	delete(s.EntityZones, e)
 }

@@ -128,8 +128,8 @@ type Ability struct {
 	IsHealing   bool
 }
 
-// GenreCompanionTemplates defines genre-specific companion archetypes.
-var GenreCompanionTemplates = map[string][]CompanionTemplate{
+// GenreTemplates defines genre-specific companion archetypes.
+var GenreTemplates = map[string][]Template{
 	"fantasy": {
 		{Role: RoleTank, Class: "Knight", Backstory: "A disgraced knight seeking redemption"},
 		{Role: RoleDPS, Class: "Rogue", Backstory: "A street thief with a heart of gold"},
@@ -167,8 +167,8 @@ var GenreCompanionTemplates = map[string][]CompanionTemplate{
 	},
 }
 
-// CompanionTemplate defines a companion archetype.
-type CompanionTemplate struct {
+// Template defines a companion archetype.
+type Template struct {
 	Role      CombatRole
 	Class     string
 	Backstory string
@@ -203,17 +203,17 @@ var RoleAbilities = map[CombatRole][]Ability{
 	},
 }
 
-// CompanionManager handles companion NPCs.
-type CompanionManager struct {
+// Manager handles companion NPCs.
+type Manager struct {
 	mu          sync.RWMutex
 	companions  map[uint64]*Companion // CompanionID -> Companion
 	playerComps map[uint64]uint64     // PlayerID -> CompanionID
 	rng         *rand.Rand
 }
 
-// NewCompanionManager creates a new companion manager.
-func NewCompanionManager(seed int64) *CompanionManager {
-	return &CompanionManager{
+// NewManager creates a new companion manager.
+func NewManager(seed int64) *Manager {
+	return &Manager{
 		companions:  make(map[uint64]*Companion),
 		playerComps: make(map[uint64]uint64),
 		rng:         rand.New(rand.NewSource(seed)),
@@ -221,17 +221,17 @@ func NewCompanionManager(seed int64) *CompanionManager {
 }
 
 // CreateCompanion generates a new companion for a player.
-func (cm *CompanionManager) CreateCompanion(playerID uint64, genre string, preferredRole CombatRole) *Companion {
+func (cm *Manager) CreateCompanion(playerID uint64, genre string, preferredRole CombatRole) *Companion {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	templates := GenreCompanionTemplates[genre]
+	templates := GenreTemplates[genre]
 	if templates == nil {
-		templates = GenreCompanionTemplates["fantasy"]
+		templates = GenreTemplates["fantasy"]
 	}
 
 	// Find template matching preferred role
-	var template CompanionTemplate
+	var template Template
 	for _, t := range templates {
 		if t.Role == preferredRole {
 			template = t
@@ -269,7 +269,7 @@ func (cm *CompanionManager) CreateCompanion(playerID uint64, genre string, prefe
 }
 
 // generateName creates a genre-appropriate name.
-func (cm *CompanionManager) generateName(genre string) string {
+func (cm *Manager) generateName(genre string) string {
 	names := map[string][]string{
 		"fantasy":          {"Aldric", "Lyra", "Thorin", "Seraphina", "Gareth"},
 		"sci-fi":           {"Nova", "Rex", "Luna", "Orion", "Zeta"},
@@ -287,14 +287,14 @@ func (cm *CompanionManager) generateName(genre string) string {
 }
 
 // GetCompanion returns a companion by ID.
-func (cm *CompanionManager) GetCompanion(compID uint64) *Companion {
+func (cm *Manager) GetCompanion(compID uint64) *Companion {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return cm.companions[compID]
 }
 
 // GetPlayerCompanion returns the companion assigned to a player.
-func (cm *CompanionManager) GetPlayerCompanion(playerID uint64) *Companion {
+func (cm *Manager) GetPlayerCompanion(playerID uint64) *Companion {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 
@@ -307,7 +307,7 @@ func (cm *CompanionManager) GetPlayerCompanion(playerID uint64) *Companion {
 
 // RecordPlayerAction stores a player action in companion memory.
 // Per AC: dialog references player actions from last 10 events.
-func (cm *CompanionManager) RecordPlayerAction(compID uint64, event ActionEvent) {
+func (cm *Manager) RecordPlayerAction(compID uint64, event ActionEvent) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -329,7 +329,7 @@ func (cm *CompanionManager) RecordPlayerAction(compID uint64, event ActionEvent)
 }
 
 // adjustLoyalty modifies companion loyalty based on player actions.
-func (cm *CompanionManager) adjustLoyalty(comp *Companion, event ActionEvent) {
+func (cm *Manager) adjustLoyalty(comp *Companion, event ActionEvent) {
 	switch event.EventType {
 	case "helped_npc":
 		comp.Loyalty += 2
@@ -353,7 +353,7 @@ func (cm *CompanionManager) adjustLoyalty(comp *Companion, event ActionEvent) {
 }
 
 // GetRecentEvents returns the companion's memory of recent player actions.
-func (cm *CompanionManager) GetRecentEvents(compID uint64) []ActionEvent {
+func (cm *Manager) GetRecentEvents(compID uint64) []ActionEvent {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 
@@ -397,7 +397,7 @@ func selectTankAbility(abilities []Ability) *Ability {
 
 // SelectAbility chooses an appropriate ability based on combat situation.
 // Per AC: Companion uses class-appropriate abilities.
-func (cm *CompanionManager) SelectAbility(compID uint64, targetLowHealth, allyLowHealth bool) *Ability {
+func (cm *Manager) SelectAbility(compID uint64, targetLowHealth, allyLowHealth bool) *Ability {
 	cm.mu.RLock()
 	comp := cm.companions[compID]
 	cm.mu.RUnlock()
@@ -426,7 +426,7 @@ func (cm *CompanionManager) SelectAbility(compID uint64, targetLowHealth, allyLo
 }
 
 // GenerateDialogResponse creates a companion dialog that references past events.
-func (cm *CompanionManager) GenerateDialogResponse(compID uint64, topic string) string {
+func (cm *Manager) GenerateDialogResponse(compID uint64, topic string) string {
 	cm.mu.RLock()
 	comp := cm.companions[compID]
 	cm.mu.RUnlock()
@@ -465,7 +465,7 @@ func (cm *CompanionManager) GenerateDialogResponse(compID uint64, topic string) 
 }
 
 // SetOrder gives a command to the companion.
-func (cm *CompanionManager) SetOrder(compID uint64, order Order) {
+func (cm *Manager) SetOrder(compID uint64, order Order) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -479,7 +479,7 @@ func (cm *CompanionManager) SetOrder(compID uint64, order Order) {
 }
 
 // SetCombatState updates the companion's combat status.
-func (cm *CompanionManager) SetCombatState(compID uint64, inCombat bool) {
+func (cm *Manager) SetCombatState(compID uint64, inCombat bool) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -490,8 +490,8 @@ func (cm *CompanionManager) SetCombatState(compID uint64, inCombat bool) {
 	comp.InCombat = inCombat
 }
 
-// CompanionCount returns the total number of companions.
-func (cm *CompanionManager) CompanionCount() int {
+// Count returns the total number of companions.
+func (cm *Manager) Count() int {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return len(cm.companions)

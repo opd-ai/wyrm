@@ -560,9 +560,8 @@ type BriberySystem struct {
 	ReportChanceOnFailure float64
 	// Multipliers for different wanted levels
 	HighWantedMultiplier float64 // Applied at 4-5 stars
-	// Random seed for determinism
-	rngSeed    int64
-	rngCounter int64
+	// Random generator for determinism
+	rng *PseudoRandomLCG
 }
 
 // NewBriberySystem creates a new bribery system.
@@ -577,17 +576,13 @@ func NewBriberySystem(crimeSystem *CrimeSystem, guardPursuitSystem *GuardPursuit
 		JailerSuccessBase:     0.4, // 40% base success
 		ReportChanceOnFailure: 0.3, // 30% chance to report failed bribe
 		HighWantedMultiplier:  2.0, // Double cost at high wanted level
-		rngSeed:               seed,
-		rngCounter:            0,
+		rng:                   NewPseudoRandomLCG(seed),
 	}
 }
 
 // pseudoRandom generates a deterministic pseudo-random number 0.0-1.0.
 func (s *BriberySystem) pseudoRandom() float64 {
-	s.rngCounter++
-	// Simple LCG-style pseudo-random
-	x := s.rngSeed*1103515245 + s.rngCounter*12345
-	return float64((x>>16)&0x7FFF) / 32768.0
+	return s.rng.Float64()
 }
 
 // CalculateBribeCost calculates the cost to bribe a target.
@@ -667,43 +662,52 @@ func (s *BriberySystem) AttemptBribe(w *ecs.World, entity ecs.Entity, target Bri
 	}
 	crime := comp.(*components.Crime)
 
-	// Calculate required cost
 	requiredCost := s.CalculateBribeCost(w, entity, target)
 	if requiredCost <= 0 {
 		return BribeResultNoTarget
 	}
 
-	// Check if offer is sufficient
-	if offerAmount < requiredCost*0.5 {
-		// Way too low - instant rejection
+	if s.isOfferTooLow(offerAmount, requiredCost) {
 		return BribeResultInsufficient
 	}
 
-	// Calculate success chance
-	offerMultiplier := offerAmount / requiredCost
+	return s.resolveBribeAttempt(w, entity, crime, target, offerAmount, requiredCost)
+}
+
+// isOfferTooLow checks if the bribe offer is insufficiently low.
+func (s *BriberySystem) isOfferTooLow(offer, required float64) bool {
+	return offer < required*0.5
+}
+
+// resolveBribeAttempt determines the outcome of a bribe attempt.
+func (s *BriberySystem) resolveBribeAttempt(w *ecs.World, entity ecs.Entity, crime *components.Crime, target BribeTarget, offer, required float64) BribeResult {
+	offerMultiplier := offer / required
 	successChance := s.CalculateSuccessChance(w, entity, target, offerMultiplier)
 
-	// Roll for success
-	roll := s.pseudoRandom()
-
-	if roll < successChance {
-		// Success!
+	if s.pseudoRandom() < successChance {
 		s.applyBribeEffect(w, entity, crime, target)
 		return BribeResultSuccess
 	}
 
-	// Failed - check if reported
+	return s.handleFailedBribe(crime)
+}
+
+// handleFailedBribe determines the consequence of a failed bribe.
+func (s *BriberySystem) handleFailedBribe(crime *components.Crime) BribeResult {
 	if s.pseudoRandom() < s.ReportChanceOnFailure {
-		// Crime reported! Increase wanted level
-		crime.WantedLevel++
-		if crime.WantedLevel > MaxWantedLevel {
-			crime.WantedLevel = MaxWantedLevel
-		}
-		crime.BountyAmount += s.BaseBribeCostPerLevel
+		s.increaseCrimeSeverity(crime)
 		return BribeResultReported
 	}
-
 	return BribeResultFailed
+}
+
+// increaseCrimeSeverity raises wanted level and bounty after a reported bribe.
+func (s *BriberySystem) increaseCrimeSeverity(crime *components.Crime) {
+	crime.WantedLevel++
+	if crime.WantedLevel > MaxWantedLevel {
+		crime.WantedLevel = MaxWantedLevel
+	}
+	crime.BountyAmount += s.BaseBribeCostPerLevel
 }
 
 // applyBribeEffect applies the effect of a successful bribe.

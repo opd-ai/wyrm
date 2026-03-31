@@ -31,8 +31,8 @@ type TransferAck struct {
 	Timestamp time.Time
 }
 
-// FederationNode represents a peer server in the federation.
-type FederationNode struct {
+// Node represents a peer server in the federation.
+type Node struct {
 	ServerID    string
 	Address     string
 	LastSeen    time.Time

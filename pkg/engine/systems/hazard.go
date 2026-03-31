@@ -55,45 +55,55 @@ func (s *HazardSystem) processHazardZones(w *ecs.World, dt float64) {
 	targets := w.Entities("Position", "Health")
 
 	for _, hazardEnt := range hazards {
-		hazardComp, _ := w.GetComponent(hazardEnt, "EnvironmentalHazard")
-		hazard := hazardComp.(*components.EnvironmentalHazard)
+		s.processHazardEntity(w, hazardEnt, targets, dt)
+	}
+}
 
-		if !hazard.Active {
+// processHazardEntity handles damage application for a single hazard.
+func (s *HazardSystem) processHazardEntity(w *ecs.World, hazardEnt ecs.Entity, targets []ecs.Entity, dt float64) {
+	hazardComp, _ := w.GetComponent(hazardEnt, "EnvironmentalHazard")
+	hazard := hazardComp.(*components.EnvironmentalHazard)
+
+	if !hazard.Active || s.isOnCooldown(hazard) {
+		return
+	}
+
+	hazardPos := s.getEntityPosition(w, hazardEnt)
+	s.damageTargetsInRadius(w, hazardEnt, hazardPos, hazard, targets, dt)
+	hazard.LastDamageTick = s.getCurrentTime()
+}
+
+// isOnCooldown checks if a hazard is still in its cooldown period.
+func (s *HazardSystem) isOnCooldown(hazard *components.EnvironmentalHazard) bool {
+	return hazard.LastDamageTick+hazard.CooldownTime > s.getCurrentTime()
+}
+
+// getEntityPosition retrieves an entity's position component.
+func (s *HazardSystem) getEntityPosition(w *ecs.World, entity ecs.Entity) *components.Position {
+	posComp, _ := w.GetComponent(entity, "Position")
+	return posComp.(*components.Position)
+}
+
+// damageTargetsInRadius applies hazard damage to all valid targets within radius.
+func (s *HazardSystem) damageTargetsInRadius(w *ecs.World, hazardEnt ecs.Entity, hazardPos *components.Position, hazard *components.EnvironmentalHazard, targets []ecs.Entity, dt float64) {
+	for _, targetEnt := range targets {
+		if targetEnt == hazardEnt {
 			continue
 		}
-
-		hazardPosComp, _ := w.GetComponent(hazardEnt, "Position")
-		hazardPos := hazardPosComp.(*components.Position)
-
-		// Check cooldown
-		if hazard.LastDamageTick+hazard.CooldownTime > s.getCurrentTime() {
-			continue
-		}
-
-		for _, targetEnt := range targets {
-			if targetEnt == hazardEnt {
-				continue
-			}
-
-			targetPosComp, _ := w.GetComponent(targetEnt, "Position")
-			targetPos := targetPosComp.(*components.Position)
-
-			// Check if target is in hazard radius
-			dx := hazardPos.X - targetPos.X
-			dy := hazardPos.Y - targetPos.Y
-			dz := hazardPos.Z - targetPos.Z
-			distSq := dx*dx + dy*dy + dz*dz
-
-			if distSq > hazard.Radius*hazard.Radius {
-				continue
-			}
-
-			// Apply damage
+		if s.isInHazardRadius(w, targetEnt, hazardPos, hazard.Radius) {
 			s.applyHazardDamage(w, targetEnt, hazard, dt)
 		}
-
-		hazard.LastDamageTick = s.getCurrentTime()
 	}
+}
+
+// isInHazardRadius checks if a target is within the hazard's effect radius.
+func (s *HazardSystem) isInHazardRadius(w *ecs.World, target ecs.Entity, hazardPos *components.Position, radius float64) bool {
+	targetPos := s.getEntityPosition(w, target)
+	dx := hazardPos.X - targetPos.X
+	dy := hazardPos.Y - targetPos.Y
+	dz := hazardPos.Z - targetPos.Z
+	distSq := dx*dx + dy*dy + dz*dz
+	return distSq <= radius*radius
 }
 
 // applyHazardDamage deals hazard damage to a target entity.

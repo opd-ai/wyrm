@@ -19,7 +19,7 @@ type Federation struct {
 	mu sync.RWMutex
 
 	localServerID string
-	nodes         map[string]*FederationNode
+	nodes         map[string]*Node
 
 	// Transfer tracking
 	pendingTransfers   map[uint64]*PlayerTransfer
@@ -36,7 +36,7 @@ type Federation struct {
 func NewFederation(localServerID string) *Federation {
 	return &Federation{
 		localServerID:      localServerID,
-		nodes:              make(map[string]*FederationNode),
+		nodes:              make(map[string]*Node),
 		pendingTransfers:   make(map[uint64]*PlayerTransfer),
 		completedTransfers: make(map[uint64]time.Time),
 		remotePrices:       make(map[string]*PriceSignal),
@@ -45,7 +45,7 @@ func NewFederation(localServerID string) *Federation {
 }
 
 // RegisterNode adds a peer server to the federation.
-func (f *Federation) RegisterNode(node *FederationNode) {
+func (f *Federation) RegisterNode(node *Node) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.nodes[node.ServerID] = node
@@ -59,7 +59,7 @@ func (f *Federation) UnregisterNode(serverID string) {
 }
 
 // GetNode returns a federation node by ID.
-func (f *Federation) GetNode(serverID string) *FederationNode {
+func (f *Federation) GetNode(serverID string) *Node {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return f.nodes[serverID]

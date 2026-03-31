@@ -6,6 +6,9 @@ import (
 	"math/rand"
 )
 
+// FrameGenerator is a function type for generating a single animation frame.
+type FrameGenerator func(width, height int, state string, frameIdx int) *Sprite
+
 // Generator produces procedural sprites for entities based on their Appearance.
 type Generator struct {
 	seed  int64
@@ -20,6 +23,16 @@ func NewGenerator(genre string, seed int64) *Generator {
 		genre: genre,
 		rng:   rand.New(rand.NewSource(seed)),
 	}
+}
+
+// buildAnimation creates an animation with the specified parameters.
+func buildAnimation(animName string, looping bool, frameCount int, genFunc FrameGenerator, width, height int, state string) *Animation {
+	anim := NewAnimation(animName, looping)
+	for i := 0; i < frameCount; i++ {
+		frame := genFunc(width, height, state, i)
+		anim.AddFrame(frame)
+	}
+	return anim
 }
 
 // GenerateSheet generates a complete sprite sheet from a cache key.
@@ -56,35 +69,15 @@ func (g *Generator) generateHumanoidSheet(key SpriteCacheKey, rng *rand.Rand) *S
 
 	sheet := NewSpriteSheet(width, height)
 
-	// Generate idle animation (4 frames with subtle movement)
-	idleAnim := NewAnimation(AnimIdle, true)
-	for i := 0; i < 4; i++ {
-		frame := g.generateHumanoidFrame(width, height, key, rng, "idle", i)
-		idleAnim.AddFrame(frame)
+	// Create a frame generator closure for humanoid frames
+	frameGen := func(w, h int, state string, frameIdx int) *Sprite {
+		return g.generateHumanoidFrame(w, h, key, rng, state, frameIdx)
 	}
-	sheet.AddAnimation(idleAnim)
 
-	// Generate walk animation (8 frames)
-	walkAnim := NewAnimation(AnimWalk, true)
-	for i := 0; i < 8; i++ {
-		frame := g.generateHumanoidFrame(width, height, key, rng, "walk", i)
-		walkAnim.AddFrame(frame)
-	}
-	sheet.AddAnimation(walkAnim)
-
-	// Generate attack animation (6 frames, non-looping)
-	attackAnim := NewAnimation(AnimAttack, false)
-	for i := 0; i < 6; i++ {
-		frame := g.generateHumanoidFrame(width, height, key, rng, "attack", i)
-		attackAnim.AddFrame(frame)
-	}
-	sheet.AddAnimation(attackAnim)
-
-	// Generate dead animation (1 frame, non-looping)
-	deadAnim := NewAnimation(AnimDead, false)
-	deadFrame := g.generateHumanoidFrame(width, height, key, rng, "dead", 0)
-	deadAnim.AddFrame(deadFrame)
-	sheet.AddAnimation(deadAnim)
+	sheet.AddAnimation(buildAnimation(AnimIdle, true, 4, frameGen, width, height, "idle"))
+	sheet.AddAnimation(buildAnimation(AnimWalk, true, 8, frameGen, width, height, "walk"))
+	sheet.AddAnimation(buildAnimation(AnimAttack, false, 6, frameGen, width, height, "attack"))
+	sheet.AddAnimation(buildAnimation(AnimDead, false, 1, frameGen, width, height, "dead"))
 
 	return sheet
 }
@@ -150,27 +143,25 @@ func (g *Generator) drawLegs(sprite *Sprite, centerX, top, bottom, width int, c 
 	leftLegOffset := int(animOffset * 2)
 	rightLegOffset := -leftLegOffset
 
-	// Left leg
-	for y := top + leftLegOffset; y < bottom; y++ {
-		if y < top || y >= bottom {
-			continue
-		}
-		for x := centerX - legSpacing - legWidth; x < centerX-legSpacing; x++ {
-			if x >= 0 && x < width {
-				sprite.SetPixel(x, y, c)
-			}
-		}
-	}
+	g.drawHumanoidLeg(sprite, centerX-legSpacing-legWidth, centerX-legSpacing, top, bottom, width, c, leftLegOffset)
+	g.drawHumanoidLeg(sprite, centerX+legSpacing, centerX+legSpacing+legWidth, top, bottom, width, c, rightLegOffset)
+}
 
-	// Right leg
-	for y := top + rightLegOffset; y < bottom; y++ {
+// drawHumanoidLeg draws one humanoid leg with vertical offset.
+func (g *Generator) drawHumanoidLeg(sprite *Sprite, xStart, xEnd, top, bottom, width int, c color.RGBA, yOffset int) {
+	for y := top + yOffset; y < bottom; y++ {
 		if y < top || y >= bottom {
 			continue
 		}
-		for x := centerX + legSpacing; x < centerX+legSpacing+legWidth; x++ {
-			if x >= 0 && x < width {
-				sprite.SetPixel(x, y, c)
-			}
+		g.drawHorizontalLine(sprite, xStart, xEnd, y, width, c)
+	}
+}
+
+// drawHorizontalLine draws a horizontal line with bounds checking.
+func (g *Generator) drawHorizontalLine(sprite *Sprite, xStart, xEnd, y, width int, c color.RGBA) {
+	for x := xStart; x < xEnd; x++ {
+		if x >= 0 && x < width {
+			sprite.SetPixel(x, y, c)
 		}
 	}
 }
@@ -342,21 +333,13 @@ func (g *Generator) generateCreatureSheet(key SpriteCacheKey, rng *rand.Rand) *S
 
 	sheet := NewSpriteSheet(width, height)
 
-	// Generate idle animation
-	idleAnim := NewAnimation(AnimIdle, true)
-	for i := 0; i < 4; i++ {
-		frame := g.generateCreatureFrame(width, height, key, rng, "idle", i)
-		idleAnim.AddFrame(frame)
+	// Create a frame generator closure for creature frames
+	frameGen := func(w, h int, state string, frameIdx int) *Sprite {
+		return g.generateCreatureFrame(w, h, key, rng, state, frameIdx)
 	}
-	sheet.AddAnimation(idleAnim)
 
-	// Generate walk animation
-	walkAnim := NewAnimation(AnimWalk, true)
-	for i := 0; i < 6; i++ {
-		frame := g.generateCreatureFrame(width, height, key, rng, "walk", i)
-		walkAnim.AddFrame(frame)
-	}
-	sheet.AddAnimation(walkAnim)
+	sheet.AddAnimation(buildAnimation(AnimIdle, true, 4, frameGen, width, height, "idle"))
+	sheet.AddAnimation(buildAnimation(AnimWalk, true, 6, frameGen, width, height, "walk"))
 
 	return sheet
 }
@@ -516,59 +499,67 @@ func (g *Generator) drawCircle(sprite *Sprite, centerX, centerY, radius int, c c
 func (g *Generator) drawAvian(sprite *Sprite, width, height int, primary, secondary color.RGBA, state string, frameIdx int) {
 	centerX := width / 2
 	centerY := height / 2
-
-	// Body (oval)
 	bodyWidth := width / 3
 	bodyHeight := height / 4
+
+	g.drawOvalBody(sprite, centerX, centerY, bodyWidth, bodyHeight, width, primary)
+	g.drawCircularHead(sprite, centerX, centerY-bodyHeight, height/8, secondary)
+	g.drawAvianWings(sprite, centerX, centerY, bodyWidth, width/3, width, primary, state, frameIdx)
+}
+
+// drawOvalBody draws an oval-shaped body.
+func (g *Generator) drawOvalBody(sprite *Sprite, centerX, centerY, bodyWidth, bodyHeight, maxWidth int, c color.RGBA) {
 	for y := centerY - bodyHeight; y < centerY+bodyHeight; y++ {
 		dy := float64(y - centerY)
 		xRange := int(math.Sqrt(float64(bodyWidth*bodyWidth) * (1 - (dy*dy)/float64(bodyHeight*bodyHeight))))
-		for x := centerX - xRange; x <= centerX+xRange; x++ {
-			if x >= 0 && x < width {
-				sprite.SetPixel(x, y, primary)
+		g.drawHorizontalLine(sprite, centerX-xRange, centerX+xRange+1, y, maxWidth, c)
+	}
+}
+
+// drawCircularHead draws a circular head.
+func (g *Generator) drawCircularHead(sprite *Sprite, centerX, centerY, radius int, c color.RGBA) {
+	for dy := -radius; dy <= radius; dy++ {
+		for dx := -radius; dx <= radius; dx++ {
+			if dx*dx+dy*dy <= radius*radius {
+				sprite.SetPixel(centerX+dx, centerY+dy, c)
 			}
 		}
 	}
+}
 
-	// Head
-	headRadius := height / 8
-	headY := centerY - bodyHeight
-	for dy := -headRadius; dy <= headRadius; dy++ {
-		for dx := -headRadius; dx <= headRadius; dx++ {
-			if dx*dx+dy*dy <= headRadius*headRadius {
-				sprite.SetPixel(centerX+dx, headY+dy, secondary)
-			}
-		}
-	}
-
-	// Wings
-	wingSpan := width / 3
-	wingAngle := 0.0
-	if state == "walk" || state == "idle" {
-		wingAngle = math.Sin(float64(frameIdx)*math.Pi/2) * 0.3
-	}
-
+// drawAvianWings draws bird wings with optional animation.
+func (g *Generator) drawAvianWings(sprite *Sprite, centerX, centerY, bodyWidth, wingSpan, maxWidth int, c color.RGBA, state string, frameIdx int) {
+	wingAngle := g.calculateWingAngle(state, frameIdx)
 	for i := 0; i < wingSpan; i++ {
 		wingY := centerY - int(float64(i)*wingAngle)
-		sprite.SetPixel(centerX-bodyWidth-i, wingY, primary)
-		sprite.SetPixel(centerX+bodyWidth+i, wingY, primary)
+		sprite.SetPixel(centerX-bodyWidth-i, wingY, c)
+		sprite.SetPixel(centerX+bodyWidth+i, wingY, c)
 	}
+}
+
+// calculateWingAngle returns the wing angle based on animation state.
+func (g *Generator) calculateWingAngle(state string, frameIdx int) float64 {
+	if state == "walk" || state == "idle" {
+		return math.Sin(float64(frameIdx)*math.Pi/2) * 0.3
+	}
+	return 0.0
+}
+
+// generateSingleFrameSheet is a helper to create sprite sheets with one animation frame.
+func (g *Generator) generateSingleFrameSheet(width, height int, key SpriteCacheKey, rng *rand.Rand, loop bool, frameGenerator func(int, int, SpriteCacheKey, *rand.Rand) *Sprite) *SpriteSheet {
+	sheet := NewSpriteSheet(width, height)
+	idleAnim := NewAnimation(AnimIdle, loop)
+	frame := frameGenerator(width, height, key, rng)
+	idleAnim.AddFrame(frame)
+	sheet.AddAnimation(idleAnim)
+	return sheet
 }
 
 // generateVehicleSheet creates sprites for vehicle entities.
 func (g *Generator) generateVehicleSheet(key SpriteCacheKey, rng *rand.Rand) *SpriteSheet {
 	width := int(float64(DefaultSpriteWidth) * key.Scale * 1.5)
 	height := int(float64(DefaultSpriteHeight) * key.Scale)
-
-	sheet := NewSpriteSheet(width, height)
-
-	// Vehicles typically have a single idle frame
-	idleAnim := NewAnimation(AnimIdle, true)
-	frame := g.generateVehicleFrame(width, height, key, rng)
-	idleAnim.AddFrame(frame)
-	sheet.AddAnimation(idleAnim)
-
-	return sheet
+	return g.generateSingleFrameSheet(width, height, key, rng, true, g.generateVehicleFrame)
 }
 
 // generateVehicleFrame creates a vehicle sprite.
@@ -577,53 +568,66 @@ func (g *Generator) generateVehicleFrame(width, height int, key SpriteCacheKey, 
 	primary := unpackColor(key.PrimaryColor)
 	secondary := unpackColor(key.SecondaryColor)
 
-	// Simple vehicle body (rectangle with wheels)
-	bodyTop := height / 4
-	bodyBottom := height * 3 / 4
-	bodyLeft := width / 8
-	bodyRight := width * 7 / 8
+	bounds := g.calculateVehicleBounds(width, height)
+	g.fillVehicleBody(sprite, bounds, primary)
+	g.drawVehicleWheels(sprite, bounds, height, secondary)
 
-	// Body
-	for y := bodyTop; y < bodyBottom; y++ {
-		for x := bodyLeft; x < bodyRight; x++ {
-			sprite.SetPixel(x, y, primary)
+	return sprite
+}
+
+// vehicleBounds defines the rectangular bounds of a vehicle body.
+type vehicleBounds struct {
+	top, bottom, left, right int
+}
+
+// calculateVehicleBounds computes the vehicle body dimensions.
+func (g *Generator) calculateVehicleBounds(width, height int) vehicleBounds {
+	return vehicleBounds{
+		top:    height / 4,
+		bottom: height * 3 / 4,
+		left:   width / 8,
+		right:  width * 7 / 8,
+	}
+}
+
+// fillVehicleBody fills the rectangular body of the vehicle.
+func (g *Generator) fillVehicleBody(sprite *Sprite, bounds vehicleBounds, color color.RGBA) {
+	for y := bounds.top; y < bounds.bottom; y++ {
+		for x := bounds.left; x < bounds.right; x++ {
+			sprite.SetPixel(x, y, color)
 		}
 	}
+}
 
-	// Wheels (circles at bottom corners)
+// drawVehicleWheels draws circular wheels on the vehicle.
+func (g *Generator) drawVehicleWheels(sprite *Sprite, bounds vehicleBounds, height int, wheelColor color.RGBA) {
 	wheelRadius := height / 8
 	wheels := []struct{ x, y int }{
-		{bodyLeft + wheelRadius, bodyBottom},
-		{bodyRight - wheelRadius, bodyBottom},
+		{bounds.left + wheelRadius, bounds.bottom},
+		{bounds.right - wheelRadius, bounds.bottom},
 	}
 
 	for _, w := range wheels {
-		for dy := -wheelRadius; dy <= wheelRadius; dy++ {
-			for dx := -wheelRadius; dx <= wheelRadius; dx++ {
-				if dx*dx+dy*dy <= wheelRadius*wheelRadius {
-					sprite.SetPixel(w.x+dx, w.y+dy, secondary)
-				}
+		g.drawFilledCircle(sprite, w.x, w.y, wheelRadius, wheelColor)
+	}
+}
+
+// drawFilledCircle draws a filled circle on a sprite.
+func (g *Generator) drawFilledCircle(sprite *Sprite, cx, cy, radius int, c color.RGBA) {
+	for dy := -radius; dy <= radius; dy++ {
+		for dx := -radius; dx <= radius; dx++ {
+			if dx*dx+dy*dy <= radius*radius {
+				sprite.SetPixel(cx+dx, cy+dy, c)
 			}
 		}
 	}
-
-	return sprite
 }
 
 // generateObjectSheet creates sprites for static objects.
 func (g *Generator) generateObjectSheet(key SpriteCacheKey, rng *rand.Rand) *SpriteSheet {
 	width := int(float64(DefaultSpriteWidth) * key.Scale)
 	height := int(float64(DefaultSpriteHeight) * key.Scale)
-
-	sheet := NewSpriteSheet(width, height)
-
-	// Objects have a single frame
-	idleAnim := NewAnimation(AnimIdle, false)
-	frame := g.generateObjectFrame(width, height, key, rng)
-	idleAnim.AddFrame(frame)
-	sheet.AddAnimation(idleAnim)
-
-	return sheet
+	return g.generateSingleFrameSheet(width, height, key, rng, false, g.generateObjectFrame)
 }
 
 // generateObjectFrame creates an object sprite.

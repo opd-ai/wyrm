@@ -4,6 +4,7 @@ package systems
 import (
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
+	"github.com/opd-ai/wyrm/pkg/util"
 )
 
 // ============================================================================
@@ -255,32 +256,53 @@ func (s *PardonSystem) CanObtainPardon(w *ecs.World, entity ecs.Entity, pardonTy
 	if req == nil {
 		return false, "Unknown pardon type"
 	}
-	// Check wanted level
+
+	crime, reason := s.validateCrimeForPardon(w, entity, req)
+	if reason != "" {
+		return false, reason
+	}
+
+	if reason := s.checkQuestRequirement(w, entity, req); reason != "" {
+		return false, reason
+	}
+
+	_ = crime // Crime validated successfully
+	return true, ""
+}
+
+// validateCrimeForPardon checks if an entity's crime record is eligible for pardon.
+func (s *PardonSystem) validateCrimeForPardon(w *ecs.World, entity ecs.Entity, req *PardonRequirement) (*components.Crime, string) {
 	comp, ok := w.GetComponent(entity, "Crime")
 	if !ok {
-		return false, "No criminal record"
+		return nil, "No criminal record"
 	}
 	crime := comp.(*components.Crime)
+
 	if crime.WantedLevel > req.WantedLevelMax {
-		return false, "Wanted level too high for this pardon"
+		return nil, "Wanted level too high for this pardon"
 	}
 	if crime.WantedLevel <= 0 {
-		return false, "No crimes to pardon"
+		return nil, "No crimes to pardon"
 	}
-	// Check reputation (would need faction system integration)
-	// For now, skip reputation check
-	// Check quest requirement
-	if req.QuestRequired != "" {
-		questComp, ok := w.GetComponent(entity, "Quest")
-		if !ok {
-			return false, "Required quest not completed"
-		}
-		quest := questComp.(*components.Quest)
-		if quest.ID != req.QuestRequired || !quest.Completed {
-			return false, "Required quest not completed"
-		}
+	return crime, ""
+}
+
+// checkQuestRequirement validates quest completion for pardon eligibility.
+func (s *PardonSystem) checkQuestRequirement(w *ecs.World, entity ecs.Entity, req *PardonRequirement) string {
+	if req.QuestRequired == "" {
+		return ""
 	}
-	return true, ""
+
+	questComp, ok := w.GetComponent(entity, "Quest")
+	if !ok {
+		return "Required quest not completed"
+	}
+	quest := questComp.(*components.Quest)
+
+	if quest.ID != req.QuestRequired || !quest.Completed {
+		return "Required quest not completed"
+	}
+	return ""
 }
 
 // GrantPardon grants a pardon to an entity.
@@ -362,38 +384,12 @@ func (s *PardonSystem) clearAllCrimes(entity ecs.Entity) []string {
 
 // formatPardonID creates a pardon ID string.
 func formatPardonID(n int) string {
-	result := make([]byte, 0, 10)
-	result = append(result, 'P', 'D', '-')
-	if n == 0 {
-		return string(append(result, '0'))
-	}
-	digits := make([]byte, 0, 8)
-	for n > 0 {
-		digits = append(digits, byte('0'+n%10))
-		n /= 10
-	}
-	for i := len(digits) - 1; i >= 0; i-- {
-		result = append(result, digits[i])
-	}
-	return string(result)
+	return util.FormatPrefixedID("PD", n)
 }
 
 // formatAmnestyID creates an amnesty ID string.
 func formatAmnestyID(n int) string {
-	result := make([]byte, 0, 10)
-	result = append(result, 'A', 'M', '-')
-	if n == 0 {
-		return string(append(result, '0'))
-	}
-	digits := make([]byte, 0, 8)
-	for n > 0 {
-		digits = append(digits, byte('0'+n%10))
-		n /= 10
-	}
-	for i := len(digits) - 1; i >= 0; i-- {
-		result = append(result, digits[i])
-	}
-	return string(result)
+	return util.FormatPrefixedID("AM", n)
 }
 
 // StartAmnestyEvent begins a new amnesty event.
@@ -423,6 +419,28 @@ func (s *PardonSystem) StartAmnestyEvent(name, description, region, factionID st
 
 // ClaimAmnesty allows an entity to receive an amnesty pardon.
 func (s *PardonSystem) ClaimAmnesty(w *ecs.World, entity ecs.Entity, eventID string) (*PardonRecord, error) {
+	event, err := s.getActiveAmnestyEvent(eventID)
+	if err != nil {
+		return nil, err
+	}
+
+	crime, err := s.validateAmnestyEligibility(w, entity, event)
+	if err != nil {
+		return nil, err
+	}
+	_ = crime // Crime validated, proceed with amnesty
+
+	record, err := s.GrantPardon(w, entity, PardonTypeAmnesty, event.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	event.ParticipantIDs = append(event.ParticipantIDs, uint64(entity))
+	return record, nil
+}
+
+// getActiveAmnestyEvent retrieves an active amnesty event.
+func (s *PardonSystem) getActiveAmnestyEvent(eventID string) (*AmnestyEvent, error) {
 	event := s.amnestyEvents[eventID]
 	if event == nil {
 		return nil, &pardonError{"Amnesty event not found"}
@@ -430,32 +448,46 @@ func (s *PardonSystem) ClaimAmnesty(w *ecs.World, entity ecs.Entity, eventID str
 	if !event.IsActive {
 		return nil, &pardonError{"Amnesty event has ended"}
 	}
-	// Check wanted level
+	return event, nil
+}
+
+// validateAmnestyEligibility checks if an entity can claim amnesty.
+func (s *PardonSystem) validateAmnestyEligibility(w *ecs.World, entity ecs.Entity, event *AmnestyEvent) (*components.Crime, error) {
 	comp, ok := w.GetComponent(entity, "Crime")
 	if !ok {
 		return nil, &pardonError{"No criminal record"}
 	}
 	crime := comp.(*components.Crime)
-	if crime.WantedLevel > event.MaxWantedLevel {
-		return nil, &pardonError{"Wanted level too high for this amnesty"}
-	}
-	if crime.WantedLevel <= 0 {
-		return nil, &pardonError{"No crimes to pardon"}
-	}
-	// Check if already claimed
-	for _, pid := range event.ParticipantIDs {
-		if pid == uint64(entity) {
-			return nil, &pardonError{"Already claimed this amnesty"}
-		}
-	}
-	// Grant amnesty pardon
-	record, err := s.GrantPardon(w, entity, PardonTypeAmnesty, event.Name)
-	if err != nil {
+
+	if err := s.checkWantedLevel(crime, event); err != nil {
 		return nil, err
 	}
-	// Track participation
-	event.ParticipantIDs = append(event.ParticipantIDs, uint64(entity))
-	return record, nil
+	if s.hasAlreadyClaimed(entity, event) {
+		return nil, &pardonError{"Already claimed this amnesty"}
+	}
+	return crime, nil
+}
+
+// checkWantedLevel validates the wanted level against amnesty requirements.
+func (s *PardonSystem) checkWantedLevel(crime *components.Crime, event *AmnestyEvent) error {
+	if crime.WantedLevel > event.MaxWantedLevel {
+		return &pardonError{"Wanted level too high for this amnesty"}
+	}
+	if crime.WantedLevel <= 0 {
+		return &pardonError{"No crimes to pardon"}
+	}
+	return nil
+}
+
+// hasAlreadyClaimed checks if an entity has already claimed this amnesty.
+func (s *PardonSystem) hasAlreadyClaimed(entity ecs.Entity, event *AmnestyEvent) bool {
+	entityID := uint64(entity)
+	for _, pid := range event.ParticipantIDs {
+		if pid == entityID {
+			return true
+		}
+	}
+	return false
 }
 
 // EndAmnestyEvent ends an amnesty event early.
@@ -678,28 +710,25 @@ func (s *PardonSystem) postApocPardonDesc(pardonType PardonType) string {
 // IsEligibleForAmnesty checks if an entity is eligible for a specific amnesty.
 func (s *PardonSystem) IsEligibleForAmnesty(w *ecs.World, entity ecs.Entity, eventID string) (bool, string) {
 	event := s.amnestyEvents[eventID]
+	if reason := s.checkAmnestyEventActive(event); reason != "" {
+		return false, reason
+	}
+
+	crime, err := s.validateAmnestyEligibility(w, entity, event)
+	if err != nil {
+		return false, err.Error()
+	}
+	_ = crime // Crime validated successfully
+	return true, ""
+}
+
+// checkAmnestyEventActive validates an amnesty event is available.
+func (s *PardonSystem) checkAmnestyEventActive(event *AmnestyEvent) string {
 	if event == nil {
-		return false, "Amnesty event not found"
+		return "Amnesty event not found"
 	}
 	if !event.IsActive {
-		return false, "Amnesty event has ended"
+		return "Amnesty event has ended"
 	}
-	comp, ok := w.GetComponent(entity, "Crime")
-	if !ok {
-		return false, "No criminal record"
-	}
-	crime := comp.(*components.Crime)
-	if crime.WantedLevel > event.MaxWantedLevel {
-		return false, "Wanted level too high for this amnesty"
-	}
-	if crime.WantedLevel <= 0 {
-		return false, "No crimes to pardon"
-	}
-	// Check if already claimed
-	for _, pid := range event.ParticipantIDs {
-		if pid == uint64(entity) {
-			return false, "Already claimed this amnesty"
-		}
-	}
-	return true, ""
+	return ""
 }

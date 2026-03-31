@@ -57,26 +57,23 @@ type NPCMemory struct {
 	LastInteraction time.Time
 }
 
-// DialogManager handles NPC conversations with memory.
-type DialogManager struct {
+// Manager handles NPC conversations with memory.
+type Manager struct {
 	mu       sync.RWMutex
 	memories map[uint64]map[uint64]*NPCMemory // NPCID -> PlayerID -> Memory
 	rng      *rand.Rand
 }
 
-// NewDialogManager creates a new dialog manager.
-func NewDialogManager(seed int64) *DialogManager {
-	return &DialogManager{
+// NewManager creates a new dialog manager.
+func NewManager(seed int64) *Manager {
+	return &Manager{
 		memories: make(map[uint64]map[uint64]*NPCMemory),
 		rng:      rand.New(rand.NewSource(seed)),
 	}
 }
 
-// RecordTopic stores a conversation topic in memory.
-func (dm *DialogManager) RecordTopic(npcID, playerID uint64, topic, playerAction, npcResponse string) {
-	dm.mu.Lock()
-	defer dm.mu.Unlock()
-
+// getOrCreateMemory retrieves or initializes NPC memory for a player (caller must hold lock).
+func (dm *Manager) getOrCreateMemory(npcID, playerID uint64) *NPCMemory {
 	if dm.memories[npcID] == nil {
 		dm.memories[npcID] = make(map[uint64]*NPCMemory)
 	}
@@ -90,7 +87,15 @@ func (dm *DialogManager) RecordTopic(npcID, playerID uint64, topic, playerAction
 		}
 		dm.memories[npcID][playerID] = memory
 	}
+	return memory
+}
 
+// RecordTopic stores a conversation topic in memory.
+func (dm *Manager) RecordTopic(npcID, playerID uint64, topic, playerAction, npcResponse string) {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+
+	memory := dm.getOrCreateMemory(npcID, playerID)
 	memory.Topics = append(memory.Topics, TopicMemory{
 		Topic:        topic,
 		Timestamp:    time.Now(),
@@ -106,7 +111,7 @@ func (dm *DialogManager) RecordTopic(npcID, playerID uint64, topic, playerAction
 }
 
 // GetLastTopic returns the most recent topic discussed with an NPC.
-func (dm *DialogManager) GetLastTopic(npcID, playerID uint64) *TopicMemory {
+func (dm *Manager) GetLastTopic(npcID, playerID uint64) *TopicMemory {
 	dm.mu.RLock()
 	defer dm.mu.RUnlock()
 
@@ -121,7 +126,7 @@ func (dm *DialogManager) GetLastTopic(npcID, playerID uint64) *TopicMemory {
 }
 
 // HasDiscussedTopic checks if a topic has been discussed before.
-func (dm *DialogManager) HasDiscussedTopic(npcID, playerID uint64, topic string) bool {
+func (dm *Manager) HasDiscussedTopic(npcID, playerID uint64, topic string) bool {
 	dm.mu.RLock()
 	defer dm.mu.RUnlock()
 
@@ -143,7 +148,7 @@ func (dm *DialogManager) HasDiscussedTopic(npcID, playerID uint64, topic string)
 }
 
 // GetTopicHistory returns all topics discussed about a specific subject.
-func (dm *DialogManager) GetTopicHistory(npcID, playerID uint64) []TopicMemory {
+func (dm *Manager) GetTopicHistory(npcID, playerID uint64) []TopicMemory {
 	dm.mu.RLock()
 	defer dm.mu.RUnlock()
 
@@ -158,24 +163,11 @@ func (dm *DialogManager) GetTopicHistory(npcID, playerID uint64) []TopicMemory {
 }
 
 // ShiftEmotion modifies an NPC's emotional state toward a player.
-func (dm *DialogManager) ShiftEmotion(npcID, playerID uint64, shift float64) {
+func (dm *Manager) ShiftEmotion(npcID, playerID uint64, shift float64) {
 	dm.mu.Lock()
 	defer dm.mu.Unlock()
 
-	if dm.memories[npcID] == nil {
-		dm.memories[npcID] = make(map[uint64]*NPCMemory)
-	}
-
-	memory := dm.memories[npcID][playerID]
-	if memory == nil {
-		memory = &NPCMemory{
-			NPCID:    npcID,
-			PlayerID: playerID,
-			Topics:   make([]TopicMemory, 0),
-		}
-		dm.memories[npcID][playerID] = memory
-	}
-
+	memory := dm.getOrCreateMemory(npcID, playerID)
 	memory.EmotionShift += shift
 	// Clamp to -100 to +100
 	if memory.EmotionShift > 100 {
@@ -187,7 +179,7 @@ func (dm *DialogManager) ShiftEmotion(npcID, playerID uint64, shift float64) {
 }
 
 // GetEmotionalState returns the NPC's emotional state toward a player.
-func (dm *DialogManager) GetEmotionalState(npcID, playerID uint64, baseState EmotionalState) EmotionalState {
+func (dm *Manager) GetEmotionalState(npcID, playerID uint64, baseState EmotionalState) EmotionalState {
 	dm.mu.RLock()
 	defer dm.mu.RUnlock()
 
@@ -199,7 +191,7 @@ func (dm *DialogManager) GetEmotionalState(npcID, playerID uint64, baseState Emo
 }
 
 // getMemory retrieves the memory for an NPC-player pair, or nil if none exists.
-func (dm *DialogManager) getMemory(npcID, playerID uint64) *NPCMemory {
+func (dm *Manager) getMemory(npcID, playerID uint64) *NPCMemory {
 	if dm.memories[npcID] == nil {
 		return nil
 	}
@@ -207,7 +199,7 @@ func (dm *DialogManager) getMemory(npcID, playerID uint64) *NPCMemory {
 }
 
 // computeEmotionalState determines emotional state based on shift value.
-func (dm *DialogManager) computeEmotionalState(shift float64, baseState EmotionalState) EmotionalState {
+func (dm *Manager) computeEmotionalState(shift float64, baseState EmotionalState) EmotionalState {
 	if shift >= 30 {
 		return EmotionFriendly
 	}
@@ -322,24 +314,24 @@ var EmotionModifiers = map[EmotionalState]EmotionVocabularyModifiers{
 	},
 }
 
-// DialogResponse represents a generated NPC response.
-type DialogResponse struct {
+// Response represents a generated NPC response.
+type Response struct {
 	Text          string
 	EmotionalTone string
 	RecalledTopic string // If this response references past conversation
 }
 
 // GenerateResponse creates an NPC response based on context.
-func (dm *DialogManager) GenerateResponse(
+func (dm *Manager) GenerateResponse(
 	npcID, playerID uint64,
 	genre string,
 	topic string,
 	emotion EmotionalState,
-) *DialogResponse {
+) *Response {
 	vocab := GetVocabulary(genre)
 	mods := EmotionModifiers[emotion]
 
-	response := &DialogResponse{
+	response := &Response{
 		EmotionalTone: mods.Tone,
 	}
 
@@ -393,7 +385,7 @@ func GetFarewell(genre string, emotion EmotionalState, rng *rand.Rand) string {
 }
 
 // MemoryCount returns the number of NPC-player memory pairs.
-func (dm *DialogManager) MemoryCount() int {
+func (dm *Manager) MemoryCount() int {
 	dm.mu.RLock()
 	defer dm.mu.RUnlock()
 
@@ -405,7 +397,7 @@ func (dm *DialogManager) MemoryCount() int {
 }
 
 // ClearOldMemories removes memories older than the given duration.
-func (dm *DialogManager) ClearOldMemories(maxAge time.Duration) {
+func (dm *Manager) ClearOldMemories(maxAge time.Duration) {
 	dm.mu.Lock()
 	defer dm.mu.Unlock()
 
@@ -476,7 +468,7 @@ type SkillCheck struct {
 }
 
 // PerformSkillCheck attempts a persuasion or intimidation check.
-func (dm *DialogManager) PerformSkillCheck(
+func (dm *Manager) PerformSkillCheck(
 	npcID, playerID uint64,
 	check SkillCheck,
 ) *SkillCheckResult {
@@ -527,7 +519,7 @@ func (dm *DialogManager) PerformSkillCheck(
 }
 
 // getEmotionModifier returns skill check modifier based on NPC emotion.
-func (dm *DialogManager) getEmotionModifier(checkType SkillCheckType, state EmotionalState) int {
+func (dm *Manager) getEmotionModifier(checkType SkillCheckType, state EmotionalState) int {
 	switch checkType {
 	case SkillCheckPersuasion:
 		switch state {
@@ -560,7 +552,7 @@ func (dm *DialogManager) getEmotionModifier(checkType SkillCheckType, state Emot
 }
 
 // calculateEmotionShift determines how much NPC emotion changes.
-func (dm *DialogManager) calculateEmotionShift(checkType SkillCheckType, result *SkillCheckResult) float64 {
+func (dm *Manager) calculateEmotionShift(checkType SkillCheckType, result *SkillCheckResult) float64 {
 	baseShift := float64(result.Margin) / 5.0 // -20 to +20 based on margin
 
 	switch checkType {
@@ -573,7 +565,7 @@ func (dm *DialogManager) calculateEmotionShift(checkType SkillCheckType, result 
 }
 
 // persuasionShiftModifier returns emotion shift modifier for persuasion checks.
-func (dm *DialogManager) persuasionShiftModifier(result *SkillCheckResult) float64 {
+func (dm *Manager) persuasionShiftModifier(result *SkillCheckResult) float64 {
 	if result.Success {
 		if result.CriticalSuccess {
 			return 15 // Critical success = big friendship gain
@@ -587,7 +579,7 @@ func (dm *DialogManager) persuasionShiftModifier(result *SkillCheckResult) float
 }
 
 // intimidationShiftModifier returns emotion shift modifier for intimidation checks.
-func (dm *DialogManager) intimidationShiftModifier(result *SkillCheckResult) float64 {
+func (dm *Manager) intimidationShiftModifier(result *SkillCheckResult) float64 {
 	if result.Success {
 		if result.CriticalSuccess {
 			return -30 // Critical intimidation = fear
@@ -601,7 +593,7 @@ func (dm *DialogManager) intimidationShiftModifier(result *SkillCheckResult) flo
 }
 
 // generateSkillCheckResponse creates NPC response text for skill check.
-func (dm *DialogManager) generateSkillCheckResponse(check SkillCheck, result *SkillCheckResult) string {
+func (dm *Manager) generateSkillCheckResponse(check SkillCheck, result *SkillCheckResult) string {
 	vocab := GetVocabulary(check.Genre)
 
 	switch check.Type {
@@ -614,7 +606,7 @@ func (dm *DialogManager) generateSkillCheckResponse(check SkillCheck, result *Sk
 }
 
 // generatePersuasionResponse creates response for persuasion attempt.
-func (dm *DialogManager) generatePersuasionResponse(result *SkillCheckResult, vocab *GenreVocabulary) string {
+func (dm *Manager) generatePersuasionResponse(result *SkillCheckResult, vocab *GenreVocabulary) string {
 	if result.CriticalSuccess {
 		return dm.randomVocabPrefix(vocab.Affirmatives) + "You make an excellent point. I'm convinced."
 	}
@@ -628,7 +620,7 @@ func (dm *DialogManager) generatePersuasionResponse(result *SkillCheckResult, vo
 }
 
 // randomVocabPrefix returns a random vocabulary prefix with trailing space, or empty string.
-func (dm *DialogManager) randomVocabPrefix(phrases []string) string {
+func (dm *Manager) randomVocabPrefix(phrases []string) string {
 	if len(phrases) == 0 {
 		return ""
 	}
@@ -636,7 +628,7 @@ func (dm *DialogManager) randomVocabPrefix(phrases []string) string {
 }
 
 // generateIntimidationResponse creates response for intimidation attempt.
-func (dm *DialogManager) generateIntimidationResponse(result *SkillCheckResult, vocab *GenreVocabulary) string {
+func (dm *Manager) generateIntimidationResponse(result *SkillCheckResult, vocab *GenreVocabulary) string {
 	if result.CriticalSuccess {
 		return "P-please! I'll do whatever you want! Just don't hurt me!"
 	}
@@ -650,21 +642,8 @@ func (dm *DialogManager) generateIntimidationResponse(result *SkillCheckResult, 
 }
 
 // applyEmotionShiftUnlocked applies emotion shift without locking (caller must hold lock).
-func (dm *DialogManager) applyEmotionShiftUnlocked(npcID, playerID uint64, shift float64) {
-	if dm.memories[npcID] == nil {
-		dm.memories[npcID] = make(map[uint64]*NPCMemory)
-	}
-
-	memory := dm.memories[npcID][playerID]
-	if memory == nil {
-		memory = &NPCMemory{
-			NPCID:    npcID,
-			PlayerID: playerID,
-			Topics:   make([]TopicMemory, 0),
-		}
-		dm.memories[npcID][playerID] = memory
-	}
-
+func (dm *Manager) applyEmotionShiftUnlocked(npcID, playerID uint64, shift float64) {
+	memory := dm.getOrCreateMemory(npcID, playerID)
 	memory.EmotionShift += shift
 	if memory.EmotionShift > 100 {
 		memory.EmotionShift = 100
@@ -675,21 +654,8 @@ func (dm *DialogManager) applyEmotionShiftUnlocked(npcID, playerID uint64, shift
 }
 
 // recordTopicUnlocked records a topic without locking (caller must hold lock).
-func (dm *DialogManager) recordTopicUnlocked(npcID, playerID uint64, topic, playerAction, npcResponse string) {
-	if dm.memories[npcID] == nil {
-		dm.memories[npcID] = make(map[uint64]*NPCMemory)
-	}
-
-	memory := dm.memories[npcID][playerID]
-	if memory == nil {
-		memory = &NPCMemory{
-			NPCID:    npcID,
-			PlayerID: playerID,
-			Topics:   make([]TopicMemory, 0),
-		}
-		dm.memories[npcID][playerID] = memory
-	}
-
+func (dm *Manager) recordTopicUnlocked(npcID, playerID uint64, topic, playerAction, npcResponse string) {
+	memory := dm.getOrCreateMemory(npcID, playerID)
 	memory.Topics = append(memory.Topics, TopicMemory{
 		Topic:        topic,
 		Timestamp:    time.Now(),
@@ -704,7 +670,7 @@ func (dm *DialogManager) recordTopicUnlocked(npcID, playerID uint64, topic, play
 }
 
 // AttemptPersuasion is a convenience function for persuasion checks.
-func (dm *DialogManager) AttemptPersuasion(
+func (dm *Manager) AttemptPersuasion(
 	npcID, playerID uint64,
 	speechSkill int,
 	difficulty SkillCheckDifficulty,
@@ -721,7 +687,7 @@ func (dm *DialogManager) AttemptPersuasion(
 }
 
 // AttemptIntimidate is a convenience function for intimidation checks.
-func (dm *DialogManager) AttemptIntimidate(
+func (dm *Manager) AttemptIntimidate(
 	npcID, playerID uint64,
 	intimidationSkill int,
 	difficulty SkillCheckDifficulty,

@@ -580,9 +580,6 @@ func TestNewBriberySystem(t *testing.T) {
 			if bs.JailerSuccessBase != 0.4 {
 				t.Errorf("JailerSuccessBase = %v, want 0.4", bs.JailerSuccessBase)
 			}
-			if bs.rngSeed != tt.seed {
-				t.Errorf("rngSeed = %v, want %v", bs.rngSeed, tt.seed)
-			}
 		})
 	}
 }
@@ -612,11 +609,6 @@ func TestBriberySystem_pseudoRandom(t *testing.T) {
 		if v < 0 || v > 1 {
 			t.Errorf("pseudoRandom value %d out of range: %v", i, v)
 		}
-	}
-
-	// Verify counter increments
-	if bs2.rngCounter != 10 {
-		t.Errorf("rngCounter = %v, want 10", bs2.rngCounter)
 	}
 }
 

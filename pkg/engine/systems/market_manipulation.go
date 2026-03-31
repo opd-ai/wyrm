@@ -62,12 +62,12 @@ type ManipulationOutcome struct {
 
 // MarketManipulationSystem manages market manipulation schemes.
 type MarketManipulationSystem struct {
-	Seed             int64
 	Genre            string
 	Economy          *EconomySystem
 	Manipulations    map[string]*MarketManipulation
 	GameTime         float64
-	counter          uint64
+	rng              *PseudoRandom
+	idCounter        uint64                 // Counter for generating unique IDs
 	DetectionAgents  map[ecs.Entity]float64 // Node -> detection capability
 	ManipulatorSkill map[ecs.Entity]float64 // Player skill level
 	Cooldowns        map[ecs.Entity]float64 // Player -> next allowed time
@@ -77,10 +77,10 @@ type MarketManipulationSystem struct {
 // NewMarketManipulationSystem creates a new market manipulation system.
 func NewMarketManipulationSystem(seed int64, genre string, economy *EconomySystem) *MarketManipulationSystem {
 	return &MarketManipulationSystem{
-		Seed:             seed,
 		Genre:            genre,
 		Economy:          economy,
 		Manipulations:    make(map[string]*MarketManipulation),
+		rng:              NewPseudoRandom(seed),
 		DetectionAgents:  make(map[ecs.Entity]float64),
 		ManipulatorSkill: make(map[ecs.Entity]float64),
 		Cooldowns:        make(map[ecs.Entity]float64),
@@ -90,12 +90,7 @@ func NewMarketManipulationSystem(seed int64, genre string, economy *EconomySyste
 
 // pseudoRandom generates a deterministic pseudo-random number.
 func (s *MarketManipulationSystem) pseudoRandom() float64 {
-	s.counter++
-	x := uint64(s.Seed) + s.counter*6364136223846793005
-	x ^= x >> 12
-	x ^= x << 25
-	x ^= x >> 27
-	return float64(x%10000) / 10000.0
+	return s.rng.Float64()
 }
 
 // StartManipulation initiates a new market manipulation scheme.
@@ -135,8 +130,8 @@ func (s *MarketManipulationSystem) StartManipulation(manipulator ecs.Entity, mTy
 
 // generateManipulationID creates a unique manipulation identifier.
 func (s *MarketManipulationSystem) generateManipulationID() string {
-	s.counter++
-	return "manip_" + string(rune('0'+s.counter%1000))
+	s.idCounter++
+	return "manip_" + string(rune('0'+s.idCounter%1000))
 }
 
 // getMinimumInvestment returns minimum gold required for manipulation type.

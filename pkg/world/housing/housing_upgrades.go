@@ -3,10 +3,10 @@
 package housing
 
 import (
-"fmt"
-"sync"
+	"fmt"
+	"sync"
 
-"github.com/opd-ai/wyrm/pkg/util"
+	"github.com/opd-ai/wyrm/pkg/util"
 )
 
 // ============================================================================
@@ -1003,23 +1003,34 @@ func (s *HomeUpgradeSystem) CanInstallUpgrade(houseID, upgradeID string) (bool, 
 		return false, "upgrade not found"
 	}
 
-	// Already installed
-	if _, ok := home.Upgrades[upgradeID]; ok {
+	if s.isUpgradeInstalled(home, upgradeID) {
 		return false, "upgrade already installed"
 	}
 
-	// Check prerequisites
-	for _, prereq := range upgrade.Prerequisites {
-		if _, ok := home.Upgrades[prereq]; !ok {
-			prereqUpgrade := s.AvailableUpgrades[prereq]
-			if prereqUpgrade != nil {
-				return false, fmt.Sprintf("requires %s", prereqUpgrade.Name)
-			}
-			return false, "missing prerequisite"
-		}
+	if reason := s.checkPrerequisites(home, upgrade); reason != "" {
+		return false, reason
 	}
 
 	return true, ""
+}
+
+// isUpgradeInstalled checks if an upgrade is already installed.
+func (s *HomeUpgradeSystem) isUpgradeInstalled(home *UpgradedHome, upgradeID string) bool {
+	_, ok := home.Upgrades[upgradeID]
+	return ok
+}
+
+// checkPrerequisites verifies all upgrade prerequisites are met.
+func (s *HomeUpgradeSystem) checkPrerequisites(home *UpgradedHome, upgrade *HomeUpgrade) string {
+	for _, prereq := range upgrade.Prerequisites {
+		if _, ok := home.Upgrades[prereq]; !ok {
+			if prereqUpgrade := s.AvailableUpgrades[prereq]; prereqUpgrade != nil {
+				return fmt.Sprintf("requires %s", prereqUpgrade.Name)
+			}
+			return "missing prerequisite"
+		}
+	}
+	return ""
 }
 
 // StartInstallation begins installing an upgrade.
@@ -1266,4 +1277,3 @@ func (s *HomeUpgradeSystem) UpgradeCount(houseID string) int {
 	}
 	return count
 }
-

@@ -534,7 +534,7 @@ func TestCityGateIsOpen(t *testing.T) {
 	}
 }
 
-func TestCityWallHasBreach(t *testing.T) {
+func TestWallHasBreach(t *testing.T) {
 	tests := []struct {
 		name       string
 		segments   []WallSegment
@@ -565,7 +565,7 @@ func TestCityWallHasBreach(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			wall := CityWall{Segments: tt.segments}
+			wall := Wall{Segments: tt.segments}
 			got := wall.HasBreach()
 			if got != tt.wantBreach {
 				t.Errorf("HasBreach() = %v, want %v", got, tt.wantBreach)
@@ -574,15 +574,15 @@ func TestCityWallHasBreach(t *testing.T) {
 	}
 }
 
-func TestCityWallGetCondition(t *testing.T) {
+func TestWallGetCondition(t *testing.T) {
 	tests := []struct {
 		name      string
-		wall      CityWall
+		wall      Wall
 		wantRange [2]float64 // min, max expected
 	}{
 		{
 			"pristine wall",
-			CityWall{
+			Wall{
 				Condition: 1.0,
 				Segments: []WallSegment{
 					{Damaged: false},
@@ -593,7 +593,7 @@ func TestCityWallGetCondition(t *testing.T) {
 		},
 		{
 			"damaged wall",
-			CityWall{
+			Wall{
 				Condition: 1.0,
 				Segments: []WallSegment{
 					{Damaged: true, DamageLevel: 0.5},
@@ -604,7 +604,7 @@ func TestCityWallGetCondition(t *testing.T) {
 		},
 		{
 			"empty segments",
-			CityWall{
+			Wall{
 				Condition: 0.8,
 				Segments:  []WallSegment{},
 			},

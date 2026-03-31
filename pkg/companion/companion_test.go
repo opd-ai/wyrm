@@ -5,7 +5,7 @@ import (
 )
 
 func TestCreateCompanion(t *testing.T) {
-	cm := NewCompanionManager(12345)
+	cm := NewManager(12345)
 
 	comp := cm.CreateCompanion(100, "fantasy", RoleTank)
 	if comp == nil {
@@ -28,7 +28,7 @@ func TestCreateCompanion(t *testing.T) {
 
 func TestCompanionAbilitiesMatchRole(t *testing.T) {
 	// Per AC: Companion uses class-appropriate abilities
-	cm := NewCompanionManager(12345)
+	cm := NewManager(12345)
 
 	testCases := []struct {
 		role            CombatRole
@@ -58,7 +58,7 @@ func TestCompanionAbilitiesMatchRole(t *testing.T) {
 }
 
 func TestSelectAbilityHealer(t *testing.T) {
-	cm := NewCompanionManager(12345)
+	cm := NewManager(12345)
 	comp := cm.CreateCompanion(100, "fantasy", RoleHealer)
 
 	// Per AC: Companion uses class-appropriate abilities
@@ -72,7 +72,7 @@ func TestSelectAbilityHealer(t *testing.T) {
 }
 
 func TestSelectAbilityDPS(t *testing.T) {
-	cm := NewCompanionManager(12345)
+	cm := NewManager(12345)
 	comp := cm.CreateCompanion(100, "fantasy", RoleDPS)
 
 	ability := cm.SelectAbility(comp.ID, true, false) // target low health
@@ -86,7 +86,7 @@ func TestSelectAbilityDPS(t *testing.T) {
 }
 
 func TestRecordPlayerAction(t *testing.T) {
-	cm := NewCompanionManager(12345)
+	cm := NewManager(12345)
 	comp := cm.CreateCompanion(100, "fantasy", RoleTank)
 
 	event := ActionEvent{
@@ -109,7 +109,7 @@ func TestRecordPlayerAction(t *testing.T) {
 
 func TestEventMemoryLimit(t *testing.T) {
 	// Per AC: dialog references player actions from last 10 events
-	cm := NewCompanionManager(12345)
+	cm := NewManager(12345)
 	comp := cm.CreateCompanion(100, "fantasy", RoleTank)
 
 	// Record more than 10 events
@@ -128,7 +128,7 @@ func TestEventMemoryLimit(t *testing.T) {
 }
 
 func TestLoyaltyAdjustment(t *testing.T) {
-	cm := NewCompanionManager(12345)
+	cm := NewManager(12345)
 	comp := cm.CreateCompanion(100, "fantasy", RoleTank)
 
 	initialLoyalty := comp.Loyalty
@@ -140,7 +140,7 @@ func TestLoyaltyAdjustment(t *testing.T) {
 	}
 
 	// Negative action
-	cm2 := NewCompanionManager(12345)
+	cm2 := NewManager(12345)
 	comp2 := cm2.CreateCompanion(100, "fantasy", RoleTank)
 	initialLoyalty2 := comp2.Loyalty
 
@@ -151,7 +151,7 @@ func TestLoyaltyAdjustment(t *testing.T) {
 }
 
 func TestLoyaltyClamping(t *testing.T) {
-	cm := NewCompanionManager(12345)
+	cm := NewManager(12345)
 	comp := cm.CreateCompanion(100, "fantasy", RoleTank)
 
 	// Max loyalty
@@ -172,7 +172,7 @@ func TestLoyaltyClamping(t *testing.T) {
 }
 
 func TestGenerateDialogResponse(t *testing.T) {
-	cm := NewCompanionManager(12345)
+	cm := NewManager(12345)
 	comp := cm.CreateCompanion(100, "fantasy", RoleTank)
 
 	// Per AC: dialog references player actions from last 10 events
@@ -193,7 +193,7 @@ func TestGenerateDialogResponse(t *testing.T) {
 }
 
 func TestGetPlayerCompanion(t *testing.T) {
-	cm := NewCompanionManager(12345)
+	cm := NewManager(12345)
 	cm.CreateCompanion(100, "fantasy", RoleTank)
 
 	comp := cm.GetPlayerCompanion(100)
@@ -209,7 +209,7 @@ func TestGetPlayerCompanion(t *testing.T) {
 }
 
 func TestSetOrder(t *testing.T) {
-	cm := NewCompanionManager(12345)
+	cm := NewManager(12345)
 	comp := cm.CreateCompanion(100, "fantasy", RoleTank)
 
 	cm.SetOrder(comp.ID, OrderStay)
@@ -227,7 +227,7 @@ func TestSetOrder(t *testing.T) {
 }
 
 func TestSetCombatState(t *testing.T) {
-	cm := NewCompanionManager(12345)
+	cm := NewManager(12345)
 	comp := cm.CreateCompanion(100, "fantasy", RoleTank)
 
 	cm.SetCombatState(comp.ID, true)
@@ -245,7 +245,7 @@ func TestGenreSpecificTemplates(t *testing.T) {
 	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
 
 	for _, genre := range genres {
-		cm := NewCompanionManager(12345)
+		cm := NewManager(12345)
 		comp := cm.CreateCompanion(uint64(len(genre)), genre, RoleDPS)
 
 		if comp.Genre != genre {
@@ -297,7 +297,7 @@ func TestCombatRoleString(t *testing.T) {
 
 // TestGetCompanion tests the GetCompanion method.
 func TestGetCompanion(t *testing.T) {
-	cm := NewCompanionManager(12345)
+	cm := NewManager(12345)
 	comp := cm.CreateCompanion(100, "fantasy", RoleTank)
 
 	// Test getting an existing companion
@@ -316,35 +316,35 @@ func TestGetCompanion(t *testing.T) {
 	}
 }
 
-// TestCompanionCount tests the CompanionCount method.
-func TestCompanionCount(t *testing.T) {
-	cm := NewCompanionManager(12345)
+// TestCount tests the Count method.
+func TestCount(t *testing.T) {
+	cm := NewManager(12345)
 
 	// Initially no companions
-	if cm.CompanionCount() != 0 {
-		t.Errorf("Initial count = %d, want 0", cm.CompanionCount())
+	if cm.Count() != 0 {
+		t.Errorf("Initial count = %d, want 0", cm.Count())
 	}
 
 	// Add companions
 	cm.CreateCompanion(1, "fantasy", RoleTank)
-	if cm.CompanionCount() != 1 {
-		t.Errorf("After 1 creation, count = %d, want 1", cm.CompanionCount())
+	if cm.Count() != 1 {
+		t.Errorf("After 1 creation, count = %d, want 1", cm.Count())
 	}
 
 	cm.CreateCompanion(2, "fantasy", RoleHealer)
-	if cm.CompanionCount() != 2 {
-		t.Errorf("After 2 creations, count = %d, want 2", cm.CompanionCount())
+	if cm.Count() != 2 {
+		t.Errorf("After 2 creations, count = %d, want 2", cm.Count())
 	}
 
 	cm.CreateCompanion(3, "sci-fi", RoleDPS)
-	if cm.CompanionCount() != 3 {
-		t.Errorf("After 3 creations, count = %d, want 3", cm.CompanionCount())
+	if cm.Count() != 3 {
+		t.Errorf("After 3 creations, count = %d, want 3", cm.Count())
 	}
 }
 
 // TestSelectTankAbility tests the tank ability selection.
 func TestSelectTankAbility(t *testing.T) {
-	cm := NewCompanionManager(12345)
+	cm := NewManager(12345)
 	comp := cm.CreateCompanion(100, "fantasy", RoleTank)
 
 	// Tank should select shield_wall
@@ -359,7 +359,7 @@ func TestSelectTankAbility(t *testing.T) {
 
 // TestSelectAbilityAllRoles tests ability selection for all combat roles.
 func TestSelectAbilityAllRoles(t *testing.T) {
-	cm := NewCompanionManager(12345)
+	cm := NewManager(12345)
 
 	tests := []struct {
 		role           CombatRole
@@ -387,14 +387,14 @@ func TestSelectAbilityAllRoles(t *testing.T) {
 }
 
 func BenchmarkCreateCompanion(b *testing.B) {
-	cm := NewCompanionManager(12345)
+	cm := NewManager(12345)
 	for i := 0; i < b.N; i++ {
 		cm.CreateCompanion(uint64(i), "fantasy", RoleTank)
 	}
 }
 
 func BenchmarkSelectAbility(b *testing.B) {
-	cm := NewCompanionManager(12345)
+	cm := NewManager(12345)
 	comp := cm.CreateCompanion(100, "fantasy", RoleHealer)
 
 	for i := 0; i < b.N; i++ {

@@ -4,6 +4,7 @@ package systems
 import (
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
+	"github.com/opd-ai/wyrm/pkg/util"
 )
 
 // ============================================================================
@@ -154,9 +155,8 @@ type CrimeEvidenceSystem struct {
 	gameTime     float64
 	nextCrimeID  int
 	nextEvidence int
-	// Random seed
-	rngSeed    int64
-	rngCounter int64
+	// Random generator
+	rng *PseudoRandomLCG
 }
 
 // NewCrimeEvidenceSystem creates a new crime evidence system.
@@ -172,7 +172,7 @@ func NewCrimeEvidenceSystem(crimeSystem *CrimeSystem, genre string, seed int64) 
 		MinConvictionScore: 0.75, // 75% evidence needed
 		ProcessingTime:     30.0, // 30 seconds to process evidence
 		genre:              genre,
-		rngSeed:            seed,
+		rng:                NewPseudoRandomLCG(seed),
 	}
 }
 
@@ -276,39 +276,12 @@ func (s *CrimeEvidenceSystem) RecordCrime(crimeType string, criminalID, victimID
 
 // formatCrimeID creates a crime ID string.
 func formatCrimeID(n int) string {
-	// Simple numeric ID
-	result := make([]byte, 0, 10)
-	result = append(result, 'C', 'R', '-')
-	if n == 0 {
-		return string(append(result, '0'))
-	}
-	digits := make([]byte, 0, 8)
-	for n > 0 {
-		digits = append(digits, byte('0'+n%10))
-		n /= 10
-	}
-	for i := len(digits) - 1; i >= 0; i-- {
-		result = append(result, digits[i])
-	}
-	return string(result)
+	return util.FormatPrefixedID("CR", n)
 }
 
 // formatEvidenceID creates an evidence ID string.
 func formatEvidenceID(n int) string {
-	result := make([]byte, 0, 10)
-	result = append(result, 'E', 'V', '-')
-	if n == 0 {
-		return string(append(result, '0'))
-	}
-	digits := make([]byte, 0, 8)
-	for n > 0 {
-		digits = append(digits, byte('0'+n%10))
-		n /= 10
-	}
-	for i := len(digits) - 1; i >= 0; i-- {
-		result = append(result, digits[i])
-	}
-	return string(result)
+	return util.FormatPrefixedID("EV", n)
 }
 
 // ReportCrime marks a crime as reported to authorities.
@@ -695,9 +668,7 @@ func (s *CrimeEvidenceSystem) generateGenreEvidence(record *CrimeRecord) int {
 
 // pseudoRandom generates a deterministic pseudo-random number 0.0-1.0.
 func (s *CrimeEvidenceSystem) pseudoRandom() float64 {
-	s.rngCounter++
-	x := s.rngSeed*1103515245 + s.rngCounter*12345
-	return float64((x>>16)&0x7FFF) / 32768.0
+	return s.rng.Float64()
 }
 
 // GetCrimeTypeDescription returns a description of a crime type.

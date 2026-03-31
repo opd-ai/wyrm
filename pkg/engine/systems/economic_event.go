@@ -67,14 +67,14 @@ type EventConsequence struct {
 
 // EconomicEventSystem manages economic events.
 type EconomicEventSystem struct {
-	Seed           int64
 	Genre          string
 	Economy        *EconomySystem
 	Events         map[string]*EconomicEvent
 	ActiveEvents   []*EconomicEvent
 	EventHistory   []*EconomicEvent
 	GameTime       float64
-	counter        uint64
+	rng            *PseudoRandom
+	idCounter      uint64  // Counter for generating unique IDs
 	EventFrequency float64 // Base chance per hour for random event
 	MaxEvents      int     // Maximum concurrent events
 }
@@ -82,12 +82,12 @@ type EconomicEventSystem struct {
 // NewEconomicEventSystem creates a new economic event system.
 func NewEconomicEventSystem(seed int64, genre string, economy *EconomySystem) *EconomicEventSystem {
 	return &EconomicEventSystem{
-		Seed:           seed,
 		Genre:          genre,
 		Economy:        economy,
 		Events:         make(map[string]*EconomicEvent),
 		ActiveEvents:   make([]*EconomicEvent, 0),
 		EventHistory:   make([]*EconomicEvent, 0),
+		rng:            NewPseudoRandom(seed),
 		EventFrequency: 0.001, // ~0.1% chance per hour
 		MaxEvents:      5,
 	}
@@ -95,20 +95,12 @@ func NewEconomicEventSystem(seed int64, genre string, economy *EconomySystem) *E
 
 // pseudoRandom generates a deterministic pseudo-random number.
 func (s *EconomicEventSystem) pseudoRandom() float64 {
-	s.counter++
-	x := uint64(s.Seed) + s.counter*6364136223846793005
-	x ^= x >> 12
-	x ^= x << 25
-	x ^= x >> 27
-	return float64(x%10000) / 10000.0
+	return s.rng.Float64()
 }
 
 // pseudoRandomInt generates a deterministic pseudo-random integer.
 func (s *EconomicEventSystem) pseudoRandomInt(max int) int {
-	if max <= 0 {
-		return 0
-	}
-	return int(s.pseudoRandom() * float64(max))
+	return s.rng.Int(max)
 }
 
 // Update processes economic events.
@@ -199,32 +191,28 @@ func (s *EconomicEventSystem) applyPriceModifier(node *components.EconomyNode, i
 	node.PriceTable[item] = currentPrice + (targetPrice-currentPrice)*strength
 }
 
-// applySupplyModifier adjusts an item's supply toward target based on effect strength.
-func (s *EconomicEventSystem) applySupplyModifier(node *components.EconomyNode, item string, modifier, strength float64) {
+// applyIntModifier is a generic helper that adjusts an integer map value toward a target.
+func applyIntModifier(data map[string]int, item string, modifier, strength float64) {
 	if modifier == 1.0 {
 		return
 	}
-	currentSupply := node.Supply[item]
-	targetSupply := int(float64(currentSupply) * modifier)
-	diff := targetSupply - currentSupply
-	node.Supply[item] = currentSupply + int(float64(diff)*strength)
-	if node.Supply[item] < 0 {
-		node.Supply[item] = 0
+	current := data[item]
+	target := int(float64(current) * modifier)
+	diff := target - current
+	data[item] = current + int(float64(diff)*strength)
+	if data[item] < 0 {
+		data[item] = 0
 	}
+}
+
+// applySupplyModifier adjusts an item's supply toward target based on effect strength.
+func (s *EconomicEventSystem) applySupplyModifier(node *components.EconomyNode, item string, modifier, strength float64) {
+	applyIntModifier(node.Supply, item, modifier, strength)
 }
 
 // applyDemandModifier adjusts an item's demand toward target based on effect strength.
 func (s *EconomicEventSystem) applyDemandModifier(node *components.EconomyNode, item string, modifier, strength float64) {
-	if modifier == 1.0 {
-		return
-	}
-	currentDemand := node.Demand[item]
-	targetDemand := int(float64(currentDemand) * modifier)
-	diff := targetDemand - currentDemand
-	node.Demand[item] = currentDemand + int(float64(diff)*strength)
-	if node.Demand[item] < 0 {
-		node.Demand[item] = 0
-	}
+	applyIntModifier(node.Demand, item, modifier, strength)
 }
 
 // applyEventConsequences applies follow-on effects when an event ends.
@@ -351,8 +339,8 @@ func (s *EconomicEventSystem) selectAffectedItems() []string {
 
 // createEvent creates an event with appropriate parameters.
 func (s *EconomicEventSystem) createEvent(eventType EconomicEventType, severity EconomicEventSeverity) *EconomicEvent {
-	s.counter++
-	eventID := "event_" + string(rune('0'+s.counter%1000))
+	s.idCounter++
+	eventID := "event_" + string(rune('0'+s.idCounter%1000))
 	name, description := s.getEventNameAndDescription(eventType)
 	pricemod, supplymod, demandmod := s.getEventModifiers(eventType, severity)
 	duration := s.getEventDuration(eventType, severity)

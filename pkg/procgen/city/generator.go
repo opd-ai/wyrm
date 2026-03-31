@@ -21,7 +21,7 @@ type City struct {
 	Genre            string
 	ResidentialAreas []ResidentialArea
 	IndustrialZones  []IndustrialZone
-	Walls            CityWall
+	Walls            Wall
 	Gates            []CityGate
 }
 
@@ -584,8 +584,8 @@ func (c *City) GetZoneByName(name string) *IndustrialZone {
 	return nil
 }
 
-// CityWall represents the defensive walls surrounding a city.
-type CityWall struct {
+// Wall represents the defensive walls surrounding a city.
+type Wall struct {
 	// Segments defines wall segments as start/end point pairs.
 	Segments []WallSegment
 	// Height is the wall height in units.
@@ -645,7 +645,7 @@ func (c *City) GenerateWallsAndGates(rng *rand.Rand) {
 	gateStyles := getGenreMaterials(c.Genre, genreGateStyles)
 
 	bounds := c.calculateWallBounds()
-	c.Walls = c.createCityWall(rng, materials, bounds)
+	c.Walls = c.createWall(rng, materials, bounds)
 	c.applyWallDamage(rng)
 	c.Gates = c.generateGates(rng, gateStyles, bounds)
 }
@@ -676,10 +676,10 @@ func (c *City) calculateWallBounds() wallBounds {
 	}
 }
 
-// createCityWall creates the wall structure with segments.
-func (c *City) createCityWall(rng *rand.Rand, materials []string, b wallBounds) CityWall {
+// createWall creates the wall structure with segments.
+func (c *City) createWall(rng *rand.Rand, materials []string, b wallBounds) Wall {
 	material := materials[rng.Intn(len(materials))]
-	return CityWall{
+	return Wall{
 		Height:    8.0 + rng.Float64()*8.0,
 		Thickness: 2.0 + rng.Float64()*3.0,
 		Material:  material,
@@ -825,7 +825,7 @@ func (g *CityGate) IsGateOpen(hour int) bool {
 }
 
 // GetWallCondition returns the overall wall condition (average of segments).
-func (c *CityWall) GetWallCondition() float64 {
+func (c *Wall) GetWallCondition() float64 {
 	if len(c.Segments) == 0 {
 		return c.Condition
 	}
@@ -840,7 +840,7 @@ func (c *CityWall) GetWallCondition() float64 {
 }
 
 // HasBreach returns true if any wall segment is significantly damaged.
-func (c *CityWall) HasBreach() bool {
+func (c *Wall) HasBreach() bool {
 	for _, seg := range c.Segments {
 		if seg.Damaged && seg.DamageLevel > 0.5 {
 			return true

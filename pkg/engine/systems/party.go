@@ -247,18 +247,9 @@ func (s *PartySystem) KickFromParty(leaderID, targetID ecs.Entity) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	partyID, ok := s.PlayerParty[leaderID]
-	if !ok {
-		return &PartyError{Code: ErrNotInParty}
-	}
-
-	party := s.Parties[partyID]
-	if party == nil {
-		return &PartyError{Code: ErrPartyNotFound}
-	}
-
-	if party.LeaderID != leaderID {
-		return &PartyError{Code: ErrNotPartyLeader}
+	party, err := s.getPartyAsLeader(leaderID)
+	if err != nil {
+		return err
 	}
 
 	if leaderID == targetID {
@@ -280,18 +271,9 @@ func (s *PartySystem) PromoteToLeader(currentLeaderID, newLeaderID ecs.Entity) e
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	partyID, ok := s.PlayerParty[currentLeaderID]
-	if !ok {
-		return &PartyError{Code: ErrNotInParty}
-	}
-
-	party := s.Parties[partyID]
-	if party == nil {
-		return &PartyError{Code: ErrPartyNotFound}
-	}
-
-	if party.LeaderID != currentLeaderID {
-		return &PartyError{Code: ErrNotPartyLeader}
+	party, err := s.getPartyAsLeader(currentLeaderID)
+	if err != nil {
+		return err
 	}
 
 	if _, isMember := party.Members[newLeaderID]; !isMember {
@@ -310,20 +292,12 @@ func (s *PartySystem) DisbandParty(leaderID ecs.Entity) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	partyID, ok := s.PlayerParty[leaderID]
-	if !ok {
-		return &PartyError{Code: ErrNotInParty}
+	party, err := s.getPartyAsLeader(leaderID)
+	if err != nil {
+		return err
 	}
 
-	party := s.Parties[partyID]
-	if party == nil {
-		return &PartyError{Code: ErrPartyNotFound}
-	}
-
-	if party.LeaderID != leaderID {
-		return &PartyError{Code: ErrNotPartyLeader}
-	}
-
+	partyID := party.ID
 	for memberID := range party.Members {
 		delete(s.PlayerParty, memberID)
 	}
@@ -409,18 +383,9 @@ func (s *PartySystem) SetLootSharing(leaderID ecs.Entity, share bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	partyID, ok := s.PlayerParty[leaderID]
-	if !ok {
-		return &PartyError{Code: ErrNotInParty}
-	}
-
-	party := s.Parties[partyID]
-	if party == nil {
-		return &PartyError{Code: ErrPartyNotFound}
-	}
-
-	if party.LeaderID != leaderID {
-		return &PartyError{Code: ErrNotPartyLeader}
+	party, err := s.getPartyAsLeader(leaderID)
+	if err != nil {
+		return err
 	}
 
 	party.ShareLoot = share
@@ -432,18 +397,9 @@ func (s *PartySystem) SetXPSharing(leaderID ecs.Entity, share bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	partyID, ok := s.PlayerParty[leaderID]
-	if !ok {
-		return &PartyError{Code: ErrNotInParty}
-	}
-
-	party := s.Parties[partyID]
-	if party == nil {
-		return &PartyError{Code: ErrPartyNotFound}
-	}
-
-	if party.LeaderID != leaderID {
-		return &PartyError{Code: ErrNotPartyLeader}
+	party, err := s.getPartyAsLeader(leaderID)
+	if err != nil {
+		return err
 	}
 
 	party.ShareXP = share
@@ -523,6 +479,26 @@ const (
 	ErrInviteExpired
 	ErrCannotKickSelf
 )
+
+// getPartyAsLeader retrieves the party for a player, validating they are the leader.
+// The caller must hold the lock.
+func (s *PartySystem) getPartyAsLeader(leaderID ecs.Entity) (*Party, error) {
+	partyID, ok := s.PlayerParty[leaderID]
+	if !ok {
+		return nil, &PartyError{Code: ErrNotInParty}
+	}
+
+	party := s.Parties[partyID]
+	if party == nil {
+		return nil, &PartyError{Code: ErrPartyNotFound}
+	}
+
+	if party.LeaderID != leaderID {
+		return nil, &PartyError{Code: ErrNotPartyLeader}
+	}
+
+	return party, nil
+}
 
 // PartyError represents a party-related error.
 type PartyError struct {

@@ -1,14 +1,13 @@
 package systems
 
 import (
-"fmt"
-"math"
-"sync"
+	"fmt"
+	"math"
+	"sync"
 
-"github.com/opd-ai/wyrm/pkg/engine/ecs"
-"github.com/opd-ai/wyrm/pkg/util"
+	"github.com/opd-ai/wyrm/pkg/engine/ecs"
+	"github.com/opd-ai/wyrm/pkg/util"
 )
-
 
 // NavalVehicleType represents a type of naval vehicle.
 type NavalVehicleType int

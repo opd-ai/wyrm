@@ -141,7 +141,7 @@ func (s *FederationServer) ConnectToPeer(peerID, address string) error {
 
 	s.mu.Lock()
 	s.peers[peerID] = conn
-	s.Federation.RegisterNode(&FederationNode{
+	s.Federation.RegisterNode(&Node{
 		ServerID: peerID,
 		Address:  address,
 		LastSeen: time.Now(),

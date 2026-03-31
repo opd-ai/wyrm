@@ -269,8 +269,8 @@ $ go-stats-generator analyze . --skip-tests --output post-fix.json
 ### Immediate Actions
 1. ✅ **DONE**: Fix non-deterministic map iteration in `selectBiomeFromWeights`
 2. ✅ **DONE**: Add build tags to gate Ebiten dependencies
-3. ⚠️ **TODO**: Update README.md with build tag documentation
-4. ⚠️ **TODO**: Update CI/CD scripts to use `xvfb-run` for full test coverage
+3. ✅ **DONE**: Update README.md with build tag documentation
+4. ✅ **DONE**: Update CI/CD scripts to use `xvfb-run` for full test coverage
 
 ### Future Improvements
 1. **Architectural Refactor**: Extract Venture adapters into separate package `pkg/procgen/adapters/venture/` with build guards, leaving core adapter types tag-free

@@ -315,47 +315,48 @@ func (s *DialogConsequenceSystem) QueueConsequence(player, npc ecs.Entity, optio
 
 // SelectDialogOption handles a player selecting a dialog option.
 func SelectDialogOption(w *ecs.World, s *DialogConsequenceSystem, player ecs.Entity, optionID string) bool {
-	// Get player's dialog state
+	state, ok := getPlayerDialogState(w, player)
+	if !ok || !state.IsInDialog {
+		return false
+	}
+
+	selectedOption := findDialogOption(state, optionID)
+	if selectedOption == nil || !selectedOption.IsEnabled || !selectedOption.IsVisible {
+		return false
+	}
+
+	s.QueueConsequence(player, ecs.Entity(state.ConversationPartner), optionID, selectedOption.Consequences)
+	recordDialogSelection(state, player, selectedOption, optionID)
+	return true
+}
+
+// getPlayerDialogState retrieves the dialog state component for a player.
+func getPlayerDialogState(w *ecs.World, player ecs.Entity) (*components.DialogState, bool) {
 	stateComp, ok := w.GetComponent(player, "DialogState")
 	if !ok {
-		return false
+		return nil, false
 	}
-	state := stateComp.(*components.DialogState)
-	if !state.IsInDialog {
-		return false
-	}
+	return stateComp.(*components.DialogState), true
+}
 
-	// Find the selected option
-	var selectedOption *components.DialogOption
+// findDialogOption locates a dialog option by ID in the available responses.
+func findDialogOption(state *components.DialogState, optionID string) *components.DialogOption {
 	for i := range state.AvailableResponses {
 		if state.AvailableResponses[i].ID == optionID {
-			selectedOption = &state.AvailableResponses[i]
-			break
+			return &state.AvailableResponses[i]
 		}
 	}
-	if selectedOption == nil {
-		return false
-	}
+	return nil
+}
 
-	// Check if option is enabled
-	if !selectedOption.IsEnabled || !selectedOption.IsVisible {
-		return false
-	}
-
-	// Queue the consequences
-	s.QueueConsequence(player, ecs.Entity(state.ConversationPartner), optionID, selectedOption.Consequences)
-
-	// Record in dialog history
+// recordDialogSelection updates dialog state with the selected option.
+func recordDialogSelection(state *components.DialogState, player ecs.Entity, option *components.DialogOption, optionID string) {
 	state.DialogHistory = append(state.DialogHistory, components.DialogExchange{
 		Speaker:  uint64(player),
-		Text:     selectedOption.Text,
+		Text:     option.Text,
 		OptionID: optionID,
 	})
-
-	// Update current topic
-	state.CurrentTopicID = selectedOption.NextTopicID
-
-	return true
+	state.CurrentTopicID = option.NextTopicID
 }
 
 // StartConversation begins a dialog between two entities.

@@ -8,7 +8,6 @@ import (
 	"github.com/opd-ai/wyrm/pkg/util"
 )
 
-
 // FlyingVehicleType represents a type of flying vehicle.
 type FlyingVehicleType int
 

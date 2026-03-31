@@ -4,6 +4,7 @@ package systems
 import (
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
+	"github.com/opd-ai/wyrm/pkg/util"
 )
 
 // ============================================================================
@@ -216,9 +217,8 @@ type CriminalFactionQuestSystem struct {
 	// Tracking
 	gameTime    float64
 	nextQuestID int
-	// Random seed for determinism
-	rngSeed    int64
-	rngCounter int64
+	// Random generator for determinism
+	rng *PseudoRandomLCG
 	// Quest generation settings
 	QuestsPerRankTier     int     // Number of quests available per rank tier
 	QuestRefreshTime      float64 // Time before new quests generate
@@ -234,7 +234,7 @@ func NewCriminalFactionQuestSystem(factionRankSystem *FactionRankSystem, genre s
 		questsByPlayer:        make(map[uint64][]string),
 		activeQuests:          make(map[uint64]string),
 		genre:                 genre,
-		rngSeed:               seed,
+		rng:                   NewPseudoRandomLCG(seed),
 		QuestsPerRankTier:     3,
 		QuestRefreshTime:      3600.0, // 1 hour
 		FailureReputationLoss: -10.0,
@@ -329,20 +329,7 @@ func (s *CriminalFactionQuestSystem) generateQuest(factionID string, questType C
 
 // formatQuestID creates a quest ID string.
 func formatQuestID(n int) string {
-	result := make([]byte, 0, 10)
-	result = append(result, 'C', 'Q', '-')
-	if n == 0 {
-		return string(append(result, '0'))
-	}
-	digits := make([]byte, 0, 8)
-	for n > 0 {
-		digits = append(digits, byte('0'+n%10))
-		n /= 10
-	}
-	for i := len(digits) - 1; i >= 0; i-- {
-		result = append(result, digits[i])
-	}
-	return string(result)
+	return util.FormatPrefixedID("CQ", n)
 }
 
 // isStealthyQuest determines if a quest requires stealth.
@@ -633,33 +620,45 @@ func (s *CriminalFactionQuestSystem) generateObjectives(questType CriminalQuestT
 // AcceptQuest assigns a quest to a player.
 func (s *CriminalFactionQuestSystem) AcceptQuest(w *ecs.World, questID string, playerID uint64) bool {
 	quest, ok := s.quests[questID]
-	if !ok {
+	if !ok || quest.State != CriminalQuestAvailable {
 		return false
 	}
-	if quest.State != CriminalQuestAvailable {
+	if !s.canPlayerAcceptQuest(w, playerID, quest) {
 		return false
 	}
+	s.activateQuest(quest, playerID, questID)
+	return true
+}
+
+// canPlayerAcceptQuest checks if a player meets all requirements to accept a quest.
+func (s *CriminalFactionQuestSystem) canPlayerAcceptQuest(w *ecs.World, playerID uint64, quest *CriminalQuest) bool {
 	// Check if player already has an active quest
 	if _, hasActive := s.activeQuests[playerID]; hasActive {
 		return false
 	}
-	// Check player rank
-	if s.factionRankSystem != nil {
-		comp, ok := w.GetComponent(ecs.Entity(playerID), "FactionMembership")
-		if ok {
-			membership := comp.(*components.FactionMembership)
-			rank := membership.GetRank(quest.FactionID)
-			if rank < quest.Type.MinRank() {
-				return false // Rank too low
-			}
-		}
+	return s.hasRequiredRank(w, playerID, quest)
+}
+
+// hasRequiredRank checks if the player has sufficient faction rank for the quest.
+func (s *CriminalFactionQuestSystem) hasRequiredRank(w *ecs.World, playerID uint64, quest *CriminalQuest) bool {
+	if s.factionRankSystem == nil {
+		return true
 	}
+	comp, ok := w.GetComponent(ecs.Entity(playerID), "FactionMembership")
+	if !ok {
+		return true
+	}
+	membership := comp.(*components.FactionMembership)
+	return membership.GetRank(quest.FactionID) >= quest.Type.MinRank()
+}
+
+// activateQuest transitions a quest to the active state for the player.
+func (s *CriminalFactionQuestSystem) activateQuest(quest *CriminalQuest, playerID uint64, questID string) {
 	quest.State = CriminalQuestActive
 	quest.AssignedTo = playerID
 	quest.StartTime = s.gameTime
 	s.activeQuests[playerID] = questID
 	s.questsByPlayer[playerID] = append(s.questsByPlayer[playerID], questID)
-	return true
 }
 
 // CompleteObjective marks an objective as completed.
@@ -823,7 +822,5 @@ func (s *CriminalFactionQuestSystem) GetRemainingTime(questID string) float64 {
 
 // pseudoRandom generates a deterministic pseudo-random number 0.0-1.0.
 func (s *CriminalFactionQuestSystem) pseudoRandom() float64 {
-	s.rngCounter++
-	x := s.rngSeed*1103515245 + s.rngCounter*12345
-	return float64((x>>16)&0x7FFF) / 32768.0
+	return s.rng.Float64()
 }

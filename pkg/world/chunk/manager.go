@@ -380,13 +380,24 @@ func NewModifiedChunk(base *Chunk) *ModifiedChunk {
 
 // ApplyModification applies a terrain modification at the given location.
 func (mc *ModifiedChunk) ApplyModification(mod TerrainModification) {
-	if mod.X < 0 || mod.X >= mc.Size || mod.Y < 0 || mod.Y >= mc.Size {
+	if !mc.isValidPosition(mod.X, mod.Y) {
 		return
 	}
 
 	idx := mod.Y*mc.Size + mod.X
+	mc.storeOriginalValues(&mod, idx)
+	mc.applyModificationType(mod)
+	mc.recalculateDerivedTerrain(mod.X, mod.Y)
+	mc.recordModification(mod, idx)
+}
 
-	// Store original values for undo
+// isValidPosition checks if coordinates are within chunk bounds.
+func (mc *ModifiedChunk) isValidPosition(x, y int) bool {
+	return x >= 0 && x < mc.Size && y >= 0 && y < mc.Size
+}
+
+// storeOriginalValues saves original values for potential undo.
+func (mc *ModifiedChunk) storeOriginalValues(mod *TerrainModification, idx int) {
 	mod.OldHeight = mc.HeightMap[idx]
 	if mc.ElevationMap != nil {
 		mod.OldElevation = mc.ElevationMap[idx]
@@ -394,8 +405,11 @@ func (mc *ModifiedChunk) ApplyModification(mod TerrainModification) {
 	if mc.TerrainTypes != nil {
 		mod.OldTerrainType = mc.TerrainTypes[idx]
 	}
+}
 
-	// Apply the modification based on type
+// applyModificationType applies the terrain modification based on type.
+func (mc *ModifiedChunk) applyModificationType(mod TerrainModification) {
+	idx := mod.Y*mc.Size + mod.X
 	switch mod.ModType {
 	case ModTypeDig:
 		mc.HeightMap[idx] -= mod.NewHeight
@@ -416,11 +430,16 @@ func (mc *ModifiedChunk) ApplyModification(mod TerrainModification) {
 	case ModTypeErode:
 		mc.applyErosion(mod.X, mod.Y, mod.NewHeight)
 	}
+}
 
-	// Recalculate derived terrain data at this location
-	mc.recalculateElevation(mod.X, mod.Y)
-	mc.recalculateTerrainType(mod.X, mod.Y)
+// recalculateDerivedTerrain updates elevation and terrain type at a position.
+func (mc *ModifiedChunk) recalculateDerivedTerrain(x, y int) {
+	mc.recalculateElevation(x, y)
+	mc.recalculateTerrainType(x, y)
+}
 
+// recordModification tracks the modification for history.
+func (mc *ModifiedChunk) recordModification(mod TerrainModification, idx int) {
 	mc.modifications = append(mc.modifications, mod)
 	mc.modifiedMask[idx] = true
 	mc.dirty = true

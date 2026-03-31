@@ -78,12 +78,12 @@ type InvestmentOpportunity struct {
 
 // InvestmentSystem manages player investments.
 type InvestmentSystem struct {
-	Seed           int64
 	Genre          string
 	Investments    map[string]*Investment
 	Opportunities  map[string]*InvestmentOpportunity
 	GameTime       float64
-	counter        uint64
+	rng            *PseudoRandom
+	idCounter      uint64                  // Counter for generating unique IDs
 	InvestorSkill  map[ecs.Entity]float64  // Skill affects returns
 	Portfolio      map[ecs.Entity][]string // Investor -> investment IDs
 	TotalReturns   map[ecs.Entity]float64  // Lifetime returns
@@ -93,10 +93,10 @@ type InvestmentSystem struct {
 // NewInvestmentSystem creates a new investment system.
 func NewInvestmentSystem(seed int64, genre string) *InvestmentSystem {
 	s := &InvestmentSystem{
-		Seed:           seed,
 		Genre:          genre,
 		Investments:    make(map[string]*Investment),
 		Opportunities:  make(map[string]*InvestmentOpportunity),
+		rng:            NewPseudoRandom(seed),
 		InvestorSkill:  make(map[ecs.Entity]float64),
 		Portfolio:      make(map[ecs.Entity][]string),
 		TotalReturns:   make(map[ecs.Entity]float64),
@@ -108,12 +108,7 @@ func NewInvestmentSystem(seed int64, genre string) *InvestmentSystem {
 
 // pseudoRandom generates a deterministic pseudo-random number.
 func (s *InvestmentSystem) pseudoRandom() float64 {
-	s.counter++
-	x := uint64(s.Seed) + s.counter*6364136223846793005
-	x ^= x >> 12
-	x ^= x << 25
-	x ^= x >> 27
-	return float64(x%10000) / 10000.0
+	return s.rng.Float64()
 }
 
 // generateOpportunities creates initial investment opportunities.
@@ -233,8 +228,8 @@ func (s *InvestmentSystem) Invest(investor ecs.Entity, opportunityID string, amo
 
 // generateInvestmentID creates a unique investment identifier.
 func (s *InvestmentSystem) generateInvestmentID() string {
-	s.counter++
-	return "invest_" + string(rune('0'+s.counter%1000))
+	s.idCounter++
+	return "invest_" + string(rune('0'+s.idCounter%1000))
 }
 
 // getMinHoldTime returns minimum hold time for investment type.
@@ -428,7 +423,7 @@ func (s *InvestmentSystem) generateNewOpportunity() {
 	}
 	base := opportunities[int(s.pseudoRandom()*float64(len(opportunities)))]
 	newOpp := &InvestmentOpportunity{
-		ID:             base.ID + "_" + string(rune('0'+s.counter%100)),
+		ID:             base.ID + "_" + string(rune('0'+s.idCounter%100)),
 		Type:           base.Type,
 		Name:           base.Name + " (Limited)",
 		Description:    base.Description,

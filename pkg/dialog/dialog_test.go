@@ -7,7 +7,7 @@ import (
 )
 
 func TestRecordAndRecallTopic(t *testing.T) {
-	dm := NewDialogManager(12345)
+	dm := NewManager(12345)
 
 	// Record a topic
 	dm.RecordTopic(1, 100, "weather", "asked about rain", "complained about mud")
@@ -26,7 +26,7 @@ func TestRecordAndRecallTopic(t *testing.T) {
 }
 
 func TestHasDiscussedTopic(t *testing.T) {
-	dm := NewDialogManager(12345)
+	dm := NewManager(12345)
 
 	dm.RecordTopic(1, 100, "Quest", "accepted", "gave directions")
 
@@ -39,7 +39,7 @@ func TestHasDiscussedTopic(t *testing.T) {
 }
 
 func TestTopicHistory(t *testing.T) {
-	dm := NewDialogManager(12345)
+	dm := NewManager(12345)
 
 	dm.RecordTopic(1, 100, "topic1", "action1", "response1")
 	dm.RecordTopic(1, 100, "topic2", "action2", "response2")
@@ -55,7 +55,7 @@ func TestTopicHistory(t *testing.T) {
 }
 
 func TestTopicMemoryLimit(t *testing.T) {
-	dm := NewDialogManager(12345)
+	dm := NewManager(12345)
 
 	// Record more than 20 topics
 	for i := 0; i < 25; i++ {
@@ -69,7 +69,7 @@ func TestTopicMemoryLimit(t *testing.T) {
 }
 
 func TestEmotionalStateShift(t *testing.T) {
-	dm := NewDialogManager(12345)
+	dm := NewManager(12345)
 
 	// Initial state should be neutral
 	state := dm.GetEmotionalState(1, 100, EmotionNeutral)
@@ -85,7 +85,7 @@ func TestEmotionalStateShift(t *testing.T) {
 	}
 
 	// Reset and negative shift should make suspicious/hostile
-	dm2 := NewDialogManager(12345)
+	dm2 := NewManager(12345)
 	dm2.ShiftEmotion(1, 100, -35)
 	state = dm2.GetEmotionalState(1, 100, EmotionNeutral)
 	if state != EmotionSuspicious {
@@ -100,7 +100,7 @@ func TestEmotionalStateShift(t *testing.T) {
 }
 
 func TestEmotionClamping(t *testing.T) {
-	dm := NewDialogManager(12345)
+	dm := NewManager(12345)
 
 	dm.ShiftEmotion(1, 100, 200)
 	dm.mu.RLock()
@@ -111,7 +111,7 @@ func TestEmotionClamping(t *testing.T) {
 		t.Errorf("EmotionShift = %f, want 100 (clamped)", shift)
 	}
 
-	dm2 := NewDialogManager(12345)
+	dm2 := NewManager(12345)
 	dm2.ShiftEmotion(1, 100, -200)
 	dm2.mu.RLock()
 	shift = dm2.memories[1][100].EmotionShift
@@ -192,7 +192,7 @@ func containsAnyPrefix(s string, prefixes []string) bool {
 }
 
 func TestGenerateResponse(t *testing.T) {
-	dm := NewDialogManager(12345)
+	dm := NewManager(12345)
 
 	// First interaction
 	response := dm.GenerateResponse(1, 100, "fantasy", "quest", EmotionNeutral)
@@ -208,7 +208,7 @@ func TestGenerateResponse(t *testing.T) {
 }
 
 func TestGenerateResponseWithTopicRecall(t *testing.T) {
-	dm := NewDialogManager(12345)
+	dm := NewManager(12345)
 
 	// Record a previous topic
 	dm.RecordTopic(1, 100, "treasure", "asked about gold", "mentioned location")
@@ -222,7 +222,7 @@ func TestGenerateResponseWithTopicRecall(t *testing.T) {
 }
 
 func TestClearOldMemories(t *testing.T) {
-	dm := NewDialogManager(12345)
+	dm := NewManager(12345)
 
 	dm.RecordTopic(1, 100, "old_topic", "action", "response")
 
@@ -267,14 +267,14 @@ func TestEmotionalStateString(t *testing.T) {
 }
 
 func BenchmarkRecordTopic(b *testing.B) {
-	dm := NewDialogManager(12345)
+	dm := NewManager(12345)
 	for i := 0; i < b.N; i++ {
 		dm.RecordTopic(1, 100, "topic", "action", "response")
 	}
 }
 
 func BenchmarkGenerateResponse(b *testing.B) {
-	dm := NewDialogManager(12345)
+	dm := NewManager(12345)
 	for i := 0; i < b.N; i++ {
 		dm.GenerateResponse(1, 100, "fantasy", "topic", EmotionNeutral)
 	}
@@ -301,7 +301,7 @@ func TestSkillCheckTypeString(t *testing.T) {
 
 func TestPersuasionSkillCheckSuccess(t *testing.T) {
 	// Use a fixed seed for deterministic testing
-	dm := NewDialogManager(42)
+	dm := NewManager(42)
 
 	// High skill (80) against easy difficulty (25) should usually succeed
 	result := dm.AttemptPersuasion(1, 100, 80, DifficultyEasy, EmotionNeutral, "fantasy")
@@ -327,7 +327,7 @@ func TestPersuasionSkillCheckSuccess(t *testing.T) {
 }
 
 func TestPersuasionSkillCheckFailure(t *testing.T) {
-	dm := NewDialogManager(42)
+	dm := NewManager(42)
 
 	// Low skill (10) against very hard difficulty (90) should fail
 	result := dm.AttemptPersuasion(1, 100, 10, DifficultyVeryHard, EmotionHostile, "cyberpunk")
@@ -344,7 +344,7 @@ func TestPersuasionSkillCheckFailure(t *testing.T) {
 }
 
 func TestIntimidationSkillCheckSuccess(t *testing.T) {
-	dm := NewDialogManager(42)
+	dm := NewManager(42)
 
 	// High skill against fearful NPC (easier to intimidate)
 	result := dm.AttemptIntimidate(1, 100, 70, DifficultyMedium, EmotionFearful, "horror")
@@ -360,7 +360,7 @@ func TestIntimidationSkillCheckSuccess(t *testing.T) {
 }
 
 func TestIntimidationSkillCheckFailure(t *testing.T) {
-	dm := NewDialogManager(42)
+	dm := NewManager(42)
 
 	// Low skill against friendly NPC (harder to intimidate)
 	result := dm.AttemptIntimidate(1, 100, 15, DifficultyHard, EmotionFriendly, "sci-fi")
@@ -372,7 +372,7 @@ func TestIntimidationSkillCheckFailure(t *testing.T) {
 }
 
 func TestEmotionModifierPersuasion(t *testing.T) {
-	dm := NewDialogManager(42)
+	dm := NewManager(42)
 
 	// Test that friendly NPCs are easier to persuade
 	modFriendly := dm.getEmotionModifier(SkillCheckPersuasion, EmotionFriendly)
@@ -389,7 +389,7 @@ func TestEmotionModifierPersuasion(t *testing.T) {
 }
 
 func TestEmotionModifierIntimidation(t *testing.T) {
-	dm := NewDialogManager(42)
+	dm := NewManager(42)
 
 	// Test that fearful NPCs are easier to intimidate
 	modFearful := dm.getEmotionModifier(SkillCheckIntimidate, EmotionFearful)
@@ -425,7 +425,7 @@ func TestSkillCheckDifficultyLevels(t *testing.T) {
 }
 
 func TestSkillCheckRecordsInMemory(t *testing.T) {
-	dm := NewDialogManager(42)
+	dm := NewManager(42)
 
 	// Perform a skill check
 	dm.AttemptPersuasion(1, 100, 50, DifficultyMedium, EmotionNeutral, "fantasy")
@@ -453,7 +453,7 @@ func TestAllGenresHaveSkillCheckResponses(t *testing.T) {
 	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
 
 	for _, genre := range genres {
-		dm := NewDialogManager(42)
+		dm := NewManager(42)
 
 		// Test persuasion
 		result := dm.AttemptPersuasion(1, 100, 50, DifficultyMedium, EmotionNeutral, genre)
@@ -478,7 +478,7 @@ func TestCriticalSuccessAndFailure(t *testing.T) {
 
 	// Run many times to get statistical coverage
 	for seed := int64(0); seed < 100; seed++ {
-		dm := NewDialogManager(seed)
+		dm := NewManager(seed)
 		result := dm.AttemptPersuasion(1, 100, 50, DifficultyMedium, EmotionNeutral, "fantasy")
 
 		if result.Success {
@@ -505,14 +505,14 @@ func TestCriticalSuccessAndFailure(t *testing.T) {
 }
 
 func BenchmarkPersuasionSkillCheck(b *testing.B) {
-	dm := NewDialogManager(12345)
+	dm := NewManager(12345)
 	for i := 0; i < b.N; i++ {
 		dm.AttemptPersuasion(1, 100, 50, DifficultyMedium, EmotionNeutral, "fantasy")
 	}
 }
 
 func BenchmarkIntimidationSkillCheck(b *testing.B) {
-	dm := NewDialogManager(12345)
+	dm := NewManager(12345)
 	for i := 0; i < b.N; i++ {
 		dm.AttemptIntimidate(1, 100, 50, DifficultyMedium, EmotionNeutral, "fantasy")
 	}

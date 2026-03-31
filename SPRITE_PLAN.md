@@ -1,8 +1,8 @@
 # SPRITE_PLAN.md — Wyrm Entity Rendering System Design
 
-**Status**: Pre-Implementation (FEATURES.md §18 — Sprite rendering)
-**Phase**: Planned for Phase 4 (Entity Rendering) per ROADMAP.md
-**Last Updated**: 2026-03-30
+**Status**: ✅ Implemented (FEATURES.md §18 — Sprite rendering)
+**Phase**: Completed (Entity Rendering)
+**Last Updated**: 2026-03-31
 
 ---
 
@@ -910,62 +910,62 @@ Per Wyrm's networking requirements:
 
 ### Phase 1: Foundation (Week 1)
 
-- [ ] Add `Appearance` component to `pkg/engine/components/types.go`
-- [ ] Add `Appearance` unit tests
-- [ ] Create `pkg/rendering/sprite/` package scaffold
-- [ ] Define `Sprite` and `SpriteSheet` structs
-- [ ] Implement `SpriteCache` with LRU eviction
-- [ ] Expose z-buffer from `drawWalls()` in `Renderer` struct
-- [ ] Register new systems in `cmd/client/main.go`
+- [x] Add `Appearance` component to `pkg/engine/components/types.go`
+- [x] Add `Appearance` unit tests
+- [x] Create `pkg/rendering/sprite/` package scaffold
+- [x] Define `Sprite` and `SpriteSheet` structs
+- [x] Implement `SpriteCache` with LRU eviction
+- [x] Expose z-buffer from `drawWalls()` in `Renderer` struct
+- [x] Register new systems in `cmd/client/main.go`
 
 ### Phase 2: Sprite Generation (Weeks 2–3)
 
-- [ ] Implement humanoid silhouette generator with body region mapping
-- [ ] Implement creature body plan generator (quadruped, biped, serpentine, avian, insectoid)
-- [ ] Implement vehicle silhouette generator (per genre archetype)
-- [ ] Implement object sprite generator (container, furniture, sign, resource, door)
-- [ ] Wire genre palettes into sprite coloring
-- [ ] Add occupation→body plan mapping for all 5 genres
-- [ ] Generate animation frame sequences (idle, walk, attack, dead as minimum)
-- [ ] Unit tests for all generators (determinism tests: same seed → same output)
+- [x] Implement humanoid silhouette generator with body region mapping
+- [x] Implement creature body plan generator (quadruped, biped, serpentine, avian, insectoid)
+- [x] Implement vehicle silhouette generator (per genre archetype)
+- [x] Implement object sprite generator (container, furniture, sign, resource, door)
+- [x] Wire genre palettes into sprite coloring
+- [x] Add occupation→body plan mapping for all 5 genres
+- [x] Generate animation frame sequences (idle, walk, attack, dead as minimum)
+- [x] Unit tests for all generators (determinism tests: same seed → same output)
 
 ### Phase 3: Rendering Integration (Weeks 3–4)
 
-- [ ] Implement billboard transform (world→screen math)
-- [ ] Implement depth-tested sprite column drawing against z-buffer
-- [ ] Implement back-to-front sprite sorting
-- [ ] Implement frustum culling
-- [ ] Implement distance culling
-- [ ] Add fog application to sprites (matching wall fog formula)
-- [ ] Add opacity support (alpha blending for stealth)
-- [ ] Add `FlipH` facing-direction support
-- [ ] Verify post-processing effects apply correctly to sprites
+- [x] Implement billboard transform (world→screen math)
+- [x] Implement depth-tested sprite column drawing against z-buffer
+- [x] Implement back-to-front sprite sorting
+- [x] Implement frustum culling
+- [x] Implement distance culling
+- [x] Add fog application to sprites (matching wall fog formula)
+- [x] Add opacity support (alpha blending for stealth)
+- [x] Add `FlipH` facing-direction support
+- [x] Verify post-processing effects apply correctly to sprites
 
 ### Phase 4: Animation (Week 4)
 
-- [ ] Implement `SpriteAnimationSystem`
-- [ ] Wire `CombatSystem` → `AnimState` transitions
-- [ ] Wire `NPCScheduleSystem` → `AnimState` transitions
-- [ ] Wire `StealthSystem` → `AnimState` / `Opacity` transitions
-- [ ] Wire `Health` → `AnimState = "dead"` transition
-- [ ] Wire `VehicleState.DamagePercent` → `DamageOverlay`
+- [x] Implement `SpriteAnimationSystem`
+- [x] Wire `CombatSystem` → `AnimState` transitions
+- [x] Wire `NPCScheduleSystem` → `AnimState` transitions
+- [x] Wire `StealthSystem` → `AnimState` / `Opacity` transitions
+- [x] Wire `Health` → `AnimState = "dead"` transition
+- [x] Wire `VehicleState.DamagePercent` → `DamageOverlay`
 
 ### Phase 5: Optimization (Week 5)
 
-- [ ] Implement 3-tier LOD system with hysteresis
-- [ ] Implement occlusion culling
-- [ ] Profile at 50 visible sprites, 1280×720
-- [ ] Optimize hot path (cache sprite sheet lookup, minimize allocations)
-- [ ] Benchmark: `go test -bench=. -benchmem ./pkg/rendering/sprite/`
+- [x] Implement 3-tier LOD system with hysteresis
+- [x] Implement occlusion culling
+- [x] Profile at 50 visible sprites, 1280×720
+- [x] Optimize hot path (cache sprite sheet lookup, minimize allocations)
+- [x] Benchmark: `go test -bench=. -benchmem ./pkg/rendering/sprite/`
 
 ### Phase 6: Polish & Testing (Week 6)
 
-- [ ] Integration tests with full raycaster pipeline
-- [ ] Determinism tests (same seed → same pixels across 3 runs)
-- [ ] Multiplayer delta compression for Appearance component
-- [ ] Weather visual effect integration on sprites
-- [ ] Edge cases: sprites at screen edges, very close sprites, overlapping sprites
-- [ ] Update FEATURES.md: mark "Sprite rendering" as complete
+- [x] Integration tests with full raycaster pipeline
+- [x] Determinism tests (same seed → same pixels across 3 runs)
+- [x] Multiplayer delta compression for Appearance component
+- [x] Weather visual effect integration on sprites
+- [x] Edge cases: sprites at screen edges, very close sprites, overlapping sprites
+- [x] Update FEATURES.md: mark "Sprite rendering" as complete
 
 ---
 

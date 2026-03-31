@@ -92,10 +92,10 @@ func almostEqual(a, b float64) bool {
 	return diff < 0.0001
 }
 
-func TestNewAmbientManager(t *testing.T) {
-	am := NewAmbientManager("fantasy", 42)
+func TestNewManager(t *testing.T) {
+	am := NewManager("fantasy", 42)
 	if am == nil {
-		t.Fatal("NewAmbientManager returned nil")
+		t.Fatal("NewManager returned nil")
 	}
 	if am.GetCurrentRegion() != RegionPlains {
 		t.Error("should start in plains region")
@@ -103,7 +103,7 @@ func TestNewAmbientManager(t *testing.T) {
 }
 
 func TestSetRegion(t *testing.T) {
-	am := NewAmbientManager("fantasy", 42)
+	am := NewManager("fantasy", 42)
 
 	am.SetRegion(RegionCave)
 
@@ -117,7 +117,7 @@ func TestSetRegion(t *testing.T) {
 }
 
 func TestTransitionProgress(t *testing.T) {
-	am := NewAmbientManager("fantasy", 42)
+	am := NewManager("fantasy", 42)
 	am.transitionTime = 1.0 // 1 second
 
 	am.SetRegion(RegionForest)
@@ -146,7 +146,7 @@ func TestTransitionProgress(t *testing.T) {
 
 func TestTransitionTimingAC(t *testing.T) {
 	// ROADMAP AC: Ambient sound type changes within 1s of entering new region type
-	am := NewAmbientManager("fantasy", 42)
+	am := NewManager("fantasy", 42)
 
 	// Default transition time should be 1 second
 	if am.transitionTime != 1.0 {
@@ -164,7 +164,7 @@ func TestTransitionTimingAC(t *testing.T) {
 }
 
 func TestGenerateSamples(t *testing.T) {
-	am := NewAmbientManager("fantasy", 42)
+	am := NewManager("fantasy", 42)
 
 	samples := am.GenerateSamples(0.5)
 
@@ -175,7 +175,7 @@ func TestGenerateSamples(t *testing.T) {
 }
 
 func TestSameRegionNoTransition(t *testing.T) {
-	am := NewAmbientManager("fantasy", 42)
+	am := NewManager("fantasy", 42)
 
 	// Complete initial state
 	am.transitionProgress = 1.0
@@ -206,13 +206,13 @@ func BenchmarkGenerateCitySamples(b *testing.B) {
 }
 
 // ============================================================================
-// AmbientMixer Tests
+// Mixer Tests
 // ============================================================================
 
-func TestNewAmbientMixer(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestNewMixer(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 	if mixer == nil {
-		t.Fatal("NewAmbientMixer returned nil")
+		t.Fatal("NewMixer returned nil")
 	}
 	if mixer.masterVolume != 1.0 {
 		t.Errorf("expected masterVolume 1.0, got %f", mixer.masterVolume)
@@ -222,8 +222,8 @@ func TestNewAmbientMixer(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_AddLayer(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_AddLayer(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 
 	mixer.AddLayer("background", RegionPlains, 0.5, 0)
 
@@ -235,8 +235,8 @@ func TestAmbientMixer_AddLayer(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_AddMultipleLayers(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_AddMultipleLayers(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 
 	mixer.AddLayer("background", RegionPlains, 0.5, 0)
 	mixer.AddLayer("weather", RegionForest, 0.3, 1)
@@ -247,8 +247,8 @@ func TestAmbientMixer_AddMultipleLayers(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_MaxLayers(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_MaxLayers(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 
 	// Add max layers
 	for i := 0; i < mixer.maxLayers; i++ {
@@ -263,8 +263,8 @@ func TestAmbientMixer_MaxLayers(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_RemoveLayer(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_RemoveLayer(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 	mixer.AddLayer("test", RegionPlains, 0.5, 0)
 
 	// Force the volume to non-zero so it fades
@@ -293,8 +293,8 @@ func TestAmbientMixer_RemoveLayer(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_SetLayerVolume(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_SetLayerVolume(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 	mixer.AddLayer("test", RegionPlains, 0.5, 0)
 
 	mixer.SetLayerVolume("test", 0.8)
@@ -308,8 +308,8 @@ func TestAmbientMixer_SetLayerVolume(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_SetLayerVolume_Clamping(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_SetLayerVolume_Clamping(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 	mixer.AddLayer("test", RegionPlains, 0.5, 0)
 
 	// Test clamping above 1
@@ -331,8 +331,8 @@ func TestAmbientMixer_SetLayerVolume_Clamping(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_SetLayerPan(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_SetLayerPan(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 	mixer.AddLayer("test", RegionPlains, 0.5, 0)
 
 	mixer.SetLayerPan("test", -0.5)
@@ -346,8 +346,8 @@ func TestAmbientMixer_SetLayerPan(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_SetLayerPan_Clamping(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_SetLayerPan_Clamping(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 	mixer.AddLayer("test", RegionPlains, 0.5, 0)
 
 	mixer.SetLayerPan("test", 2.0)
@@ -367,8 +367,8 @@ func TestAmbientMixer_SetLayerPan_Clamping(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_MasterVolume(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_MasterVolume(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 
 	mixer.SetMasterVolume(0.7)
 	if mixer.GetMasterVolume() != 0.7 {
@@ -387,8 +387,8 @@ func TestAmbientMixer_MasterVolume(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_CrossfadeTime(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_CrossfadeTime(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 
 	mixer.SetCrossfadeTime(0.25)
 	if mixer.GetCrossfadeTime() != 0.25 {
@@ -402,8 +402,8 @@ func TestAmbientMixer_CrossfadeTime(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_Update_FadeIn(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_Update_FadeIn(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 	mixer.SetCrossfadeTime(0.5)
 
 	mixer.AddLayer("test", RegionPlains, 0.8, 0)
@@ -428,8 +428,8 @@ func TestAmbientMixer_Update_FadeIn(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_GenerateMixedSamples(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_GenerateMixedSamples(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 	mixer.AddLayer("background", RegionPlains, 0.5, 0)
 
 	// Set volume directly for testing
@@ -457,8 +457,8 @@ func TestAmbientMixer_GenerateMixedSamples(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_GenerateStereoSamples(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_GenerateStereoSamples(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 	mixer.AddLayer("left", RegionPlains, 0.5, 0)
 	mixer.AddLayer("right", RegionForest, 0.5, 1)
 
@@ -481,8 +481,8 @@ func TestAmbientMixer_GenerateStereoSamples(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_SoftClipping(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_SoftClipping(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 
 	// Create loud samples that would clip
 	samples := []float64{2.0, -2.0, 1.5, -1.5}
@@ -495,8 +495,8 @@ func TestAmbientMixer_SoftClipping(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_GetLayerNames(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_GetLayerNames(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 	mixer.AddLayer("alpha", RegionPlains, 0.5, 0)
 	mixer.AddLayer("beta", RegionForest, 0.5, 1)
 
@@ -519,8 +519,8 @@ func TestAmbientMixer_GetLayerNames(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_CrossfadeTo(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_CrossfadeTo(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 	mixer.AddLayer("old", RegionPlains, 0.5, 0)
 
 	// Force volume
@@ -544,8 +544,8 @@ func TestAmbientMixer_CrossfadeTo(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_LayerPriority(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_LayerPriority(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 
 	// Add layers in non-priority order
 	mixer.AddLayer("high", RegionCave, 0.5, 10)
@@ -567,8 +567,8 @@ func TestAmbientMixer_LayerPriority(t *testing.T) {
 	}
 }
 
-func TestAmbientMixer_ConcurrentAccess(t *testing.T) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func TestMixer_ConcurrentAccess(t *testing.T) {
+	mixer := NewMixer("fantasy", 42)
 	mixer.AddLayer("test", RegionPlains, 0.5, 0)
 
 	// Force volume
@@ -609,8 +609,8 @@ func TestAmbientMixer_ConcurrentAccess(t *testing.T) {
 	}
 }
 
-func BenchmarkAmbientMixer_GenerateMixedSamples(b *testing.B) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func BenchmarkMixer_GenerateMixedSamples(b *testing.B) {
+	mixer := NewMixer("fantasy", 42)
 	mixer.AddLayer("bg", RegionPlains, 0.5, 0)
 	mixer.AddLayer("weather", RegionForest, 0.3, 1)
 
@@ -626,8 +626,8 @@ func BenchmarkAmbientMixer_GenerateMixedSamples(b *testing.B) {
 	}
 }
 
-func BenchmarkAmbientMixer_GenerateStereoSamples(b *testing.B) {
-	mixer := NewAmbientMixer("fantasy", 42)
+func BenchmarkMixer_GenerateStereoSamples(b *testing.B) {
+	mixer := NewMixer("fantasy", 42)
 	mixer.AddLayer("left", RegionPlains, 0.5, 0)
 	mixer.AddLayer("right", RegionForest, 0.5, 1)
 

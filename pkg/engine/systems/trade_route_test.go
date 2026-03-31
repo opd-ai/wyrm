@@ -13,9 +13,6 @@ func TestNewTradeRouteSystem(t *testing.T) {
 	if system == nil {
 		t.Fatal("NewTradeRouteSystem returned nil")
 	}
-	if system.Seed != 12345 {
-		t.Errorf("expected seed 12345, got %d", system.Seed)
-	}
 	if system.Genre != "fantasy" {
 		t.Errorf("expected genre fantasy, got %s", system.Genre)
 	}

@@ -65,7 +65,7 @@ func TestPlayerTransferValidate(t *testing.T) {
 func TestFederationRegisterNode(t *testing.T) {
 	f := NewFederation("local")
 
-	node := &FederationNode{
+	node := &Node{
 		ServerID: "remote1",
 		Address:  "192.168.1.1:7777",
 	}
@@ -391,11 +391,11 @@ func TestFullTransferIntegration(t *testing.T) {
 	destServer := NewFederation("dest-server-002")
 
 	// Register peer nodes (as would happen in production)
-	sourceServer.RegisterNode(&FederationNode{
+	sourceServer.RegisterNode(&Node{
 		ServerID: "dest-server-002",
 		Address:  "192.168.1.2:7777",
 	})
-	destServer.RegisterNode(&FederationNode{
+	destServer.RegisterNode(&Node{
 		ServerID: "source-server-001",
 		Address:  "192.168.1.1:7777",
 	})

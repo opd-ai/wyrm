@@ -7,10 +7,10 @@ import (
 	"github.com/opd-ai/wyrm/config"
 )
 
-func TestNewInputManager(t *testing.T) {
-	im := NewInputManager()
+func TestNewManager(t *testing.T) {
+	im := NewManager()
 	if im == nil {
-		t.Fatal("NewInputManager returned nil")
+		t.Fatal("NewManager returned nil")
 	}
 
 	// Check that default bindings are set
@@ -26,7 +26,7 @@ func TestNewInputManager(t *testing.T) {
 }
 
 func TestSetBinding(t *testing.T) {
-	im := NewInputManager()
+	im := NewManager()
 
 	// Change a binding
 	err := im.SetBinding(ActionMoveForward, "UpArrow")
@@ -49,7 +49,7 @@ func TestSetBinding(t *testing.T) {
 }
 
 func TestGetActionsForKey(t *testing.T) {
-	im := NewInputManager()
+	im := NewManager()
 
 	// Check actions for W key
 	actions := im.GetActionsForKey("W")
@@ -79,7 +79,7 @@ func TestGetActionsForKey(t *testing.T) {
 }
 
 func TestKeyPressRelease(t *testing.T) {
-	im := NewInputManager()
+	im := NewManager()
 
 	// Press W key
 	im.OnKeyPressed("W")
@@ -118,8 +118,8 @@ func (l *testListener) OnActionReleased(action Action) {
 	l.released = append(l.released, action)
 }
 
-func TestInputListener(t *testing.T) {
-	im := NewInputManager()
+func TestListener(t *testing.T) {
+	im := NewManager()
 	listener := &testListener{}
 	im.AddListener(listener)
 
@@ -139,7 +139,7 @@ func TestInputListener(t *testing.T) {
 }
 
 func TestRemoveListener(t *testing.T) {
-	im := NewInputManager()
+	im := NewManager()
 	listener := &testListener{}
 	im.AddListener(listener)
 	im.RemoveListener(listener)
@@ -156,7 +156,7 @@ func TestRemoveListener(t *testing.T) {
 }
 
 func TestLoadFromConfig(t *testing.T) {
-	im := NewInputManager()
+	im := NewManager()
 
 	cfg := &config.KeyBindingsConfig{
 		MoveForward:  "UpArrow",
@@ -213,7 +213,7 @@ func TestLoadFromConfig(t *testing.T) {
 }
 
 func TestExportToConfig(t *testing.T) {
-	im := NewInputManager()
+	im := NewManager()
 
 	// Change some bindings
 	im.SetBinding(ActionMoveForward, "Up")
@@ -230,7 +230,7 @@ func TestExportToConfig(t *testing.T) {
 }
 
 func TestResetBinding(t *testing.T) {
-	im := NewInputManager()
+	im := NewManager()
 
 	// Change binding
 	im.SetBinding(ActionMoveForward, "Up")
@@ -249,7 +249,7 @@ func TestResetBinding(t *testing.T) {
 }
 
 func TestResetAllBindings(t *testing.T) {
-	im := NewInputManager()
+	im := NewManager()
 
 	// Change several bindings
 	im.SetBinding(ActionMoveForward, "Up")
@@ -297,7 +297,7 @@ func TestValidateKey(t *testing.T) {
 }
 
 func TestGetAllBindings(t *testing.T) {
-	im := NewInputManager()
+	im := NewManager()
 
 	bindings := im.GetAllBindings()
 
@@ -317,7 +317,7 @@ func TestGetAllBindings(t *testing.T) {
 }
 
 func TestKeyRepeatIgnored(t *testing.T) {
-	im := NewInputManager()
+	im := NewManager()
 	listener := &testListener{}
 	im.AddListener(listener)
 
@@ -336,7 +336,7 @@ func TestKeyRepeatIgnored(t *testing.T) {
 }
 
 func TestConcurrentAccess(t *testing.T) {
-	im := NewInputManager()
+	im := NewManager()
 
 	var wg sync.WaitGroup
 
@@ -369,7 +369,7 @@ func TestConcurrentAccess(t *testing.T) {
 }
 
 func TestMultipleActionsOnSameKey(t *testing.T) {
-	im := NewInputManager()
+	im := NewManager()
 
 	// Bind two actions to the same key
 	im.SetBinding(ActionMoveForward, "W")

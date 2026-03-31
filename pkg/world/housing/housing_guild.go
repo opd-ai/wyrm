@@ -3,10 +3,10 @@
 package housing
 
 import (
-"fmt"
-"sync"
+	"fmt"
+	"sync"
 
-"github.com/opd-ai/wyrm/pkg/util"
+	"github.com/opd-ai/wyrm/pkg/util"
 )
 
 // ============================================================================
@@ -690,26 +690,48 @@ func (s *GuildHallSystem) Update(dt float64) {
 	dayLength := 24.0 * 3600.0 // 24 hours in seconds
 
 	for _, hall := range s.GuildHalls {
-		// Check for daily upkeep
-		if s.GameTime-hall.LastUpkeep >= dayLength {
-			hall.LastUpkeep = s.GameTime
-
-			if hall.TreasuryGold >= hall.Upkeep {
-				hall.TreasuryGold -= hall.Upkeep
-				hall.InDebt = false
-				hall.DebtDays = 0
-			} else {
-				hall.InDebt = true
-				hall.DebtDays++
-
-				// Facilities become non-operational after 3 days in debt
-				if hall.DebtDays >= 3 {
-					for _, facility := range hall.Facilities {
-						facility.Operational = false
-					}
-				}
-			}
+		if s.isDailyUpkeepDue(hall, dayLength) {
+			s.processDailyUpkeep(hall)
 		}
+	}
+}
+
+// isDailyUpkeepDue checks if daily upkeep should be processed.
+func (s *GuildHallSystem) isDailyUpkeepDue(hall *GuildHall, dayLength float64) bool {
+	return s.GameTime-hall.LastUpkeep >= dayLength
+}
+
+// processDailyUpkeep handles daily upkeep payment for a guild hall.
+func (s *GuildHallSystem) processDailyUpkeep(hall *GuildHall) {
+	hall.LastUpkeep = s.GameTime
+
+	if hall.TreasuryGold >= hall.Upkeep {
+		s.processSuccessfulPayment(hall)
+	} else {
+		s.processFailedPayment(hall)
+	}
+}
+
+// processSuccessfulPayment handles successful upkeep payment.
+func (s *GuildHallSystem) processSuccessfulPayment(hall *GuildHall) {
+	hall.TreasuryGold -= hall.Upkeep
+	hall.InDebt = false
+	hall.DebtDays = 0
+}
+
+// processFailedPayment handles failed upkeep payment.
+func (s *GuildHallSystem) processFailedPayment(hall *GuildHall) {
+	hall.InDebt = true
+	hall.DebtDays++
+	if hall.DebtDays >= 3 {
+		s.disableFacilities(hall)
+	}
+}
+
+// disableFacilities marks all facilities as non-operational.
+func (s *GuildHallSystem) disableFacilities(hall *GuildHall) {
+	for _, facility := range hall.Facilities {
+		facility.Operational = false
 	}
 }
 
@@ -1265,31 +1287,45 @@ func (s *SharedStorageSystem) DeleteStorage(storageID string, ownerID uint64) er
 	defer s.mu.Unlock()
 
 	storage := s.Storages[storageID]
-	if storage == nil {
-		return fmt.Errorf("storage not found: %s", storageID)
+	if err := s.validateStorageDeletion(storage, ownerID); err != nil {
+		return err
 	}
 
+	s.removeStorageFromMembers(storage, storageID)
+	delete(s.Storages, storageID)
+	return nil
+}
+
+// validateStorageDeletion checks if storage can be deleted.
+func (s *SharedStorageSystem) validateStorageDeletion(storage *SharedStorage, ownerID uint64) error {
+	if storage == nil {
+		return fmt.Errorf("storage not found")
+	}
 	if storage.OwnerID != ownerID {
 		return fmt.Errorf("only owner can delete storage")
 	}
-
 	if len(storage.Items) > 0 {
 		return fmt.Errorf("cannot delete storage with items")
 	}
+	return nil
+}
 
-	// Remove from all members' lists
+// removeStorageFromMembers removes storage ID from all member player lists.
+func (s *SharedStorageSystem) removeStorageFromMembers(storage *SharedStorage, storageID string) {
 	for memberID := range storage.Members {
-		playerStorages := s.PlayerStorage[memberID]
-		for i, id := range playerStorages {
-			if id == storageID {
-				s.PlayerStorage[memberID] = append(playerStorages[:i], playerStorages[i+1:]...)
-				break
-			}
+		s.removeStorageFromPlayer(memberID, storageID)
+	}
+}
+
+// removeStorageFromPlayer removes a storage ID from a player's storage list.
+func (s *SharedStorageSystem) removeStorageFromPlayer(playerID uint64, storageID string) {
+	playerStorages := s.PlayerStorage[playerID]
+	for i, id := range playerStorages {
+		if id == storageID {
+			s.PlayerStorage[playerID] = append(playerStorages[:i], playerStorages[i+1:]...)
+			return
 		}
 	}
-
-	delete(s.Storages, storageID)
-	return nil
 }
 
 // TransferOwnership transfers storage ownership to another player.

@@ -145,6 +145,21 @@ go build ./cmd/client
 go build ./cmd/server
 ```
 
+## Test
+
+```bash
+# Run all tests (requires X11 display or xvfb for Ebitengine packages)
+xvfb-run -a go test -race ./...
+
+# Run tests for headless packages (no display required)
+go test -tags=noebiten ./pkg/procgen/adapters/...
+go test -tags=noebiten ./pkg/rendering/raycast/...
+go test -tags=noebiten ./cmd/client/...
+go test -tags=noebiten ./cmd/server/...
+```
+
+The `noebiten` build tag enables testing of packages that have Ebitengine dependencies without requiring a graphical display. This is useful for CI environments and server deployments.
+
 ## Run
 
 ```bash

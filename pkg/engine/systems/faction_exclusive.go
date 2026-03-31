@@ -369,29 +369,31 @@ func (s *FactionExclusiveContentSystem) CanAccessContent(w *ecs.World, entity ec
 	if !exists {
 		return false
 	}
+	if !s.hasRequiredFactionRank(w, entity, content) {
+		return false
+	}
+	return !s.isOnCooldown(entity, content, contentID)
+}
 
-	// Check faction membership and rank
+// hasRequiredFactionRank checks if entity has required faction membership and rank.
+func (s *FactionExclusiveContentSystem) hasRequiredFactionRank(w *ecs.World, entity ecs.Entity, content *ExclusiveContent) bool {
 	if s.RankSystem == nil {
 		return false
 	}
-	if !s.RankSystem.CanAccessRankContent(w, entity, content.FactionID, content.RequiredRank) {
+	return s.RankSystem.CanAccessRankContent(w, entity, content.FactionID, content.RequiredRank)
+}
+
+// isOnCooldown checks if repeatable content is on cooldown for the entity.
+func (s *FactionExclusiveContentSystem) isOnCooldown(entity ecs.Entity, content *ExclusiveContent, contentID string) bool {
+	if !content.Repeatable {
 		return false
 	}
-
-	// Check time availability
-	// (Would need world clock for proper implementation)
-
-	// Check cooldown for repeatable content
-	if content.Repeatable {
-		cooldowns := s.PlayerCooldowns[uint64(entity)]
-		if cooldowns != nil {
-			if cooldownEnd, onCooldown := cooldowns[contentID]; onCooldown && cooldownEnd > 0 {
-				return false
-			}
-		}
+	cooldowns := s.PlayerCooldowns[uint64(entity)]
+	if cooldowns == nil {
+		return false
 	}
-
-	return true
+	cooldownEnd, onCooldown := cooldowns[contentID]
+	return onCooldown && cooldownEnd > 0
 }
 
 // GetAccessibleContent returns all content a player can currently access.

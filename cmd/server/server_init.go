@@ -78,7 +78,7 @@ func initializeFederation(cfg *config.Config) *federation.Federation {
 
 	// Register peer nodes
 	for _, peerAddr := range cfg.Federation.Peers {
-		node := &federation.FederationNode{
+		node := &federation.Node{
 			ServerID: fmt.Sprintf("peer-%s", peerAddr),
 			Address:  peerAddr,
 		}

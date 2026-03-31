@@ -92,13 +92,13 @@ type TradeOffer struct {
 
 // TradeRouteSystem manages trade routes and caravans.
 type TradeRouteSystem struct {
-	Seed            int64
 	Genre           string
 	Routes          map[string]*TradeRoute
 	Caravans        map[string]*TradeCaravan
 	Economy         *EconomySystem
 	GameTime        float64
-	counter         uint64
+	rng             *PseudoRandom
+	idCounter       uint64                  // Counter for generating unique IDs
 	RouteDiscovery  map[ecs.Entity][]string // Player discovered routes
 	TradeHistory    map[ecs.Entity][]TradeRecord
 	CaravanCapacity int
@@ -117,11 +117,11 @@ type TradeRecord struct {
 // NewTradeRouteSystem creates a new trade route system.
 func NewTradeRouteSystem(seed int64, genre string, economy *EconomySystem) *TradeRouteSystem {
 	return &TradeRouteSystem{
-		Seed:            seed,
 		Genre:           genre,
 		Routes:          make(map[string]*TradeRoute),
 		Caravans:        make(map[string]*TradeCaravan),
 		Economy:         economy,
+		rng:             NewPseudoRandom(seed),
 		RouteDiscovery:  make(map[ecs.Entity][]string),
 		TradeHistory:    make(map[ecs.Entity][]TradeRecord),
 		CaravanCapacity: 100,
@@ -131,20 +131,12 @@ func NewTradeRouteSystem(seed int64, genre string, economy *EconomySystem) *Trad
 
 // pseudoRandom generates a deterministic pseudo-random number.
 func (s *TradeRouteSystem) pseudoRandom() float64 {
-	s.counter++
-	x := uint64(s.Seed) + s.counter*6364136223846793005
-	x ^= x >> 12
-	x ^= x << 25
-	x ^= x >> 27
-	return float64(x%10000) / 10000.0
+	return s.rng.Float64()
 }
 
 // pseudoRandomInt generates a deterministic pseudo-random integer.
 func (s *TradeRouteSystem) pseudoRandomInt(max int) int {
-	if max <= 0 {
-		return 0
-	}
-	return int(s.pseudoRandom() * float64(max))
+	return s.rng.Int(max)
 }
 
 // CreateRoute establishes a new trade route between two economy nodes.
@@ -209,51 +201,72 @@ func (s *TradeRouteSystem) GetTradeOffers(w *ecs.World, routeID string) []TradeO
 	if !exists {
 		return nil
 	}
-	offers := make([]TradeOffer, 0)
-	// Get origin node prices
+
+	origin, dest, ok := s.getRouteNodes(w, route)
+	if !ok {
+		return nil
+	}
+
+	return s.calculateProfitableOffers(origin, dest, route)
+}
+
+// economyNodeInterface defines the methods needed from economy nodes.
+type economyNodeInterface interface {
+	GetSupply(string) int
+	GetDemand(string) int
+	GetPrice(string) float64
+}
+
+// getRouteNodes retrieves the origin and destination economy nodes for a route.
+func (s *TradeRouteSystem) getRouteNodes(w *ecs.World, route *TradeRoute) (origin, dest economyNodeInterface, ok bool) {
 	originComp, ok := w.GetComponent(route.OriginNode, "EconomyNode")
 	if !ok {
-		return offers
+		return nil, nil, false
 	}
-	// Get destination node prices
 	destComp, ok := w.GetComponent(route.DestinationNode, "EconomyNode")
 	if !ok {
-		return offers
+		return nil, nil, false
 	}
-	origin := originComp.(interface {
-		GetSupply(string) int
-		GetDemand(string) int
-		GetPrice(string) float64
-	})
-	dest := destComp.(interface {
-		GetSupply(string) int
-		GetDemand(string) int
-		GetPrice(string) float64
-	})
-	// Check each item for profitability
+	return originComp.(economyNodeInterface), destComp.(economyNodeInterface), true
+}
+
+// calculateProfitableOffers generates trade offers for profitable items.
+func (s *TradeRouteSystem) calculateProfitableOffers(origin, dest economyNodeInterface, route *TradeRoute) []TradeOffer {
+	offers := make([]TradeOffer, 0)
 	for itemType, basePrice := range s.Economy.BasePrices {
-		buyPrice := origin.GetPrice(itemType)
-		if buyPrice <= 0 {
-			buyPrice = basePrice
-		}
-		sellPrice := dest.GetPrice(itemType)
-		if sellPrice <= 0 {
-			sellPrice = basePrice
-		}
-		profit := sellPrice - buyPrice - route.TollCost
-		if profit > 0 {
-			offers = append(offers, TradeOffer{
-				ItemType:      itemType,
-				Quantity:      origin.GetSupply(itemType),
-				BuyPrice:      buyPrice,
-				SellPrice:     sellPrice,
-				ProfitPerUnit: profit,
-				Demand:        float64(dest.GetDemand(itemType)),
-				Supply:        float64(origin.GetSupply(itemType)),
-			})
+		offer, profitable := s.evaluateTradeItem(itemType, basePrice, origin, dest, route)
+		if profitable {
+			offers = append(offers, offer)
 		}
 	}
 	return offers
+}
+
+// evaluateTradeItem determines if an item is profitable to trade.
+func (s *TradeRouteSystem) evaluateTradeItem(itemType string, basePrice float64, origin, dest economyNodeInterface, route *TradeRoute) (TradeOffer, bool) {
+	buyPrice := origin.GetPrice(itemType)
+	if buyPrice <= 0 {
+		buyPrice = basePrice
+	}
+	sellPrice := dest.GetPrice(itemType)
+	if sellPrice <= 0 {
+		sellPrice = basePrice
+	}
+
+	profit := sellPrice - buyPrice - route.TollCost
+	if profit <= 0 {
+		return TradeOffer{}, false
+	}
+
+	return TradeOffer{
+		ItemType:      itemType,
+		Quantity:      origin.GetSupply(itemType),
+		BuyPrice:      buyPrice,
+		SellPrice:     sellPrice,
+		ProfitPerUnit: profit,
+		Demand:        float64(dest.GetDemand(itemType)),
+		Supply:        float64(origin.GetSupply(itemType)),
+	}, true
 }
 
 // LaunchCaravan starts a trading caravan on a route.
@@ -284,8 +297,8 @@ func (s *TradeRouteSystem) LaunchCaravan(owner ecs.Entity, routeID string, cargo
 
 // generateCaravanID creates a unique caravan identifier.
 func (s *TradeRouteSystem) generateCaravanID(owner ecs.Entity) string {
-	s.counter++
-	return "caravan_" + string(rune('0'+owner%10)) + "_" + string(rune('0'+s.counter%1000))
+	s.idCounter++
+	return "caravan_" + string(rune('0'+owner%10)) + "_" + string(rune('0'+s.idCounter%1000))
 }
 
 // calculateCargoCost computes the total cost of cargo.

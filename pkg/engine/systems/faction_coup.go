@@ -139,33 +139,50 @@ func (s *FactionCoupSystem) processPlottingCoup(w *ecs.World, factionID string, 
 
 // processActiveCoup handles coups in the active phase.
 func (s *FactionCoupSystem) processActiveCoup(w *ecs.World, factionID string, coup *FactionCoup, dt float64) {
-	// Active coups resolve quickly
-	timeSinceActive := coup.Duration - s.MinPlotDuration
+	s.updateCoupSupport(w, factionID, coup, dt)
+	s.clampCoupLevels(coup)
+	s.resolveCoupOutcome(coup)
+}
 
-	// Support and resistance continue to shift
+// updateCoupSupport adjusts support and resistance during active coup.
+func (s *FactionCoupSystem) updateCoupSupport(w *ecs.World, factionID string, coup *FactionCoup, dt float64) {
 	coup.SupportLevel += s.calculateSupportGrowth(w, factionID, coup) * dt * 2.0
 	coup.ResistanceLevel += s.calculateResistanceGrowth(w, factionID, coup) * dt * 2.0
+}
 
-	// Clamp values
+// clampCoupLevels ensures coup levels stay within valid bounds.
+func (s *FactionCoupSystem) clampCoupLevels(coup *FactionCoup) {
 	if coup.SupportLevel > 1.0 {
 		coup.SupportLevel = 1.0
 	}
 	if coup.ResistanceLevel > 1.0 {
 		coup.ResistanceLevel = 1.0
 	}
+}
 
-	// Check for resolution
+// resolveCoupOutcome determines if a coup succeeds or fails.
+func (s *FactionCoupSystem) resolveCoupOutcome(coup *FactionCoup) {
 	if coup.SupportLevel >= s.SuccessThreshold {
 		coup.State = CoupStateSucceeded
-	} else if coup.ResistanceLevel >= s.FailureThreshold {
+		return
+	}
+	if coup.ResistanceLevel >= s.FailureThreshold {
 		coup.State = CoupStateFailed
-	} else if timeSinceActive > 60.0 {
-		// After 1 minute of active coup, force resolution
-		if coup.SupportLevel > coup.ResistanceLevel {
-			coup.State = CoupStateSucceeded
-		} else {
-			coup.State = CoupStateFailed
-		}
+		return
+	}
+
+	timeSinceActive := coup.Duration - s.MinPlotDuration
+	if timeSinceActive > 60.0 {
+		s.forceCoupResolution(coup)
+	}
+}
+
+// forceCoupResolution resolves a coup after the active time limit.
+func (s *FactionCoupSystem) forceCoupResolution(coup *FactionCoup) {
+	if coup.SupportLevel > coup.ResistanceLevel {
+		coup.State = CoupStateSucceeded
+	} else {
+		coup.State = CoupStateFailed
 	}
 }
 
@@ -371,24 +388,31 @@ func (s *FactionCoupSystem) PlayerStartCoup(w *ecs.World, playerEntity ecs.Entit
 	return false
 }
 
-// SupportCoup allows a player to support an active coup.
-func (s *FactionCoupSystem) SupportCoup(w *ecs.World, playerEntity ecs.Entity, factionID string) bool {
+// getActiveCoupWithMembership returns an active coup and player rank if conditions are met.
+// Returns nil coup if: no active coup, coup not in valid state, rank system unavailable, or player not a member.
+func (s *FactionCoupSystem) getActiveCoupWithMembership(w *ecs.World, playerEntity ecs.Entity, factionID string) (*FactionCoup, int) {
 	coup, exists := s.ActiveCoups[factionID]
 	if !exists || coup.State != CoupStatePlotting && coup.State != CoupStateActive {
-		return false
+		return nil, 0
 	}
-
-	// Check if player is a member
 	if s.RankSystem == nil {
-		return false
+		return nil, 0
 	}
 	info := s.RankSystem.GetMembershipInfo(w, playerEntity, factionID)
 	if info == nil {
+		return nil, 0
+	}
+	return coup, info.Rank
+}
+
+// SupportCoup allows a player to support an active coup.
+func (s *FactionCoupSystem) SupportCoup(w *ecs.World, playerEntity ecs.Entity, factionID string) bool {
+	coup, rank := s.getActiveCoupWithMembership(w, playerEntity, factionID)
+	if coup == nil {
 		return false
 	}
 
-	// Add support based on rank
-	supportBonus := 0.02 + float64(info.Rank)*0.01
+	supportBonus := 0.02 + float64(rank)*0.01
 	coup.SupportLevel += supportBonus
 	if coup.SupportLevel > 1.0 {
 		coup.SupportLevel = 1.0
@@ -399,22 +423,12 @@ func (s *FactionCoupSystem) SupportCoup(w *ecs.World, playerEntity ecs.Entity, f
 
 // OpposeCoup allows a player to oppose an active coup.
 func (s *FactionCoupSystem) OpposeCoup(w *ecs.World, playerEntity ecs.Entity, factionID string) bool {
-	coup, exists := s.ActiveCoups[factionID]
-	if !exists || coup.State != CoupStatePlotting && coup.State != CoupStateActive {
+	coup, rank := s.getActiveCoupWithMembership(w, playerEntity, factionID)
+	if coup == nil {
 		return false
 	}
 
-	// Check if player is a member
-	if s.RankSystem == nil {
-		return false
-	}
-	info := s.RankSystem.GetMembershipInfo(w, playerEntity, factionID)
-	if info == nil {
-		return false
-	}
-
-	// Add resistance based on rank
-	resistanceBonus := 0.02 + float64(info.Rank)*0.01
+	resistanceBonus := 0.02 + float64(rank)*0.01
 	coup.ResistanceLevel += resistanceBonus
 	if coup.ResistanceLevel > 1.0 {
 		coup.ResistanceLevel = 1.0

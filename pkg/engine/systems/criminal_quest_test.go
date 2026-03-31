@@ -32,9 +32,6 @@ func TestNewCriminalFactionQuestSystem(t *testing.T) {
 			if cqs.genre != tt.genre {
 				t.Errorf("genre = %q, want %q", cqs.genre, tt.genre)
 			}
-			if cqs.rngSeed != tt.seed {
-				t.Errorf("rngSeed = %d, want %d", cqs.rngSeed, tt.seed)
-			}
 			if cqs.QuestsPerRankTier != 3 {
 				t.Errorf("QuestsPerRankTier = %d, want 3", cqs.QuestsPerRankTier)
 			}

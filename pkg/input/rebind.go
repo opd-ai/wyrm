@@ -66,35 +66,35 @@ const (
 	ActionTradeWindow Action = "trade_window"
 )
 
-// InputManager handles key bindings and input state.
-type InputManager struct {
+// Manager handles key bindings and input state.
+type Manager struct {
 	mu           sync.RWMutex
 	bindings     map[Action]string   // Action -> key name
 	keyToActions map[string][]Action // key name -> actions (for reverse lookup)
 	pressedKeys  map[string]bool     // currently pressed keys
-	listeners    []InputListener
+	listeners    []Listener
 }
 
-// InputListener receives input events.
-type InputListener interface {
+// Listener receives input events.
+type Listener interface {
 	OnActionPressed(action Action)
 	OnActionReleased(action Action)
 }
 
-// NewInputManager creates a new input manager with default bindings.
-func NewInputManager() *InputManager {
-	im := &InputManager{
+// NewManager creates a new input manager with default bindings.
+func NewManager() *Manager {
+	im := &Manager{
 		bindings:     make(map[Action]string),
 		keyToActions: make(map[string][]Action),
 		pressedKeys:  make(map[string]bool),
-		listeners:    make([]InputListener, 0),
+		listeners:    make([]Listener, 0),
 	}
 	im.setDefaultBindings()
 	return im
 }
 
 // LoadFromConfig loads key bindings from a config struct.
-func (im *InputManager) LoadFromConfig(cfg *config.KeyBindingsConfig) {
+func (im *Manager) LoadFromConfig(cfg *config.KeyBindingsConfig) {
 	im.mu.Lock()
 	defer im.mu.Unlock()
 
@@ -150,7 +150,7 @@ func (im *InputManager) LoadFromConfig(cfg *config.KeyBindingsConfig) {
 }
 
 // setDefaultBindings sets up the default key bindings.
-func (im *InputManager) setDefaultBindings() {
+func (im *Manager) setDefaultBindings() {
 	im.mu.Lock()
 	defer im.mu.Unlock()
 
@@ -202,14 +202,14 @@ func (im *InputManager) setDefaultBindings() {
 }
 
 // setBindingUnsafe sets a binding without acquiring the lock.
-func (im *InputManager) setBindingUnsafe(action Action, key string) {
+func (im *Manager) setBindingUnsafe(action Action, key string) {
 	key = strings.ToUpper(key)
 	im.bindings[action] = key
 	im.keyToActions[key] = append(im.keyToActions[key], action)
 }
 
 // SetBinding changes the key binding for an action.
-func (im *InputManager) SetBinding(action Action, key string) error {
+func (im *Manager) SetBinding(action Action, key string) error {
 	im.mu.Lock()
 	defer im.mu.Unlock()
 
@@ -227,7 +227,7 @@ func (im *InputManager) SetBinding(action Action, key string) error {
 }
 
 // removeKeyActionUnsafe removes an action from a key's action list.
-func (im *InputManager) removeKeyActionUnsafe(key string, action Action) {
+func (im *Manager) removeKeyActionUnsafe(key string, action Action) {
 	actions := im.keyToActions[key]
 	for i, a := range actions {
 		if a == action {
@@ -241,14 +241,14 @@ func (im *InputManager) removeKeyActionUnsafe(key string, action Action) {
 }
 
 // GetBinding returns the key bound to an action.
-func (im *InputManager) GetBinding(action Action) string {
+func (im *Manager) GetBinding(action Action) string {
 	im.mu.RLock()
 	defer im.mu.RUnlock()
 	return im.bindings[action]
 }
 
 // GetAllBindings returns a copy of all current bindings.
-func (im *InputManager) GetAllBindings() map[Action]string {
+func (im *Manager) GetAllBindings() map[Action]string {
 	im.mu.RLock()
 	defer im.mu.RUnlock()
 
@@ -260,7 +260,7 @@ func (im *InputManager) GetAllBindings() map[Action]string {
 }
 
 // GetActionsForKey returns all actions bound to a key.
-func (im *InputManager) GetActionsForKey(key string) []Action {
+func (im *Manager) GetActionsForKey(key string) []Action {
 	im.mu.RLock()
 	defer im.mu.RUnlock()
 
@@ -274,14 +274,14 @@ func (im *InputManager) GetActionsForKey(key string) []Action {
 }
 
 // AddListener registers an input listener.
-func (im *InputManager) AddListener(listener InputListener) {
+func (im *Manager) AddListener(listener Listener) {
 	im.mu.Lock()
 	defer im.mu.Unlock()
 	im.listeners = append(im.listeners, listener)
 }
 
 // RemoveListener unregisters an input listener.
-func (im *InputManager) RemoveListener(listener InputListener) {
+func (im *Manager) RemoveListener(listener Listener) {
 	im.mu.Lock()
 	defer im.mu.Unlock()
 
@@ -294,7 +294,7 @@ func (im *InputManager) RemoveListener(listener InputListener) {
 }
 
 // OnKeyPressed should be called when a key is pressed.
-func (im *InputManager) OnKeyPressed(key string) {
+func (im *Manager) OnKeyPressed(key string) {
 	im.mu.Lock()
 	key = strings.ToUpper(key)
 	if im.pressedKeys[key] {
@@ -304,7 +304,7 @@ func (im *InputManager) OnKeyPressed(key string) {
 	im.pressedKeys[key] = true
 	actions := make([]Action, len(im.keyToActions[key]))
 	copy(actions, im.keyToActions[key])
-	listeners := make([]InputListener, len(im.listeners))
+	listeners := make([]Listener, len(im.listeners))
 	copy(listeners, im.listeners)
 	im.mu.Unlock()
 
@@ -317,7 +317,7 @@ func (im *InputManager) OnKeyPressed(key string) {
 }
 
 // OnKeyReleased should be called when a key is released.
-func (im *InputManager) OnKeyReleased(key string) {
+func (im *Manager) OnKeyReleased(key string) {
 	im.mu.Lock()
 	key = strings.ToUpper(key)
 	if !im.pressedKeys[key] {
@@ -327,7 +327,7 @@ func (im *InputManager) OnKeyReleased(key string) {
 	delete(im.pressedKeys, key)
 	actions := make([]Action, len(im.keyToActions[key]))
 	copy(actions, im.keyToActions[key])
-	listeners := make([]InputListener, len(im.listeners))
+	listeners := make([]Listener, len(im.listeners))
 	copy(listeners, im.listeners)
 	im.mu.Unlock()
 
@@ -340,7 +340,7 @@ func (im *InputManager) OnKeyReleased(key string) {
 }
 
 // IsActionPressed returns true if the action's key is currently pressed.
-func (im *InputManager) IsActionPressed(action Action) bool {
+func (im *Manager) IsActionPressed(action Action) bool {
 	im.mu.RLock()
 	defer im.mu.RUnlock()
 
@@ -352,14 +352,14 @@ func (im *InputManager) IsActionPressed(action Action) bool {
 }
 
 // IsKeyPressed returns true if the key is currently pressed.
-func (im *InputManager) IsKeyPressed(key string) bool {
+func (im *Manager) IsKeyPressed(key string) bool {
 	im.mu.RLock()
 	defer im.mu.RUnlock()
 	return im.pressedKeys[strings.ToUpper(key)]
 }
 
 // ResetBinding restores the default binding for an action.
-func (im *InputManager) ResetBinding(action Action) error {
+func (im *Manager) ResetBinding(action Action) error {
 	defaultKey, err := im.getDefaultKey(action)
 	if err != nil {
 		return err
@@ -368,12 +368,12 @@ func (im *InputManager) ResetBinding(action Action) error {
 }
 
 // ResetAllBindings restores all bindings to defaults.
-func (im *InputManager) ResetAllBindings() {
+func (im *Manager) ResetAllBindings() {
 	im.setDefaultBindings()
 }
 
 // getDefaultKey returns the default key for an action.
-func (im *InputManager) getDefaultKey(action Action) (string, error) {
+func (im *Manager) getDefaultKey(action Action) (string, error) {
 	defaults := map[Action]string{
 		ActionMoveForward:  "W",
 		ActionMoveBackward: "S",
@@ -422,7 +422,7 @@ func (im *InputManager) getDefaultKey(action Action) (string, error) {
 }
 
 // ExportToConfig exports current bindings to a KeyBindingsConfig.
-func (im *InputManager) ExportToConfig() *config.KeyBindingsConfig {
+func (im *Manager) ExportToConfig() *config.KeyBindingsConfig {
 	im.mu.RLock()
 	defer im.mu.RUnlock()
 

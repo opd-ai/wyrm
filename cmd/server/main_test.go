@@ -11,6 +11,7 @@ import (
 	"github.com/opd-ai/wyrm/config"
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
+	"github.com/opd-ai/wyrm/pkg/engine/systems"
 	"github.com/opd-ai/wyrm/pkg/network/federation"
 	"github.com/opd-ai/wyrm/pkg/procgen/city"
 )
@@ -240,5 +241,107 @@ func BenchmarkInitializeWorldClock(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		world := ecs.NewWorld()
 		initializeWorldClock(world)
+	}
+}
+
+// BenchmarkServerTickWith200NPCs benchmarks the server tick loop with 200 NPC entities.
+// This validates the ROADMAP.md requirement: "200 NPCs + 32 players in ≤20ms server tick".
+func BenchmarkServerTickWith200NPCs(b *testing.B) {
+	world := ecs.NewWorld()
+
+	// Initialize world clock (required by NPCScheduleSystem)
+	initializeWorldClock(world)
+
+	// Create 200 NPCs with typical component sets
+	for i := 0; i < 200; i++ {
+		e := world.CreateEntity()
+		_ = world.AddComponent(e, &components.Position{
+			X: float64(i%50) * 10.0,
+			Y: float64(i/50) * 10.0,
+			Z: 0,
+		})
+		_ = world.AddComponent(e, &components.Health{
+			Current: 100,
+			Max:     100,
+		})
+		_ = world.AddComponent(e, &components.Faction{
+			ID: "TestFaction",
+		})
+		_ = world.AddComponent(e, &components.Schedule{
+			CurrentActivity: "idle",
+			TimeSlots: map[int]string{
+				0: "sleep", 1: "sleep", 2: "sleep", 3: "sleep", 4: "sleep", 5: "sleep",
+				6: "wake", 7: "eat", 8: "work", 9: "work", 10: "work", 11: "work",
+				12: "eat", 13: "work", 14: "work", 15: "work", 16: "work", 17: "eat",
+				18: "socialize", 19: "socialize", 20: "rest", 21: "rest", 22: "sleep", 23: "sleep",
+			},
+		})
+	}
+
+	// Create 32 player entities
+	for i := 0; i < 32; i++ {
+		e := world.CreateEntity()
+		_ = world.AddComponent(e, &components.Position{
+			X: float64(i%8) * 100.0,
+			Y: float64(i/8) * 100.0,
+			Z: 0,
+		})
+		_ = world.AddComponent(e, &components.Health{
+			Current: 100,
+			Max:     100,
+		})
+	}
+
+	// Register systems typically running in server tick
+	world.RegisterSystem(&systems.NPCScheduleSystem{})
+	world.RegisterSystem(systems.NewFactionPoliticsSystem(0.1))
+
+	dt := 1.0 / 20.0 // 20 Hz tick rate (50ms)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		world.Update(dt)
+	}
+}
+
+// BenchmarkServerTickWith1000Entities benchmarks a stress test scenario.
+func BenchmarkServerTickWith1000Entities(b *testing.B) {
+	world := ecs.NewWorld()
+
+	// Initialize world clock
+	initializeWorldClock(world)
+
+	// Create 1000 entities with various components
+	for i := 0; i < 1000; i++ {
+		e := world.CreateEntity()
+		_ = world.AddComponent(e, &components.Position{
+			X: float64(i%100) * 5.0,
+			Y: float64(i/100) * 5.0,
+			Z: 0,
+		})
+		if i%2 == 0 {
+			_ = world.AddComponent(e, &components.Health{
+				Current: 100,
+				Max:     100,
+			})
+		}
+		if i%3 == 0 {
+			_ = world.AddComponent(e, &components.Schedule{
+				CurrentActivity: "idle",
+				TimeSlots: map[int]string{
+					8: "work", 12: "eat", 17: "rest", 22: "sleep",
+				},
+			})
+		}
+	}
+
+	// Register systems
+	world.RegisterSystem(&systems.NPCScheduleSystem{})
+
+	dt := 1.0 / 20.0
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		world.Update(dt)
 	}
 }

@@ -32,9 +32,6 @@ func TestNewCrimeEvidenceSystem(t *testing.T) {
 			if ces.genre != tt.genre {
 				t.Errorf("genre = %q, want %q", ces.genre, tt.genre)
 			}
-			if ces.rngSeed != tt.seed {
-				t.Errorf("rngSeed = %d, want %d", ces.rngSeed, tt.seed)
-			}
 			if ces.MinConvictionScore != 0.75 {
 				t.Errorf("MinConvictionScore = %v, want 0.75", ces.MinConvictionScore)
 			}

@@ -100,130 +100,48 @@ func NewEmitter(particleType string, seed int64) *Emitter {
 	return e
 }
 
+// particleTypeConfig holds default emitter settings for a particle type.
+type particleTypeConfig struct {
+	MinVY   float64
+	MaxVY   float64
+	MinVX   float64
+	MaxVX   float64
+	MinLife float64
+	MaxLife float64
+	MinSize float64
+	MaxSize float64
+	Color   color.RGBA
+	Rate    float64
+}
+
+// particleTypeConfigs maps particle types to their default configurations.
+var particleTypeConfigs = map[string]particleTypeConfig{
+	TypeRain:    {0.8, 1.2, -0.02, 0.02, 0.5, 1.0, 1.0, 2.0, color.RGBA{150, 180, 200, 180}, 200},
+	TypeSnow:    {0.05, 0.15, -0.03, 0.03, 3.0, 5.0, 2.0, 4.0, color.RGBA{240, 240, 255, 200}, 80},
+	TypeDust:    {-0.01, 0.02, -0.05, 0.05, 2.0, 4.0, 1.0, 3.0, color.RGBA{180, 160, 120, 100}, 30},
+	TypeAsh:     {-0.02, 0.01, -0.02, 0.02, 4.0, 8.0, 2.0, 4.0, color.RGBA{80, 80, 80, 150}, 40},
+	TypeSparks:  {-0.3, -0.1, -0.2, 0.2, 0.3, 0.8, 1.0, 2.0, color.RGBA{255, 200, 50, 255}, 100},
+	TypeBlood:   {0.1, 0.3, -0.15, 0.15, 0.5, 1.5, 2.0, 4.0, color.RGBA{180, 20, 20, 200}, 50},
+	TypeMagic:   {-0.1, 0.1, -0.1, 0.1, 0.5, 1.5, 2.0, 5.0, color.RGBA{100, 150, 255, 200}, 60},
+	TypeSmoke:   {-0.08, -0.02, -0.02, 0.02, 2.0, 4.0, 4.0, 8.0, color.RGBA{100, 100, 100, 120}, 20},
+	TypeFire:    {-0.15, -0.05, -0.03, 0.03, 0.3, 0.8, 3.0, 6.0, color.RGBA{255, 150, 50, 220}, 80},
+	TypeFogWisp: {-0.01, 0.01, -0.03, 0.03, 3.0, 6.0, 8.0, 16.0, color.RGBA{200, 200, 200, 60}, 10},
+	TypeBubbles: {-0.1, -0.03, -0.02, 0.02, 1.0, 3.0, 2.0, 5.0, color.RGBA{200, 220, 255, 100}, 25},
+}
+
 // applyTypeDefaults sets default values based on particle type.
 func (e *Emitter) applyTypeDefaults() {
-	switch e.Type {
-	case TypeRain:
-		e.MinVY = 0.8
-		e.MaxVY = 1.2
-		e.MinVX = -0.02
-		e.MaxVX = 0.02
-		e.MinLife = 0.5
-		e.MaxLife = 1.0
-		e.MinSize = 1.0
-		e.MaxSize = 2.0
-		e.Color = color.RGBA{150, 180, 200, 180}
-		e.Rate = 200
-	case TypeSnow:
-		e.MinVY = 0.05
-		e.MaxVY = 0.15
-		e.MinVX = -0.03
-		e.MaxVX = 0.03
-		e.MinLife = 3.0
-		e.MaxLife = 5.0
-		e.MinSize = 2.0
-		e.MaxSize = 4.0
-		e.Color = color.RGBA{240, 240, 255, 200}
-		e.Rate = 80
-	case TypeDust:
-		e.MinVY = -0.01
-		e.MaxVY = 0.02
-		e.MinVX = -0.05
-		e.MaxVX = 0.05
-		e.MinLife = 2.0
-		e.MaxLife = 4.0
-		e.MinSize = 1.0
-		e.MaxSize = 3.0
-		e.Color = color.RGBA{180, 160, 120, 100}
-		e.Rate = 30
-	case TypeAsh:
-		e.MinVY = -0.02
-		e.MaxVY = 0.01
-		e.MinVX = -0.02
-		e.MaxVX = 0.02
-		e.MinLife = 4.0
-		e.MaxLife = 8.0
-		e.MinSize = 2.0
-		e.MaxSize = 4.0
-		e.Color = color.RGBA{80, 80, 80, 150}
-		e.Rate = 40
-	case TypeSparks:
-		e.MinVY = -0.3
-		e.MaxVY = -0.1
-		e.MinVX = -0.2
-		e.MaxVX = 0.2
-		e.MinLife = 0.3
-		e.MaxLife = 0.8
-		e.MinSize = 1.0
-		e.MaxSize = 2.0
-		e.Color = color.RGBA{255, 200, 50, 255}
-		e.Rate = 100
-	case TypeBlood:
-		e.MinVY = 0.1
-		e.MaxVY = 0.3
-		e.MinVX = -0.15
-		e.MaxVX = 0.15
-		e.MinLife = 0.5
-		e.MaxLife = 1.5
-		e.MinSize = 2.0
-		e.MaxSize = 4.0
-		e.Color = color.RGBA{180, 20, 20, 200}
-		e.Rate = 50
-	case TypeMagic:
-		e.MinVY = -0.1
-		e.MaxVY = 0.1
-		e.MinVX = -0.1
-		e.MaxVX = 0.1
-		e.MinLife = 0.5
-		e.MaxLife = 1.5
-		e.MinSize = 2.0
-		e.MaxSize = 5.0
-		e.Color = color.RGBA{100, 150, 255, 200}
-		e.Rate = 60
-	case TypeSmoke:
-		e.MinVY = -0.08
-		e.MaxVY = -0.02
-		e.MinVX = -0.02
-		e.MaxVX = 0.02
-		e.MinLife = 2.0
-		e.MaxLife = 4.0
-		e.MinSize = 4.0
-		e.MaxSize = 8.0
-		e.Color = color.RGBA{100, 100, 100, 120}
-		e.Rate = 20
-	case TypeFire:
-		e.MinVY = -0.15
-		e.MaxVY = -0.05
-		e.MinVX = -0.03
-		e.MaxVX = 0.03
-		e.MinLife = 0.3
-		e.MaxLife = 0.8
-		e.MinSize = 3.0
-		e.MaxSize = 6.0
-		e.Color = color.RGBA{255, 150, 50, 220}
-		e.Rate = 80
-	case TypeFogWisp:
-		e.MinVY = -0.01
-		e.MaxVY = 0.01
-		e.MinVX = -0.03
-		e.MaxVX = 0.03
-		e.MinLife = 3.0
-		e.MaxLife = 6.0
-		e.MinSize = 8.0
-		e.MaxSize = 16.0
-		e.Color = color.RGBA{200, 200, 200, 60}
-		e.Rate = 10
-	case TypeBubbles:
-		e.MinVY = -0.1
-		e.MaxVY = -0.03
-		e.MinVX = -0.02
-		e.MaxVX = 0.02
-		e.MinLife = 1.0
-		e.MaxLife = 3.0
-		e.MinSize = 2.0
-		e.MaxSize = 5.0
-		e.Color = color.RGBA{200, 220, 255, 100}
-		e.Rate = 25
+	if cfg, ok := particleTypeConfigs[e.Type]; ok {
+		e.MinVY = cfg.MinVY
+		e.MaxVY = cfg.MaxVY
+		e.MinVX = cfg.MinVX
+		e.MaxVX = cfg.MaxVX
+		e.MinLife = cfg.MinLife
+		e.MaxLife = cfg.MaxLife
+		e.MinSize = cfg.MinSize
+		e.MaxSize = cfg.MaxSize
+		e.Color = cfg.Color
+		e.Rate = cfg.Rate
 	}
 }
 

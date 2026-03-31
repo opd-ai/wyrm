@@ -407,8 +407,8 @@ func (s *Soundscape) RegionType() RegionType {
 	return s.regionType
 }
 
-// AmbientManager handles transitions between ambient soundscapes.
-type AmbientManager struct {
+// Manager handles transitions between ambient soundscapes.
+type Manager struct {
 	mu                 sync.Mutex
 	currentRegion      RegionType
 	previousRegion     RegionType
@@ -419,9 +419,9 @@ type AmbientManager struct {
 	transitionProgress float64
 }
 
-// NewAmbientManager creates a new ambient sound manager.
-func NewAmbientManager(genre string, seed int64) *AmbientManager {
-	return &AmbientManager{
+// NewManager creates a new ambient sound manager.
+func NewManager(genre string, seed int64) *Manager {
+	return &Manager{
 		currentRegion:      RegionPlains,
 		previousRegion:     RegionPlains,
 		genre:              genre,
@@ -433,7 +433,7 @@ func NewAmbientManager(genre string, seed int64) *AmbientManager {
 }
 
 // SetRegion changes the current region with transition.
-func (am *AmbientManager) SetRegion(region RegionType) {
+func (am *Manager) SetRegion(region RegionType) {
 	am.mu.Lock()
 	defer am.mu.Unlock()
 
@@ -446,7 +446,7 @@ func (am *AmbientManager) SetRegion(region RegionType) {
 }
 
 // Update advances the ambient manager by dt seconds.
-func (am *AmbientManager) Update(dt float64) {
+func (am *Manager) Update(dt float64) {
 	am.mu.Lock()
 	defer am.mu.Unlock()
 
@@ -459,7 +459,7 @@ func (am *AmbientManager) Update(dt float64) {
 }
 
 // GenerateSamples produces ambient audio for the current region.
-func (am *AmbientManager) GenerateSamples(duration float64) []float64 {
+func (am *Manager) GenerateSamples(duration float64) []float64 {
 	am.mu.Lock()
 	defer am.mu.Unlock()
 
@@ -467,14 +467,14 @@ func (am *AmbientManager) GenerateSamples(duration float64) []float64 {
 }
 
 // GetCurrentRegion returns the current ambient region.
-func (am *AmbientManager) GetCurrentRegion() RegionType {
+func (am *Manager) GetCurrentRegion() RegionType {
 	am.mu.Lock()
 	defer am.mu.Unlock()
 	return am.currentRegion
 }
 
 // IsTransitioning returns whether a region transition is in progress.
-func (am *AmbientManager) IsTransitioning() bool {
+func (am *Manager) IsTransitioning() bool {
 	am.mu.Lock()
 	defer am.mu.Unlock()
 	return am.transitionProgress < 1.0
@@ -484,8 +484,8 @@ func (am *AmbientManager) IsTransitioning() bool {
 // Ambient Sound Mixing System
 // ============================================================================
 
-// AmbientLayer represents a single layer in the ambient mix.
-type AmbientLayer struct {
+// Layer represents a single layer in the ambient mix.
+type Layer struct {
 	name       string
 	soundscape *Soundscape
 	volume     float64 // current volume (0-1)
@@ -496,10 +496,10 @@ type AmbientLayer struct {
 	active     bool
 }
 
-// AmbientMixer manages multiple layered ambient sounds with crossfading.
-type AmbientMixer struct {
+// Mixer manages multiple layered ambient sounds with crossfading.
+type Mixer struct {
 	mu            sync.Mutex
-	layers        map[string]*AmbientLayer
+	layers        map[string]*Layer
 	masterVolume  float64
 	crossfadeTime float64 // seconds for crossfade transitions
 	genre         string
@@ -509,10 +509,10 @@ type AmbientMixer struct {
 	layerOrder    []string // layer names in priority order
 }
 
-// NewAmbientMixer creates a new multi-layer ambient mixer.
-func NewAmbientMixer(genre string, seed int64) *AmbientMixer {
-	return &AmbientMixer{
-		layers:        make(map[string]*AmbientLayer),
+// NewMixer creates a new multi-layer ambient mixer.
+func NewMixer(genre string, seed int64) *Mixer {
+	return &Mixer{
+		layers:        make(map[string]*Layer),
 		masterVolume:  1.0,
 		crossfadeTime: 0.5, // 500ms crossfade
 		genre:         genre,
@@ -524,7 +524,7 @@ func NewAmbientMixer(genre string, seed int64) *AmbientMixer {
 }
 
 // AddLayer adds a new ambient layer to the mix.
-func (m *AmbientMixer) AddLayer(name string, region RegionType, volume float64, priority int) {
+func (m *Mixer) AddLayer(name string, region RegionType, volume float64, priority int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -532,7 +532,7 @@ func (m *AmbientMixer) AddLayer(name string, region RegionType, volume float64, 
 		return // Don't exceed max layers
 	}
 
-	layer := &AmbientLayer{
+	layer := &Layer{
 		name:       name,
 		soundscape: NewSoundscape(region, m.genre, m.seed),
 		volume:     0,      // Start silent
@@ -548,7 +548,7 @@ func (m *AmbientMixer) AddLayer(name string, region RegionType, volume float64, 
 }
 
 // RemoveLayer removes an ambient layer with fadeout.
-func (m *AmbientMixer) RemoveLayer(name string) {
+func (m *Mixer) RemoveLayer(name string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -558,7 +558,7 @@ func (m *AmbientMixer) RemoveLayer(name string) {
 }
 
 // SetLayerVolume sets the target volume for a layer (with fade).
-func (m *AmbientMixer) SetLayerVolume(name string, volume float64) {
+func (m *Mixer) SetLayerVolume(name string, volume float64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -573,7 +573,7 @@ func (m *AmbientMixer) SetLayerVolume(name string, volume float64) {
 }
 
 // SetLayerPan sets the stereo pan position for a layer.
-func (m *AmbientMixer) SetLayerPan(name string, pan float64) {
+func (m *Mixer) SetLayerPan(name string, pan float64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -588,7 +588,7 @@ func (m *AmbientMixer) SetLayerPan(name string, pan float64) {
 }
 
 // SetMasterVolume sets the overall mixer volume.
-func (m *AmbientMixer) SetMasterVolume(volume float64) {
+func (m *Mixer) SetMasterVolume(volume float64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -601,14 +601,14 @@ func (m *AmbientMixer) SetMasterVolume(volume float64) {
 }
 
 // GetMasterVolume returns the current master volume.
-func (m *AmbientMixer) GetMasterVolume() float64 {
+func (m *Mixer) GetMasterVolume() float64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.masterVolume
 }
 
 // SetCrossfadeTime sets the crossfade duration in seconds.
-func (m *AmbientMixer) SetCrossfadeTime(seconds float64) {
+func (m *Mixer) SetCrossfadeTime(seconds float64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -624,14 +624,14 @@ func (m *AmbientMixer) SetCrossfadeTime(seconds float64) {
 }
 
 // GetCrossfadeTime returns the crossfade duration.
-func (m *AmbientMixer) GetCrossfadeTime() float64 {
+func (m *Mixer) GetCrossfadeTime() float64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.crossfadeTime
 }
 
 // updateLayerVolume advances a single layer's volume toward its target.
-func (m *AmbientMixer) updateLayerVolume(layer *AmbientLayer, dt float64) {
+func (m *Mixer) updateLayerVolume(layer *Layer, dt float64) {
 	delta := layer.fadeRate * dt
 	if layer.volume < layer.targetVol {
 		layer.volume = min(layer.volume+delta, layer.targetVol)
@@ -641,12 +641,12 @@ func (m *AmbientMixer) updateLayerVolume(layer *AmbientLayer, dt float64) {
 }
 
 // shouldRemoveLayer returns true if the layer has fully faded out.
-func (m *AmbientMixer) shouldRemoveLayer(layer *AmbientLayer) bool {
+func (m *Mixer) shouldRemoveLayer(layer *Layer) bool {
 	return layer.volume <= 0 && layer.targetVol <= 0
 }
 
 // Update advances all layer volumes toward their targets.
-func (m *AmbientMixer) Update(dt float64) {
+func (m *Mixer) Update(dt float64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -667,44 +667,53 @@ func (m *AmbientMixer) Update(dt float64) {
 }
 
 // GenerateMixedSamples produces mixed audio from all active layers.
-func (m *AmbientMixer) GenerateMixedSamples(duration float64) []float64 {
+func (m *Mixer) GenerateMixedSamples(duration float64) []float64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	numSamples := int(duration * float64(m.sampleRate))
 	mixed := make([]float64, numSamples)
 
-	// Generate and mix samples from each layer
+	m.mixActiveLayers(mixed, duration)
+	m.applyMasterVolumeAndClipping(mixed)
+
+	return mixed
+}
+
+// mixActiveLayers adds samples from all active layers to the output buffer.
+func (m *Mixer) mixActiveLayers(mixed []float64, duration float64) {
 	for _, layerName := range m.layerOrder {
 		layer, exists := m.layers[layerName]
 		if !exists || !layer.active || layer.volume <= 0.001 {
 			continue
 		}
-
 		layerSamples := layer.soundscape.GenerateSamples(duration)
-
-		// Apply layer volume and mix
 		for i := 0; i < len(mixed) && i < len(layerSamples); i++ {
 			mixed[i] += layerSamples[i] * layer.volume
 		}
 	}
+}
 
-	// Apply master volume and soft clipping
+// applyMasterVolumeAndClipping applies master volume and soft clipping to samples.
+func (m *Mixer) applyMasterVolumeAndClipping(mixed []float64) {
 	for i := range mixed {
 		mixed[i] *= m.masterVolume
-		// Soft clip to prevent harsh distortion
-		if mixed[i] > 1.0 {
-			mixed[i] = 1.0 - 1.0/(1.0+mixed[i]-1.0)
-		} else if mixed[i] < -1.0 {
-			mixed[i] = -1.0 + 1.0/(1.0-mixed[i]-1.0)
-		}
+		mixed[i] = softClip(mixed[i])
 	}
+}
 
-	return mixed
+// softClip applies soft clipping to prevent harsh distortion.
+func softClip(sample float64) float64 {
+	if sample > 1.0 {
+		return 1.0 - 1.0/(1.0+sample-1.0)
+	} else if sample < -1.0 {
+		return -1.0 + 1.0/(1.0-sample-1.0)
+	}
+	return sample
 }
 
 // GenerateStereoSamples produces stereo mixed audio with panning.
-func (m *AmbientMixer) GenerateStereoSamples(duration float64) ([]float64, []float64) {
+func (m *Mixer) GenerateStereoSamples(duration float64) ([]float64, []float64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -742,7 +751,7 @@ func (m *AmbientMixer) GenerateStereoSamples(duration float64) ([]float64, []flo
 }
 
 // applySoftClipping applies master volume and soft clipping to samples.
-func (m *AmbientMixer) applySoftClipping(samples []float64) {
+func (m *Mixer) applySoftClipping(samples []float64) {
 	for i := range samples {
 		samples[i] *= m.masterVolume
 		if samples[i] > 1.0 {
@@ -754,7 +763,7 @@ func (m *AmbientMixer) applySoftClipping(samples []float64) {
 }
 
 // updateLayerOrder sorts layers by priority for consistent mixing.
-func (m *AmbientMixer) updateLayerOrder() {
+func (m *Mixer) updateLayerOrder() {
 	m.layerOrder = m.layerOrder[:0]
 	for name := range m.layers {
 		m.layerOrder = append(m.layerOrder, name)
@@ -771,14 +780,14 @@ func (m *AmbientMixer) updateLayerOrder() {
 }
 
 // GetLayerCount returns the number of active layers.
-func (m *AmbientMixer) GetLayerCount() int {
+func (m *Mixer) GetLayerCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.layers)
 }
 
 // GetLayerNames returns the names of all layers.
-func (m *AmbientMixer) GetLayerNames() []string {
+func (m *Mixer) GetLayerNames() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -790,7 +799,7 @@ func (m *AmbientMixer) GetLayerNames() []string {
 }
 
 // GetLayerVolume returns the current volume of a layer.
-func (m *AmbientMixer) GetLayerVolume(name string) float64 {
+func (m *Mixer) GetLayerVolume(name string) float64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -801,7 +810,7 @@ func (m *AmbientMixer) GetLayerVolume(name string) float64 {
 }
 
 // HasLayer returns whether a layer with the given name exists.
-func (m *AmbientMixer) HasLayer(name string) bool {
+func (m *Mixer) HasLayer(name string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	_, exists := m.layers[name]
@@ -809,7 +818,7 @@ func (m *AmbientMixer) HasLayer(name string) bool {
 }
 
 // CrossfadeTo replaces one layer with another using crossfade.
-func (m *AmbientMixer) CrossfadeTo(oldName, newName string, region RegionType, volume float64, priority int) {
+func (m *Mixer) CrossfadeTo(oldName, newName string, region RegionType, volume float64, priority int) {
 	m.RemoveLayer(oldName)                        // Starts fadeout
 	m.AddLayer(newName, region, volume, priority) // Starts fadein
 }

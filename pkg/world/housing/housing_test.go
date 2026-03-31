@@ -668,9 +668,6 @@ func TestFurniturePlacementConfirmNoValidPosition(t *testing.T) {
 func TestNewRentCollectionSystem(t *testing.T) {
 	rcs := NewRentCollectionSystem(12345, "fantasy")
 
-	if rcs.Seed != 12345 {
-		t.Errorf("Seed = %d, want 12345", rcs.Seed)
-	}
 	if rcs.Genre != "fantasy" {
 		t.Errorf("Genre = %s, want fantasy", rcs.Genre)
 	}
@@ -1227,9 +1224,6 @@ func TestRegisterProperty(t *testing.T) {
 func TestNewHomeUpgradeSystem(t *testing.T) {
 	hus := NewHomeUpgradeSystem(12345, "fantasy")
 
-	if hus.Seed != 12345 {
-		t.Errorf("Seed = %d, want 12345", hus.Seed)
-	}
 	if hus.Genre != "fantasy" {
 		t.Errorf("Genre = %s, want fantasy", hus.Genre)
 	}
@@ -1743,9 +1737,6 @@ func TestMultiplePrerequisites(t *testing.T) {
 func TestNewGuildHallSystem(t *testing.T) {
 	ghs := NewGuildHallSystem(12345, "fantasy")
 
-	if ghs.Seed != 12345 {
-		t.Errorf("Seed = %d, want 12345", ghs.Seed)
-	}
 	if ghs.Genre != "fantasy" {
 		t.Errorf("Genre = %s, want fantasy", ghs.Genre)
 	}
