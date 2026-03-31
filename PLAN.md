@@ -208,12 +208,21 @@
   - ✅ Indoor mode for ceiling color fallback
   - ✅ All 32 tests pass with noebiten tag
 
-### Step 14: Implement Extreme Weather Events
+### Step 14: Implement Extreme Weather Events ✅ COMPLETED
 - **Deliverable**: Extend `pkg/engine/systems/weather.go` with extreme event generation and effects
 - **Dependencies**: Step 1 (Indoor/Outdoor for shelter detection), Step 11 (Particles for visual effects)
 - **Goal Impact**: Weather & Environment (9/10 → 10/10)
 - **Acceptance**: Storms, blizzards, radiation storms affect gameplay and visuals
 - **Validation**: `go test -cover ./pkg/engine/systems/... -run Weather`
+- **Status**: Implemented full extreme weather event system with:
+  - ✅ ExtremeWeatherEvent type with position, radius, movement, damage, warning phases
+  - ✅ 12 event types: tornado, blizzard, hurricane, volcanic, solar_flare, radiation_wave, meteor_shower, earthquake, flood, dark_ritual, dragon_flight, acid_storm
+  - ✅ Genre-specific event pools for all 5 genres
+  - ✅ Event lifecycle: warning phase → active phase → completion
+  - ✅ Position-based damage with distance falloff
+  - ✅ Gameplay modifiers (visibility, movement, accuracy, stealth)
+  - ✅ Event movement/tracking system
+  - ✅ All 13 extreme weather tests pass
 
 ### Step 15: Refactor High Complexity Functions (10 → 0 above complexity 13) ✅ PARTIALLY COMPLETED
 - **Deliverable**: Extract helper functions from the 10 highest-complexity functions

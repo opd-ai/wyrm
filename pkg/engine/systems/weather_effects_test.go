@@ -425,3 +425,327 @@ func TestWeatherSystem_OvercastHasMinimalEffect(t *testing.T) {
 		t.Error("Overcast should not deal damage")
 	}
 }
+
+// Tests for Extreme Weather Events
+
+func TestExtremeEventPool(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+
+	for _, genre := range genres {
+		sys := NewWeatherSystem(genre, 300)
+		pool := sys.GetExtremeEventPool()
+
+		if len(pool) == 0 {
+			t.Errorf("Genre %s should have at least one extreme event", genre)
+		}
+	}
+}
+
+func TestCreateExtremeEvent(t *testing.T) {
+	sys := NewWeatherSystem("fantasy", 300)
+
+	event := sys.CreateExtremeEvent(ExtremeEventTornado, 100, 100)
+
+	if event == nil {
+		t.Fatal("CreateExtremeEvent should return an event")
+	}
+	if event.Type != ExtremeEventTornado {
+		t.Errorf("Event type should be tornado, got %s", event.Type)
+	}
+	if event.CenterX != 100 || event.CenterY != 100 {
+		t.Error("Event should be at specified position")
+	}
+	if event.Duration <= 0 {
+		t.Error("Event should have positive duration")
+	}
+	if event.WarningTime <= 0 {
+		t.Error("Tornado should have warning time")
+	}
+}
+
+func TestExtremeEventTypes(t *testing.T) {
+	eventTypes := []string{
+		ExtremeEventTornado,
+		ExtremeEventBlizzard,
+		ExtremeEventHurricane,
+		ExtremeEventSolarFlare,
+		ExtremeEventRadiationWave,
+		ExtremeEventMeteorShower,
+		ExtremeEventEarthquake,
+		ExtremeEventFlood,
+		ExtremeEventDarkRitual,
+		ExtremeEventDragonFlight,
+		ExtremeEventAcidStorm,
+	}
+
+	for _, et := range eventTypes {
+		sys := NewWeatherSystem("fantasy", 300)
+		event := sys.CreateExtremeEvent(et, 0, 0)
+
+		if event == nil {
+			t.Errorf("Event type %s should create an event", et)
+			continue
+		}
+		if event.Duration <= 0 {
+			t.Errorf("Event %s should have positive duration", et)
+		}
+		if event.DamageRate <= 0 {
+			t.Errorf("Event %s should have damage rate", et)
+		}
+		if event.Radius <= 0 {
+			t.Errorf("Event %s should have positive radius", et)
+		}
+	}
+}
+
+func TestUpdateExtremeEvent(t *testing.T) {
+	sys := NewWeatherSystem("fantasy", 300)
+	sys.CreateExtremeEvent(ExtremeEventTornado, 100, 100)
+
+	initialWarning := sys.ExtremeEvent.WarningTime
+	initialDuration := sys.ExtremeEvent.Duration
+
+	// Update during warning phase
+	result := sys.UpdateExtremeEvent(10.0)
+	if !result {
+		t.Error("UpdateExtremeEvent should return true while event active")
+	}
+	if sys.ExtremeEvent.WarningTime >= initialWarning {
+		t.Error("Warning time should decrease")
+	}
+
+	// Skip past warning
+	sys.ExtremeEvent.WarningTime = 0
+
+	// Update during active phase
+	sys.UpdateExtremeEvent(10.0)
+	if sys.ExtremeEvent.Duration >= initialDuration {
+		t.Error("Duration should decrease after warning ends")
+	}
+
+	// Exhaust the event
+	sys.ExtremeEvent.Duration = 0.5
+	result = sys.UpdateExtremeEvent(1.0)
+	if result {
+		t.Error("UpdateExtremeEvent should return false when event ends")
+	}
+	if sys.ExtremeEvent != nil {
+		t.Error("Event should be cleared when duration expires")
+	}
+}
+
+func TestExtremeEventDamage(t *testing.T) {
+	sys := NewWeatherSystem("fantasy", 300)
+	sys.CreateExtremeEvent(ExtremeEventTornado, 100, 100)
+
+	// No damage during warning
+	damage := sys.GetExtremeEventDamage(100, 100)
+	if damage != 0 {
+		t.Error("No damage should occur during warning phase")
+	}
+
+	// Clear warning
+	sys.ExtremeEvent.WarningTime = 0
+
+	// Damage at center
+	damage = sys.GetExtremeEventDamage(100, 100)
+	if damage <= 0 {
+		t.Error("Should have damage at event center")
+	}
+
+	// Damage falls off with distance
+	centerDamage := sys.GetExtremeEventDamage(100, 100)
+	edgeDamage := sys.GetExtremeEventDamage(100+sys.ExtremeEvent.Radius*0.8, 100)
+	if edgeDamage >= centerDamage {
+		t.Error("Damage should be lower at edge than center")
+	}
+
+	// No damage outside radius
+	outsideDamage := sys.GetExtremeEventDamage(100+sys.ExtremeEvent.Radius*2, 100)
+	if outsideDamage != 0 {
+		t.Error("No damage outside event radius")
+	}
+}
+
+func TestExtremeEventModifiers(t *testing.T) {
+	sys := NewWeatherSystem("fantasy", 300)
+
+	// No modifiers without event
+	mods := sys.GetExtremeEventModifiers()
+	if mods.Visibility != 1.0 || mods.Movement != 1.0 {
+		t.Error("Should have neutral modifiers without event")
+	}
+
+	// Create event
+	sys.CreateExtremeEvent(ExtremeEventTornado, 0, 0)
+
+	// No modifiers during warning
+	mods = sys.GetExtremeEventModifiers()
+	if mods.Visibility != 1.0 {
+		t.Error("Should have neutral modifiers during warning")
+	}
+
+	// Clear warning
+	sys.ExtremeEvent.WarningTime = 0
+
+	// Should have reduced modifiers during active event
+	mods = sys.GetExtremeEventModifiers()
+	if mods.Visibility >= 1.0 {
+		t.Error("Tornado should reduce visibility")
+	}
+	if mods.Movement >= 1.0 {
+		t.Error("Tornado should reduce movement")
+	}
+	if mods.Accuracy >= 1.0 {
+		t.Error("Tornado should reduce accuracy")
+	}
+}
+
+func TestExtremeEventDescription(t *testing.T) {
+	sys := NewWeatherSystem("fantasy", 300)
+
+	// No description without event
+	desc := sys.GetExtremeEventDescription()
+	if desc != "" {
+		t.Error("Should have no description without event")
+	}
+
+	// Warning description
+	sys.CreateExtremeEvent(ExtremeEventTornado, 0, 0)
+	desc = sys.GetExtremeEventDescription()
+	if desc == "" {
+		t.Error("Should have warning description")
+	}
+	if len(desc) < 10 {
+		t.Error("Description should be meaningful")
+	}
+
+	// Active description
+	sys.ExtremeEvent.WarningTime = 0
+	desc = sys.GetExtremeEventDescription()
+	if desc == "" {
+		t.Error("Should have active description")
+	}
+}
+
+func TestExtremeEventProgress(t *testing.T) {
+	sys := NewWeatherSystem("fantasy", 300)
+
+	// No progress without event
+	progress := sys.GetExtremeEventProgress()
+	if progress != 0 {
+		t.Error("Should have 0 progress without event")
+	}
+
+	// Create event
+	sys.CreateExtremeEvent(ExtremeEventTornado, 0, 0)
+	sys.ExtremeEvent.WarningTime = 0
+
+	initialDuration := sys.ExtremeEvent.Duration
+	progress = sys.GetExtremeEventProgress()
+	if progress != 0 {
+		t.Error("Should start at 0 progress")
+	}
+
+	// Halfway through
+	sys.ExtremeEvent.Duration = initialDuration / 2
+	progress = sys.GetExtremeEventProgress()
+	if progress < 0.4 || progress > 0.6 {
+		t.Errorf("Progress should be ~0.5 at halfway, got %f", progress)
+	}
+
+	// Near end
+	sys.ExtremeEvent.Duration = initialDuration * 0.1
+	progress = sys.GetExtremeEventProgress()
+	if progress < 0.8 {
+		t.Error("Progress should be high near end")
+	}
+}
+
+func TestIsPositionInExtremeEvent(t *testing.T) {
+	sys := NewWeatherSystem("fantasy", 300)
+
+	// No event
+	if sys.IsPositionInExtremeEvent(0, 0) {
+		t.Error("Should return false without event")
+	}
+
+	// Create event at origin with radius 50
+	sys.CreateExtremeEvent(ExtremeEventTornado, 0, 0)
+	sys.ExtremeEvent.Radius = 50
+
+	// Inside
+	if !sys.IsPositionInExtremeEvent(0, 0) {
+		t.Error("Center should be in event")
+	}
+	if !sys.IsPositionInExtremeEvent(25, 25) {
+		t.Error("Inside radius should be in event")
+	}
+
+	// Outside
+	if sys.IsPositionInExtremeEvent(100, 100) {
+		t.Error("Far position should not be in event")
+	}
+}
+
+func TestClearExtremeEvent(t *testing.T) {
+	sys := NewWeatherSystem("fantasy", 300)
+	sys.CreateExtremeEvent(ExtremeEventTornado, 0, 0)
+
+	if !sys.IsExtremeEventActive() {
+		t.Error("Event should be active")
+	}
+
+	sys.ClearExtremeEvent()
+
+	if sys.IsExtremeEventActive() {
+		t.Error("Event should be cleared")
+	}
+}
+
+func TestIsExtremeEventWarning(t *testing.T) {
+	sys := NewWeatherSystem("fantasy", 300)
+
+	// No event
+	if sys.IsExtremeEventWarning() {
+		t.Error("Should not be warning without event")
+	}
+
+	// With event in warning
+	sys.CreateExtremeEvent(ExtremeEventTornado, 0, 0)
+	if !sys.IsExtremeEventWarning() {
+		t.Error("Should be warning with active warning time")
+	}
+
+	// After warning
+	sys.ExtremeEvent.WarningTime = 0
+	if sys.IsExtremeEventWarning() {
+		t.Error("Should not be warning after warning time expires")
+	}
+}
+
+func TestSetExtremeEventMovement(t *testing.T) {
+	sys := NewWeatherSystem("fantasy", 300)
+
+	// No crash without event
+	sys.SetExtremeEventMovement(1, 0)
+
+	// With event
+	sys.CreateExtremeEvent(ExtremeEventTornado, 0, 0)
+	sys.SetExtremeEventMovement(1, 0)
+
+	// Zero movement
+	sys.SetExtremeEventMovement(0, 0)
+	// Should not crash
+}
+
+func TestExtremeEventChance(t *testing.T) {
+	sys := NewWeatherSystem("fantasy", 300)
+
+	if sys.ExtremeEventChance <= 0 {
+		t.Error("Default extreme event chance should be positive")
+	}
+	if sys.ExtremeEventChance > 1.0 {
+		t.Error("Extreme event chance should not exceed 1.0")
+	}
+}

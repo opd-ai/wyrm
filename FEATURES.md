@@ -232,7 +232,7 @@ Legend:
 - [x] Environmental sounds
 - [x] Weather-affected movement
 - [x] Indoor/outdoor detection
-- [ ] Extreme weather events
+- [x] Extreme weather events
 
 ---
 

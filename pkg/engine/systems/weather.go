@@ -20,14 +20,439 @@ type WeatherSystem struct {
 	WeatherDuration float64 // Duration in seconds before weather change
 	Genre           string  // Affects available weather types
 	weatherIndex    int     // For deterministic cycling
+
+	// Extreme weather event tracking
+	ExtremeEvent       *ExtremeWeatherEvent
+	ExtremeEventChance float64 // Probability per weather transition (0.0-1.0)
+	lastExtremeCheck   float64
+}
+
+// ExtremeWeatherEvent represents a rare, powerful weather phenomenon.
+type ExtremeWeatherEvent struct {
+	Type        string  // Event type identifier
+	Intensity   float64 // Severity (0.0-1.0)
+	Duration    float64 // Remaining duration in seconds
+	MaxDuration float64 // Original duration
+	DamageRate  float64 // Damage per second to exposed entities
+	WarningTime float64 // Time remaining for warning (0 = active)
+	CenterX     float64 // Event center X coordinate
+	CenterY     float64 // Event center Y coordinate
+	Radius      float64 // Affected area radius
+	MovementX   float64 // Event movement direction X
+	MovementY   float64 // Event movement direction Y
+	Speed       float64 // Event movement speed
+}
+
+// ExtremeEventType constants
+const (
+	ExtremeEventTornado       = "tornado"
+	ExtremeEventBlizzard      = "blizzard"
+	ExtremeEventHurricane     = "hurricane"
+	ExtremeEventVolcanic      = "volcanic"
+	ExtremeEventSolarFlare    = "solar_flare"
+	ExtremeEventRadiationWave = "radiation_wave"
+	ExtremeEventMeteorShower  = "meteor_shower"
+	ExtremeEventEarthquake    = "earthquake"
+	ExtremeEventFlood         = "flood"
+	ExtremeEventDarkRitual    = "dark_ritual"
+	ExtremeEventDragonFlight  = "dragon_flight"
+	ExtremeEventAcidStorm     = "acid_storm"
+)
+
+// GetExtremeEventPool returns genre-appropriate extreme events.
+func (s *WeatherSystem) GetExtremeEventPool() []string {
+	switch s.Genre {
+	case "fantasy":
+		return []string{
+			ExtremeEventTornado, ExtremeEventBlizzard, ExtremeEventFlood,
+			ExtremeEventEarthquake, ExtremeEventDarkRitual, ExtremeEventDragonFlight,
+		}
+	case "sci-fi":
+		return []string{
+			ExtremeEventSolarFlare, ExtremeEventRadiationWave,
+			ExtremeEventMeteorShower, ExtremeEventEarthquake,
+		}
+	case "horror":
+		return []string{
+			ExtremeEventBlizzard, ExtremeEventFlood, ExtremeEventDarkRitual,
+			ExtremeEventEarthquake,
+		}
+	case "cyberpunk":
+		return []string{ExtremeEventAcidStorm, ExtremeEventSolarFlare, ExtremeEventFlood}
+	case "post-apocalyptic":
+		return []string{
+			ExtremeEventRadiationWave, ExtremeEventTornado,
+			ExtremeEventEarthquake, ExtremeEventAcidStorm,
+		}
+	default:
+		return []string{ExtremeEventTornado, ExtremeEventBlizzard, ExtremeEventFlood}
+	}
+}
+
+// CreateExtremeEvent spawns a new extreme weather event.
+func (s *WeatherSystem) CreateExtremeEvent(eventType string, x, y float64) *ExtremeWeatherEvent {
+	event := &ExtremeWeatherEvent{
+		Type:      eventType,
+		CenterX:   x,
+		CenterY:   y,
+		Intensity: 0.5,
+	}
+
+	// Set event-specific defaults
+	switch eventType {
+	case ExtremeEventTornado:
+		event.Intensity = 0.8
+		event.Duration = 120.0
+		event.MaxDuration = 120.0
+		event.DamageRate = 10.0
+		event.WarningTime = 30.0
+		event.Radius = 50.0
+		event.Speed = 15.0
+
+	case ExtremeEventBlizzard:
+		event.Intensity = 0.7
+		event.Duration = 600.0
+		event.MaxDuration = 600.0
+		event.DamageRate = 2.0
+		event.WarningTime = 60.0
+		event.Radius = 500.0
+		event.Speed = 0.0 // Stationary
+
+	case ExtremeEventHurricane:
+		event.Intensity = 0.9
+		event.Duration = 300.0
+		event.MaxDuration = 300.0
+		event.DamageRate = 5.0
+		event.WarningTime = 120.0
+		event.Radius = 300.0
+		event.Speed = 8.0
+
+	case ExtremeEventSolarFlare:
+		event.Intensity = 0.6
+		event.Duration = 60.0
+		event.MaxDuration = 60.0
+		event.DamageRate = 3.0
+		event.WarningTime = 15.0
+		event.Radius = 1000.0 // Global effect
+		event.Speed = 0.0
+
+	case ExtremeEventRadiationWave:
+		event.Intensity = 0.7
+		event.Duration = 180.0
+		event.MaxDuration = 180.0
+		event.DamageRate = 4.0
+		event.WarningTime = 45.0
+		event.Radius = 400.0
+		event.Speed = 20.0
+
+	case ExtremeEventMeteorShower:
+		event.Intensity = 0.5
+		event.Duration = 90.0
+		event.MaxDuration = 90.0
+		event.DamageRate = 15.0 // High damage but random impacts
+		event.WarningTime = 20.0
+		event.Radius = 200.0
+		event.Speed = 0.0
+
+	case ExtremeEventEarthquake:
+		event.Intensity = 0.8
+		event.Duration = 30.0
+		event.MaxDuration = 30.0
+		event.DamageRate = 8.0
+		event.WarningTime = 5.0
+		event.Radius = 300.0
+		event.Speed = 0.0
+
+	case ExtremeEventFlood:
+		event.Intensity = 0.6
+		event.Duration = 900.0
+		event.MaxDuration = 900.0
+		event.DamageRate = 1.0
+		event.WarningTime = 180.0
+		event.Radius = 250.0
+		event.Speed = 5.0
+
+	case ExtremeEventDarkRitual:
+		event.Intensity = 0.9
+		event.Duration = 180.0
+		event.MaxDuration = 180.0
+		event.DamageRate = 5.0
+		event.WarningTime = 60.0
+		event.Radius = 150.0
+		event.Speed = 0.0
+
+	case ExtremeEventDragonFlight:
+		event.Intensity = 0.7
+		event.Duration = 120.0
+		event.MaxDuration = 120.0
+		event.DamageRate = 12.0
+		event.WarningTime = 30.0
+		event.Radius = 100.0
+		event.Speed = 30.0 // Fast moving
+
+	case ExtremeEventAcidStorm:
+		event.Intensity = 0.8
+		event.Duration = 240.0
+		event.MaxDuration = 240.0
+		event.DamageRate = 3.0
+		event.WarningTime = 45.0
+		event.Radius = 350.0
+		event.Speed = 10.0
+
+	default:
+		event.Duration = 60.0
+		event.MaxDuration = 60.0
+		event.DamageRate = 1.0
+		event.WarningTime = 30.0
+		event.Radius = 100.0
+		event.Speed = 0.0
+	}
+
+	s.ExtremeEvent = event
+	return event
+}
+
+// UpdateExtremeEvent advances the extreme event state.
+func (s *WeatherSystem) UpdateExtremeEvent(dt float64) bool {
+	if s.ExtremeEvent == nil {
+		return false
+	}
+
+	e := s.ExtremeEvent
+
+	// Update warning phase
+	if e.WarningTime > 0 {
+		e.WarningTime -= dt
+		if e.WarningTime < 0 {
+			e.WarningTime = 0
+		}
+		return true
+	}
+
+	// Update active phase
+	e.Duration -= dt
+	if e.Duration <= 0 {
+		s.ExtremeEvent = nil
+		return false
+	}
+
+	// Move the event
+	if e.Speed > 0 {
+		e.CenterX += e.MovementX * e.Speed * dt
+		e.CenterY += e.MovementY * e.Speed * dt
+	}
+
+	return true
+}
+
+// IsExtremeEventActive returns whether an extreme event is in progress.
+func (s *WeatherSystem) IsExtremeEventActive() bool {
+	return s.ExtremeEvent != nil
+}
+
+// IsExtremeEventWarning returns whether we're in the warning phase.
+func (s *WeatherSystem) IsExtremeEventWarning() bool {
+	return s.ExtremeEvent != nil && s.ExtremeEvent.WarningTime > 0
+}
+
+// GetExtremeEventDamage returns damage for a position relative to event.
+func (s *WeatherSystem) GetExtremeEventDamage(x, y float64) float64 {
+	if s.ExtremeEvent == nil {
+		return 0
+	}
+	e := s.ExtremeEvent
+
+	// No damage during warning
+	if e.WarningTime > 0 {
+		return 0
+	}
+
+	// Calculate distance from event center
+	dx := x - e.CenterX
+	dy := y - e.CenterY
+	dist := dx*dx + dy*dy
+	radiusSq := e.Radius * e.Radius
+
+	if dist > radiusSq {
+		return 0 // Outside affected area
+	}
+
+	// Damage falls off with distance from center
+	distRatio := dist / radiusSq
+	falloff := 1.0 - distRatio
+	return e.DamageRate * e.Intensity * falloff
+}
+
+// GetExtremeEventModifiers returns gameplay modifiers for the active event.
+func (s *WeatherSystem) GetExtremeEventModifiers() WeatherModifiers {
+	mods := WeatherModifiers{
+		Visibility: 1.0,
+		Movement:   1.0,
+		Accuracy:   1.0,
+		Damage:     0.0,
+		Stealth:    1.0,
+	}
+
+	if s.ExtremeEvent == nil || s.ExtremeEvent.WarningTime > 0 {
+		return mods
+	}
+
+	e := s.ExtremeEvent
+	intensity := e.Intensity
+
+	switch e.Type {
+	case ExtremeEventTornado:
+		mods.Visibility = 0.2
+		mods.Movement = 0.3
+		mods.Accuracy = 0.1
+		mods.Stealth = 0.3
+	case ExtremeEventBlizzard:
+		mods.Visibility = 0.1
+		mods.Movement = 0.4
+		mods.Accuracy = 0.2
+		mods.Stealth = 0.4
+	case ExtremeEventHurricane:
+		mods.Visibility = 0.3
+		mods.Movement = 0.4
+		mods.Accuracy = 0.2
+		mods.Stealth = 0.5
+	case ExtremeEventSolarFlare:
+		mods.Visibility = 0.5 // Blinding light
+		mods.Accuracy = 0.6
+	case ExtremeEventRadiationWave:
+		mods.Visibility = 0.6
+		mods.Movement = 0.8
+	case ExtremeEventMeteorShower:
+		mods.Visibility = 0.7
+		mods.Movement = 0.9
+		mods.Stealth = 0.8
+	case ExtremeEventEarthquake:
+		mods.Movement = 0.5
+		mods.Accuracy = 0.4
+	case ExtremeEventFlood:
+		mods.Movement = 0.3
+		mods.Stealth = 0.6
+	case ExtremeEventDarkRitual:
+		mods.Visibility = 0.2
+		mods.Accuracy = 0.5
+		mods.Stealth = 0.3
+	case ExtremeEventDragonFlight:
+		mods.Visibility = 0.6
+		mods.Movement = 0.9
+		mods.Stealth = 0.8
+	case ExtremeEventAcidStorm:
+		mods.Visibility = 0.4
+		mods.Movement = 0.7
+		mods.Accuracy = 0.5
+	}
+
+	// Scale modifiers by intensity
+	mods.Visibility = 1.0 - (1.0-mods.Visibility)*intensity
+	mods.Movement = 1.0 - (1.0-mods.Movement)*intensity
+	mods.Accuracy = 1.0 - (1.0-mods.Accuracy)*intensity
+	mods.Stealth = 1.0 - (1.0-mods.Stealth)*intensity
+
+	return mods
+}
+
+// GetExtremeEventDescription returns a warning/description string.
+func (s *WeatherSystem) GetExtremeEventDescription() string {
+	if s.ExtremeEvent == nil {
+		return ""
+	}
+
+	e := s.ExtremeEvent
+	descriptions := map[string]string{
+		ExtremeEventTornado:       "A massive tornado tears through the area!",
+		ExtremeEventBlizzard:      "A deadly blizzard has engulfed the region!",
+		ExtremeEventHurricane:     "A devastating hurricane approaches!",
+		ExtremeEventSolarFlare:    "A powerful solar flare disrupts all systems!",
+		ExtremeEventRadiationWave: "A dangerous radiation wave sweeps across the land!",
+		ExtremeEventMeteorShower:  "Meteors rain down from the sky!",
+		ExtremeEventEarthquake:    "The ground shakes violently!",
+		ExtremeEventFlood:         "Rising waters flood the area!",
+		ExtremeEventDarkRitual:    "Dark energies pulse from an unholy ritual!",
+		ExtremeEventDragonFlight:  "A dragon circles overhead, raining fire!",
+		ExtremeEventAcidStorm:     "Corrosive acid rain falls from toxic clouds!",
+	}
+
+	warnings := map[string]string{
+		ExtremeEventTornado:       "WARNING: Tornado detected! Seek shelter immediately!",
+		ExtremeEventBlizzard:      "WARNING: Blizzard approaching! Find warmth and shelter!",
+		ExtremeEventHurricane:     "WARNING: Hurricane warning! Evacuate low-lying areas!",
+		ExtremeEventSolarFlare:    "WARNING: Solar flare detected! Protect electronics!",
+		ExtremeEventRadiationWave: "WARNING: Radiation spike detected! Find cover!",
+		ExtremeEventMeteorShower:  "WARNING: Meteor shower incoming! Get to cover!",
+		ExtremeEventEarthquake:    "WARNING: Seismic activity detected!",
+		ExtremeEventFlood:         "WARNING: Flash flood alert! Move to high ground!",
+		ExtremeEventDarkRitual:    "WARNING: Dark magic detected nearby!",
+		ExtremeEventDragonFlight:  "WARNING: Dragon spotted in the area!",
+		ExtremeEventAcidStorm:     "WARNING: Acid rain imminent! Seek shelter!",
+	}
+
+	if e.WarningTime > 0 {
+		if msg, ok := warnings[e.Type]; ok {
+			return msg
+		}
+		return "WARNING: Extreme weather event approaching!"
+	}
+
+	if msg, ok := descriptions[e.Type]; ok {
+		return msg
+	}
+	return "An extreme weather event is in progress!"
+}
+
+// GetExtremeEventProgress returns how far through the event we are (0.0-1.0).
+func (s *WeatherSystem) GetExtremeEventProgress() float64 {
+	if s.ExtremeEvent == nil {
+		return 0
+	}
+	e := s.ExtremeEvent
+	if e.MaxDuration <= 0 {
+		return 1.0
+	}
+	return 1.0 - (e.Duration / e.MaxDuration)
+}
+
+// IsPositionInExtremeEvent checks if a position is affected by the event.
+func (s *WeatherSystem) IsPositionInExtremeEvent(x, y float64) bool {
+	if s.ExtremeEvent == nil {
+		return false
+	}
+	e := s.ExtremeEvent
+
+	dx := x - e.CenterX
+	dy := y - e.CenterY
+	distSq := dx*dx + dy*dy
+	return distSq <= e.Radius*e.Radius
+}
+
+// ClearExtremeEvent ends the current extreme event.
+func (s *WeatherSystem) ClearExtremeEvent() {
+	s.ExtremeEvent = nil
+}
+
+// SetExtremeEventMovement sets the event's movement direction.
+func (s *WeatherSystem) SetExtremeEventMovement(dx, dy float64) {
+	if s.ExtremeEvent != nil {
+		// Normalize direction
+		length := dx*dx + dy*dy
+		if length > 0 {
+			length = 1.0 / (length * length)
+			s.ExtremeEvent.MovementX = dx * length
+			s.ExtremeEvent.MovementY = dy * length
+		}
+	}
 }
 
 // NewWeatherSystem creates a new weather system.
 func NewWeatherSystem(genre string, duration float64) *WeatherSystem {
 	return &WeatherSystem{
-		Genre:           genre,
-		WeatherDuration: duration,
-		CurrentWeather:  "clear",
+		Genre:              genre,
+		WeatherDuration:    duration,
+		CurrentWeather:     "clear",
+		ExtremeEventChance: 0.05, // 5% chance per weather transition
 	}
 }
 
