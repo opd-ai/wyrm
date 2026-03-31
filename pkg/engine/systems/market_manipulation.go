@@ -579,6 +579,7 @@ func (s *MarketManipulationSystem) GetCooldownRemaining(entity ecs.Entity) float
 // Error types for market manipulation.
 type ManipulationError string
 
+// Error returns the error message for the ManipulationError.
 func (e ManipulationError) Error() string { return string(e) }
 
 const (

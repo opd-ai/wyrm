@@ -529,6 +529,7 @@ type PartyError struct {
 	Code PartyErrorCode
 }
 
+// Error returns a human-readable message for the PartyError.
 func (e *PartyError) Error() string {
 	switch e.Code {
 	case ErrAlreadyInParty:

@@ -340,6 +340,7 @@ type pardonError struct {
 	message string
 }
 
+// Error returns the error message for the pardonError.
 func (e *pardonError) Error() string {
 	return e.message
 }

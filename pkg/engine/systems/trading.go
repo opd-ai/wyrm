@@ -481,6 +481,7 @@ type TradeError struct {
 	Code TradeErrorCode
 }
 
+// Error returns a human-readable message for the TradeError.
 func (e *TradeError) Error() string {
 	switch e.Code {
 	case ErrCannotTradeWithSelf:

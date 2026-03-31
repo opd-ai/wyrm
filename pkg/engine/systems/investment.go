@@ -485,6 +485,7 @@ func (s *InvestmentSystem) CalculateProjectedReturn(opportunityID string, amount
 // Investment error types.
 type InvestmentError string
 
+// Error returns the error message for the InvestmentError.
 func (e InvestmentError) Error() string { return string(e) }
 
 const (
