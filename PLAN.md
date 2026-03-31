@@ -102,19 +102,21 @@
 - **Validation**: `go test -cover ./pkg/rendering/subtitles/...`
 - **Status**: Created pkg/rendering/subtitles/subtitles.go with SubtitleSystem, SubtitleQueue, styles (default and high contrast), speaker color coding, priority queuing, and comprehensive tests.
 
-### Step 6: Implement UI Sound Effects
+### Step 6: Implement UI Sound Effects ✅ COMPLETED
 - **Deliverable**: Extend `pkg/audio/audio.go` with UI-specific sound generation
 - **Dependencies**: None
 - **Goal Impact**: Audio System category (8/10 → 9/10)
 - **Acceptance**: Menu navigation, button clicks, notifications have distinct sounds
 - **Validation**: `go test -cover ./pkg/audio/... | grep -E 'coverage: [8-9][0-9]|100'`
+- **Status**: Created pkg/audio/ui.go with UISoundGenerator supporting 17 sound types (MenuSelect, MenuNavigate, ButtonClick, ButtonHover, Notification, Error, Success, InventoryOpen/Close, ItemPickup/Drop, GoldCoins, LevelUp, QuestComplete, QuestAccept, MapOpen, DialogAdvance). Genre-specific frequencies. Added UISoundPlayer with rate limiting. Test coverage 94.3%.
 
-### Step 7: Implement Ambient Sound Mixing
+### Step 7: Implement Ambient Sound Mixing ✅ COMPLETED
 - **Deliverable**: Extend `pkg/audio/ambient/ambient.go` with multi-layer mixing and crossfade
 - **Dependencies**: Step 6 (UI Sounds for audio system integration)
 - **Goal Impact**: Audio System category (9/10 → 10/10)
 - **Acceptance**: Multiple ambient tracks blend smoothly; genre-appropriate selection
 - **Validation**: `go test -cover ./pkg/audio/ambient/...`
+- **Status**: Added AmbientMixer with multi-layer support (up to 8 layers), priority ordering, per-layer volume/pan controls, smooth crossfading, stereo mixing, soft clipping. Test coverage 90.4%.
 
 ### Step 8: Implement Menu Music
 - **Deliverable**: Extend `pkg/audio/music/adaptive.go` with menu music state

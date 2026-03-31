@@ -246,8 +246,8 @@ Legend:
 - [x] Distance attenuation
 - [x] Reverb effects
 - [x] Environmental audio
-- [ ] UI sounds
-- [ ] Ambient sound mixing
+- [x] UI sounds
+- [x] Ambient sound mixing
 
 ---
 

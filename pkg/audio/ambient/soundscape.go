@@ -479,3 +479,335 @@ func (am *AmbientManager) IsTransitioning() bool {
 	defer am.mu.Unlock()
 	return am.transitionProgress < 1.0
 }
+
+// ============================================================================
+// Ambient Sound Mixing System
+// ============================================================================
+
+// AmbientLayer represents a single layer in the ambient mix.
+type AmbientLayer struct {
+	name       string
+	soundscape *Soundscape
+	volume     float64 // current volume (0-1)
+	targetVol  float64 // target volume for fading
+	fadeRate   float64 // volume change per second
+	pan        float64 // stereo pan (-1 to 1)
+	priority   int     // higher priority layers override lower
+	active     bool
+}
+
+// AmbientMixer manages multiple layered ambient sounds with crossfading.
+type AmbientMixer struct {
+	mu            sync.Mutex
+	layers        map[string]*AmbientLayer
+	masterVolume  float64
+	crossfadeTime float64 // seconds for crossfade transitions
+	genre         string
+	seed          int64
+	sampleRate    int
+	maxLayers     int
+	layerOrder    []string // layer names in priority order
+}
+
+// NewAmbientMixer creates a new multi-layer ambient mixer.
+func NewAmbientMixer(genre string, seed int64) *AmbientMixer {
+	return &AmbientMixer{
+		layers:        make(map[string]*AmbientLayer),
+		masterVolume:  1.0,
+		crossfadeTime: 0.5, // 500ms crossfade
+		genre:         genre,
+		seed:          seed,
+		sampleRate:    44100,
+		maxLayers:     8,
+		layerOrder:    make([]string, 0, 8),
+	}
+}
+
+// AddLayer adds a new ambient layer to the mix.
+func (m *AmbientMixer) AddLayer(name string, region RegionType, volume float64, priority int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if len(m.layers) >= m.maxLayers {
+		return // Don't exceed max layers
+	}
+
+	layer := &AmbientLayer{
+		name:       name,
+		soundscape: NewSoundscape(region, m.genre, m.seed),
+		volume:     0,      // Start silent
+		targetVol:  volume, // Fade in to target
+		fadeRate:   1.0 / m.crossfadeTime,
+		pan:        0, // Center
+		priority:   priority,
+		active:     true,
+	}
+
+	m.layers[name] = layer
+	m.updateLayerOrder()
+}
+
+// RemoveLayer removes an ambient layer with fadeout.
+func (m *AmbientMixer) RemoveLayer(name string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if layer, exists := m.layers[name]; exists {
+		layer.targetVol = 0 // Fade out to silence
+	}
+}
+
+// SetLayerVolume sets the target volume for a layer (with fade).
+func (m *AmbientMixer) SetLayerVolume(name string, volume float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if layer, exists := m.layers[name]; exists {
+		if volume < 0 {
+			volume = 0
+		} else if volume > 1 {
+			volume = 1
+		}
+		layer.targetVol = volume
+	}
+}
+
+// SetLayerPan sets the stereo pan position for a layer.
+func (m *AmbientMixer) SetLayerPan(name string, pan float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if layer, exists := m.layers[name]; exists {
+		if pan < -1 {
+			pan = -1
+		} else if pan > 1 {
+			pan = 1
+		}
+		layer.pan = pan
+	}
+}
+
+// SetMasterVolume sets the overall mixer volume.
+func (m *AmbientMixer) SetMasterVolume(volume float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if volume < 0 {
+		volume = 0
+	} else if volume > 1 {
+		volume = 1
+	}
+	m.masterVolume = volume
+}
+
+// GetMasterVolume returns the current master volume.
+func (m *AmbientMixer) GetMasterVolume() float64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.masterVolume
+}
+
+// SetCrossfadeTime sets the crossfade duration in seconds.
+func (m *AmbientMixer) SetCrossfadeTime(seconds float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if seconds < 0.01 {
+		seconds = 0.01 // Minimum 10ms
+	}
+	m.crossfadeTime = seconds
+
+	// Update fade rates for all layers
+	for _, layer := range m.layers {
+		layer.fadeRate = 1.0 / m.crossfadeTime
+	}
+}
+
+// GetCrossfadeTime returns the crossfade duration.
+func (m *AmbientMixer) GetCrossfadeTime() float64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.crossfadeTime
+}
+
+// Update advances all layer volumes toward their targets.
+func (m *AmbientMixer) Update(dt float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	layersToRemove := make([]string, 0)
+
+	for name, layer := range m.layers {
+		// Move volume toward target
+		if layer.volume < layer.targetVol {
+			layer.volume += layer.fadeRate * dt
+			if layer.volume > layer.targetVol {
+				layer.volume = layer.targetVol
+			}
+		} else if layer.volume > layer.targetVol {
+			layer.volume -= layer.fadeRate * dt
+			if layer.volume < layer.targetVol {
+				layer.volume = layer.targetVol
+			}
+		}
+
+		// Remove fully faded out layers
+		if layer.volume <= 0 && layer.targetVol <= 0 {
+			layersToRemove = append(layersToRemove, name)
+		}
+	}
+
+	// Clean up removed layers
+	for _, name := range layersToRemove {
+		delete(m.layers, name)
+		m.updateLayerOrder()
+	}
+}
+
+// GenerateMixedSamples produces mixed audio from all active layers.
+func (m *AmbientMixer) GenerateMixedSamples(duration float64) []float64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	numSamples := int(duration * float64(m.sampleRate))
+	mixed := make([]float64, numSamples)
+
+	// Generate and mix samples from each layer
+	for _, layerName := range m.layerOrder {
+		layer, exists := m.layers[layerName]
+		if !exists || !layer.active || layer.volume <= 0.001 {
+			continue
+		}
+
+		layerSamples := layer.soundscape.GenerateSamples(duration)
+
+		// Apply layer volume and mix
+		for i := 0; i < len(mixed) && i < len(layerSamples); i++ {
+			mixed[i] += layerSamples[i] * layer.volume
+		}
+	}
+
+	// Apply master volume and soft clipping
+	for i := range mixed {
+		mixed[i] *= m.masterVolume
+		// Soft clip to prevent harsh distortion
+		if mixed[i] > 1.0 {
+			mixed[i] = 1.0 - 1.0/(1.0+mixed[i]-1.0)
+		} else if mixed[i] < -1.0 {
+			mixed[i] = -1.0 + 1.0/(1.0-mixed[i]-1.0)
+		}
+	}
+
+	return mixed
+}
+
+// GenerateStereoSamples produces stereo mixed audio with panning.
+func (m *AmbientMixer) GenerateStereoSamples(duration float64) ([]float64, []float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	numSamples := int(duration * float64(m.sampleRate))
+	left := make([]float64, numSamples)
+	right := make([]float64, numSamples)
+
+	// Generate and mix samples from each layer with panning
+	for _, layerName := range m.layerOrder {
+		layer, exists := m.layers[layerName]
+		if !exists || !layer.active || layer.volume <= 0.001 {
+			continue
+		}
+
+		layerSamples := layer.soundscape.GenerateSamples(duration)
+
+		// Calculate stereo gains from pan position
+		// pan: -1 = full left, 0 = center, 1 = full right
+		leftGain := (1.0 - layer.pan) / 2.0
+		rightGain := (1.0 + layer.pan) / 2.0
+
+		// Apply layer volume, panning, and mix
+		for i := 0; i < len(left) && i < len(layerSamples); i++ {
+			sample := layerSamples[i] * layer.volume
+			left[i] += sample * leftGain
+			right[i] += sample * rightGain
+		}
+	}
+
+	// Apply master volume and soft clipping to both channels
+	m.applySoftClipping(left)
+	m.applySoftClipping(right)
+
+	return left, right
+}
+
+// applySoftClipping applies master volume and soft clipping to samples.
+func (m *AmbientMixer) applySoftClipping(samples []float64) {
+	for i := range samples {
+		samples[i] *= m.masterVolume
+		if samples[i] > 1.0 {
+			samples[i] = 1.0 - 1.0/(1.0+samples[i]-1.0)
+		} else if samples[i] < -1.0 {
+			samples[i] = -1.0 + 1.0/(1.0-samples[i]-1.0)
+		}
+	}
+}
+
+// updateLayerOrder sorts layers by priority for consistent mixing.
+func (m *AmbientMixer) updateLayerOrder() {
+	m.layerOrder = m.layerOrder[:0]
+	for name := range m.layers {
+		m.layerOrder = append(m.layerOrder, name)
+	}
+
+	// Sort by priority (lower priority first = background)
+	for i := 0; i < len(m.layerOrder)-1; i++ {
+		for j := i + 1; j < len(m.layerOrder); j++ {
+			if m.layers[m.layerOrder[i]].priority > m.layers[m.layerOrder[j]].priority {
+				m.layerOrder[i], m.layerOrder[j] = m.layerOrder[j], m.layerOrder[i]
+			}
+		}
+	}
+}
+
+// GetLayerCount returns the number of active layers.
+func (m *AmbientMixer) GetLayerCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.layers)
+}
+
+// GetLayerNames returns the names of all layers.
+func (m *AmbientMixer) GetLayerNames() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	names := make([]string, 0, len(m.layers))
+	for name := range m.layers {
+		names = append(names, name)
+	}
+	return names
+}
+
+// GetLayerVolume returns the current volume of a layer.
+func (m *AmbientMixer) GetLayerVolume(name string) float64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if layer, exists := m.layers[name]; exists {
+		return layer.volume
+	}
+	return 0
+}
+
+// HasLayer returns whether a layer with the given name exists.
+func (m *AmbientMixer) HasLayer(name string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_, exists := m.layers[name]
+	return exists
+}
+
+// CrossfadeTo replaces one layer with another using crossfade.
+func (m *AmbientMixer) CrossfadeTo(oldName, newName string, region RegionType, volume float64, priority int) {
+	m.RemoveLayer(oldName)                        // Starts fadeout
+	m.AddLayer(newName, region, volume, priority) // Starts fadein
+}

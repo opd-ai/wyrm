@@ -22,6 +22,8 @@ const (
 	StateTense
 	StateVictory
 	StateDefeat
+	StateMenu      // Main menu, title screen
+	StatePauseMenu // In-game pause menu
 )
 
 // Layer represents a music layer that can be mixed in/out.
@@ -207,6 +209,176 @@ func (am *AdaptiveMusic) initializeLayers() {
 		Target: 0.0,
 		Active: false,
 	}
+
+	// Menu music layer
+	am.layers["menu"] = &Layer{
+		Name:   "menu",
+		Volume: 0.0,
+		Target: 0.0,
+		Active: false,
+	}
+}
+
+// EnterMenu transitions to menu music state.
+func (am *AdaptiveMusic) EnterMenu() {
+	am.mu.Lock()
+	defer am.mu.Unlock()
+
+	if am.currentState != StateMenu {
+		am.previousState = am.currentState
+		am.currentState = StateMenu
+
+		// Fade out all gameplay layers
+		am.layers["exploration"].Target = 0.0
+		am.layers["combat"].Target = 0.0
+		am.layers["tension"].Target = 0.0
+
+		// Fade in menu layer
+		am.layers["menu"].Target = MaxVolume
+		am.layers["menu"].Active = true
+	}
+}
+
+// EnterPauseMenu transitions to pause menu music state.
+func (am *AdaptiveMusic) EnterPauseMenu() {
+	am.mu.Lock()
+	defer am.mu.Unlock()
+
+	if am.currentState != StatePauseMenu {
+		am.previousState = am.currentState
+		am.currentState = StatePauseMenu
+
+		// Reduce gameplay music volume but don't mute
+		am.layers["exploration"].Target = MenuMusicReduction
+		am.layers["combat"].Target = 0.0
+		am.layers["tension"].Target = 0.0
+
+		// Fade in menu layer at reduced volume
+		am.layers["menu"].Target = MenuMusicVolume
+		am.layers["menu"].Active = true
+	}
+}
+
+// ExitMenu transitions back from menu state.
+func (am *AdaptiveMusic) ExitMenu() {
+	am.mu.Lock()
+	defer am.mu.Unlock()
+
+	if am.currentState == StateMenu || am.currentState == StatePauseMenu {
+		// Restore previous state
+		am.currentState = am.previousState
+
+		// Fade out menu layer
+		am.layers["menu"].Target = 0.0
+
+		// Restore gameplay layers based on previous state
+		switch am.previousState {
+		case StateCombat:
+			am.layers["exploration"].Target = CombatVolumeReduction
+			am.layers["combat"].Target = MaxVolume
+			am.layers["combat"].Active = true
+		case StateTense:
+			am.layers["exploration"].Target = MaxVolume * TensionMusicReduction
+			am.layers["tension"].Target = MaxVolume
+			am.layers["tension"].Active = true
+		default:
+			am.layers["exploration"].Target = MaxVolume
+		}
+	}
+}
+
+// IsInMenu returns true if currently in a menu state.
+func (am *AdaptiveMusic) IsInMenu() bool {
+	am.mu.Lock()
+	defer am.mu.Unlock()
+	return am.currentState == StateMenu || am.currentState == StatePauseMenu
+}
+
+// GenerateMenuMusic generates menu-specific music samples.
+func (am *AdaptiveMusic) GenerateMenuMusic(duration float64) []float64 {
+	am.mu.Lock()
+	defer am.mu.Unlock()
+
+	numSamples := int(duration * float64(am.sampleRate))
+	samples := make([]float64, numSamples)
+
+	// Generate genre-appropriate menu music
+	baseFreq := am.getMenuBaseFrequency()
+	motif := am.getMenuMotif()
+
+	// Generate a gentle, ambient version of the motif
+	samplePos := 0
+	for samplePos < numSamples {
+		for i, noteMultiplier := range motif.Notes {
+			if samplePos >= numSamples {
+				break
+			}
+			freq := baseFreq * noteMultiplier
+			noteDuration := motif.Durations[i] * 2.0 // Slower for menu
+			noteSamples := int(noteDuration * float64(am.sampleRate))
+
+			for j := 0; j < noteSamples && samplePos < numSamples; j++ {
+				t := float64(j) / float64(am.sampleRate)
+				// Gentle sine wave with soft attack/release
+				envelope := am.getMenuEnvelope(j, noteSamples)
+				sample := math.Sin(2*math.Pi*freq*t) * envelope * MenuMusicVolume
+				samples[samplePos] = sample
+				samplePos++
+			}
+		}
+	}
+
+	return samples
+}
+
+// getMenuBaseFrequency returns genre-appropriate base frequency for menu music.
+func (am *AdaptiveMusic) getMenuBaseFrequency() float64 {
+	switch am.genre {
+	case "fantasy":
+		return FreqA3 * 0.5 // Lower, warmer
+	case "sci-fi":
+		return FreqE4
+	case "horror":
+		return FreqA1 // Deep, ominous
+	case "cyberpunk":
+		return FreqA4 * 0.75 // Slightly lower synth
+	case "post-apocalyptic":
+		return FreqE3 * 0.75 // Muted
+	default:
+		return FreqA3 * 0.5
+	}
+}
+
+// getMenuMotif returns the menu-appropriate motif.
+func (am *AdaptiveMusic) getMenuMotif() *Motif {
+	// Use exploration motif as base, which is more ambient
+	if motif, exists := am.motifs["exploration"]; exists {
+		return motif
+	}
+	// Fallback motif
+	return &Motif{
+		Name:      "menu_default",
+		BaseFreq:  FreqA3,
+		Notes:     []float64{IntervalUnison, IntervalMajorThird, IntervalPerfectFifth, IntervalMajorThird, IntervalUnison},
+		Durations: []float64{QuarterNote, QuarterNote, QuarterNote, QuarterNote, HalfNote},
+		Genre:     am.genre,
+	}
+}
+
+// getMenuEnvelope returns a soft envelope for menu music notes.
+func (am *AdaptiveMusic) getMenuEnvelope(sampleIdx, totalSamples int) float64 {
+	t := float64(sampleIdx) / float64(totalSamples)
+
+	// Soft attack (first 20%)
+	if t < 0.2 {
+		return t / 0.2
+	}
+	// Sustain (20%-70%)
+	if t < 0.7 {
+		return 1.0
+	}
+	// Release (70%-100%)
+	return 1.0 - (t-0.7)/0.3
 }
 
 // EnterCombat signals that combat has started.

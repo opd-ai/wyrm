@@ -18,6 +18,12 @@ const (
 	MaxVolume = 1.0
 	// CombatVolumeReduction is how much to reduce exploration volume during combat.
 	CombatVolumeReduction = 0.3
+	// MenuMusicVolume is the volume level for menu music.
+	MenuMusicVolume = 0.7
+	// MenuMusicReduction is how much to reduce gameplay music during pause menu.
+	MenuMusicReduction = 0.2
+	// TensionMusicReduction is how much to reduce exploration during tense music.
+	TensionMusicReduction = 0.6
 )
 
 // Musical frequency constants (Hz) - standard Western equal temperament.
