@@ -318,57 +318,79 @@ func (s *System) acquireParticle() *Particle {
 
 // Update advances the particle system by dt seconds.
 func (s *System) Update(dt float64) {
-	// Update existing particles
+	// Update existing particles and compact active ones
+	s.updateParticles(dt)
+
+	// Emit new particles from active emitters
+	s.emitParticles(dt)
+}
+
+// updateParticles updates all particles and compacts the active list.
+func (s *System) updateParticles(dt float64) {
 	activeIdx := 0
 	for i := 0; i < len(s.particles); i++ {
 		p := s.particles[i]
-		if !p.Active {
-			continue
+		if s.updateSingleParticle(p, dt) {
+			// Compact active particles
+			if activeIdx != i {
+				s.particles[activeIdx] = p
+			}
+			activeIdx++
 		}
-
-		p.Life -= dt
-		if p.Life <= 0 {
-			p.Active = false
-			continue
-		}
-
-		// Update position
-		p.X += p.VX * dt
-		p.Y += p.VY * dt
-
-		// Apply type-specific behavior
-		s.updateParticleBehavior(p, dt)
-
-		// Remove if off screen
-		if p.X < -0.1 || p.X > 1.1 || p.Y < -0.1 || p.Y > 1.1 {
-			p.Active = false
-			continue
-		}
-
-		// Compact active particles
-		if activeIdx != i {
-			s.particles[activeIdx] = p
-		}
-		activeIdx++
 	}
 	s.particles = s.particles[:activeIdx]
 	s.activeCount = activeIdx
+}
 
-	// Emit new particles
+// updateSingleParticle updates one particle, returns true if still active.
+func (s *System) updateSingleParticle(p *Particle, dt float64) bool {
+	if !p.Active {
+		return false
+	}
+
+	p.Life -= dt
+	if p.Life <= 0 {
+		p.Active = false
+		return false
+	}
+
+	// Update position
+	p.X += p.VX * dt
+	p.Y += p.VY * dt
+
+	// Apply type-specific behavior
+	s.updateParticleBehavior(p, dt)
+
+	// Remove if off screen
+	if p.X < -0.1 || p.X > 1.1 || p.Y < -0.1 || p.Y > 1.1 {
+		p.Active = false
+		return false
+	}
+
+	return true
+}
+
+// emitParticles processes all emitters and spawns new particles.
+func (s *System) emitParticles(dt float64) {
 	for _, e := range s.emitters {
 		if !e.Active {
 			continue
 		}
-		e.accumulator += dt
-		interval := 1.0 / e.Rate
-		for e.accumulator >= interval {
-			e.accumulator -= interval
-			if s.activeCount < s.maxParticles {
-				p := e.Emit()
-				if p != nil {
-					s.particles = append(s.particles, p)
-					s.activeCount++
-				}
+		s.emitFromEmitter(e, dt)
+	}
+}
+
+// emitFromEmitter spawns particles from a single emitter.
+func (s *System) emitFromEmitter(e *Emitter, dt float64) {
+	e.accumulator += dt
+	interval := 1.0 / e.Rate
+	for e.accumulator >= interval {
+		e.accumulator -= interval
+		if s.activeCount < s.maxParticles {
+			p := e.Emit()
+			if p != nil {
+				s.particles = append(s.particles, p)
+				s.activeCount++
 			}
 		}
 	}

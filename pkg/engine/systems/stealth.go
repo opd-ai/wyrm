@@ -466,6 +466,22 @@ func (s *HidingSpotSystem) CanHide(w *ecs.World, entity ecs.Entity, spotID strin
 		return false
 	}
 
+	// Basic availability checks
+	if !s.isSpotAvailable(entity, spot) {
+		return false
+	}
+
+	// Check skill requirement
+	if !s.hasRequiredSkill(w, entity, spot) {
+		return false
+	}
+
+	// Check position proximity
+	return s.isWithinRange(w, entity, spot)
+}
+
+// isSpotAvailable checks if the spot has room and entity isn't already hiding.
+func (s *HidingSpotSystem) isSpotAvailable(entity ecs.Entity, spot *HidingSpot) bool {
 	// Check capacity
 	if len(spot.Occupants) >= spot.Capacity {
 		return false
@@ -477,35 +493,40 @@ func (s *HidingSpotSystem) CanHide(w *ecs.World, entity ecs.Entity, spotID strin
 		return false
 	}
 
-	// Check skill requirement
-	if spot.RequiredSkillLevel > 0 {
-		skillsComp, ok := w.GetComponent(entity, "Skills")
-		if !ok {
-			return false
-		}
-		skills := skillsComp.(*components.Skills)
-		if skills.Levels == nil || skills.Levels["sneak"] < spot.RequiredSkillLevel {
-			return false
-		}
+	return true
+}
+
+// hasRequiredSkill checks if the entity meets skill requirements.
+func (s *HidingSpotSystem) hasRequiredSkill(w *ecs.World, entity ecs.Entity, spot *HidingSpot) bool {
+	if spot.RequiredSkillLevel <= 0 {
+		return true
 	}
 
-	// Check position proximity
+	skillsComp, ok := w.GetComponent(entity, "Skills")
+	if !ok {
+		return false
+	}
+
+	skills := skillsComp.(*components.Skills)
+	return skills.Levels != nil && skills.Levels["sneak"] >= spot.RequiredSkillLevel
+}
+
+// isWithinRange checks if the entity is close enough to the spot.
+func (s *HidingSpotSystem) isWithinRange(w *ecs.World, entity ecs.Entity, spot *HidingSpot) bool {
+	if spot.Position == nil {
+		return true // No position requirement
+	}
+
 	posComp, ok := w.GetComponent(entity, "Position")
 	if !ok {
 		return false
 	}
 	pos := posComp.(*components.Position)
 
-	if spot.Position != nil {
-		dist := math.Sqrt(
-			math.Pow(pos.X-spot.Position.X, 2) +
-				math.Pow(pos.Y-spot.Position.Y, 2))
-		if dist > spot.Radius*2 {
-			return false // Too far away
-		}
-	}
-
-	return true
+	dist := math.Sqrt(
+		math.Pow(pos.X-spot.Position.X, 2) +
+			math.Pow(pos.Y-spot.Position.Y, 2))
+	return dist <= spot.Radius*2
 }
 
 // EnterHidingSpot puts an entity into a hiding spot.

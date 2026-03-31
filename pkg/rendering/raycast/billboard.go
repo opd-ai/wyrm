@@ -246,61 +246,69 @@ func (r *Renderer) DrawSpriteColumn(screenX int, ctx *SpriteDrawContext, pixels 
 		return
 	}
 
-	// Draw vertical stripe
+	// Draw each pixel in the column
+	r.drawColumnPixels(screenX, texX, ctx, pixels)
+}
+
+// drawColumnPixels draws all pixels in a sprite column.
+func (r *Renderer) drawColumnPixels(screenX, texX int, ctx *SpriteDrawContext, pixels []byte) {
 	for screenY := ctx.StartY; screenY < ctx.EndY; screenY++ {
 		if screenY < 0 || screenY >= r.Height {
 			continue
 		}
 
-		// Calculate texture Y coordinate
-		texY := (screenY - ctx.StartY) * ctx.SpriteHeight / ctx.ScreenSpriteHeight
-		if texY < 0 || texY >= ctx.SpriteHeight {
-			continue
-		}
-
-		// Get pixel from sprite
-		pixel := GetSpritePixel(ctx.CurrentFrame, texX, texY, ctx.FlipH)
-
-		// Skip transparent pixels
+		pixel := r.getSpritePixelAt(screenX, screenY, texX, ctx)
 		if pixel.A == 0 {
 			continue
 		}
 
-		// Apply fog
-		pixel = r.ApplyFogToColor(pixel, ctx.Distance)
+		r.writePixelToBuffer(screenX, screenY, pixel, pixels)
+	}
+}
 
-		// Apply opacity
-		if ctx.Opacity < 1.0 {
-			pixel = ApplyOpacity(pixel, ctx.Opacity)
-		}
+// getSpritePixelAt gets a processed sprite pixel at the given position.
+func (r *Renderer) getSpritePixelAt(screenX, screenY, texX int, ctx *SpriteDrawContext) sprite.PixelRGBA {
+	// Calculate texture Y coordinate
+	texY := (screenY - ctx.StartY) * ctx.SpriteHeight / ctx.ScreenSpriteHeight
+	if texY < 0 || texY >= ctx.SpriteHeight {
+		return sprite.PixelRGBA{}
+	}
 
-		// Skip if fully transparent after effects
-		if pixel.A == 0 {
-			continue
-		}
+	// Get pixel from sprite
+	pixel := GetSpritePixel(ctx.CurrentFrame, texX, texY, ctx.FlipH)
+	if pixel.A == 0 {
+		return pixel
+	}
 
-		// Write to pixel buffer
-		idx := (screenY*r.Width + screenX) * 4
-		if idx >= 0 && idx+3 < len(pixels) {
-			// Alpha blending
-			if pixel.A < 255 {
-				// Read destination
-				dstR := pixels[idx]
-				dstG := pixels[idx+1]
-				dstB := pixels[idx+2]
-				alpha := float64(pixel.A) / 255.0
-				invAlpha := 1.0 - alpha
-				pixels[idx] = uint8(float64(pixel.R)*alpha + float64(dstR)*invAlpha)
-				pixels[idx+1] = uint8(float64(pixel.G)*alpha + float64(dstG)*invAlpha)
-				pixels[idx+2] = uint8(float64(pixel.B)*alpha + float64(dstB)*invAlpha)
-				pixels[idx+3] = 255
-			} else {
-				pixels[idx] = pixel.R
-				pixels[idx+1] = pixel.G
-				pixels[idx+2] = pixel.B
-				pixels[idx+3] = 255
-			}
-		}
+	// Apply fog and opacity
+	pixel = r.ApplyFogToColor(pixel, ctx.Distance)
+	if ctx.Opacity < 1.0 {
+		pixel = ApplyOpacity(pixel, ctx.Opacity)
+	}
+
+	return pixel
+}
+
+// writePixelToBuffer writes a pixel to the buffer with alpha blending.
+func (r *Renderer) writePixelToBuffer(screenX, screenY int, pixel sprite.PixelRGBA, pixels []byte) {
+	idx := (screenY*r.Width + screenX) * 4
+	if idx < 0 || idx+3 >= len(pixels) {
+		return
+	}
+
+	if pixel.A < 255 {
+		// Alpha blending
+		alpha := float64(pixel.A) / 255.0
+		invAlpha := 1.0 - alpha
+		pixels[idx] = uint8(float64(pixel.R)*alpha + float64(pixels[idx])*invAlpha)
+		pixels[idx+1] = uint8(float64(pixel.G)*alpha + float64(pixels[idx+1])*invAlpha)
+		pixels[idx+2] = uint8(float64(pixel.B)*alpha + float64(pixels[idx+2])*invAlpha)
+		pixels[idx+3] = 255
+	} else {
+		pixels[idx] = pixel.R
+		pixels[idx+1] = pixel.G
+		pixels[idx+2] = pixel.B
+		pixels[idx+3] = 255
 	}
 }
 

@@ -324,28 +324,44 @@ func (s *System) CalculateLightingAt(x, y, z float64) (float64, color.RGBA) {
 	var totalR, totalG, totalB float64
 	var totalIntensity float64
 
+	// Add ambient and sun contributions
+	totalR, totalG, totalB, totalIntensity = s.addGlobalLighting(totalR, totalG, totalB, totalIntensity)
+
+	// Add point/directional light contributions
+	totalR, totalG, totalB, totalIntensity = s.addLocalLighting(x, y, z, totalR, totalG, totalB, totalIntensity)
+
+	// Normalize and finalize
+	return s.finalizeLighting(totalR, totalG, totalB, totalIntensity)
+}
+
+// addGlobalLighting adds ambient and sun/moon contributions.
+func (s *System) addGlobalLighting(r, g, b, intensity float64) (float64, float64, float64, float64) {
 	// Ambient contribution
 	if s.ambient != nil && s.ambient.Enabled {
 		amb := s.ambient.Intensity
 		if s.indoorMode {
 			amb *= 0.7 // Darker indoors
 		}
-		totalR += float64(s.ambient.Color.R) * amb
-		totalG += float64(s.ambient.Color.G) * amb
-		totalB += float64(s.ambient.Color.B) * amb
-		totalIntensity += amb
+		r += float64(s.ambient.Color.R) * amb
+		g += float64(s.ambient.Color.G) * amb
+		b += float64(s.ambient.Color.B) * amb
+		intensity += amb
 	}
 
 	// Sun/moon contribution (reduced indoors)
 	if s.sun != nil && s.sun.Enabled && !s.indoorMode {
 		sunIntensity := s.sun.Intensity
-		totalR += float64(s.sun.Color.R) * sunIntensity
-		totalG += float64(s.sun.Color.G) * sunIntensity
-		totalB += float64(s.sun.Color.B) * sunIntensity
-		totalIntensity += sunIntensity
+		r += float64(s.sun.Color.R) * sunIntensity
+		g += float64(s.sun.Color.G) * sunIntensity
+		b += float64(s.sun.Color.B) * sunIntensity
+		intensity += sunIntensity
 	}
 
-	// Point light contributions
+	return r, g, b, intensity
+}
+
+// addLocalLighting adds point and directional light contributions.
+func (s *System) addLocalLighting(x, y, z, r, g, b, intensity float64) (float64, float64, float64, float64) {
 	for _, l := range s.lights {
 		if !l.Enabled {
 			continue
@@ -353,53 +369,65 @@ func (s *System) CalculateLightingAt(x, y, z float64) (float64, color.RGBA) {
 
 		switch l.Type {
 		case TypePoint:
-			dx := x - l.X
-			dy := y - l.Y
-			dz := z - l.Z
-			dist := math.Sqrt(dx*dx + dy*dy + dz*dz)
-			atten := l.CalculateAttenuation(dist)
-			if atten > 0 {
-				totalR += float64(l.Color.R) * atten
-				totalG += float64(l.Color.G) * atten
-				totalB += float64(l.Color.B) * atten
-				totalIntensity += atten
-			}
+			r, g, b, intensity = s.addPointLight(l, x, y, z, r, g, b, intensity)
 		case TypeDirectional:
-			// Directional lights contribute uniformly
-			totalR += float64(l.Color.R) * l.Intensity
-			totalG += float64(l.Color.G) * l.Intensity
-			totalB += float64(l.Color.B) * l.Intensity
-			totalIntensity += l.Intensity
+			r += float64(l.Color.R) * l.Intensity
+			g += float64(l.Color.G) * l.Intensity
+			b += float64(l.Color.B) * l.Intensity
+			intensity += l.Intensity
 		}
 	}
+	return r, g, b, intensity
+}
 
-	// Normalize and clamp color
-	if totalIntensity > 0 {
-		totalR /= totalIntensity
-		totalG /= totalIntensity
-		totalB /= totalIntensity
+// addPointLight calculates and adds a point light's contribution.
+func (s *System) addPointLight(l *Light, x, y, z, r, g, b, intensity float64) (float64, float64, float64, float64) {
+	dx := x - l.X
+	dy := y - l.Y
+	dz := z - l.Z
+	dist := math.Sqrt(dx*dx + dy*dy + dz*dz)
+	atten := l.CalculateAttenuation(dist)
+	if atten > 0 {
+		r += float64(l.Color.R) * atten
+		g += float64(l.Color.G) * atten
+		b += float64(l.Color.B) * atten
+		intensity += atten
+	}
+	return r, g, b, intensity
+}
+
+// finalizeLighting normalizes colors and clamps values.
+func (s *System) finalizeLighting(r, g, b, intensity float64) (float64, color.RGBA) {
+	// Normalize color by intensity
+	if intensity > 0 {
+		r /= intensity
+		g /= intensity
+		b /= intensity
 	}
 
-	// Clamp
-	if totalR > 255 {
-		totalR = 255
-	}
-	if totalG > 255 {
-		totalG = 255
-	}
-	if totalB > 255 {
-		totalB = 255
-	}
-	if totalIntensity > 2.0 {
-		totalIntensity = 2.0 // Cap at 2x brightness
-	}
+	// Clamp values
+	r = clampFloat(r, 0, 255)
+	g = clampFloat(g, 0, 255)
+	b = clampFloat(b, 0, 255)
+	intensity = clampFloat(intensity, 0, 2.0) // Cap at 2x brightness
 
-	return totalIntensity, color.RGBA{
-		R: uint8(totalR),
-		G: uint8(totalG),
-		B: uint8(totalB),
+	return intensity, color.RGBA{
+		R: uint8(r),
+		G: uint8(g),
+		B: uint8(b),
 		A: 255,
 	}
+}
+
+// clampFloat clamps a value between min and max.
+func clampFloat(v, min, max float64) float64 {
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
+	}
+	return v
 }
 
 // ApplyLighting modifies a pixel color based on lighting at a world position.

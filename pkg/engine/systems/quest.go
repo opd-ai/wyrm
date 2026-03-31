@@ -828,41 +828,51 @@ func (m *FactionArcManager) CompleteObjective(playerEntity uint64, arcID string,
 	progress := m.getOrCreateProgress(playerEntity)
 	questID := progress.CurrentQuests[arcID]
 
-	// Find and update quest progress
-	var quest *FactionArcQuest
-	var questIndex int
-	for i := range arc.Quests {
-		if arc.Quests[i].ID == questID {
-			quest = &arc.Quests[i]
-			questIndex = i
-			break
-		}
-	}
+	// Find the quest
+	quest, questIndex := m.findQuest(arc, questID)
 	if quest == nil {
 		return false
 	}
 
+	// Validate objective index
 	if objectiveIndex < 0 || objectiveIndex >= len(quest.Objectives) {
 		return false
 	}
 
 	// Mark objective complete
-	if progress.QuestProgress[questID] == nil {
-		progress.QuestProgress[questID] = make([]bool, len(quest.Objectives))
-	}
-	progress.QuestProgress[questID][objectiveIndex] = true
+	m.markObjectiveComplete(progress, questID, objectiveIndex, len(quest.Objectives))
 
-	// Check if all objectives complete
-	allComplete := true
-	for _, done := range progress.QuestProgress[questID] {
-		if !done {
-			allComplete = false
-			break
+	// Check if quest is complete
+	if m.isQuestComplete(progress, questID) {
+		return m.completeQuest(playerEntity, arc, quest, questIndex, progress)
+	}
+	return true
+}
+
+// findQuest locates a quest in an arc by ID.
+func (m *FactionArcManager) findQuest(arc *FactionQuestArc, questID string) (*FactionArcQuest, int) {
+	for i := range arc.Quests {
+		if arc.Quests[i].ID == questID {
+			return &arc.Quests[i], i
 		}
 	}
+	return nil, -1
+}
 
-	if allComplete {
-		return m.completeQuest(playerEntity, arc, quest, questIndex, progress)
+// markObjectiveComplete marks a specific objective as done.
+func (m *FactionArcManager) markObjectiveComplete(progress *FactionArcProgress, questID string, objectiveIndex, totalObjectives int) {
+	if progress.QuestProgress[questID] == nil {
+		progress.QuestProgress[questID] = make([]bool, totalObjectives)
+	}
+	progress.QuestProgress[questID][objectiveIndex] = true
+}
+
+// isQuestComplete checks if all objectives are done.
+func (m *FactionArcManager) isQuestComplete(progress *FactionArcProgress, questID string) bool {
+	for _, done := range progress.QuestProgress[questID] {
+		if !done {
+			return false
+		}
 	}
 	return true
 }

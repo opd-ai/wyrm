@@ -796,6 +796,19 @@ func (s *VehicleCustomizationSystem) InstallCustomization(entity ecs.Entity, cus
 		return fmt.Errorf("customization not found: %s", customizationID)
 	}
 
+	// Validate installation requirements
+	if err := s.validateInstallation(state, custom); err != nil {
+		return err
+	}
+
+	// Perform installation
+	s.applyCustomization(state, custom)
+
+	return nil
+}
+
+// validateInstallation checks if the customization can be installed.
+func (s *VehicleCustomizationSystem) validateInstallation(state *VehicleCustomizationState, custom *VehicleCustomization) error {
 	// Check level requirement
 	if custom.MinLevel > state.Level {
 		return fmt.Errorf("requires level %d, current level %d", custom.MinLevel, state.Level)
@@ -808,6 +821,11 @@ func (s *VehicleCustomizationSystem) InstallCustomization(entity ecs.Entity, cus
 	}
 
 	// Check for incompatibilities
+	return s.checkIncompatibilities(state, custom)
+}
+
+// checkIncompatibilities verifies no incompatible mods are installed.
+func (s *VehicleCustomizationSystem) checkIncompatibilities(state *VehicleCustomizationState, custom *VehicleCustomization) error {
 	for _, incompatID := range custom.Incompatible {
 		for _, installed := range state.InstalledMods {
 			if installed.ID == incompatID {
@@ -815,7 +833,11 @@ func (s *VehicleCustomizationSystem) InstallCustomization(entity ecs.Entity, cus
 			}
 		}
 	}
+	return nil
+}
 
+// applyCustomization installs the customization to the vehicle.
+func (s *VehicleCustomizationSystem) applyCustomization(state *VehicleCustomizationState, custom *VehicleCustomization) {
 	// Uninstall existing mod in the same slot
 	if existing := state.InstalledMods[custom.Slot]; existing != nil {
 		state.TotalWeight -= existing.Weight
@@ -829,8 +851,6 @@ func (s *VehicleCustomizationSystem) InstallCustomization(entity ecs.Entity, cus
 	if custom.Category == CategoryAppearance && custom.PrimaryColor != 0 {
 		state.PrimaryColor = custom.PrimaryColor
 	}
-
-	return nil
 }
 
 // UninstallCustomization removes a customization from a vehicle.
