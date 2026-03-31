@@ -1474,3 +1474,78 @@ type DialogPromise struct {
 	// IsBroken indicates if the promise was broken.
 	IsBroken bool
 }
+
+// Appearance defines the visual representation of an entity in the first-person view.
+// It is pure data — rendering logic belongs in the SpriteRenderSystem.
+type Appearance struct {
+	// SpriteCategory selects the generation algorithm.
+	// One of: "humanoid", "creature", "vehicle", "object", "effect"
+	SpriteCategory string
+
+	// BodyPlan selects the silhouette template within the category.
+	// Examples: "warrior", "merchant", "wolf", "dragon", "horse", "buggy"
+	BodyPlan string
+
+	// PrimaryColor and SecondaryColor are packed RGBA values (genre-derived).
+	PrimaryColor   uint32
+	SecondaryColor uint32
+
+	// AccentColor for details (belt, trim, insignia).
+	AccentColor uint32
+
+	// Scale multiplier relative to default entity height (1.0 = standard humanoid).
+	// Range: 0.25 (small critter) to 4.0 (dragon/mech).
+	Scale float64
+
+	// AnimState is the current animation state identifier.
+	// One of: "idle", "walk", "run", "attack", "cast", "sneak", "dead", "sit", "work"
+	AnimState string
+
+	// AnimFrame is the current frame index within the animation.
+	AnimFrame int
+
+	// AnimTimer accumulates dt for frame advancement.
+	AnimTimer float64
+
+	// Visible controls whether the entity is rendered at all.
+	// Set to false for hidden/despawned entities.
+	Visible bool
+
+	// Opacity controls alpha blending (0.0 = invisible, 1.0 = opaque).
+	// Driven by Stealth.Visibility when sneaking.
+	Opacity float64
+
+	// FlipH mirrors the sprite horizontally (for facing direction).
+	FlipH bool
+
+	// Decorations are additional overlay identifiers (armor, hat, weapon held).
+	Decorations []string
+
+	// DamageOverlay intensity (0.0 = pristine, 1.0 = heavily damaged).
+	// Driven by Health.Current/Health.Max or VehicleState.DamagePercent.
+	DamageOverlay float64
+
+	// GenreID is stored for sprite generation cache keying.
+	GenreID string
+}
+
+// Type returns the component type identifier for Appearance.
+func (a *Appearance) Type() string { return "Appearance" }
+
+// NewAppearance creates a new Appearance with default visible settings.
+func NewAppearance(category, bodyPlan, genre string) *Appearance {
+	return &Appearance{
+		SpriteCategory: category,
+		BodyPlan:       bodyPlan,
+		Scale:          1.0,
+		AnimState:      "idle",
+		AnimFrame:      0,
+		AnimTimer:      0.0,
+		Visible:        true,
+		Opacity:        1.0,
+		FlipH:          false,
+		Decorations:    nil,
+		DamageOverlay:  0.0,
+		GenreID:        genre,
+	}
+}

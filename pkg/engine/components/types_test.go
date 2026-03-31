@@ -1068,3 +1068,59 @@ func TestTrapMechanismType(t *testing.T) {
 		t.Errorf("Expected type 'TrapMechanism', got '%s'", t2.Type())
 	}
 }
+
+func TestAppearanceType(t *testing.T) {
+	a := &Appearance{
+		SpriteCategory: "humanoid",
+		BodyPlan:       "warrior",
+		Visible:        true,
+		Opacity:        1.0,
+	}
+	if a.Type() != "Appearance" {
+		t.Errorf("expected Appearance, got %s", a.Type())
+	}
+}
+
+func TestNewAppearance(t *testing.T) {
+	a := NewAppearance("humanoid", "guard", "fantasy")
+
+	if a.SpriteCategory != "humanoid" {
+		t.Errorf("expected category humanoid, got %s", a.SpriteCategory)
+	}
+	if a.BodyPlan != "guard" {
+		t.Errorf("expected body plan guard, got %s", a.BodyPlan)
+	}
+	if a.GenreID != "fantasy" {
+		t.Errorf("expected genre fantasy, got %s", a.GenreID)
+	}
+	if a.Scale != 1.0 {
+		t.Errorf("expected scale 1.0, got %f", a.Scale)
+	}
+	if a.AnimState != "idle" {
+		t.Errorf("expected anim state idle, got %s", a.AnimState)
+	}
+	if !a.Visible {
+		t.Error("expected visible true")
+	}
+	if a.Opacity != 1.0 {
+		t.Errorf("expected opacity 1.0, got %f", a.Opacity)
+	}
+	if a.FlipH {
+		t.Error("expected flipH false")
+	}
+	if a.DamageOverlay != 0.0 {
+		t.Errorf("expected damage overlay 0.0, got %f", a.DamageOverlay)
+	}
+}
+
+func TestAppearanceDefaults(t *testing.T) {
+	// Test zero-value appearance
+	a := &Appearance{}
+	if a.Type() != "Appearance" {
+		t.Errorf("expected Appearance, got %s", a.Type())
+	}
+	// Zero values are valid, just not visible
+	if a.Visible {
+		t.Error("expected default visible to be false")
+	}
+}

@@ -86,8 +86,12 @@ func (r *Renderer) renderFloorCeilingRow(screen *ebiten.Image, y, halfHeight int
 	}
 }
 
-// drawWalls casts rays and renders wall columns.
+// drawWalls casts rays and renders wall columns, populating the ZBuffer.
 func (r *Renderer) drawWalls(screen *ebiten.Image) {
+	// Ensure ZBuffer is sized correctly
+	if len(r.ZBuffer) != r.Width {
+		r.ZBuffer = make([]float64, r.Width)
+	}
 	for x := 0; x < r.Width; x++ {
 		r.drawWallColumn(screen, x)
 	}
@@ -103,6 +107,9 @@ func (r *Renderer) drawWallColumn(screen *ebiten.Image, x int) {
 	distance, wallType, wallX, side := r.castRayWithTexCoord(rayDirX, rayDirY)
 	distance *= math.Cos(cameraX * (r.FOV / 2)) // Fix fisheye
 	distance = clampDistance(distance)
+
+	// Store distance in ZBuffer for sprite occlusion
+	r.ZBuffer[x] = distance
 
 	wallHeight := calculateWallHeight(r.Height, distance)
 	drawStart := (r.Height - wallHeight) / 2

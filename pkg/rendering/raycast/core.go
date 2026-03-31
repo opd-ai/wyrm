@@ -44,6 +44,9 @@ type Renderer struct {
 	FloorTexture *texture.Texture
 	CeilTexture  *texture.Texture
 	textureSeed  int64
+	// ZBuffer stores the perpendicular distance to walls for each screen column.
+	// Used for sprite occlusion testing. Populated during drawWalls().
+	ZBuffer []float64
 }
 
 // NewRenderer creates a new raycasting renderer.
@@ -84,6 +87,7 @@ func NewRendererWithGenre(width, height int, genre string, seed int64) *Renderer
 		FOV:         DefaultFOV,
 		Genre:       genre,
 		textureSeed: seed,
+		ZBuffer:     make([]float64, width),
 	}
 	r.initTextures()
 	return r
@@ -383,4 +387,26 @@ func applyDistanceFog(c color.RGBA, distance float64) color.RGBA {
 		B: uint8(float64(c.B) * fogFactor),
 		A: 255,
 	}
+}
+
+// GetZBuffer returns a copy of the current z-buffer.
+// The z-buffer contains the perpendicular distance to walls for each screen column.
+// Use this for sprite occlusion testing: sprites should only be drawn where
+// their distance is less than the z-buffer value at that column.
+func (r *Renderer) GetZBuffer() []float64 {
+	if r.ZBuffer == nil {
+		return nil
+	}
+	result := make([]float64, len(r.ZBuffer))
+	copy(result, r.ZBuffer)
+	return result
+}
+
+// GetZBufferAt returns the z-buffer distance at a specific screen column.
+// Returns MaxRayDistance if x is out of bounds.
+func (r *Renderer) GetZBufferAt(x int) float64 {
+	if x < 0 || x >= len(r.ZBuffer) {
+		return MaxRayDistance
+	}
+	return r.ZBuffer[x]
 }

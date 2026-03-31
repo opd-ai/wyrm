@@ -425,3 +425,63 @@ func BenchmarkGetFloorTextureColor(b *testing.B) {
 		_ = r.GetFloorTextureColor(0.5, 0.5, 5.0)
 	}
 }
+
+func TestZBufferInitialization(t *testing.T) {
+	r := NewRenderer(1280, 720)
+	if r.ZBuffer == nil {
+		t.Fatal("ZBuffer should be initialized")
+	}
+	if len(r.ZBuffer) != 1280 {
+		t.Errorf("expected ZBuffer length 1280, got %d", len(r.ZBuffer))
+	}
+}
+
+func TestGetZBuffer(t *testing.T) {
+	r := NewRenderer(640, 480)
+
+	// Get a copy of the z-buffer
+	zb := r.GetZBuffer()
+	if zb == nil {
+		t.Fatal("GetZBuffer should not return nil")
+	}
+	if len(zb) != 640 {
+		t.Errorf("expected ZBuffer length 640, got %d", len(zb))
+	}
+
+	// Modifying the copy should not affect the original
+	r.ZBuffer[0] = 5.0
+	if zb[0] == 5.0 {
+		t.Error("GetZBuffer should return a copy, not a reference")
+	}
+}
+
+func TestGetZBufferAt(t *testing.T) {
+	r := NewRenderer(640, 480)
+
+	// Set a known value
+	r.ZBuffer[100] = 7.5
+
+	// Test valid index
+	got := r.GetZBufferAt(100)
+	if got != 7.5 {
+		t.Errorf("expected 7.5, got %f", got)
+	}
+
+	// Test out of bounds
+	if r.GetZBufferAt(-1) != MaxRayDistance {
+		t.Error("negative index should return MaxRayDistance")
+	}
+	if r.GetZBufferAt(1000) != MaxRayDistance {
+		t.Error("index > width should return MaxRayDistance")
+	}
+}
+
+func TestGetZBufferNil(t *testing.T) {
+	r := &Renderer{Width: 100, Height: 100}
+	// ZBuffer is nil
+
+	zb := r.GetZBuffer()
+	if zb != nil {
+		t.Error("GetZBuffer should return nil when ZBuffer is not initialized")
+	}
+}

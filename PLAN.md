@@ -134,13 +134,22 @@
 - **Validation**: `go test -cover ./pkg/audio/music/... | grep -E 'coverage: [8-9][0-9]|100'`
 - **Status**: Coverage reached 97.6% as part of Step 8 menu music implementation. Comprehensive tests added for all menu music functions.
 
-### Step 10: Implement Sprite Rendering
+### Step 10: Implement Sprite Rendering — PHASE 1 COMPLETE
 - **Deliverable**: Extend `pkg/rendering/raycast/` with sprite rendering for NPCs and items
 - **Design Spec**: See [SPRITE_PLAN.md](SPRITE_PLAN.md) for the complete entity rendering system design, including billboard math, z-buffer integration, animation state machine, genre-specific visuals, and performance budgets
 - **Dependencies**: None
 - **Goal Impact**: Rendering & Graphics category (6/10 → 7/10), visual fidelity
 - **Acceptance**: Entities rendered as scaled, distance-attenuated sprites in first-person view
 - **Validation**: `go test -tags=noebiten -cover ./pkg/rendering/raycast/... | grep -E 'coverage: [8-9][0-9]|100'`
+- **Status**: **Phase 1 (Foundation) COMPLETED:**
+  - ✅ Added `Appearance` component to `pkg/engine/components/types.go` with all fields per SPRITE_PLAN.md
+  - ✅ Added `NewAppearance()` constructor function
+  - ✅ Created `pkg/rendering/sprite/` package with doc.go, sprite.go, cache.go, generator.go
+  - ✅ Implemented `Sprite` and `SpriteSheet` types with animation support
+  - ✅ Implemented `SpriteCache` with LRU eviction (256 sheets, 20MB limit)
+  - ✅ Implemented `Generator` with humanoid, creature, vehicle, object, effect sprite generation
+  - ✅ Test coverage: 98.0% on sprite package
+  - ⏳ Remaining: z-buffer exposure, billboard rendering integration, raycaster draw loop
 
 ### Step 11: Implement Particle Effects System
 - **Deliverable**: Create `pkg/rendering/particles/particles.go` for weather, combat, and environmental effects
