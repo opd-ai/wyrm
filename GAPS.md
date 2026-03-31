@@ -1,159 +1,403 @@
-# Implementation Gaps — 2026-03-31
+# Wyrm Critical Gaps Analysis — 2026-03-31
 
-This document catalogs the gaps between Wyrm's stated goals and its current implementation. Each gap represents work needed to achieve full alignment between documentation claims and code reality.
+This document catalogs the gaps between Wyrm's stated goals and its current implementation, organized by player impact. Each gap identifies what is broken or missing, why it matters, and what is needed to fix it.
 
----
-
-## Gap 1: FEATURES.md Summary Table Severely Outdated — ✅ RESOLVED
-
-- **Stated Goal**: FEATURES.md header claims "192/200 implemented (96.0%)" with summary table showing 147/200 (73.5%).
-- **Resolution**: FEATURES.md now shows 200/200 (100.0%) in header and summary table is consistent with all 20 categories at 100%. The obsolete "Priority Implementation Order" section has been removed.
-- **Validation**: `grep -c '\[x\]' FEATURES.md` returns 201, header shows 200/200 (100.0%), summary table shows all categories at 100%
+> **Previous code quality gaps** (FEATURES.md sync, test coverage, complexity, duplication, naming) are all resolved and omitted from this revision. This document now focuses on **playability and integration gaps**.
 
 ---
 
-## Gap 2: Entry Point Test Coverage (0% → 30%) — ✅ RESOLVED
+## Category 1: System Integration Failures
 
-- **Stated Goal**: Testable code with reasonable coverage across all packages.
-- **Resolution**: Tests exist in `cmd/client/main_test.go` and `cmd/server/main_test.go` with `noebiten` build tag:
-  - Client: 100% coverage (tests `heightToWallType`, boundaries, consistency)
-  - Server: 83.8% coverage (tests `initializeFactions`, `createDistrictEntity`, `initializeWorldClock`, `initializeFederation`, `runFederationCleanup`)
-  - Both files include benchmark functions
-- **Validation**: `go test -tags=noebiten -cover ./cmd/...` shows client 100.0%, server 83.8%
+### Gap 1.1: 77% of ECS Systems Never Execute
 
----
+**Severity: CRITICAL** · **Impact: All gameplay beyond movement is non-functional**
 
-## Gap 3: Performance Target Unverifiable (60 FPS) — ✅ RESOLVED
+Of 57 defined system types in `pkg/engine/systems/`, only 13 are registered at runtime:
+- **Server:** 10 systems registered in `cmd/server/main.go:102-113`
+- **Client:** 3 systems registered in `cmd/client/main.go:242-246`
+- **Unregistered:** 44 systems with complete implementations that never run
 
-- **Stated Goal**: README.md claims "60 FPS at 1280×720" as a performance target.
-- **Resolution**: Extensive benchmark tests exist across the codebase:
-  - `pkg/rendering/raycast/`: `BenchmarkCastRay`, `BenchmarkGetWallColor`, `BenchmarkNewRenderer`, `BenchmarkGetWallTextureColor`, `BenchmarkGetFloorTextureColor`, `BenchmarkCastRayCore`, `BenchmarkCalculateDeltaDist`, etc.
-  - `pkg/engine/ecs/`: `BenchmarkCreateDestroy`, `BenchmarkAddComponent`, `BenchmarkEntitiesQuery`, `BenchmarkWorldUpdate`
-  - `pkg/rendering/sprite/`: Generator benchmarks exist
-  - Additional benchmarks in audio, combat, quest, stealth, and companion packages
-- **Validation**: `go test -tags=noebiten -bench=. ./pkg/rendering/raycast/...` runs 18+ benchmarks
+All 44 unregistered systems have constructors, full `Update()` implementations with component queries, and test coverage. They simply are not instantiated or registered via `world.RegisterSystem()`.
 
----
+**Key unregistered systems and their player-facing impact:**
 
-## Gap 4: Build-Tag Test Visibility — ✅ RESOLVED
+| System | Player Impact of Absence |
+|--------|--------------------------|
+| CraftingSystem | Cannot craft any items |
+| MagicSystem | Cannot cast spells; no mana regeneration |
+| StealthSystem | Cannot sneak; no detection mechanics |
+| ProjectileSystem | No ranged combat (arrows, projectiles) |
+| NPCPathfindingSystem | NPCs stand motionless; never move to activity locations |
+| NPCMemorySystem | NPCs don't remember player; no reputation tracking |
+| NPCNeedsSystem | NPCs have no needs (hunger, energy, social); feel lifeless |
+| NPCOccupationSystem | NPCs don't perform their jobs |
+| EmotionalStateSystem | NPCs have no emotional reactions |
+| GossipSystem | NPCs don't share information |
+| GuardPursuitSystem | Guards don't pursue criminals |
+| SkillProgressionSystem | No skill leveling or XP |
+| FactionRankSystem | Cannot advance in any faction |
+| DialogConsequenceSystem | Dialog choices have no lasting effects |
+| HazardSystem | Environmental hazards do no damage |
+| PartySystem | Cannot form or manage parties |
+| TradingSystem | Cannot trade with other players |
+| CityBuildingSystem | Buildings don't open/close; no shop schedules |
+| CityEventSystem | No dynamic city events (festivals, raids, plagues) |
+| IndoorOutdoorSystem | Weather affects entities while indoors |
 
-- **Stated Goal**: CI pipeline provides clear test status for all packages.
-- **Resolution**: Tests with `noebiten` build tag exist and show coverage when run with the tag:
-  - `pkg/procgen/adapters/` — 89.2% coverage with `-tags=noebiten`
-  - `pkg/rendering/raycast/` — 90.7% coverage with `-tags=noebiten`
-  - `cmd/client/` — 100% coverage with `-tags=noebiten`
-  - `cmd/server/` — 83.8% coverage with `-tags=noebiten`
-- **Validation**: `go test -tags=noebiten -cover ./pkg/procgen/adapters/... ./pkg/rendering/raycast/...` shows coverage for both packages
-
----
-
-## Gap 5: High Complexity Functions (5 → 0) — ✅ RESOLVED
-
-- **Stated Goal**: Maintainable code with cyclomatic complexity ≤10 per function (per copilot-instructions.md).
-- **Resolution**: High complexity functions have been refactored with extracted helpers:
-  - `drawQuadruped` → split into `drawQuadrupedBody`, `drawQuadrupedHead`, `drawQuadrupedLegs`
-  - `drawSerpentine` → split into `drawSerpentineBody`, `drawSerpentineHead`
-  - `drawAvian` → split into `drawAvianWings` and helper functions
-  - `GetNextUnlockForSkill` → split into `getPlayerSkillLevel`, `isNextUnlockCandidate`, etc.
-  - `GetAvailableUnlocks` → split into `isAvailableUnlock`, `hasSkill`, `arePrerequisitesMet`
-- **Validation**: All original high-complexity functions now delegate to smaller helper methods
+**Location:** `cmd/client/main.go:242-246`, `cmd/server/main.go:102-113`
+**Fix:** Add `world.RegisterSystem()` calls with proper initialization for all 44 systems.
 
 ---
 
-## Gap 6: Code Duplication (2.90% → <2.0%) — ✅ RESOLVED
+### Gap 1.2: Client Has Almost No Game Logic
 
-- **Stated Goal**: DRY code with minimal duplication.
-- **Resolution**: Duplication ratio reduced from 2.90% to 1.89% through consolidation of:
-  - Weather effect applications into parameterized helpers
-  - Stealth visibility calculations into shared function (hidingSpotConfigs map)
-  - Economic modifier applications
-  - Particle physics updates
-  - pseudoRandom utility extracted to shared pkg/util/random.go
-- **Validation**: `go-stats-generator analyze . --skip-tests | grep "Duplication Ratio"` shows 1.89%
+**Severity: CRITICAL** · **Impact: Client is a rendering shell with no gameplay**
 
----
+The client registers only 3 systems:
+1. `RenderSystem` — Minimal stub that reads player Position (no actual rendering logic in Update)
+2. `AudioSystem` — Full spatial audio calculation (but no AudioListener or AudioSource entities exist on client)
+3. `WeatherSystem` — Weather cycling (but `&systems.WeatherSystem{}` uses zero-value init, not `NewWeatherSystem()`)
 
-## Gap 7: Companion Package Coverage (78.8% → 85%) — ✅ RESOLVED
+The client relies entirely on the server for game logic, but there is no protocol to synchronize server state to the client. The client runs its own isolated ECS world with only a player entity.
 
-- **Stated Goal**: ≥70% test coverage per package; companion AI is a key gameplay feature.
-- **Resolution**: `pkg/companion/` coverage is now 87.1%, exceeding the 85% target.
-  - Tests cover CompanionManager state machine
-  - Combat role transitions are tested
-  - Relationship score boundary conditions are tested
-- **Validation**: `go test -cover ./pkg/companion/...` shows 87.1% coverage
+**Location:** `cmd/client/main.go:242-246`
+**Fix:** Either register client-side systems for single-player mode, or implement the entity synchronization protocol.
 
 ---
 
-## Gap 8: Large File Cohesion — ✅ RESOLVED
+### Gap 1.3: Client WeatherSystem Improperly Initialized
 
-- **Stated Goal**: Maintainable code with focused files.
-- **Resolution**: All six files that exceeded 1,000 LOC have been split into focused modules:
+**Severity: MODERATE** · **Impact: Weather on client uses zero-value defaults**
 
-  | Original File | Original Lines | New Lines | New Files Created |
-  |---------------|----------------|-----------|-------------------|
-  | `pkg/engine/systems/vehicle.go` | 3,052 | 53 | `vehicle_customization.go`, `vehicle_mount.go`, `vehicle_naval.go`, `vehicle_flying.go` |
-  | `pkg/world/housing/housing.go` | 3,620 | 790 | `housing_upgrades.go`, `housing_guild.go` |
-  | `pkg/engine/systems/skill_progression.go` | 1,924 | 528 | `skill_unlock.go`, `skill_book.go` |
-  | `pkg/engine/systems/quest.go` | 1,266 | 626 | `quest_faction_arcs.go` |
-  | `pkg/engine/systems/stealth.go` | 1,211 | 265 | `stealth_hiding.go`, `stealth_distraction.go` |
-  | `pkg/engine/systems/weather.go` | 1,072 | 746 | `weather_indoor.go` |
+In `cmd/client/main.go:245`:
+```go
+world.RegisterSystem(&systems.WeatherSystem{})  // zero-value init
+```
 
-- **Validation**: All original files are now under 1,000 LOC. Each new file is focused on a single system or subsystem.
+But `WeatherSystem` requires genre and duration parameters via `NewWeatherSystem(genre, duration)`. The server correctly uses `NewWeatherSystem(cfg.Genre, 300.0)` at line 112.
+
+**Location:** `cmd/client/main.go:245`
+**Fix:** `world.RegisterSystem(systems.NewWeatherSystem(cfg.Genre, 300.0))`
 
 ---
 
-## Gap 9: Naming Convention Violations — ✅ RESOLVED
+## Category 2: Missing Core Gameplay Features
 
-- **Stated Goal**: Follow Go naming conventions per project style guide.
-- **Resolution**: Reduced identifier violations from 35 to 23 by renaming package-stuttering types:
-  
-  **Fixed Identifier Violations**:
-  - `dialog.DialogManager` → `dialog.Manager`
-  - `dialog.DialogResponse` → `dialog.Response`
-  - `companion.CompanionManager` → `companion.Manager`
-  - `companion.CompanionTemplate` → `companion.Template`
-  - `companion.CompanionCount` → `companion.Count`
-  - `ambient.AmbientManager` → `ambient.Manager`
-  - `ambient.AmbientMixer` → `ambient.Mixer`
-  - `ambient.AmbientLayer` → `ambient.Layer`
-  - `input.InputManager` → `input.Manager`
-  - `input.InputListener` → `input.Listener`
-  - `federation.FederationNode` → `federation.Node`
-  - `city.CityWall` → `city.Wall`
-  
-  **Remaining Violations (23)**: Mostly in `components` package where descriptive names like `VehiclePhysics`, `FactionMembership` are acceptable since they're in a collection package, not domain-specific packages.
-  
-  **File Violations**: Generic names (`constants.go`, `types.go`) remain but don't affect functionality.
+### Gap 2.1: No Player Collision Detection
 
-- **Validation**: `go-stats-generator analyze . --skip-tests | grep "Identifier Violations"` shows 23 (reduced from 35)
+**Severity: HIGH** · **Impact: Player walks through all walls and terrain**
+
+Player movement in `cmd/client/main.go:123-153` directly modifies Position X/Y without checking the world map for walls. The raycaster renders walls but the movement code does not test against them.
+
+**Location:** `cmd/client/main.go:123-153` (`processMovementInput`, `processStrafeInput`)
+**Fix:** Before applying movement, check `worldMap[newY][newX]` for wall cells. Reject movement into cells where `heightToWallType() > 0`.
 
 ---
 
-## Summary: Gap Closure Priority
+### Gap 2.2: No HUD or UI System
 
-| Priority | Gap | Impact | Effort | Status |
-|----------|-----|--------|--------|--------|
-| **P1** | FEATURES.md sync | Documentation trust | Low | ✅ RESOLVED |
-| **P1** | Entry point tests | Regression risk | Medium | ✅ RESOLVED |
-| **P2** | Performance benchmarks | Quality claim | Medium | ✅ RESOLVED |
-| **P2** | Build-tag visibility | Developer experience | Low | ✅ RESOLVED |
-| **P2** | High complexity (5→0) | Maintainability | Medium | ✅ RESOLVED |
-| **P3** | Code duplication | Maintainability | Medium | ✅ RESOLVED (1.89%) |
-| **P3** | Companion coverage | Quality | Low | ✅ RESOLVED |
-| **P4** | File cohesion | Maintainability | High | ✅ RESOLVED |
-| **P4** | Naming violations | Code style | Low | ✅ RESOLVED (35→23) |
+**Severity: HIGH** · **Impact: Zero visual feedback for player state**
 
----
+The only screen overlay is a single debug text line:
+```go
+ebitenutil.DebugPrint(screen, fmt.Sprintf("Wyrm [%s] %s", g.cfg.Genre, status))
+```
 
-## Summary
+Missing UI elements:
+- Health/mana/stamina bars (player has Health component but it is never displayed)
+- Minimap or compass
+- Inventory screen
+- Quest log
+- Dialog interface
+- Pause/settings menu
+- Genre selection screen
+- Character creation screen
 
-**All gaps in this document have been resolved.** The project now meets all stated quality goals:
-- Zero critical or high-priority gaps remaining
-- All packages build and test successfully
-- Naming conventions improved significantly (35→23 violations)
-- Code duplication below 2.0% target (1.71%)
+**Location:** `cmd/client/main.go:157-171` (`Draw` method)
+**Fix:** Implement an overlay UI system rendered after the raycaster in `Draw()`.
 
 ---
 
-*Generated 2026-03-31 by comparing README.md, ROADMAP.md, and FEATURES.md claims against codebase implementation using go-stats-generator v1.0.0*
-*Updated 2026-03-31: All gaps marked as RESOLVED*
+### Gap 2.3: No Interaction System (E Key)
+
+**Severity: HIGH** · **Impact: Cannot interact with any world object**
+
+The `pkg/input/` package defines 40+ bindable actions including `interact` (default: E key), but the key binding system is never imported or used by the client. The client only handles WASD/QE movement directly via Ebiten key checks.
+
+**Location:** `cmd/client/main.go:108-153` (input handling)
+**Fix:** Import `pkg/input`, use `Rebinder` for all key checks, implement interaction raycasting to find the entity the player is looking at.
+
+---
+
+### Gap 2.4: No Save/Load Integration
+
+**Severity: HIGH** · **Impact: All progress lost when game exits**
+
+`pkg/world/persist/` provides a `PersistenceManager` with save/load functionality and test coverage, but it is never imported by either `cmd/client/` or `cmd/server/`.
+
+**Location:** `pkg/world/persist/`
+**Fix:** Call `PersistenceManager.Save()` on server shutdown and `PersistenceManager.Load()` on startup.
+
+---
+
+### Gap 2.5: No Character Creation or Genre Selection
+
+**Severity: MODERATE** · **Impact: Player starts with hardcoded position and stats; no genre choice UI**
+
+Player entity is created with hardcoded values:
+```go
+player := world.CreateEntity()
+world.AddComponent(player, &components.Position{X: 8.5, Y: 8.5, Z: 0})
+world.AddComponent(player, &components.Health{Current: 100, Max: 100})
+```
+
+No Mana, Skills, Inventory, Faction, Reputation, or Stealth components are added. Genre is read from config.yaml but there is no in-game UI to select it.
+
+**Location:** `cmd/client/main.go:230-239` (`createPlayerEntity`)
+**Fix:** Add a genre selection screen before game start. Create player with full component set (Mana, Skills, Inventory, etc.).
+
+---
+
+### Gap 2.6: No Menu System (Pause, Settings, Quit)
+
+**Severity: MODERATE** · **Impact: No way to pause, change settings, or quit gracefully from in-game**
+
+The only exit mechanism is OS window close (Ebiten default). There is no:
+- Pause menu (Escape key)
+- Settings screen (keybinds, audio, graphics)
+- Quit confirmation dialog
+- Return-to-title option
+
+**Location:** `cmd/client/main.go` (missing entirely)
+**Fix:** Implement game state machine (Playing → Paused → Settings → Quit).
+
+---
+
+## Category 3: Procedural Generation Disconnects
+
+### Gap 3.1: 83% of Generators Never Called at Runtime
+
+**Severity: HIGH** · **Impact: Most procedural content exists only in tests**
+
+Of 18 generator packages/adapters, only 3 are called at runtime:
+- ✅ `city.Generate()` — Called in `cmd/server/main.go:60`
+- ✅ `adapters.GenerateFactions()` — Called in `cmd/server/server_init.go:22`
+- ✅ `adapters.GenerateAndSpawnNPCs()` — Called in `cmd/server/main.go:92`
+
+Never called at runtime (15 generators):
+- `pkg/procgen/dungeon/` — BSP dungeon generator (tested, never used)
+- `adapters.BuildingAdapter` — Building generation
+- `adapters.DialogAdapter` — NPC dialog trees
+- `adapters.ItemAdapter` — Item/weapon generation
+- `adapters.FurnitureAdapter` — Interior furniture
+- `adapters.NarrativeAdapter` — Story arc generation
+- `adapters.QuestAdapter` — Quest template generation
+- `adapters.RecipeAdapter` — Crafting recipes
+- `adapters.TerrainAdapter` — Terrain features
+- `adapters.VehicleAdapter` — Vehicle generation
+- `adapters.PuzzleAdapter` — Dungeon puzzles
+- `adapters.MagicAdapter` — Spell generation (stub only)
+- `adapters.SkillsAdapter` — Skill tree generation (stub only)
+- `adapters.EnvironmentAdapter` — Environmental details (stub only)
+- `adapters.BiomeAdapter` — Biome generation (stub only)
+
+**Location:** `cmd/server/main.go`, `cmd/server/server_init.go`
+**Fix:** Call generators during server world initialization to populate buildings, items, quests, vehicles, etc.
+
+---
+
+### Gap 3.2: Dungeon Generator Orphaned
+
+**Severity: MODERATE** · **Impact: No dungeons in game despite BSP generator being complete**
+
+`pkg/procgen/dungeon/` generates fully connected dungeon layouts with rooms, doors, traps, puzzle areas, boss arenas, and genre-specific tile aesthetics. It has comprehensive tests proving 100 generated dungeons have 0 unreachable rooms. But it is never imported by any runtime code.
+
+**Location:** `pkg/procgen/dungeon/`
+**Fix:** Call dungeon generator for instanced content (quest dungeons, building basements) during world initialization.
+
+---
+
+## Category 4: Rendering and Visual Gaps
+
+### Gap 4.1: Rendering Subpackages Disconnected from Client
+
+**Severity: HIGH** · **Impact: 6 of 7 rendering packages unused**
+
+The client imports only `pkg/rendering/raycast/`. These rendering packages are fully implemented but never used at runtime:
+
+| Package | LOC | Status |
+|---------|-----|--------|
+| `pkg/rendering/sprite/` | ~1,200 | Procedural sprite generation — indirectly referenced by raycast billboard.go but no sprites exist |
+| `pkg/rendering/texture/` | ~600 | Procedural textures — never applied to rendered walls |
+| `pkg/rendering/lighting/` | ~500 | Point/directional/spot lighting with day/night — never integrated |
+| `pkg/rendering/particles/` | ~900 | 11 particle types (rain, snow, sparks, magic) — never rendered |
+| `pkg/rendering/postprocess/` | ~400 | Genre-specific post-processing (scanlines, vignette, bloom) — never applied |
+| `pkg/rendering/subtitles/` | ~500 | Subtitle rendering with accessibility options — never displayed |
+
+**Location:** `cmd/client/main.go` (only imports raycast)
+**Fix:** Integrate texture generator into raycast wall colors, enable particles for weather, apply post-processing in Draw().
+
+---
+
+### Gap 4.2: No Entity Rendering
+
+**Severity: HIGH** · **Impact: NPCs, items, vehicles invisible even if present**
+
+The raycast renderer supports billboard rendering (`pkg/rendering/raycast/billboard.go`) and the sprite generator (`pkg/rendering/sprite/`) can create entity sprites, but:
+- No entities have `Appearance` components on the client
+- No system populates the renderer's billboard list
+- Entity positions are not synced from server to client
+
+**Location:** `pkg/rendering/raycast/billboard.go`, `pkg/rendering/sprite/`
+**Fix:** Create entity Appearance components, sync entity positions from server, feed billboard list to renderer each frame.
+
+---
+
+## Category 5: Networking and Client-Server Gaps
+
+### Gap 5.1: No Game State Synchronization
+
+**Severity: CRITICAL** · **Impact: Multiplayer is non-functional beyond TCP connection**
+
+The server accepts TCP connections and runs a tick loop, but:
+- No entity state is broadcast to clients
+- No client input is processed by the server
+- No chunk data is streamed to clients
+- Client and server maintain completely independent ECS worlds
+
+The protocol messages (`PlayerInput`, `WorldState`, `EntityUpdate`, `ChunkData`) are defined in `pkg/network/protocol.go` but never sent or received in the game loop.
+
+**Location:** `cmd/server/main.go:116-138` (server loop), `cmd/client/main.go:42-48` (client loop)
+**Fix:** Implement message send/receive in both server tick loop and client update loop.
+
+---
+
+### Gap 5.2: Federation Protocol Initialized But Unused in Game Loop
+
+**Severity: LOW** · **Impact: Cross-server features don't affect gameplay**
+
+Federation is initialized in `cmd/server/main.go:39-42` and cleanup runs in a goroutine, but:
+- No player transfer messages are sent
+- No economy gossip is exchanged
+- No global events are broadcast
+- The federation object is only used for cleanup
+
+**Location:** `cmd/server/main.go:39-42`, `cmd/server/server_init.go:70-91`
+**Fix:** Integrate federation messaging into the server tick loop.
+
+---
+
+## Category 6: Audio Integration Gaps
+
+### Gap 6.1: Audio Subpackages Disconnected
+
+**Severity: MODERATE** · **Impact: No ambient soundscapes or adaptive music**
+
+The client creates an `audio.Engine` and `audio.Player` and plays a single ambient sine wave, but:
+- `pkg/audio/ambient/` (soundscapes with biome awareness) — never imported
+- `pkg/audio/music/` (adaptive music with genre motifs) — never imported
+- `AudioSystem` runs but has no `AudioListener` entity, so `findListenerPosition()` always returns false
+- No `AudioSource` entities exist on the client
+
+**Location:** `cmd/client/main.go:191-215`, `pkg/engine/systems/audio.go`
+**Fix:** Add AudioListener component to player entity. Import ambient/music packages. Create AudioSource entities for world sounds.
+
+---
+
+## Category 7: Package Integration Gaps
+
+### Gap 7.1: Input Rebinding System Not Used
+
+**Severity: MODERATE** · **Impact: Hardcoded keys; no rebinding**
+
+`pkg/input/` provides a complete `Rebinder` with 40+ bindable actions and config loading, but the client uses hardcoded `ebiten.IsKeyPressed()` calls instead.
+
+**Location:** `cmd/client/main.go:127-153`
+**Fix:** Replace direct Ebiten key checks with `input.Rebinder.IsPressed()` calls.
+
+---
+
+### Gap 7.2: Dialog Package Not Integrated
+
+**Severity: MODERATE** · **Impact: Cannot converse with NPCs**
+
+`pkg/dialog/` provides genre-aware dialog with emotional states, topic memory, and branching conversations. It is fully tested but never imported by runtime code.
+
+**Location:** `pkg/dialog/`
+**Fix:** Create a dialog UI in the client and use the dialog system for NPC conversations.
+
+---
+
+### Gap 7.3: Companion Package Not Integrated
+
+**Severity: LOW** · **Impact: No companion NPCs**
+
+`pkg/companion/` provides companion AI with personality, combat roles, and action memory. Never imported at runtime.
+
+**Location:** `pkg/companion/`
+**Fix:** Integrate companion spawning during character creation or quest progression.
+
+---
+
+### Gap 7.4: Housing/PvP/Persist Packages Not Integrated
+
+**Severity: LOW** · **Impact: No player housing, PvP zones, or data persistence**
+
+Three `pkg/world/` subpackages with full implementations and test coverage are unused:
+- `pkg/world/housing/` — Player houses, furniture, guild territories
+- `pkg/world/pvp/` — PvP zone management with flags and loot mechanics
+- `pkg/world/persist/` — World state serialization and persistence
+
+**Location:** `pkg/world/housing/`, `pkg/world/pvp/`, `pkg/world/persist/`
+**Fix:** Import into server initialization for housing registration, PvP zone creation, and state persistence.
+
+---
+
+## Category 8: Previously Resolved Code Quality Gaps
+
+The following gaps from the original GAPS.md (2026-03-31) are resolved and retained for reference:
+
+| # | Gap | Status |
+|---|-----|--------|
+| 1 | FEATURES.md Summary Table Outdated | ✅ RESOLVED — 200/200 (100.0%) |
+| 2 | Entry Point Test Coverage (0% → 30%) | ✅ RESOLVED — Client 100%, Server 83.8% |
+| 3 | Performance Target Unverifiable (60 FPS) | ✅ RESOLVED — 18+ benchmarks exist |
+| 4 | Build-Tag Test Visibility | ✅ RESOLVED — noebiten coverage reported |
+| 5 | High Complexity Functions (5 → 0) | ✅ RESOLVED — All refactored |
+| 6 | Code Duplication (2.90% → <2.0%) | ✅ RESOLVED — Now 1.89% |
+| 7 | Companion Package Coverage (78.8% → 85%) | ✅ RESOLVED — Now 87.1% |
+| 8 | Large File Cohesion | ✅ RESOLVED — All files split |
+| 9 | Naming Convention Violations (35 → 23) | ✅ RESOLVED |
+
+---
+
+## Summary: Gap Priority Matrix
+
+| Priority | Gap | Player Impact | Effort | Category |
+|----------|-----|---------------|--------|----------|
+| **P0** | 1.1 — 44 unregistered systems | All gameplay non-functional | Medium | Integration |
+| **P0** | 5.1 — No state sync | Multiplayer broken | High | Networking |
+| **P0** | 1.2 — Client has no game logic | Client is empty shell | High | Integration |
+| **P1** | 2.1 — No collision detection | Walk through walls | Low | Gameplay |
+| **P1** | 2.2 — No HUD/UI | Zero visual feedback | Medium | UI/UX |
+| **P1** | 4.1 — Rendering packages unused | No lighting, particles, post-processing | Medium | Rendering |
+| **P1** | 3.1 — 83% generators unused | World feels empty | Medium | Content |
+| **P2** | 2.3 — No interaction system | Can't interact with anything | Medium | Gameplay |
+| **P2** | 2.5 — No character creation | Hardcoded starting state | Medium | Onboarding |
+| **P2** | 4.2 — No entity rendering | NPCs invisible | Medium | Rendering |
+| **P2** | 6.1 — Audio subpackages unused | No soundscapes or music | Medium | Audio |
+| **P2** | 2.4 — No save/load | Progress lost on exit | Medium | Persistence |
+| **P3** | 7.1 — Input rebinding unused | Hardcoded keys | Low | Input |
+| **P3** | 7.2 — Dialog not integrated | No NPC conversations | Medium | Dialog |
+| **P3** | 2.6 — No menu system | No pause/settings/quit | Medium | UI/UX |
+| **P3** | 1.3 — WeatherSystem wrong init | Client weather uses defaults | Low | Integration |
+| **P4** | 3.2 — Dungeon generator orphaned | No dungeons despite generator | Low | Content |
+| **P4** | 7.3 — Companion not integrated | No companion NPCs | Low | Features |
+| **P4** | 7.4 — Housing/PvP/Persist unused | No housing or PvP zones | Low | Features |
+| **P4** | 5.2 — Federation unused in loop | Cross-server non-functional | Low | Networking |
+
+**Total: 20 active gaps** (9 code quality gaps resolved, 20 playability gaps identified)
+
+---
+
+*Generated 2026-03-31 from comprehensive codebase audit. See AUDIT.md for full system status matrix.*
