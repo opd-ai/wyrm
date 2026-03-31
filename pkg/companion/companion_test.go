@@ -295,6 +295,97 @@ func TestCombatRoleString(t *testing.T) {
 	}
 }
 
+// TestGetCompanion tests the GetCompanion method.
+func TestGetCompanion(t *testing.T) {
+	cm := NewCompanionManager(12345)
+	comp := cm.CreateCompanion(100, "fantasy", RoleTank)
+
+	// Test getting an existing companion
+	retrieved := cm.GetCompanion(comp.ID)
+	if retrieved == nil {
+		t.Fatal("GetCompanion returned nil for existing companion")
+	}
+	if retrieved.ID != comp.ID {
+		t.Errorf("GetCompanion ID = %d, want %d", retrieved.ID, comp.ID)
+	}
+
+	// Test getting a non-existent companion
+	nonExistent := cm.GetCompanion(999999)
+	if nonExistent != nil {
+		t.Error("GetCompanion should return nil for non-existent ID")
+	}
+}
+
+// TestCompanionCount tests the CompanionCount method.
+func TestCompanionCount(t *testing.T) {
+	cm := NewCompanionManager(12345)
+
+	// Initially no companions
+	if cm.CompanionCount() != 0 {
+		t.Errorf("Initial count = %d, want 0", cm.CompanionCount())
+	}
+
+	// Add companions
+	cm.CreateCompanion(1, "fantasy", RoleTank)
+	if cm.CompanionCount() != 1 {
+		t.Errorf("After 1 creation, count = %d, want 1", cm.CompanionCount())
+	}
+
+	cm.CreateCompanion(2, "fantasy", RoleHealer)
+	if cm.CompanionCount() != 2 {
+		t.Errorf("After 2 creations, count = %d, want 2", cm.CompanionCount())
+	}
+
+	cm.CreateCompanion(3, "sci-fi", RoleDPS)
+	if cm.CompanionCount() != 3 {
+		t.Errorf("After 3 creations, count = %d, want 3", cm.CompanionCount())
+	}
+}
+
+// TestSelectTankAbility tests the tank ability selection.
+func TestSelectTankAbility(t *testing.T) {
+	cm := NewCompanionManager(12345)
+	comp := cm.CreateCompanion(100, "fantasy", RoleTank)
+
+	// Tank should select shield_wall
+	ability := cm.SelectAbility(comp.ID, false, false)
+	if ability == nil {
+		t.Fatal("SelectAbility returned nil for tank")
+	}
+	if ability.ID != "shield_wall" {
+		t.Errorf("Tank ability = %s, want shield_wall", ability.ID)
+	}
+}
+
+// TestSelectAbilityAllRoles tests ability selection for all combat roles.
+func TestSelectAbilityAllRoles(t *testing.T) {
+	cm := NewCompanionManager(12345)
+
+	tests := []struct {
+		role           CombatRole
+		targetLowHP    bool
+		allyLowHP      bool
+		expectedPrefix string
+	}{
+		{RoleTank, false, false, "shield_wall"},
+		{RoleHealer, false, true, "heal"},
+		{RoleDPS, true, false, "execute"},
+		{RoleDPS, false, false, "power_strike"},
+	}
+
+	for i, tt := range tests {
+		comp := cm.CreateCompanion(uint64(200+i), "fantasy", tt.role)
+		ability := cm.SelectAbility(comp.ID, tt.targetLowHP, tt.allyLowHP)
+		if ability == nil {
+			t.Errorf("Test %d: SelectAbility returned nil for role %v", i, tt.role)
+			continue
+		}
+		if ability.ID != tt.expectedPrefix {
+			t.Errorf("Test %d: ability = %s, want %s", i, ability.ID, tt.expectedPrefix)
+		}
+	}
+}
+
 func BenchmarkCreateCompanion(b *testing.B) {
 	cm := NewCompanionManager(12345)
 	for i := 0; i < b.N; i++ {

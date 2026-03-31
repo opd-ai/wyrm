@@ -391,43 +391,64 @@ func (g *Generator) drawQuadruped(sprite *Sprite, width, height int, primary, se
 	bodyLeft := width / 6
 	bodyRight := width * 5 / 6
 
-	for y := bodyTop; y < bodyBottom; y++ {
-		for x := bodyLeft; x < bodyRight; x++ {
-			sprite.SetPixel(x, y, primary)
+	g.drawQuadrupedBody(sprite, bodyLeft, bodyRight, bodyTop, bodyBottom, primary)
+	g.drawQuadrupedHead(sprite, width, height, secondary)
+	g.drawQuadrupedLegs(sprite, width, height, bodyBottom, primary, state, frameIdx)
+}
+
+// drawQuadrupedBody draws the main body of a quadruped creature.
+func (g *Generator) drawQuadrupedBody(sprite *Sprite, left, right, top, bottom int, c color.RGBA) {
+	for y := top; y < bottom; y++ {
+		for x := left; x < right; x++ {
+			sprite.SetPixel(x, y, c)
 		}
 	}
+}
 
-	// Head
+// drawQuadrupedHead draws the head of a quadruped creature.
+func (g *Generator) drawQuadrupedHead(sprite *Sprite, width, height int, c color.RGBA) {
 	headRight := width / 6
 	headTop := height / 3
 	headBottom := height / 2
 	for y := headTop; y < headBottom; y++ {
 		for x := 0; x < headRight; x++ {
-			sprite.SetPixel(x, y, secondary)
+			sprite.SetPixel(x, y, c)
 		}
 	}
+}
 
-	// Legs (4)
+// drawQuadrupedLegs draws the four legs of a quadruped creature with animation.
+func (g *Generator) drawQuadrupedLegs(sprite *Sprite, width, height, bodyBottom int, c color.RGBA, state string, frameIdx int) {
 	legWidth := width / 10
-	legTop := bodyBottom
 	legBottom := height
 	legOffsets := []int{width / 5, width * 2 / 5, width * 3 / 5, width * 4 / 5}
 
-	animOffset := 0
-	if state == "walk" {
-		animOffset = int(math.Sin(float64(frameIdx)*math.Pi/3) * 2)
-	}
+	animOffset := g.calculateLegAnimOffset(state, frameIdx)
 
 	for i, legX := range legOffsets {
 		offset := animOffset
 		if i%2 == 1 {
 			offset = -offset
 		}
-		for y := legTop + offset; y < legBottom; y++ {
-			if y >= legTop && y < height {
-				for x := legX; x < legX+legWidth && x < width; x++ {
-					sprite.SetPixel(x, y, primary)
-				}
+		g.drawSingleLeg(sprite, legX, bodyBottom+offset, legBottom, legWidth, width, height, c)
+	}
+}
+
+// calculateLegAnimOffset calculates the animation offset for leg movement.
+func (g *Generator) calculateLegAnimOffset(state string, frameIdx int) int {
+	if state == "walk" {
+		return int(math.Sin(float64(frameIdx)*math.Pi/3) * 2)
+	}
+	return 0
+}
+
+// drawSingleLeg draws a single leg at the specified position.
+func (g *Generator) drawSingleLeg(sprite *Sprite, legX, top, bottom, legWidth, maxWidth, maxHeight int, c color.RGBA) {
+	bodyBottom := maxHeight * 2 / 3 // Derive from body proportions
+	for y := top; y < bottom; y++ {
+		if y >= bodyBottom && y < maxHeight {
+			for x := legX; x < legX+legWidth && x < maxWidth; x++ {
+				sprite.SetPixel(x, y, c)
 			}
 		}
 	}
@@ -438,36 +459,54 @@ func (g *Generator) drawSerpentine(sprite *Sprite, width, height int, primary, s
 	centerY := height / 2
 	bodyHeight := height / 4
 
+	g.drawSerpentineBody(sprite, width, height, centerY, bodyHeight, primary, frameIdx)
+	g.drawSerpentineHead(sprite, width, height, centerY, secondary)
+}
+
+// drawSerpentineBody draws the sinusoidal body of a serpentine creature.
+func (g *Generator) drawSerpentineBody(sprite *Sprite, width, height, centerY, bodyHeight int, c color.RGBA, frameIdx int) {
 	for x := 0; x < width; x++ {
-		// Sinusoidal body
 		waveOffset := math.Sin(float64(x)/float64(width)*math.Pi*2 + float64(frameIdx)*0.5)
 		centerOffset := int(waveOffset * float64(height/6))
 
+		thickness := g.calculateSerpentineThickness(x, width, bodyHeight)
+
 		for y := centerY - bodyHeight/2 + centerOffset; y < centerY+bodyHeight/2+centerOffset; y++ {
 			if y >= 0 && y < height {
-				// Taper at ends
-				thickness := float64(bodyHeight)
-				if x < width/4 {
-					thickness *= float64(x) / float64(width/4)
-				}
-				if x > width*3/4 {
-					thickness *= float64(width-x) / float64(width/4)
-				}
 				if math.Abs(float64(y-centerY-centerOffset)) < thickness/2 {
-					sprite.SetPixel(x, y, primary)
+					sprite.SetPixel(x, y, c)
 				}
 			}
 		}
 	}
+}
 
-	// Head (at left end)
+// calculateSerpentineThickness calculates body thickness with tapering at ends.
+func (g *Generator) calculateSerpentineThickness(x, width, bodyHeight int) float64 {
+	thickness := float64(bodyHeight)
+	if x < width/4 {
+		thickness *= float64(x) / float64(width/4)
+	}
+	if x > width*3/4 {
+		thickness *= float64(width-x) / float64(width/4)
+	}
+	return thickness
+}
+
+// drawSerpentineHead draws the head of a serpentine creature.
+func (g *Generator) drawSerpentineHead(sprite *Sprite, width, height, centerY int, c color.RGBA) {
 	headX := 2
 	headY := centerY
 	headRadius := height / 6
-	for dy := -headRadius; dy <= headRadius; dy++ {
-		for dx := -headRadius; dx <= headRadius; dx++ {
-			if dx*dx+dy*dy <= headRadius*headRadius {
-				sprite.SetPixel(headX+dx, headY+dy, secondary)
+	g.drawCircle(sprite, headX, headY, headRadius, c)
+}
+
+// drawCircle draws a filled circle at the specified position.
+func (g *Generator) drawCircle(sprite *Sprite, centerX, centerY, radius int, c color.RGBA) {
+	for dy := -radius; dy <= radius; dy++ {
+		for dx := -radius; dx <= radius; dx++ {
+			if dx*dx+dy*dy <= radius*radius {
+				sprite.SetPixel(centerX+dx, centerY+dy, c)
 			}
 		}
 	}

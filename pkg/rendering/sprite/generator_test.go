@@ -317,3 +317,77 @@ func TestMinFunction(t *testing.T) {
 		t.Error("min(5, 5) should be 5")
 	}
 }
+
+// Benchmarks for performance verification (60 FPS target)
+
+func BenchmarkGenerateHumanoidSheet(b *testing.B) {
+	gen := NewGenerator("fantasy", 12345)
+	key := SpriteCacheKey{
+		Category:       CategoryHumanoid,
+		BodyPlan:       "warrior",
+		GenreID:        "fantasy",
+		PrimaryColor:   packColor(color.RGBA{R: 200, G: 150, B: 100, A: 255}),
+		SecondaryColor: packColor(color.RGBA{R: 100, G: 80, B: 60, A: 255}),
+		Scale:          1.0,
+		Seed:           42,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		gen.GenerateSheet(key)
+	}
+}
+
+func BenchmarkGenerateCreatureSheet(b *testing.B) {
+	gen := NewGenerator("fantasy", 12345)
+	key := SpriteCacheKey{
+		Category:       CategoryCreature,
+		BodyPlan:       "quadruped",
+		GenreID:        "fantasy",
+		PrimaryColor:   packColor(color.RGBA{R: 150, G: 100, B: 50, A: 255}),
+		SecondaryColor: packColor(color.RGBA{R: 80, G: 60, B: 30, A: 255}),
+		Scale:          1.5,
+		Seed:           99,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		gen.GenerateSheet(key)
+	}
+}
+
+func BenchmarkGenerateVehicleSheet(b *testing.B) {
+	gen := NewGenerator("cyberpunk", 12345)
+	key := SpriteCacheKey{
+		Category:       CategoryVehicle,
+		BodyPlan:       "buggy",
+		GenreID:        "cyberpunk",
+		PrimaryColor:   packColor(color.RGBA{R: 50, G: 50, B: 100, A: 255}),
+		SecondaryColor: packColor(color.RGBA{R: 200, G: 0, B: 200, A: 255}),
+		Scale:          2.0,
+		Seed:           1337,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		gen.GenerateSheet(key)
+	}
+}
+
+func BenchmarkGenerateAllCategories(b *testing.B) {
+	gen := NewGenerator("fantasy", 12345)
+	keys := []SpriteCacheKey{
+		{Category: CategoryHumanoid, BodyPlan: "warrior", Scale: 1.0, Seed: 1},
+		{Category: CategoryCreature, BodyPlan: "quadruped", Scale: 1.5, Seed: 2},
+		{Category: CategoryVehicle, BodyPlan: "buggy", Scale: 2.0, Seed: 3},
+		{Category: CategoryObject, BodyPlan: "chest", Scale: 1.0, Seed: 4},
+		{Category: CategoryEffect, BodyPlan: "glow", Scale: 1.0, Seed: 5},
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, key := range keys {
+			gen.GenerateSheet(key)
+		}
+	}
+}
