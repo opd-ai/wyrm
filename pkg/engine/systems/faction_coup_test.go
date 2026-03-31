@@ -156,51 +156,48 @@ func TestCoupStateProgression(t *testing.T) {
 	}
 }
 
-func TestCoupSuccess(t *testing.T) {
-	rankSys := NewFactionRankSystem("fantasy")
-	sys := NewFactionCoupSystem(rankSys, nil, 12345, "fantasy")
-	sys.MinPlotDuration = 0.1
-
-	// Start a coup
-	sys.StartCoup("knights", 0, "npc", "test")
-	coup := sys.GetCoup("knights")
-
-	// Set to active state with high support
-	coup.State = CoupStateActive
-	coup.SupportLevel = 0.7
-	coup.ResistanceLevel = 0.2
-	coup.Duration = 0.5
-
-	// Update to trigger resolution
-	world := ecs.NewWorld()
-	sys.Update(world, 0.1)
-
-	if coup.State != CoupStateSucceeded {
-		t.Errorf("expected CoupStateSucceeded, got %d", coup.State)
+func TestCoupResolution(t *testing.T) {
+	tests := []struct {
+		name            string
+		supportLevel    float64
+		resistanceLevel float64
+		expectedState   CoupState
+	}{
+		{
+			name:            "coup succeeds with high support",
+			supportLevel:    0.7,
+			resistanceLevel: 0.2,
+			expectedState:   CoupStateSucceeded,
+		},
+		{
+			name:            "coup fails with high resistance",
+			supportLevel:    0.2,
+			resistanceLevel: 0.8,
+			expectedState:   CoupStateFailed,
+		},
 	}
-}
 
-func TestCoupFailure(t *testing.T) {
-	rankSys := NewFactionRankSystem("fantasy")
-	sys := NewFactionCoupSystem(rankSys, nil, 12345, "fantasy")
-	sys.MinPlotDuration = 0.1
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rankSys := NewFactionRankSystem("fantasy")
+			sys := NewFactionCoupSystem(rankSys, nil, 12345, "fantasy")
+			sys.MinPlotDuration = 0.1
 
-	// Start a coup
-	sys.StartCoup("knights", 0, "npc", "test")
-	coup := sys.GetCoup("knights")
+			sys.StartCoup("knights", 0, "npc", "test")
+			coup := sys.GetCoup("knights")
 
-	// Set to active state with high resistance
-	coup.State = CoupStateActive
-	coup.SupportLevel = 0.2
-	coup.ResistanceLevel = 0.8
-	coup.Duration = 0.5
+			coup.State = CoupStateActive
+			coup.SupportLevel = tt.supportLevel
+			coup.ResistanceLevel = tt.resistanceLevel
+			coup.Duration = 0.5
 
-	// Update to trigger resolution
-	world := ecs.NewWorld()
-	sys.Update(world, 0.1)
+			world := ecs.NewWorld()
+			sys.Update(world, 0.1)
 
-	if coup.State != CoupStateFailed {
-		t.Errorf("expected CoupStateFailed, got %d", coup.State)
+			if coup.State != tt.expectedState {
+				t.Errorf("expected %d, got %d", tt.expectedState, coup.State)
+			}
+		})
 	}
 }
 

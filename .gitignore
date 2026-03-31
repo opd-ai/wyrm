@@ -22,9 +22,17 @@ coverage.*
 profile.cov
 
 # Build and runtime logs
-loop.log
 *.log
 
+# Analysis and baseline artifacts (go-stats-generator output)
+baseline*.json
+post*.json
+pre-cleanup.json
+post-cleanup.json
+test-output*.txt
+*-diff.json
+diff-report*.json
+test-duplication.json
 
 # Dependency directories (remove the comment below to include it)
 # vendor/

@@ -410,7 +410,6 @@ func TestFederationGlobalEventBroadcast(t *testing.T) {
 		"event-server-1", "127.0.0.1:17785",
 		"event-server-2", "127.0.0.1:17786")
 	defer cleanup()
-	_ = server2 // used for peer connection
 
 	// Create a global event
 	event := &GlobalEvent{
