@@ -262,7 +262,7 @@ Legend:
 - [x] Location-based music
 - [x] Boss fight music
 - [x] Victory/defeat jingles
-- [ ] Menu music
+- [x] Menu music
 
 ---
 

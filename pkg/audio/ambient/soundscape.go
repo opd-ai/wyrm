@@ -630,6 +630,21 @@ func (m *AmbientMixer) GetCrossfadeTime() float64 {
 	return m.crossfadeTime
 }
 
+// updateLayerVolume advances a single layer's volume toward its target.
+func (m *AmbientMixer) updateLayerVolume(layer *AmbientLayer, dt float64) {
+	delta := layer.fadeRate * dt
+	if layer.volume < layer.targetVol {
+		layer.volume = min(layer.volume+delta, layer.targetVol)
+	} else if layer.volume > layer.targetVol {
+		layer.volume = max(layer.volume-delta, layer.targetVol)
+	}
+}
+
+// shouldRemoveLayer returns true if the layer has fully faded out.
+func (m *AmbientMixer) shouldRemoveLayer(layer *AmbientLayer) bool {
+	return layer.volume <= 0 && layer.targetVol <= 0
+}
+
 // Update advances all layer volumes toward their targets.
 func (m *AmbientMixer) Update(dt float64) {
 	m.mu.Lock()
@@ -638,21 +653,8 @@ func (m *AmbientMixer) Update(dt float64) {
 	layersToRemove := make([]string, 0)
 
 	for name, layer := range m.layers {
-		// Move volume toward target
-		if layer.volume < layer.targetVol {
-			layer.volume += layer.fadeRate * dt
-			if layer.volume > layer.targetVol {
-				layer.volume = layer.targetVol
-			}
-		} else if layer.volume > layer.targetVol {
-			layer.volume -= layer.fadeRate * dt
-			if layer.volume < layer.targetVol {
-				layer.volume = layer.targetVol
-			}
-		}
-
-		// Remove fully faded out layers
-		if layer.volume <= 0 && layer.targetVol <= 0 {
+		m.updateLayerVolume(layer, dt)
+		if m.shouldRemoveLayer(layer) {
 			layersToRemove = append(layersToRemove, name)
 		}
 	}

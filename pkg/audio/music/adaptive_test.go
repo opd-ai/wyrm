@@ -1186,3 +1186,309 @@ func TestDynamicLayerConcurrentAccess(t *testing.T) {
 		<-done
 	}
 }
+
+// ============================================================================
+// Menu Music Tests
+// ============================================================================
+
+func TestEnterMenu(t *testing.T) {
+	am := NewAdaptiveMusic("fantasy", 42)
+
+	am.EnterMenu()
+
+	if am.GetCurrentState() != StateMenu {
+		t.Errorf("expected StateMenu, got %v", am.GetCurrentState())
+	}
+
+	// Menu layer should be fading in
+	am.mu.Lock()
+	menuTarget := am.layers["menu"].Target
+	menuActive := am.layers["menu"].Active
+	am.mu.Unlock()
+
+	if menuTarget != MaxVolume {
+		t.Errorf("menu target should be %f, got %f", MaxVolume, menuTarget)
+	}
+	if !menuActive {
+		t.Error("menu layer should be active")
+	}
+}
+
+func TestEnterMenu_FadesOutGameplay(t *testing.T) {
+	am := NewAdaptiveMusic("fantasy", 42)
+
+	// Simulate gameplay first
+	am.EnterCombat()
+
+	// Then enter menu
+	am.EnterMenu()
+
+	am.mu.Lock()
+	explorationTarget := am.layers["exploration"].Target
+	combatTarget := am.layers["combat"].Target
+	am.mu.Unlock()
+
+	if explorationTarget != 0.0 {
+		t.Errorf("exploration should fade out to 0, got %f", explorationTarget)
+	}
+	if combatTarget != 0.0 {
+		t.Errorf("combat should fade out to 0, got %f", combatTarget)
+	}
+}
+
+func TestEnterPauseMenu(t *testing.T) {
+	am := NewAdaptiveMusic("fantasy", 42)
+
+	am.EnterPauseMenu()
+
+	if am.GetCurrentState() != StatePauseMenu {
+		t.Errorf("expected StatePauseMenu, got %v", am.GetCurrentState())
+	}
+
+	am.mu.Lock()
+	menuTarget := am.layers["menu"].Target
+	explorationTarget := am.layers["exploration"].Target
+	am.mu.Unlock()
+
+	// Pause menu has reduced menu music
+	if menuTarget != MenuMusicVolume {
+		t.Errorf("pause menu music should be at %f, got %f", MenuMusicVolume, menuTarget)
+	}
+	// Exploration music should be reduced, not muted
+	if explorationTarget != MenuMusicReduction {
+		t.Errorf("exploration should be reduced to %f, got %f", MenuMusicReduction, explorationTarget)
+	}
+}
+
+func TestExitMenu(t *testing.T) {
+	am := NewAdaptiveMusic("fantasy", 42)
+
+	// Enter menu
+	am.EnterMenu()
+	if am.GetCurrentState() != StateMenu {
+		t.Fatal("should be in menu state")
+	}
+
+	// Exit menu
+	am.ExitMenu()
+
+	// Should return to exploration
+	if am.GetCurrentState() != StateExploration {
+		t.Errorf("expected StateExploration after exit, got %v", am.GetCurrentState())
+	}
+
+	// Menu layer should be fading out
+	am.mu.Lock()
+	menuTarget := am.layers["menu"].Target
+	am.mu.Unlock()
+
+	if menuTarget != 0.0 {
+		t.Errorf("menu should fade out to 0, got %f", menuTarget)
+	}
+}
+
+func TestExitMenu_RestoresCombat(t *testing.T) {
+	am := NewAdaptiveMusic("fantasy", 42)
+
+	// Enter combat first
+	am.EnterCombat()
+
+	// Enter pause menu (preserves previous state)
+	am.EnterPauseMenu()
+
+	// Exit menu - should restore combat
+	am.ExitMenu()
+
+	if am.GetCurrentState() != StateCombat {
+		t.Errorf("expected StateCombat after exit from pause, got %v", am.GetCurrentState())
+	}
+
+	am.mu.Lock()
+	combatTarget := am.layers["combat"].Target
+	combatActive := am.layers["combat"].Active
+	am.mu.Unlock()
+
+	if combatTarget != MaxVolume {
+		t.Errorf("combat should restore to max, got %f", combatTarget)
+	}
+	if !combatActive {
+		t.Error("combat layer should be active")
+	}
+}
+
+func TestIsInMenu(t *testing.T) {
+	am := NewAdaptiveMusic("fantasy", 42)
+
+	if am.IsInMenu() {
+		t.Error("should not be in menu initially")
+	}
+
+	am.EnterMenu()
+	if !am.IsInMenu() {
+		t.Error("should be in menu after EnterMenu")
+	}
+
+	am.ExitMenu()
+	if am.IsInMenu() {
+		t.Error("should not be in menu after ExitMenu")
+	}
+}
+
+func TestIsInMenu_PauseMenu(t *testing.T) {
+	am := NewAdaptiveMusic("fantasy", 42)
+
+	am.EnterPauseMenu()
+	if !am.IsInMenu() {
+		t.Error("IsInMenu should return true for pause menu")
+	}
+}
+
+func TestGenerateMenuMusic(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+
+	for _, genre := range genres {
+		t.Run(genre, func(t *testing.T) {
+			am := NewAdaptiveMusic(genre, 42)
+			am.EnterMenu()
+
+			samples := am.GenerateMenuMusic(0.5)
+
+			expectedLen := int(0.5 * float64(DefaultSampleRate))
+			if len(samples) != expectedLen {
+				t.Errorf("expected %d samples, got %d", expectedLen, len(samples))
+			}
+
+			// Should have non-zero samples
+			hasNonZero := false
+			for _, s := range samples {
+				if s != 0 {
+					hasNonZero = true
+					break
+				}
+			}
+			if !hasNonZero {
+				t.Error("menu music should produce non-zero samples")
+			}
+		})
+	}
+}
+
+func TestMenuStatesPreservePrevious(t *testing.T) {
+	am := NewAdaptiveMusic("fantasy", 42)
+
+	// Enter combat
+	am.EnterCombat()
+	previousState := am.GetCurrentState()
+
+	// Enter menu
+	am.EnterMenu()
+
+	am.mu.Lock()
+	storedPrevious := am.previousState
+	am.mu.Unlock()
+
+	if storedPrevious != previousState {
+		t.Error("entering menu should preserve previous state")
+	}
+}
+
+func TestExitMenuFromNonMenu(t *testing.T) {
+	am := NewAdaptiveMusic("fantasy", 42)
+
+	// Calling ExitMenu when not in menu should do nothing
+	am.ExitMenu()
+
+	// Should still be in exploration
+	if am.GetCurrentState() != StateExploration {
+		t.Error("state should remain unchanged when ExitMenu called outside menu")
+	}
+}
+
+func TestMenuLayerExists(t *testing.T) {
+	am := NewAdaptiveMusic("fantasy", 42)
+
+	am.mu.Lock()
+	_, exists := am.layers["menu"]
+	am.mu.Unlock()
+
+	if !exists {
+		t.Error("menu layer should be initialized")
+	}
+}
+
+func TestGetMenuBaseFrequency(t *testing.T) {
+	testCases := []struct {
+		genre    string
+		expected float64
+	}{
+		{"fantasy", FreqA3 * 0.5},
+		{"sci-fi", FreqE4},
+		{"horror", FreqA1},
+		{"cyberpunk", FreqA4 * 0.75},
+		{"post-apocalyptic", FreqE3 * 0.75},
+		{"unknown", FreqA3 * 0.5},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.genre, func(t *testing.T) {
+			am := NewAdaptiveMusic(tc.genre, 42)
+			freq := am.getMenuBaseFrequency()
+
+			if freq != tc.expected {
+				t.Errorf("expected %f, got %f", tc.expected, freq)
+			}
+		})
+	}
+}
+
+func TestGetMenuMotif(t *testing.T) {
+	am := NewAdaptiveMusic("fantasy", 42)
+	motif := am.getMenuMotif()
+
+	if motif == nil {
+		t.Fatal("getMenuMotif should not return nil")
+	}
+	if len(motif.Notes) == 0 {
+		t.Error("motif should have notes")
+	}
+	if len(motif.Durations) == 0 {
+		t.Error("motif should have durations")
+	}
+}
+
+func TestGetMenuEnvelope(t *testing.T) {
+	am := NewAdaptiveMusic("fantasy", 42)
+
+	// Test attack phase (first 20%)
+	env := am.getMenuEnvelope(0, 100)
+	if env != 0 {
+		t.Errorf("envelope at start should be 0, got %f", env)
+	}
+
+	env = am.getMenuEnvelope(10, 100)
+	if env != 0.5 {
+		t.Errorf("envelope at 10%% should be 0.5, got %f", env)
+	}
+
+	// Test sustain phase (20%-70%)
+	env = am.getMenuEnvelope(50, 100)
+	if env != 1.0 {
+		t.Errorf("envelope in sustain should be 1.0, got %f", env)
+	}
+
+	// Test release phase (70%-100%)
+	env = am.getMenuEnvelope(85, 100)
+	if env < 0 || env > 1 {
+		t.Errorf("envelope in release should be between 0-1, got %f", env)
+	}
+}
+
+func BenchmarkGenerateMenuMusic(b *testing.B) {
+	am := NewAdaptiveMusic("fantasy", 42)
+	am.EnterMenu()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = am.GenerateMenuMusic(0.1)
+	}
+}

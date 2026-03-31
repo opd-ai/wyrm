@@ -124,13 +124,15 @@
 - **Goal Impact**: Music System category (9/10 → 10/10)
 - **Acceptance**: Title screen and pause menu have procedural music distinct from gameplay
 - **Validation**: `go test -cover ./pkg/audio/music/... | grep -E 'coverage: [7-9][0-9]|100'`
+- **Status**: Added StateMenu and StatePauseMenu states, EnterMenu/EnterPauseMenu/ExitMenu methods, GenerateMenuMusic with genre-specific base frequencies and motifs, getMenuEnvelope for soft attack/sustain/release. Test coverage 97.6%.
 
-### Step 9: Improve Music Package Test Coverage (62.9% → 80%)
+### Step 9: Improve Music Package Test Coverage (62.9% → 80%) ✅ COMPLETED (superseded)
 - **Deliverable**: Add tests for `pkg/audio/music/adaptive.go` edge cases (motif transitions, intensity changes, combat detection)
 - **Dependencies**: Step 8 (Menu Music adds code that needs testing)
 - **Goal Impact**: Addresses only package below 70% target
 - **Acceptance**: Music package reaches ≥80% test coverage
 - **Validation**: `go test -cover ./pkg/audio/music/... | grep -E 'coverage: [8-9][0-9]|100'`
+- **Status**: Coverage reached 97.6% as part of Step 8 menu music implementation. Comprehensive tests added for all menu music functions.
 
 ### Step 10: Implement Sprite Rendering
 - **Deliverable**: Extend `pkg/rendering/raycast/` with sprite rendering for NPCs and items
