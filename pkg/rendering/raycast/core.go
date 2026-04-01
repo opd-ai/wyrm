@@ -284,6 +284,11 @@ func (r *Renderer) SetWorldMapDirect(worldMap [][]int) {
 	r.WorldMap = worldMap
 }
 
+// GetPlayerAngle returns the player's current facing angle in radians.
+func (r *Renderer) GetPlayerAngle() float64 {
+	return r.PlayerA
+}
+
 // TextureSize is the size of generated wall textures.
 const TextureSize = 64
 

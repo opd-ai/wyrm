@@ -622,8 +622,8 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 - [x] Verify GossipSystem propagates information between NPCs
 - [x] Verify NPCMemorySystem tracks player interactions per NPC
 - [x] Verify EmotionalStateSystem produces visible emotional reactions
-- [ ] Implement visible multi-NPC conversations in city areas
-- [ ] Verify NPCs follow daily schedule cycle (work → eat → socialize → sleep)
+- [x] Implement visible multi-NPC conversations in city areas
+- [x] Verify NPCs follow daily schedule cycle (work → eat → socialize → sleep)
 
 ### 4G: Housing and PvP (12 hours)
 

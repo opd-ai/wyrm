@@ -96,6 +96,10 @@ type Game struct {
 	craftingUI *CraftingUI
 	// Faction UI
 	factionUI *FactionUI
+	// Housing UI
+	housingUI *HousingUI
+	// PvP UI
+	pvpUI *PvPUI
 	// State synchronization (online mode)
 	stateSync *StateSynchronizer
 	// NPC rendering
@@ -158,6 +162,12 @@ func (g *Game) Update() error {
 		return nil
 	}
 
+	// Update housing UI
+	if g.housingUI != nil && g.housingUI.IsActive() {
+		g.housingUI.Update()
+		return nil
+	}
+
 	if !g.paused {
 		g.handlePlayerInput(dt)
 		g.handleInteraction()
@@ -174,6 +184,17 @@ func (g *Game) Update() error {
 		// Update quest UI notifications (even when not open)
 		if g.questUI != nil {
 			g.questUI.Update(g.world, dt)
+		}
+		// Update PvP UI (zone indicators, flag status)
+		if g.pvpUI != nil {
+			playerPos := g.getPlayerPosition()
+			g.pvpUI.Update(uint64(g.playerEntity), playerPos.X, playerPos.Y)
+		}
+		// Update housing furniture preview if in furniture mode
+		if g.housingUI != nil {
+			playerPos := g.getPlayerPosition()
+			angle := g.renderer.GetPlayerAngle()
+			g.housingUI.UpdateFurniturePreview(playerPos.X, playerPos.Y, angle)
 		}
 	}
 	return nil
@@ -766,6 +787,18 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.factionUI.Draw(screen, g.world)
 	}
 
+	// Draw housing UI overlay if active
+	if g.housingUI != nil && g.housingUI.IsActive() {
+		g.housingUI.Draw(screen)
+	}
+
+	// Draw PvP zone indicators (always visible)
+	if g.pvpUI != nil {
+		playerPos := g.getPlayerPosition()
+		g.pvpUI.Draw(screen, uint64(g.playerEntity), playerPos.X, playerPos.Y)
+		g.pvpUI.DrawZoneBoundaryIndicator(screen, playerPos.X, playerPos.Y)
+	}
+
 	// Draw dialog UI overlay if active
 	if g.dialogUI != nil && g.dialogUI.IsOpen() {
 		g.dialogUI.Draw(screen)
@@ -860,6 +893,120 @@ func (g *Game) drawNPCs(screen *ebiten.Image) {
 
 	// Render sprites to screen using the raycast renderer's billboard system
 	g.renderer.DrawSpritesToScreen(spriteEntities, screen)
+
+	// Draw conversation indicators for NPCs in dialog
+	g.drawNPCConversations(screen)
+}
+
+// drawNPCConversations draws speech bubble indicators for NPCs engaged in conversation.
+func (g *Game) drawNPCConversations(screen *ebiten.Image) {
+	if g.world == nil || g.renderer == nil {
+		return
+	}
+
+	// Get player position for distance calculation
+	playerPosComp, ok := g.world.GetComponent(g.playerEntity, "Position")
+	if !ok {
+		return
+	}
+	playerPos := playerPosComp.(*components.Position)
+
+	// Find NPCs in conversations (have DialogState with IsInDialog=true)
+	for _, entity := range g.world.Entities("DialogState", "Position") {
+		// Skip if it's the player
+		if entity == g.playerEntity {
+			continue
+		}
+
+		// Check if NPC is in dialog
+		dialogComp, ok := g.world.GetComponent(entity, "DialogState")
+		if !ok {
+			continue
+		}
+		dialogState := dialogComp.(*components.DialogState)
+		if !dialogState.IsInDialog {
+			continue
+		}
+
+		// Check if conversation partner is also an NPC (not player)
+		if dialogState.ConversationPartner == uint64(g.playerEntity) {
+			continue // Player conversations handled by dialog UI
+		}
+
+		// Get NPC position
+		posComp, ok := g.world.GetComponent(entity, "Position")
+		if !ok {
+			continue
+		}
+		pos := posComp.(*components.Position)
+
+		// Calculate distance to player
+		dx := pos.X - playerPos.X
+		dy := pos.Y - playerPos.Y
+		distance := math.Sqrt(dx*dx + dy*dy)
+
+		// Only show for nearby NPCs
+		if distance > 20 {
+			continue
+		}
+
+		// Convert world position to screen position (simplified - use center)
+		// In a full implementation, this would use the camera/projection math
+		screenW, screenH := screen.Bounds().Dx(), screen.Bounds().Dy()
+
+		// Project world position to screen (rough approximation)
+		angle := math.Atan2(dy, dx)
+		playerAngle := g.renderer.GetPlayerAngle()
+		relAngle := angle - playerAngle
+
+		// Normalize angle to -PI to PI
+		for relAngle > math.Pi {
+			relAngle -= 2 * math.Pi
+		}
+		for relAngle < -math.Pi {
+			relAngle += 2 * math.Pi
+		}
+
+		// Only draw if in front of player (within FOV)
+		if math.Abs(relAngle) > math.Pi/3 { // ~60 degree FOV
+			continue
+		}
+
+		// Screen X position based on angle
+		screenX := screenW/2 + int(float64(screenW/2)*(relAngle/(math.Pi/3)))
+
+		// Screen Y position based on distance (higher = farther)
+		screenY := screenH/2 - int(50/distance) - 20
+
+		// Draw speech bubble indicator
+		g.drawSpeechBubble(screen, screenX, screenY)
+	}
+}
+
+// drawSpeechBubble draws a simple "..." speech indicator at the given position.
+func (g *Game) drawSpeechBubble(screen *ebiten.Image, x, y int) {
+	// Draw simple ellipsis in a bubble
+	bubbleColor := color.RGBA{255, 255, 255, 200}
+	textColor := color.RGBA{50, 50, 50, 255}
+
+	// Draw bubble background (small rounded rect approximation)
+	for dy := -8; dy <= 8; dy++ {
+		for dx := -20; dx <= 20; dx++ {
+			// Ellipse check for rounded shape
+			if float64(dx*dx)/400+float64(dy*dy)/64 <= 1 {
+				screen.Set(x+dx, y+dy, bubbleColor)
+			}
+		}
+	}
+
+	// Draw "..." text (simple dots)
+	for i := -8; i <= 8; i += 8 {
+		for ddx := 0; ddx < 3; ddx++ {
+			for ddy := 0; ddy < 3; ddy++ {
+				screen.Set(x+i+ddx-1, y+ddy-1, textColor)
+			}
+		}
+	}
 }
 
 // applyPostProcessing applies genre-specific visual effects to the rendered frame.
@@ -1333,6 +1480,13 @@ func main() {
 	// Initialize faction UI
 	factionUI := NewFactionUI(cfg.Genre, player)
 
+	// Initialize housing UI
+	housingUI := NewHousingUI()
+	housingUI.Initialize()
+
+	// Initialize PvP UI
+	pvpUI := NewPvPUI()
+
 	// Initialize NPC renderer
 	npcRend := NewNPCRenderer(cfg.Genre, cfg.World.Seed)
 
@@ -1372,6 +1526,8 @@ func main() {
 		questUI:           questUI,
 		craftingUI:        craftingUI,
 		factionUI:         factionUI,
+		housingUI:         housingUI,
+		pvpUI:             pvpUI,
 		npcRenderer:       npcRend,
 	}
 
