@@ -238,3 +238,276 @@ func BenchmarkWorldStateEncode(b *testing.B) {
 		_ = state.Encode(&buf)
 	}
 }
+
+// ============================================================================
+// Delta Compression Tests
+// ============================================================================
+
+func TestDeltaEntityUpdateEncodeDecode(t *testing.T) {
+	original := &DeltaEntityUpdate{
+		ServerTimeMs: 1234567890,
+		EntityID:     42,
+		FieldMask:    FieldPosition | FieldAngle | FieldState,
+		X:            10.5,
+		Y:            20.5,
+		Z:            30.5,
+		Angle:        45.0,
+		State:        7,
+	}
+
+	var buf bytes.Buffer
+	if err := original.Encode(&buf); err != nil {
+		t.Fatalf("Encode failed: %v", err)
+	}
+
+	// Skip the type byte for decoding
+	data := buf.Bytes()
+	reader := bytes.NewReader(data[1:])
+	decoded, err := DecodeDeltaEntityUpdate(reader)
+	if err != nil {
+		t.Fatalf("Decode failed: %v", err)
+	}
+
+	if decoded.ServerTimeMs != original.ServerTimeMs {
+		t.Errorf("ServerTimeMs: got %d, want %d", decoded.ServerTimeMs, original.ServerTimeMs)
+	}
+	if decoded.EntityID != original.EntityID {
+		t.Errorf("EntityID: got %d, want %d", decoded.EntityID, original.EntityID)
+	}
+	if decoded.FieldMask != original.FieldMask {
+		t.Errorf("FieldMask: got %d, want %d", decoded.FieldMask, original.FieldMask)
+	}
+	if decoded.X != original.X {
+		t.Errorf("X: got %f, want %f", decoded.X, original.X)
+	}
+	if decoded.Y != original.Y {
+		t.Errorf("Y: got %f, want %f", decoded.Y, original.Y)
+	}
+	if decoded.Z != original.Z {
+		t.Errorf("Z: got %f, want %f", decoded.Z, original.Z)
+	}
+	if decoded.Angle != original.Angle {
+		t.Errorf("Angle: got %f, want %f", decoded.Angle, original.Angle)
+	}
+	if decoded.State != original.State {
+		t.Errorf("State: got %d, want %d", decoded.State, original.State)
+	}
+}
+
+func TestDeltaEntityUpdateMinimalEncoding(t *testing.T) {
+	// Only position changed
+	original := &DeltaEntityUpdate{
+		ServerTimeMs: 12345,
+		EntityID:     1,
+		FieldMask:    FieldPosition,
+		X:            1.0,
+		Y:            2.0,
+		Z:            3.0,
+	}
+
+	var buf bytes.Buffer
+	if err := original.Encode(&buf); err != nil {
+		t.Fatalf("Encode failed: %v", err)
+	}
+
+	// Calculate expected size:
+	// 1 (type) + 4 (timestamp) + 1 (varint entityID=1) + 1 (fieldmask) + 12 (3 floats) = 19 bytes
+	expectedSize := 19
+	if buf.Len() != expectedSize {
+		t.Errorf("Minimal delta size: got %d, want %d", buf.Len(), expectedSize)
+	}
+}
+
+func TestComputeDelta(t *testing.T) {
+	prev := &EntityUpdate{
+		ServerTimeMs: 1000,
+		EntityID:     42,
+		X:            0, Y: 0, Z: 0,
+		Angle:    0,
+		Health:   100,
+		Velocity: 0,
+		State:    0,
+	}
+
+	curr := &EntityUpdate{
+		ServerTimeMs: 2000,
+		EntityID:     42,
+		X:            10, Y: 0, Z: 5, // Position changed
+		Angle:    45, // Angle changed
+		Health:   100,
+		Velocity: 0,
+		State:    0,
+	}
+
+	delta := ComputeDelta(prev, curr)
+
+	if delta.FieldMask&FieldPosition == 0 {
+		t.Error("Position should be marked as changed")
+	}
+	if delta.FieldMask&FieldAngle == 0 {
+		t.Error("Angle should be marked as changed")
+	}
+	if delta.FieldMask&FieldHealth != 0 {
+		t.Error("Health should NOT be marked as changed")
+	}
+	if delta.FieldMask&FieldVelocity != 0 {
+		t.Error("Velocity should NOT be marked as changed")
+	}
+	if delta.FieldMask&FieldState != 0 {
+		t.Error("State should NOT be marked as changed")
+	}
+}
+
+func TestApplyDelta(t *testing.T) {
+	prev := &EntityUpdate{
+		ServerTimeMs: 1000,
+		EntityID:     42,
+		X:            0, Y: 0, Z: 0,
+		Angle:    0,
+		Health:   100,
+		Velocity: 5.0,
+		State:    1,
+	}
+
+	delta := &DeltaEntityUpdate{
+		ServerTimeMs: 2000,
+		EntityID:     42,
+		FieldMask:    FieldPosition | FieldHealth,
+		X:            10, Y: 20, Z: 30,
+		Health: 75,
+	}
+
+	result := ApplyDelta(prev, delta)
+
+	// Changed fields should be updated
+	if result.X != 10 || result.Y != 20 || result.Z != 30 {
+		t.Errorf("Position not updated correctly: got (%f, %f, %f)", result.X, result.Y, result.Z)
+	}
+	if result.Health != 75 {
+		t.Errorf("Health not updated: got %f, want 75", result.Health)
+	}
+
+	// Unchanged fields should preserve previous values
+	if result.Angle != 0 {
+		t.Errorf("Angle should be unchanged: got %f, want 0", result.Angle)
+	}
+	if result.Velocity != 5.0 {
+		t.Errorf("Velocity should be unchanged: got %f, want 5.0", result.Velocity)
+	}
+	if result.State != 1 {
+		t.Errorf("State should be unchanged: got %d, want 1", result.State)
+	}
+}
+
+func TestDeltaCompressionSavings(t *testing.T) {
+	// Full entity update
+	full := &EntityUpdate{
+		ServerTimeMs: 1234567890,
+		EntityID:     12345,
+		X:            100.5, Y: 50.25, Z: 200.75,
+		Angle:    90.0,
+		Health:   100.0,
+		Velocity: 5.5,
+		State:    3,
+	}
+
+	var fullBuf bytes.Buffer
+	if err := full.Encode(&fullBuf); err != nil {
+		t.Fatalf("Full encode failed: %v", err)
+	}
+	fullSize := fullBuf.Len()
+
+	// Delta with only position changed
+	delta := &DeltaEntityUpdate{
+		ServerTimeMs: 1234567891,
+		EntityID:     12345,
+		FieldMask:    FieldPosition,
+		X:            101.5, Y: 50.25, Z: 201.75,
+	}
+
+	var deltaBuf bytes.Buffer
+	if err := delta.Encode(&deltaBuf); err != nil {
+		t.Fatalf("Delta encode failed: %v", err)
+	}
+	deltaSize := deltaBuf.Len()
+
+	// Delta should be smaller than full update
+	if deltaSize >= fullSize {
+		t.Errorf("Delta (%d bytes) should be smaller than full update (%d bytes)",
+			deltaSize, fullSize)
+	}
+
+	// Calculate savings percentage
+	savings := float64(fullSize-deltaSize) / float64(fullSize) * 100
+	t.Logf("Delta compression savings: %.1f%% (full: %d bytes, delta: %d bytes)",
+		savings, fullSize, deltaSize)
+}
+
+func TestVarUint64Encoding(t *testing.T) {
+	tests := []uint64{
+		0,
+		1,
+		127,
+		128,
+		255,
+		256,
+		16383,
+		16384,
+		2097151,
+		2097152,
+		268435455,
+		268435456,
+		0xFFFFFFFFFFFFFFFF,
+	}
+
+	for _, v := range tests {
+		var buf bytes.Buffer
+		if err := encodeVarUint64(&buf, v); err != nil {
+			t.Errorf("encodeVarUint64(%d) failed: %v", v, err)
+			continue
+		}
+
+		decoded, err := decodeVarUint64(&buf)
+		if err != nil {
+			t.Errorf("decodeVarUint64 failed for %d: %v", v, err)
+			continue
+		}
+
+		if decoded != v {
+			t.Errorf("VarUint64: got %d, want %d", decoded, v)
+		}
+	}
+}
+
+func BenchmarkFullEntityUpdate(b *testing.B) {
+	full := &EntityUpdate{
+		ServerTimeMs: 1234567890,
+		EntityID:     12345,
+		X:            100.5, Y: 50.25, Z: 200.75,
+		Angle:    90.0,
+		Health:   100.0,
+		Velocity: 5.5,
+		State:    3,
+	}
+	var buf bytes.Buffer
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		buf.Reset()
+		_ = full.Encode(&buf)
+	}
+}
+
+func BenchmarkDeltaEntityUpdate(b *testing.B) {
+	delta := &DeltaEntityUpdate{
+		ServerTimeMs: 1234567890,
+		EntityID:     12345,
+		FieldMask:    FieldPosition,
+		X:            100.5, Y: 50.25, Z: 200.75,
+	}
+	var buf bytes.Buffer
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		buf.Reset()
+		_ = delta.Encode(&buf)
+	}
+}
