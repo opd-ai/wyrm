@@ -587,6 +587,10 @@ func broadcastEntityUpdates(world *ecs.World, srv *network.Server) {
 
 // checkAndStreamChunks checks client positions and sends chunk data when they enter new chunks.
 func checkAndStreamChunks(world *ecs.World, srv *network.Server, cm *chunk.Manager, chunkSize int) {
+	// Create LOD manager for distance-based chunk streaming
+	lodManager := chunk.NewLODManager(cm)
+	const viewRadius = 3 // Stream a 7x7 grid of chunks around player (3 chunks in each direction)
+
 	clients := srv.GetConnectedClients()
 	for _, conn := range clients {
 		chunkX, chunkY, exists := srv.GetClientChunk(conn)
@@ -594,26 +598,35 @@ func checkAndStreamChunks(world *ecs.World, srv *network.Server, cm *chunk.Manag
 			continue
 		}
 
-		// Check if client needs chunk data (UpdateClientChunkPosition returns true for new position)
-		// For now, we stream chunks on first tick for new clients
-		// Get chunk from manager
-		c := cm.GetChunk(chunkX, chunkY)
-		if c == nil {
-			continue
-		}
+		// Set viewpoint for LOD calculations (center of current chunk)
+		viewX := float64(chunkX*chunkSize) + float64(chunkSize)/2
+		viewY := float64(chunkY*chunkSize) + float64(chunkSize)/2
+		lodManager.SetViewpoint(viewX, viewY)
 
-		// Convert chunk heightmap to network format
-		heightData := make([]uint16, chunkSize*chunkSize)
-		for y := 0; y < chunkSize; y++ {
-			for x := 0; x < chunkSize; x++ {
-				height := c.GetHeight(x, y)
-				heightData[y*chunkSize+x] = uint16(height * 100) // Scale for precision
+		// Stream chunks with appropriate LOD based on distance
+		lodChunks := lodManager.GetChunksInView(viewRadius)
+		for _, lodChunk := range lodChunks {
+			if lodChunk == nil || lodChunk.Chunk == nil {
+				continue
 			}
+
+			c := lodChunk.Chunk
+			lodSize := lodChunk.LODSize
+
+			// Convert LOD chunk heightmap to network format
+			heightData := make([]uint16, lodSize*lodSize)
+			for y := 0; y < lodSize; y++ {
+				for x := 0; x < lodSize; x++ {
+					height := lodChunk.GetHeight(x, y)
+					heightData[y*lodSize+x] = uint16(height * 100) // Scale for precision
+				}
+			}
+
+			// Simple biome data (scaled to LOD size)
+			biomeData := make([]uint8, lodSize*lodSize)
+
+			// Send with LOD-appropriate size
+			srv.SendChunkData(conn, int32(c.X), int32(c.Y), uint16(lodSize), heightData, biomeData)
 		}
-
-		// Simple biome data (all plains for now)
-		biomeData := make([]uint8, chunkSize*chunkSize)
-
-		srv.SendChunkData(conn, int32(chunkX), int32(chunkY), uint16(chunkSize), heightData, biomeData)
 	}
 }
