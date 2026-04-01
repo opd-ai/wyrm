@@ -486,9 +486,9 @@ No circular dependencies detected.
 - [ ] Add client-side systems for single-player mode or implement entity sync protocol
 - [ ] Implement client-server game state protocol (send/receive EntityUpdate, ChunkData, PlayerInput)
 - [x] Integrate all 14 unused packages at runtime (see Section 2.5 checklist — all packages now integrated)
-- [ ] Implement HUD overlay system (health, mana, compass, minimap)
+- [x] Implement HUD overlay system (health, mana, compass, minimap) — implemented in `cmd/client/main.go` via `drawHUD()` with health/mana bars, compass direction, minimap, interaction prompts
 - [ ] Implement menu system (pause, settings, character creation, quit)
-- [ ] Implement dialog UI for NPC conversations
-- [ ] Add player collision detection against worldMap wall cells
+- [x] Implement dialog UI for NPC conversations — implemented in `cmd/client/dialog_ui.go` with full UI, skill checks, emotion tracking
+- [x] Add player collision detection against worldMap wall cells — implemented via `canMoveTo()` and `tryMove()` with wall sliding
 - [x] Integrate `pkg/world/persist/` for save/load on server startup/shutdown — Persister now initialized in server_init.go
 - [ ] Implement game state synchronization between client and server ECS worlds
