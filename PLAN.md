@@ -49,6 +49,18 @@ Phase 8 (dialog/social): DialogConsequenceSystem,
 Phase 9 (environment): IndoorOutdoorSystem, HazardSystem
 ```
 
+**Completion Checklist:**
+
+- [ ] Register NPC behavior systems (NPCPathfindingSystem, NPCNeedsSystem, NPCOccupationSystem, EmotionalStateSystem, NPCMemorySystem, GossipSystem)
+- [ ] Register faction depth systems (FactionRankSystem, FactionCoupSystem, FactionExclusiveContentSystem, DynamicFactionWarSystem)
+- [ ] Register crime depth systems (GuardPursuitSystem, BriberySystem, CrimeEvidenceSystem, PardonSystem, CriminalFactionQuestSystem)
+- [ ] Register economy depth systems (EconomicEventSystem, MarketManipulationSystem, TradeRouteSystem, InvestmentSystem, PlayerShopSystem, CityBuildingSystem, CityEventSystem, TradingSystem)
+- [ ] Register combat depth systems (MagicSystem, ProjectileSystem, StealthSystem, DistractionSystem, HidingSpotSystem, VehiclePhysicsSystem, VehicleCombatSystem, FlyingVehicleSystem, NavalVehicleSystem, MountSystem)
+- [ ] Register skills/crafting systems (SkillProgressionSystem, SkillBookSystem, SkillSynergySystem, ActionUnlockSystem, NPCTrainingSystem, CraftingSystem)
+- [ ] Register dialog/social systems (DialogConsequenceSystem, MultiNPCConversationSystem, PartySystem, VehicleCustomizationSystem)
+- [ ] Register environment systems (IndoorOutdoorSystem, HazardSystem)
+- [ ] Verify all 57 systems registered: `grep -c 'RegisterSystem' cmd/server/main.go`
+
 **Validation:** `grep -c 'RegisterSystem' cmd/server/main.go` shows 57 registrations.
 
 ### 1B: Fix Client WeatherSystem Initialization (15 minutes)
@@ -63,6 +75,11 @@ world.RegisterSystem(&systems.WeatherSystem{})
 world.RegisterSystem(systems.NewWeatherSystem(cfg.Genre, 300.0))
 ```
 
+**Completion Checklist:**
+
+- [ ] Replace `&systems.WeatherSystem{}` with `systems.NewWeatherSystem(cfg.Genre, 300.0)` in `cmd/client/main.go`
+- [ ] Verify client builds: `go build ./cmd/client`
+
 ### 1C: Add Player Collision Detection (4 hours)
 
 **File:** `cmd/client/main.go`
@@ -73,6 +90,15 @@ world.RegisterSystem(systems.NewWeatherSystem(cfg.Genre, 300.0))
 3. Bounds-check candidate coordinates against worldMap dimensions before indexing
 4. Check `worldMap[candidateY][candidateX]` — reject movement if cell is a wall (value > 0)
 5. Use player radius (0.3 units) for wall sliding instead of hard rejection
+
+**Completion Checklist:**
+
+- [ ] Store `worldMap` reference on the Game struct
+- [ ] Add bounds-checking before worldMap indexing in `processMovementInput()`
+- [ ] Add bounds-checking before worldMap indexing in `processStrafeInput()`
+- [ ] Implement wall-cell rejection (value > 0) for candidate positions
+- [ ] Implement player radius (0.3 units) wall sliding
+- [ ] Test that player cannot walk through rendered walls
 
 **Validation:** Player cannot walk through rendered walls.
 
@@ -93,6 +119,19 @@ world.AddComponent(player, &components.AudioListener{Volume: 1.0, Enabled: true}
 world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1.5, AttackSpeed: 1.0, WeaponType: "melee"})
 ```
 
+**Completion Checklist:**
+
+- [ ] Add Mana component to player entity
+- [ ] Add Skills component with initialized maps
+- [ ] Add Inventory component with capacity
+- [ ] Add Faction component with player ID
+- [ ] Add Reputation component with standings map
+- [ ] Add Stealth component with detection parameters
+- [ ] Add CombatState component
+- [ ] Add AudioListener component
+- [ ] Add Weapon component (Fists default)
+- [ ] Verify client builds and player entity has all components
+
 ### 1E: Minimal HUD Implementation (8 hours)
 
 **File:** `cmd/client/main.go` (`Draw` method)
@@ -108,6 +147,17 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Implementation:** Use `ebitenutil.DebugPrintAt()` for text elements. Use `screen.Set()` or small `ebiten.Image` draws for bars and minimap.
 
+**Completion Checklist:**
+
+- [ ] Implement health bar overlay (red bar, bottom-left)
+- [ ] Implement mana bar overlay (blue bar, below health)
+- [ ] Display current position X, Y and chunk coordinates
+- [ ] Display genre indicator and weather state
+- [ ] Display connection status (online/offline)
+- [ ] Implement compass showing cardinal direction from player angle
+- [ ] Implement minimap (top-right, terrain from worldMap)
+- [ ] Verify HUD renders correctly at target resolution (1280×720)
+
 ### 1F: Integrate Input Rebinding (4 hours)
 
 **Files:** `cmd/client/main.go`
@@ -117,6 +167,14 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 2. Create `input.Rebinder` with config-loaded bindings in `main()`
 3. Replace all `ebiten.IsKeyPressed()` calls with `rebinder.IsPressed("action_name")`
 4. Add Escape key → pause state toggle
+
+**Completion Checklist:**
+
+- [ ] Import `pkg/input` in client
+- [ ] Create `input.Rebinder` with config-loaded key bindings
+- [ ] Replace all `ebiten.IsKeyPressed()` calls with `rebinder.IsPressed()` equivalents
+- [ ] Bind Escape key to pause state toggle
+- [ ] Verify all movement and action keys work through the rebinder
 
 ### 1G: Integrate Rendering Subpackages (8 hours)
 
@@ -128,6 +186,15 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 3. Import `pkg/rendering/postprocess/` — Apply genre-specific post-processing effects after raycast draw
 4. Import `pkg/rendering/particles/` — Add weather particles (rain, snow based on WeatherSystem state)
 
+**Completion Checklist:**
+
+- [ ] Import and integrate `pkg/rendering/texture/` for procedural wall/floor textures
+- [ ] Import and integrate `pkg/rendering/lighting/` with `LightManager` and time-of-day cycle
+- [ ] Import and integrate `pkg/rendering/postprocess/` with genre-specific effects
+- [ ] Import and integrate `pkg/rendering/particles/` with weather-driven particles
+- [ ] Verify all rendering subpackages produce visible output in the client
+- [ ] Confirm 60 FPS target at 1280×720 is maintained
+
 ### 1H: Add AudioListener and Audio Integration (4 hours)
 
 **Files:** `cmd/client/main.go`
@@ -138,6 +205,15 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 3. Import `pkg/audio/ambient/` and `pkg/audio/music/`
 4. Replace single sine wave with proper ambient soundscape generation
 5. Feed AudioSystem output into audio player
+
+**Completion Checklist:**
+
+- [ ] Verify `AudioListener` component is on player entity (from 1D)
+- [ ] Create `AudioState` entity for ambient/combat state tracking
+- [ ] Import `pkg/audio/ambient/` and generate biome-aware soundscapes
+- [ ] Import `pkg/audio/music/` and generate adaptive genre-specific music
+- [ ] Replace single sine wave with soundscape and music output
+- [ ] Verify AudioSystem finds AudioListener and produces spatial audio
 
 ---
 
@@ -171,6 +247,17 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
    - Door → Open/close
 5. Display interaction prompt ("Press E to talk to [NPC Name]")
 
+**Completion Checklist:**
+
+- [ ] Implement interaction ray cast from player position in look direction
+- [ ] Implement nearest-entity search within 2.0 unit range
+- [ ] Highlight interactable entities (NPCs, items, workbenches, doors)
+- [ ] Implement NPC interaction (open dialog UI on E key)
+- [ ] Implement item pickup (add to inventory on E key)
+- [ ] Implement workbench interaction (open crafting UI on E key)
+- [ ] Implement door open/close on E key
+- [ ] Display interaction prompt text on screen
+
 ### 2B: Dialog UI (8 hours)
 
 **Files:** New file `cmd/client/dialog_ui.go`
@@ -182,6 +269,17 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 4. Display response options (numbered or arrow-selectable)
 5. Wire dialog choices into `DialogConsequenceSystem`
 6. Use `pkg/rendering/subtitles/` for accessible text rendering
+
+**Completion Checklist:**
+
+- [ ] Import `pkg/dialog/` in client
+- [ ] Create dialog overlay screen (semi-transparent background)
+- [ ] Display NPC name and emotional state
+- [ ] Display dialog text with line wrapping
+- [ ] Display response options (numbered or arrow-selectable)
+- [ ] Wire dialog choice selection into `DialogConsequenceSystem`
+- [ ] Integrate `pkg/rendering/subtitles/` for accessible text rendering
+- [ ] Test branching conversation flow with multiple responses
 
 ### 2C: Basic Combat Mechanics (10 hours)
 
@@ -195,6 +293,17 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 5. Visual feedback: screen shake on hit, red flash on damage taken
 6. Death handling: respawn at safe location
 
+**Completion Checklist:**
+
+- [ ] Implement left-click melee attack (swing weapon)
+- [ ] Implement right-click block/defend
+- [ ] Add CombatState cooldown check before allowing attacks
+- [ ] Implement damage calculation using Weapon.Damage vs target Health
+- [ ] Add screen shake visual feedback on hitting an enemy
+- [ ] Add red flash visual feedback on taking damage
+- [ ] Implement death detection and respawn at safe location
+- [ ] Verify combat works against NPC entities
+
 ### 2D: NPC Entity Rendering (10 hours)
 
 **Files:** `cmd/client/main.go`
@@ -207,6 +316,15 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Dependency:** Requires entity state sync from server (Gap 5.1) OR local NPC generation for offline mode.
 
+**Completion Checklist:**
+
+- [ ] Create `Appearance` components for NPC entity types
+- [ ] Integrate `pkg/rendering/sprite/Generator` to produce NPC sprites
+- [ ] Feed NPC positions and sprites into raycast billboard renderer
+- [ ] Implement sprite animation based on NPC state (idle, walking, working)
+- [ ] Verify NPCs are visible in the first-person view
+- [ ] Ensure NPC rendering works in offline mode (local NPC generation)
+
 ### 2E: Inventory UI (8 hours)
 
 **Files:** New file `cmd/client/inventory_ui.go`
@@ -217,6 +335,17 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 3. Click to select, use, or drop items
 4. Equipment slots display (weapon, armor, accessories)
 5. Weight/capacity indicator
+
+**Completion Checklist:**
+
+- [ ] Implement I key toggle for inventory overlay
+- [ ] Implement grid display of held items
+- [ ] Implement click-to-select item interaction
+- [ ] Implement item use action
+- [ ] Implement item drop action
+- [ ] Display equipment slots (weapon, armor, accessories)
+- [ ] Display weight/capacity indicator
+- [ ] Verify inventory updates reflect in Inventory component
 
 ### 2F: Quest System Integration (6 hours)
 
@@ -229,6 +358,15 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 4. Quest completion notifications
 5. Wire quest adapter for procedural quest generation in server init
 
+**Completion Checklist:**
+
+- [ ] Implement J key toggle for quest log overlay
+- [ ] Display active quests with descriptions and objectives
+- [ ] Implement on-screen quest tracker showing active objective
+- [ ] Implement quest completion notification display
+- [ ] Wire `adapters.QuestAdapter` into server world initialization
+- [ ] Verify quest acceptance, tracking, and completion end-to-end
+
 ### 2G: Content Generator Integration (6 hours)
 
 **Files:** `cmd/server/main.go`, `cmd/server/server_init.go`
@@ -240,6 +378,16 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 4. `adapters.RecipeAdapter` → Generate crafting recipes
 5. `adapters.VehicleAdapter` → Spawn vehicles in districts
 6. `dungeon.Generate()` → Create dungeon instances for quest objectives
+
+**Completion Checklist:**
+
+- [ ] Call `adapters.BuildingAdapter` to generate building interiors for city districts
+- [ ] Call `adapters.ItemAdapter` to populate building inventories with items
+- [ ] Call `adapters.QuestAdapter` to generate quest templates for NPCs
+- [ ] Call `adapters.RecipeAdapter` to generate crafting recipes
+- [ ] Call `adapters.VehicleAdapter` to spawn vehicles in districts
+- [ ] Call `dungeon.Generate()` to create dungeon instances for quest objectives
+- [ ] Verify all generators produce output consumed by game systems
 
 ---
 
@@ -269,6 +417,15 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 4. Periodic auto-save every N minutes
 5. Save includes: entities, components, chunk modifications, quest states
 
+**Completion Checklist:**
+
+- [ ] Import `pkg/world/persist/` in server
+- [ ] Implement save-file check and load on server startup
+- [ ] Implement world state save on server shutdown (SIGINT/SIGTERM handler)
+- [ ] Implement periodic auto-save at configurable interval
+- [ ] Verify save includes entities, components, chunk modifications, and quest states
+- [ ] Test save/load round-trip: save → restart → load → verify state matches
+
 ### 3B: Client-Server Protocol Implementation (16 hours)
 
 **Files:** `cmd/server/main.go`, `cmd/client/main.go`, `pkg/network/`
@@ -283,6 +440,19 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 7. Server: Process `PlayerInput` messages, update authoritative state
 8. Implement client-side prediction using `pkg/network/prediction.go`
 
+**Completion Checklist:**
+
+- [ ] Server: accept client connections and assign player entity ID
+- [ ] Server: encode and broadcast `EntityUpdate` messages each tick
+- [ ] Server: stream `ChunkData` messages when client enters new chunk
+- [ ] Client: receive and decode `WorldState` messages
+- [ ] Client: receive and decode `EntityUpdate` messages
+- [ ] Client: apply server state to local ECS world
+- [ ] Client: send `PlayerInput` messages to server on each frame
+- [ ] Server: receive and process `PlayerInput` messages (validate, apply)
+- [ ] Implement client-side prediction using `pkg/network/prediction.go`
+- [ ] Verify two clients can connect and see each other's movements
+
 ### 3C: Character Creation Screen (8 hours)
 
 **Files:** New file `cmd/client/character_creation.go`
@@ -295,6 +465,16 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 5. Starting equipment choice
 6. Store selections, create player entity with chosen attributes
 
+**Completion Checklist:**
+
+- [ ] Create character creation screen displayed before game start
+- [ ] Implement genre selection UI (5 genres with preview descriptions)
+- [ ] Implement player name text input
+- [ ] Implement starting skill point allocation across skill schools
+- [ ] Implement starting equipment choice
+- [ ] Create player entity with chosen attributes (genre, name, skills, equipment)
+- [ ] Verify character creation flows into game start seamlessly
+
 ### 3D: Pause Menu and Settings (8 hours)
 
 **Files:** New file `cmd/client/menu.go`
@@ -305,6 +485,18 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 3. Settings: Key bindings, audio volume, graphics options
 4. Settings persistence via config file update
 5. Quit confirmation dialog
+
+**Completion Checklist:**
+
+- [ ] Implement Escape key → pause game state and show menu overlay
+- [ ] Implement Resume menu option (return to gameplay)
+- [ ] Implement Settings submenu with key binding configuration
+- [ ] Implement Settings submenu with audio volume controls
+- [ ] Implement Settings submenu with graphics options
+- [ ] Implement settings persistence via config file update
+- [ ] Implement Save menu option (trigger server save)
+- [ ] Implement Load menu option (trigger server load)
+- [ ] Implement Quit menu option with confirmation dialog
 
 ---
 
@@ -331,6 +523,17 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 - Health regeneration outside combat
 - Death penalties (configurable via Difficulty settings)
 
+**Completion Checklist:**
+
+- [ ] Implement ranged combat (bow/gun) with ProjectileSystem
+- [ ] Implement magic combat (spell casting) with MagicSystem
+- [ ] Implement stealth mode (sneak, backstab, detection) with StealthSystem
+- [ ] Implement block/dodge mechanics
+- [ ] Implement enemy AI combat (NPCs fight back using CombatState)
+- [ ] Implement health regeneration outside combat
+- [ ] Implement configurable death penalties via Difficulty settings
+- [ ] Verify all three combat styles (melee, ranged, magic) are functional
+
 ### 4B: Crafting and Economy (12 hours)
 
 - Crafting UI with workbench interaction
@@ -340,6 +543,16 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 - Dynamic pricing visible at shop entities
 - Trade routes visible on map
 
+**Completion Checklist:**
+
+- [ ] Implement crafting UI with workbench interaction
+- [ ] Implement resource gathering from ResourceNode components
+- [ ] Implement recipe discovery through exploration
+- [ ] Integrate PlayerShopSystem for player-owned shops
+- [ ] Display dynamic pricing at shop entities
+- [ ] Display trade routes on minimap/map
+- [ ] Verify crafting end-to-end: gather materials → use workbench → produce item
+
 ### 4C: Faction and Crime Depth (12 hours)
 
 - Faction rank UI showing standing with each faction
@@ -348,12 +561,31 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 - Bounty display and bribery option
 - Faction territory visual boundaries
 
+**Completion Checklist:**
+
+- [ ] Implement faction rank UI showing standing with each faction
+- [ ] Integrate FactionArcManager for faction quest arcs
+- [ ] Implement crime consequences (guard pursuit, jail time)
+- [ ] Implement bounty display in HUD
+- [ ] Implement bribery option during guard encounters
+- [ ] Display faction territory visual boundaries on map/minimap
+- [ ] Verify faction reputation changes based on player actions
+
 ### 4D: Vehicle and Mount Integration (8 hours)
 
 - Mount riding with MountSystem
 - Vehicle physics with VehiclePhysicsSystem
 - Cockpit/rider view transition
 - Vehicle fuel/durability management
+
+**Completion Checklist:**
+
+- [ ] Implement mount riding with MountSystem (mount/dismount, movement)
+- [ ] Implement vehicle physics with VehiclePhysicsSystem (steering, acceleration)
+- [ ] Implement cockpit/rider camera view transition
+- [ ] Implement vehicle fuel/durability management
+- [ ] Verify mount and vehicle entities are spawned in the world
+- [ ] Verify player can mount, ride, and dismount vehicles
 
 ### 4E: Weather and Environment Polish (8 hours)
 
@@ -362,6 +594,15 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 - Environmental hazard damage with HazardSystem
 - Time-of-day lighting via LightManager
 - Genre-specific atmospheric effects
+
+**Completion Checklist:**
+
+- [ ] Implement weather particles (rain, snow, dust, ash) via particles package
+- [ ] Implement indoor/outdoor transitions with IndoorOutdoorSystem
+- [ ] Implement environmental hazard damage with HazardSystem
+- [ ] Implement time-of-day lighting cycle via LightManager
+- [ ] Implement genre-specific atmospheric effects (e.g., neon glow for cyberpunk, fog for horror)
+- [ ] Verify weather visuals match WeatherSystem state
 
 ### 4F: NPC Life Simulation (12 hours)
 
@@ -373,6 +614,17 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 - NPCs show emotions via EmotionalStateSystem
 - Multi-NPC conversations visible in cities
 
+**Completion Checklist:**
+
+- [ ] Verify NPCPathfindingSystem moves NPCs between activity locations
+- [ ] Verify NPCNeedsSystem drives NPC eat, sleep, and socialize behaviors
+- [ ] Verify NPCOccupationSystem makes NPCs perform their jobs
+- [ ] Verify GossipSystem propagates information between NPCs
+- [ ] Verify NPCMemorySystem tracks player interactions per NPC
+- [ ] Verify EmotionalStateSystem produces visible emotional reactions
+- [ ] Implement visible multi-NPC conversations in city areas
+- [ ] Verify NPCs follow daily schedule cycle (work → eat → socialize → sleep)
+
 ### 4G: Housing and PvP (12 hours)
 
 - Player house purchase UI
@@ -380,6 +632,16 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 - Guild territory management
 - PvP zone indicators and flagging
 - Loot drop mechanics in hostile zones
+
+**Completion Checklist:**
+
+- [ ] Import `pkg/world/housing/` and integrate house purchase UI
+- [ ] Implement first-person furniture placement
+- [ ] Implement guild territory management
+- [ ] Import `pkg/world/pvp/` and display PvP zone indicators
+- [ ] Implement PvP flagging system
+- [ ] Implement loot drop mechanics in hostile/PvP zones
+- [ ] Verify player can buy, enter, and furnish a house
 
 ---
 
