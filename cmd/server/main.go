@@ -174,7 +174,7 @@ func initializeCity(world *ecs.World, cfg *config.Config, fps *systems.FactionPo
 }
 
 // selectDistrictFaction selects a faction for a district.
-func selectDistrictFaction(factions []adapters.GeneratedFaction, districtIndex int) string {
+func selectDistrictFaction(factions []*adapters.FactionData, districtIndex int) string {
 	if len(factions) == 0 {
 		return "neutral"
 	}
@@ -237,7 +237,7 @@ func generateDistrictBuildings(world *ecs.World, cfg *config.Config, cga *cityGe
 }
 
 // createBuildingEntity creates a building entity with position and interior components.
-func createBuildingEntity(world *ecs.World, bldg *adapters.GeneratedBuilding, x, y float64) ecs.Entity {
+func createBuildingEntity(world *ecs.World, bldg *adapters.BuildingData, x, y float64) ecs.Entity {
 	buildingEntity := world.CreateEntity()
 
 	if err := world.AddComponent(buildingEntity, &components.Position{X: x, Y: y, Z: 0}); err != nil {
@@ -372,7 +372,7 @@ func generateNPCDialogs(world *ecs.World, cga *cityGenerationAdapters, genre str
 }
 
 // buildDialogOptions converts generated dialog lines to component options.
-func buildDialogOptions(dialogLines []adapters.GeneratedDialogLine) []components.DialogOption {
+func buildDialogOptions(dialogLines []*adapters.DialogLine) []components.DialogOption {
 	options := make([]components.DialogOption, len(dialogLines))
 	for k, line := range dialogLines {
 		options[k] = components.DialogOption{

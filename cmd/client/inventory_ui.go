@@ -396,15 +396,8 @@ func (ui *InventoryUI) drawInventoryGrid(screen *ebiten.Image, screenWidth, scre
 	startX := (screenWidth - gridWidth) / 2
 	startY := 120
 
-	// Draw grid background
-	gridBgColor := color.RGBA{R: 40, G: 40, B: 50, A: 255}
-	for y := startY - 5; y < startY+gridHeight+5; y++ {
-		for x := startX - 5; x < startX+gridWidth+5; x++ {
-			screen.Set(x, y, gridBgColor)
-		}
-	}
+	ui.drawGridBackground(screen, startX, startY, gridWidth, gridHeight)
 
-	// Draw slots
 	itemCount := 0
 	if inv != nil {
 		itemCount = len(inv.Items)
@@ -415,37 +408,57 @@ func (ui *InventoryUI) drawInventoryGrid(screen *ebiten.Image, screenWidth, scre
 			slotIndex := (row+ui.scrollOffset)*ui.gridCols + col
 			slotX := startX + col*(ui.slotSize+ui.padding)
 			slotY := startY + row*(ui.slotSize+ui.padding)
-
-			// Slot background
-			slotColor := color.RGBA{R: 60, G: 60, B: 70, A: 255}
-			if slotIndex == ui.selectedSlot {
-				slotColor = color.RGBA{R: 100, G: 150, B: 200, A: 255} // Highlighted
-			}
-
-			for y := slotY; y < slotY+ui.slotSize; y++ {
-				for x := slotX; x < slotX+ui.slotSize; x++ {
-					screen.Set(x, y, slotColor)
-				}
-			}
-
-			// Draw item if present
-			if inv != nil && slotIndex < itemCount {
-				itemName := inv.Items[slotIndex]
-				// Draw item icon (just first letter for now)
-				if len(itemName) > 0 {
-					iconText := string(itemName[0])
-					ebitenutil.DebugPrintAt(screen, iconText, slotX+ui.slotSize/2-3, slotY+ui.slotSize/2-8)
-				}
-			}
+			ui.drawSlot(screen, slotX, slotY, slotIndex, inv, itemCount)
 		}
 	}
 
-	// Draw selected item name below grid
-	if inv != nil && ui.selectedSlot < itemCount {
-		itemName := inv.Items[ui.selectedSlot]
-		nameX := (screenWidth - len(itemName)*6) / 2
-		ebitenutil.DebugPrintAt(screen, itemName, nameX, startY+gridHeight+15)
+	ui.drawSelectedItemName(screen, screenWidth, startY+gridHeight+15, inv, itemCount)
+}
+
+// drawGridBackground draws the inventory grid background.
+func (ui *InventoryUI) drawGridBackground(screen *ebiten.Image, startX, startY, gridWidth, gridHeight int) {
+	gridBgColor := color.RGBA{R: 40, G: 40, B: 50, A: 255}
+	for y := startY - 5; y < startY+gridHeight+5; y++ {
+		for x := startX - 5; x < startX+gridWidth+5; x++ {
+			screen.Set(x, y, gridBgColor)
+		}
 	}
+}
+
+// drawSlot draws a single inventory slot.
+func (ui *InventoryUI) drawSlot(screen *ebiten.Image, slotX, slotY, slotIndex int, inv *components.Inventory, itemCount int) {
+	slotColor := ui.getSlotColor(slotIndex)
+	for y := slotY; y < slotY+ui.slotSize; y++ {
+		for x := slotX; x < slotX+ui.slotSize; x++ {
+			screen.Set(x, y, slotColor)
+		}
+	}
+
+	if inv != nil && slotIndex < itemCount {
+		itemName := inv.Items[slotIndex]
+		if len(itemName) > 0 {
+			iconText := string(itemName[0])
+			ebitenutil.DebugPrintAt(screen, iconText, slotX+ui.slotSize/2-3, slotY+ui.slotSize/2-8)
+		}
+	}
+}
+
+// getSlotColor returns the background color for a slot.
+func (ui *InventoryUI) getSlotColor(slotIndex int) color.RGBA {
+	if slotIndex == ui.selectedSlot {
+		return color.RGBA{R: 100, G: 150, B: 200, A: 255}
+	}
+	return color.RGBA{R: 60, G: 60, B: 70, A: 255}
+}
+
+// drawSelectedItemName draws the name of the currently selected item.
+func (ui *InventoryUI) drawSelectedItemName(screen *ebiten.Image, screenWidth, y int, inv *components.Inventory, itemCount int) {
+	if inv == nil || ui.selectedSlot >= itemCount {
+		return
+	}
+	itemName := inv.Items[ui.selectedSlot]
+	nameX := (screenWidth - len(itemName)*6) / 2
+	ebitenutil.DebugPrintAt(screen, itemName, nameX, y)
 }
 
 // drawCapacityIndicator draws the weight/capacity indicator.

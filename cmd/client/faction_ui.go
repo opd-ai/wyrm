@@ -218,118 +218,123 @@ func (ui *FactionUI) Draw(screen *ebiten.Image, world *ecs.World) {
 	}
 
 	screenW, screenH := screen.Bounds().Dx(), screen.Bounds().Dy()
-
-	// Draw semi-transparent background
-	bgColor := color.RGBA{0, 0, 0, 200}
 	panelW, panelH := 450, 450
 	panelX := (screenW - panelW) / 2
 	panelY := (screenH - panelH) / 2
 
+	ui.drawPanelBackground(screen, panelX, panelY, panelW, panelH)
+
+	factions := ui.getFactionInfo(world)
+	ui.clampSelectedFaction(len(factions))
+
+	ui.drawFactionList(screen, factions, panelX, panelY, panelW)
+	ui.drawFactionDetails(screen, factions, panelX, panelY, panelW, panelH)
+	ui.drawHelpText(screen, panelX, panelY, panelH)
+}
+
+// drawPanelBackground draws the panel background and border.
+func (ui *FactionUI) drawPanelBackground(screen *ebiten.Image, panelX, panelY, panelW, panelH int) {
+	bgColor := color.RGBA{0, 0, 0, 200}
 	ebitenutil.DrawRect(screen, float64(panelX), float64(panelY), float64(panelW), float64(panelH), bgColor)
 
-	// Draw border
 	borderColor := ui.getGenreColor()
 	ebitenutil.DrawRect(screen, float64(panelX), float64(panelY), float64(panelW), 2, borderColor)
 	ebitenutil.DrawRect(screen, float64(panelX), float64(panelY+panelH-2), float64(panelW), 2, borderColor)
 	ebitenutil.DrawRect(screen, float64(panelX), float64(panelY), 2, float64(panelH), borderColor)
 	ebitenutil.DrawRect(screen, float64(panelX+panelW-2), float64(panelY), 2, float64(panelH), borderColor)
 
-	// Draw title
 	ebitenutil.DebugPrintAt(screen, "=== Faction Standings ===", panelX+140, panelY+10)
+}
 
-	// Get faction data
-	factions := ui.getFactionInfo(world)
-
-	// Clamp selected faction to valid range
-	if ui.selectedFaction >= len(factions) {
-		ui.selectedFaction = len(factions) - 1
+// clampSelectedFaction ensures selected faction is within valid range.
+func (ui *FactionUI) clampSelectedFaction(count int) {
+	if ui.selectedFaction >= count {
+		ui.selectedFaction = count - 1
 	}
 	if ui.selectedFaction < 0 {
 		ui.selectedFaction = 0
 	}
+}
 
-	// Draw faction list
+// drawFactionList draws the scrollable faction list.
+func (ui *FactionUI) drawFactionList(screen *ebiten.Image, factions []FactionDisplayInfo, panelX, panelY, panelW int) {
 	listY := panelY + 35
 	visibleRows := 6
 	rowHeight := 50
 
 	for i := ui.scrollOffset; i < len(factions) && i < ui.scrollOffset+visibleRows; i++ {
-		faction := factions[i]
 		y := listY + (i-ui.scrollOffset)*rowHeight
+		ui.drawFactionRow(screen, factions[i], i, panelX, y, panelW, rowHeight)
+	}
+}
 
-		// Highlight selected
-		if i == ui.selectedFaction {
-			ebitenutil.DrawRect(screen, float64(panelX+5), float64(y-2), float64(panelW-10), float64(rowHeight-4), color.RGBA{60, 60, 80, 200})
-		}
-
-		// Faction name with standing color indicator
-		standingColor := ui.getStandingColor(faction.StandingLevel)
-		ebitenutil.DrawRect(screen, float64(panelX+10), float64(y+5), 10, 10, standingColor)
-		ebitenutil.DebugPrintAt(screen, faction.Name, panelX+25, y+3)
-
-		// Standing level
-		standingStr := fmt.Sprintf("[%s]", faction.StandingLevel)
-		ebitenutil.DebugPrintAt(screen, standingStr, panelX+200, y+3)
-
-		// Reputation bar
-		barX := panelX + 10
-		barY := y + 20
-		barW := panelW - 20
-		barH := 12
-
-		// Background
-		ebitenutil.DrawRect(screen, float64(barX), float64(barY), float64(barW), float64(barH), color.RGBA{40, 40, 40, 255})
-
-		// Reputation fill (centered at 50% for neutral)
-		reputationNorm := (faction.Reputation + 100) / 200 // 0 to 1
-		fillW := int(float64(barW) * reputationNorm)
-		ebitenutil.DrawRect(screen, float64(barX), float64(barY), float64(fillW), float64(barH), standingColor)
-
-		// Reputation text
-		repStr := fmt.Sprintf("Rep: %.0f", faction.Reputation)
-		ebitenutil.DebugPrintAt(screen, repStr, barX+barW-60, barY-1)
-
-		// Rank info if member
-		if faction.IsMember {
-			rankStr := fmt.Sprintf("Rank %d: %s", faction.Rank, faction.RankTitle)
-			ebitenutil.DebugPrintAt(screen, rankStr, panelX+10, y+35)
-
-			// XP progress
-			if faction.XPToNext > 0 && !faction.IsExalted {
-				xpStr := fmt.Sprintf("XP: %d/%d", faction.XP, faction.XPToNext)
-				ebitenutil.DebugPrintAt(screen, xpStr, panelX+200, y+35)
-			} else if faction.IsExalted {
-				ebitenutil.DebugPrintAt(screen, "MAX RANK", panelX+200, y+35)
-			}
-		}
+// drawFactionRow draws a single faction row.
+func (ui *FactionUI) drawFactionRow(screen *ebiten.Image, faction FactionDisplayInfo, index, panelX, y, panelW, rowHeight int) {
+	if index == ui.selectedFaction {
+		ebitenutil.DrawRect(screen, float64(panelX+5), float64(y-2), float64(panelW-10), float64(rowHeight-4), color.RGBA{60, 60, 80, 200})
 	}
 
-	// Draw selected faction details
-	if ui.selectedFaction >= 0 && ui.selectedFaction < len(factions) {
-		faction := factions[ui.selectedFaction]
-		detailY := panelY + panelH - 100
+	standingColor := ui.getStandingColor(faction.StandingLevel)
+	ebitenutil.DrawRect(screen, float64(panelX+10), float64(y+5), 10, 10, standingColor)
+	ebitenutil.DebugPrintAt(screen, faction.Name, panelX+25, y+3)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("[%s]", faction.StandingLevel), panelX+200, y+3)
 
-		// Draw separator
-		ebitenutil.DrawRect(screen, float64(panelX+10), float64(detailY-10), float64(panelW-20), 1, borderColor)
+	ui.drawReputationBar(screen, faction, standingColor, panelX, y+20, panelW)
+	ui.drawRankInfo(screen, faction, panelX, y+35)
+}
 
-		// Details section
-		ebitenutil.DebugPrintAt(screen, "Details:", panelX+10, detailY)
+// drawReputationBar draws the reputation progress bar.
+func (ui *FactionUI) drawReputationBar(screen *ebiten.Image, faction FactionDisplayInfo, standingColor color.RGBA, barX, barY, panelW int) {
+	barW := panelW - 20
+	barH := 12
 
-		if faction.IsMember {
-			questStr := fmt.Sprintf("Quests Completed: %d", faction.QuestsCompleted)
-			ebitenutil.DebugPrintAt(screen, questStr, panelX+10, detailY+15)
-		} else {
-			ebitenutil.DebugPrintAt(screen, "Not a member - complete quests to join", panelX+10, detailY+15)
-		}
+	ebitenutil.DrawRect(screen, float64(barX+10), float64(barY), float64(barW), float64(barH), color.RGBA{40, 40, 40, 255})
 
-		// Show actions available based on standing
-		actionStr := ui.getAvailableActions(faction)
-		ebitenutil.DebugPrintAt(screen, actionStr, panelX+10, detailY+30)
+	reputationNorm := (faction.Reputation + 100) / 200
+	fillW := int(float64(barW) * reputationNorm)
+	ebitenutil.DrawRect(screen, float64(barX+10), float64(barY), float64(fillW), float64(barH), standingColor)
+
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Rep: %.0f", faction.Reputation), barX+barW-50, barY-1)
+}
+
+// drawRankInfo draws member rank information if applicable.
+func (ui *FactionUI) drawRankInfo(screen *ebiten.Image, faction FactionDisplayInfo, panelX, y int) {
+	if !faction.IsMember {
+		return
+	}
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Rank %d: %s", faction.Rank, faction.RankTitle), panelX+10, y)
+
+	if faction.XPToNext > 0 && !faction.IsExalted {
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("XP: %d/%d", faction.XP, faction.XPToNext), panelX+200, y)
+	} else if faction.IsExalted {
+		ebitenutil.DebugPrintAt(screen, "MAX RANK", panelX+200, y)
+	}
+}
+
+// drawFactionDetails draws the selected faction details section.
+func (ui *FactionUI) drawFactionDetails(screen *ebiten.Image, factions []FactionDisplayInfo, panelX, panelY, panelW, panelH int) {
+	if ui.selectedFaction < 0 || ui.selectedFaction >= len(factions) {
+		return
+	}
+	faction := factions[ui.selectedFaction]
+	detailY := panelY + panelH - 100
+	borderColor := ui.getGenreColor()
+
+	ebitenutil.DrawRect(screen, float64(panelX+10), float64(detailY-10), float64(panelW-20), 1, borderColor)
+	ebitenutil.DebugPrintAt(screen, "Details:", panelX+10, detailY)
+
+	if faction.IsMember {
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Quests Completed: %d", faction.QuestsCompleted), panelX+10, detailY+15)
+	} else {
+		ebitenutil.DebugPrintAt(screen, "Not a member - complete quests to join", panelX+10, detailY+15)
 	}
 
-	// Draw help text
-	helpText := "[UP/DOWN] Select  [ESC] Close"
-	ebitenutil.DebugPrintAt(screen, helpText, panelX+10, panelY+panelH-20)
+	ebitenutil.DebugPrintAt(screen, ui.getAvailableActions(faction), panelX+10, detailY+30)
+}
+
+// drawHelpText draws the help text at the bottom.
+func (ui *FactionUI) drawHelpText(screen *ebiten.Image, panelX, panelY, panelH int) {
+	ebitenutil.DebugPrintAt(screen, "[UP/DOWN] Select  [ESC] Close", panelX+10, panelY+panelH-20)
 }
 
 // getAvailableActions returns actions available based on faction standing.

@@ -111,7 +111,6 @@ func (g *Game) Update() error {
 	const dt = 1.0 / 60.0
 	g.syncInputState()
 
-	// Handle character creation state
 	if g.gameState == GameStateCharacterCreation {
 		return g.updateCharacterCreation()
 	}
@@ -121,83 +120,97 @@ func (g *Game) Update() error {
 	g.handleQuestToggle()
 	g.handleFactionToggle()
 
-	// Check if quit requested
-	if g.menu != nil && g.menu.QuitRequested() {
-		os.Exit(0)
-	}
-
-	// Handle menu UI if open
-	if g.menu != nil && g.menu.IsOpen() {
-		g.menu.Update()
+	if g.handleQuitRequest() {
 		return nil
 	}
 
-	// Handle inventory UI if open
-	if g.inventoryUI != nil && g.inventoryUI.IsOpen() {
-		g.inventoryUI.Update(g.world)
-		return nil
-	}
-
-	// Handle quest UI if open
-	if g.questUI != nil && g.questUI.IsOpen() {
-		g.questUI.Update(g.world, dt)
-		return nil
-	}
-
-	// Handle crafting UI if open
-	if g.craftingUI != nil && g.craftingUI.IsOpen() {
-		g.craftingUI.Update(g.world)
-		return nil
-	}
-
-	// Handle dialog UI if open
-	if g.dialogUI != nil && g.dialogUI.IsOpen() {
-		g.dialogUI.Update()
-		return nil
-	}
-
-	// Handle faction UI if open
-	if g.factionUI != nil && g.factionUI.IsOpen() {
-		g.factionUI.Update(g.world)
-		return nil
-	}
-
-	// Update housing UI
-	if g.housingUI != nil && g.housingUI.IsActive() {
-		g.housingUI.Update()
+	if g.updateActiveOverlay(dt) {
 		return nil
 	}
 
 	if !g.paused {
-		g.handlePlayerInput(dt)
-		g.handleInteraction()
-		g.handleCombat(dt)
-		g.world.Update(dt)
-		g.updateChunkMap()
-		g.updateRenderingSubsystems(dt)
-		g.updateSubtitles(dt)
-		// Synchronize state with server (if connected)
-		if g.stateSync != nil {
-			g.stateSync.Update(dt)
-			g.sendPlayerInputToServer()
-		}
-		// Update quest UI notifications (even when not open)
-		if g.questUI != nil {
-			g.questUI.Update(g.world, dt)
-		}
-		// Update PvP UI (zone indicators, flag status)
-		if g.pvpUI != nil {
-			playerPos := g.getPlayerPosition()
-			g.pvpUI.Update(uint64(g.playerEntity), playerPos.X, playerPos.Y)
-		}
-		// Update housing furniture preview if in furniture mode
-		if g.housingUI != nil {
-			playerPos := g.getPlayerPosition()
-			angle := g.renderer.GetPlayerAngle()
-			g.housingUI.UpdateFurniturePreview(playerPos.X, playerPos.Y, angle)
-		}
+		g.updateGameplay(dt)
 	}
 	return nil
+}
+
+// handleQuitRequest checks if quit was requested from menu.
+func (g *Game) handleQuitRequest() bool {
+	if g.menu != nil && g.menu.QuitRequested() {
+		os.Exit(0)
+	}
+	return false
+}
+
+// updateActiveOverlay updates the currently open UI overlay.
+func (g *Game) updateActiveOverlay(dt float64) bool {
+	if g.menu != nil && g.menu.IsOpen() {
+		g.menu.Update()
+		return true
+	}
+	if g.inventoryUI != nil && g.inventoryUI.IsOpen() {
+		g.inventoryUI.Update(g.world)
+		return true
+	}
+	if g.questUI != nil && g.questUI.IsOpen() {
+		g.questUI.Update(g.world, dt)
+		return true
+	}
+	if g.craftingUI != nil && g.craftingUI.IsOpen() {
+		g.craftingUI.Update(g.world)
+		return true
+	}
+	if g.dialogUI != nil && g.dialogUI.IsOpen() {
+		g.dialogUI.Update()
+		return true
+	}
+	if g.factionUI != nil && g.factionUI.IsOpen() {
+		g.factionUI.Update(g.world)
+		return true
+	}
+	if g.housingUI != nil && g.housingUI.IsActive() {
+		g.housingUI.Update()
+		return true
+	}
+	return false
+}
+
+// updateGameplay handles all active gameplay updates.
+func (g *Game) updateGameplay(dt float64) {
+	g.handlePlayerInput(dt)
+	g.handleInteraction()
+	g.handleCombat(dt)
+	g.world.Update(dt)
+	g.updateChunkMap()
+	g.updateRenderingSubsystems(dt)
+	g.updateSubtitles(dt)
+	g.updateNetworkSync(dt)
+	g.updateBackgroundUI(dt)
+}
+
+// updateNetworkSync synchronizes state with server if connected.
+func (g *Game) updateNetworkSync(dt float64) {
+	if g.stateSync == nil {
+		return
+	}
+	g.stateSync.Update(dt)
+	g.sendPlayerInputToServer()
+}
+
+// updateBackgroundUI updates UI elements that run in the background.
+func (g *Game) updateBackgroundUI(dt float64) {
+	if g.questUI != nil {
+		g.questUI.Update(g.world, dt)
+	}
+	if g.pvpUI != nil {
+		playerPos := g.getPlayerPosition()
+		g.pvpUI.Update(uint64(g.playerEntity), playerPos.X, playerPos.Y)
+	}
+	if g.housingUI != nil {
+		playerPos := g.getPlayerPosition()
+		angle := g.renderer.GetPlayerAngle()
+		g.housingUI.UpdateFurniturePreview(playerPos.X, playerPos.Y, angle)
+	}
 }
 
 // updateCharacterCreation handles the character creation screen state.
@@ -929,83 +942,98 @@ func (g *Game) drawNPCConversations(screen *ebiten.Image) {
 		return
 	}
 
-	// Get player position for distance calculation
-	playerPosComp, ok := g.world.GetComponent(g.playerEntity, "Position")
-	if !ok {
+	playerPos := g.getPlayerPositionOrNil()
+	if playerPos == nil {
 		return
 	}
-	playerPos := playerPosComp.(*components.Position)
 
-	// Find NPCs in conversations (have DialogState with IsInDialog=true)
+	screenW, screenH := screen.Bounds().Dx(), screen.Bounds().Dy()
+	playerAngle := g.renderer.GetPlayerAngle()
+
 	for _, entity := range g.world.Entities("DialogState", "Position") {
-		// Skip if it's the player
-		if entity == g.playerEntity {
+		if !g.shouldDrawNPCConversation(entity) {
 			continue
 		}
 
-		// Check if NPC is in dialog
-		dialogComp, ok := g.world.GetComponent(entity, "DialogState")
-		if !ok {
-			continue
-		}
-		dialogState := dialogComp.(*components.DialogState)
-		if !dialogState.IsInDialog {
+		npcPos := g.getNPCPosition(entity)
+		if npcPos == nil {
 			continue
 		}
 
-		// Check if conversation partner is also an NPC (not player)
-		if dialogState.ConversationPartner == uint64(g.playerEntity) {
-			continue // Player conversations handled by dialog UI
+		screenX, screenY, visible := g.projectNPCToScreen(playerPos, npcPos, playerAngle, screenW, screenH)
+		if visible {
+			g.drawSpeechBubble(screen, screenX, screenY)
 		}
-
-		// Get NPC position
-		posComp, ok := g.world.GetComponent(entity, "Position")
-		if !ok {
-			continue
-		}
-		pos := posComp.(*components.Position)
-
-		// Calculate distance to player
-		dx := pos.X - playerPos.X
-		dy := pos.Y - playerPos.Y
-		distance := math.Sqrt(dx*dx + dy*dy)
-
-		// Only show for nearby NPCs
-		if distance > 20 {
-			continue
-		}
-
-		// Convert world position to screen position (simplified - use center)
-		// In a full implementation, this would use the camera/projection math
-		screenW, screenH := screen.Bounds().Dx(), screen.Bounds().Dy()
-
-		// Project world position to screen (rough approximation)
-		angle := math.Atan2(dy, dx)
-		playerAngle := g.renderer.GetPlayerAngle()
-		relAngle := angle - playerAngle
-
-		// Normalize angle to -PI to PI
-		for relAngle > math.Pi {
-			relAngle -= 2 * math.Pi
-		}
-		for relAngle < -math.Pi {
-			relAngle += 2 * math.Pi
-		}
-
-		// Only draw if in front of player (within FOV)
-		if math.Abs(relAngle) > math.Pi/3 { // ~60 degree FOV
-			continue
-		}
-
-		// Screen X position based on angle
-		screenX := screenW/2 + int(float64(screenW/2)*(relAngle/(math.Pi/3)))
-
-		// Screen Y position based on distance (higher = farther)
-		screenY := screenH/2 - int(50/distance) - 20
-
-		// Draw speech bubble indicator
-		g.drawSpeechBubble(screen, screenX, screenY)
 	}
+}
+
+// getPlayerPositionOrNil returns player position or nil if unavailable.
+func (g *Game) getPlayerPositionOrNil() *components.Position {
+	playerPosComp, ok := g.world.GetComponent(g.playerEntity, "Position")
+	if !ok {
+		return nil
+	}
+	return playerPosComp.(*components.Position)
+}
+
+// shouldDrawNPCConversation checks if an NPC should have a conversation indicator.
+func (g *Game) shouldDrawNPCConversation(entity ecs.Entity) bool {
+	if entity == g.playerEntity {
+		return false
+	}
+	dialogComp, ok := g.world.GetComponent(entity, "DialogState")
+	if !ok {
+		return false
+	}
+	dialogState := dialogComp.(*components.DialogState)
+	if !dialogState.IsInDialog {
+		return false
+	}
+	return dialogState.ConversationPartner != uint64(g.playerEntity)
+}
+
+// getNPCPosition returns the position of an NPC entity.
+func (g *Game) getNPCPosition(entity ecs.Entity) *components.Position {
+	posComp, ok := g.world.GetComponent(entity, "Position")
+	if !ok {
+		return nil
+	}
+	return posComp.(*components.Position)
+}
+
+// projectNPCToScreen converts NPC world position to screen coordinates.
+func (g *Game) projectNPCToScreen(playerPos, npcPos *components.Position, playerAngle float64, screenW, screenH int) (int, int, bool) {
+	dx := npcPos.X - playerPos.X
+	dy := npcPos.Y - playerPos.Y
+	distance := math.Sqrt(dx*dx + dy*dy)
+
+	if distance > 20 {
+		return 0, 0, false
+	}
+
+	angle := math.Atan2(dy, dx)
+	relAngle := normalizeAngle(angle - playerAngle)
+
+	const fov = math.Pi / 3 // 60 degrees
+	if math.Abs(relAngle) > fov {
+		return 0, 0, false
+	}
+
+	screenX := screenW/2 + int(float64(screenW/2)*(relAngle/fov))
+	screenY := screenH/2 - int(50/distance) - 20
+
+	return screenX, screenY, true
+}
+
+// normalizeAngle normalizes an angle to the range -PI to PI.
+func normalizeAngle(angle float64) float64 {
+	for angle > math.Pi {
+		angle -= 2 * math.Pi
+	}
+	for angle < -math.Pi {
+		angle += 2 * math.Pi
+	}
+	return angle
 }
 
 // drawSpeechBubble draws a simple "..." speech indicator at the given position.
@@ -1576,40 +1604,46 @@ func main() {
 // createPlayerEntity creates and configures the player entity.
 func createPlayerEntity(world *ecs.World) ecs.Entity {
 	player := world.CreateEntity()
-	if err := world.AddComponent(player, &components.Position{X: 8.5, Y: 8.5, Z: 0}); err != nil {
-		log.Fatalf("failed to add Position component: %v", err)
-	}
-	if err := world.AddComponent(player, &components.Health{Current: 100, Max: 100}); err != nil {
-		log.Fatalf("failed to add Health component: %v", err)
-	}
-	if err := world.AddComponent(player, &components.Mana{Current: 50, Max: 50, RegenRate: 1.0}); err != nil {
-		log.Fatalf("failed to add Mana component: %v", err)
-	}
-	if err := world.AddComponent(player, &components.Skills{Levels: make(map[string]int), Experience: make(map[string]float64), SchoolBonuses: make(map[string]float64)}); err != nil {
-		log.Fatalf("failed to add Skills component: %v", err)
-	}
-	if err := world.AddComponent(player, &components.Inventory{Items: []string{}, Capacity: 30}); err != nil {
-		log.Fatalf("failed to add Inventory component: %v", err)
-	}
-	if err := world.AddComponent(player, &components.Faction{ID: "player", Reputation: 0}); err != nil {
-		log.Fatalf("failed to add Faction component: %v", err)
-	}
-	if err := world.AddComponent(player, &components.Reputation{Standings: make(map[string]float64)}); err != nil {
-		log.Fatalf("failed to add Reputation component: %v", err)
-	}
-	if err := world.AddComponent(player, &components.Stealth{Visibility: 1.0, BaseVisibility: 1.0, SneakVisibility: 0.3, DetectionRadius: 15.0}); err != nil {
-		log.Fatalf("failed to add Stealth component: %v", err)
-	}
-	if err := world.AddComponent(player, &components.CombatState{}); err != nil {
-		log.Fatalf("failed to add CombatState component: %v", err)
-	}
-	if err := world.AddComponent(player, &components.AudioListener{Volume: 1.0, Enabled: true}); err != nil {
-		log.Fatalf("failed to add AudioListener component: %v", err)
-	}
-	if err := world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1.5, AttackSpeed: 1.0, WeaponType: "melee"}); err != nil {
-		log.Fatalf("failed to add Weapon component: %v", err)
-	}
+	addPlayerComponents(world, player)
 	return player
+}
+
+// addPlayerComponents adds all required components to the player entity.
+func addPlayerComponents(world *ecs.World, player ecs.Entity) {
+	componentList := []ecs.Component{
+		&components.Position{X: 8.5, Y: 8.5, Z: 0},
+		&components.Health{Current: 100, Max: 100},
+		&components.Mana{Current: 50, Max: 50, RegenRate: 1.0},
+		&components.Skills{
+			Levels:        make(map[string]int),
+			Experience:    make(map[string]float64),
+			SchoolBonuses: make(map[string]float64),
+		},
+		&components.Inventory{Items: []string{}, Capacity: 30},
+		&components.Faction{ID: "player", Reputation: 0},
+		&components.Reputation{Standings: make(map[string]float64)},
+		&components.Stealth{
+			Visibility:      1.0,
+			BaseVisibility:  1.0,
+			SneakVisibility: 0.3,
+			DetectionRadius: 15.0,
+		},
+		&components.CombatState{},
+		&components.AudioListener{Volume: 1.0, Enabled: true},
+		&components.Weapon{
+			Name:        "Fists",
+			Damage:      5,
+			Range:       1.5,
+			AttackSpeed: 1.0,
+			WeaponType:  "melee",
+		},
+	}
+
+	for _, c := range componentList {
+		if err := world.AddComponent(player, c); err != nil {
+			log.Fatalf("failed to add %s component: %v", c.Type(), err)
+		}
+	}
 }
 
 // registerClientSystems registers all client-side ECS systems.
