@@ -36,6 +36,7 @@ type Game struct {
 	wallThreshold float64
 	audioEngine   *audio.Engine
 	audioPlayer   *audio.Player
+	worldMap      [][]int // Local world map for collision detection
 }
 
 // Update advances game state by one tick, processing player input and ECS systems.
@@ -83,6 +84,7 @@ func (g *Game) rebuildWorldMap(centerChunkX, centerChunkY int) {
 			g.sampleChunkIntoMap(worldMap, c, dx, dy, chunkSize)
 		}
 	}
+	g.worldMap = worldMap // Store for collision detection
 	g.renderer.SetWorldMapDirect(worldMap)
 }
 
@@ -119,18 +121,75 @@ func (g *Game) handlePlayerInput(dt float64) {
 	g.processStrafeInput(pos, dt)
 }
 
+// canMoveTo checks if a position is valid (not inside a wall).
+// Uses player radius for wall sliding behavior.
+func (g *Game) canMoveTo(x, y float64) bool {
+	if g.worldMap == nil || len(g.worldMap) == 0 {
+		return true // No map loaded yet, allow movement
+	}
+	const playerRadius = 0.3
+
+	// Check multiple points around player position for collision
+	for _, offset := range [][2]float64{{0, 0}, {playerRadius, 0}, {-playerRadius, 0}, {0, playerRadius}, {0, -playerRadius}} {
+		checkX := x + offset[0]
+		checkY := y + offset[1]
+
+		// Convert world position to map coordinates
+		mapX := int(checkX)
+		mapY := int(checkY)
+
+		// Bounds check
+		if mapY < 0 || mapY >= len(g.worldMap) || mapX < 0 || mapX >= len(g.worldMap[0]) {
+			return false // Out of bounds is treated as wall
+		}
+
+		// Check if cell is a wall (value > 0)
+		if g.worldMap[mapY][mapX] > 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// tryMove attempts to move from current position by delta, with wall sliding.
+func (g *Game) tryMove(pos *components.Position, dx, dy float64) {
+	// Try full movement first
+	newX := pos.X + dx
+	newY := pos.Y + dy
+	if g.canMoveTo(newX, newY) {
+		pos.X = newX
+		pos.Y = newY
+		return
+	}
+
+	// Wall sliding: try X movement only
+	if g.canMoveTo(newX, pos.Y) {
+		pos.X = newX
+		return
+	}
+
+	// Wall sliding: try Y movement only
+	if g.canMoveTo(pos.X, newY) {
+		pos.Y = newY
+		return
+	}
+	// Movement blocked in both directions
+}
+
 // processMovementInput handles forward/back movement and turning.
 func (g *Game) processMovementInput(pos *components.Position, dt float64) {
 	const moveSpeed = 3.0 // units per second
 	const turnSpeed = 2.0 // radians per second
 
 	if ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyUp) {
-		pos.X += math.Cos(pos.Angle) * moveSpeed * dt
-		pos.Y += math.Sin(pos.Angle) * moveSpeed * dt
+		dx := math.Cos(pos.Angle) * moveSpeed * dt
+		dy := math.Sin(pos.Angle) * moveSpeed * dt
+		g.tryMove(pos, dx, dy)
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyS) || ebiten.IsKeyPressed(ebiten.KeyDown) {
-		pos.X -= math.Cos(pos.Angle) * moveSpeed * dt
-		pos.Y -= math.Sin(pos.Angle) * moveSpeed * dt
+		dx := -math.Cos(pos.Angle) * moveSpeed * dt
+		dy := -math.Sin(pos.Angle) * moveSpeed * dt
+		g.tryMove(pos, dx, dy)
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyLeft) {
 		pos.Angle -= turnSpeed * dt
@@ -144,12 +203,14 @@ func (g *Game) processMovementInput(pos *components.Position, dt float64) {
 func (g *Game) processStrafeInput(pos *components.Position, dt float64) {
 	const moveSpeed = 3.0
 	if ebiten.IsKeyPressed(ebiten.KeyQ) {
-		pos.X += math.Cos(pos.Angle-math.Pi/2) * moveSpeed * dt
-		pos.Y += math.Sin(pos.Angle-math.Pi/2) * moveSpeed * dt
+		dx := math.Cos(pos.Angle-math.Pi/2) * moveSpeed * dt
+		dy := math.Sin(pos.Angle-math.Pi/2) * moveSpeed * dt
+		g.tryMove(pos, dx, dy)
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyE) {
-		pos.X += math.Cos(pos.Angle+math.Pi/2) * moveSpeed * dt
-		pos.Y += math.Sin(pos.Angle+math.Pi/2) * moveSpeed * dt
+		dx := math.Cos(pos.Angle+math.Pi/2) * moveSpeed * dt
+		dy := math.Sin(pos.Angle+math.Pi/2) * moveSpeed * dt
+		g.tryMove(pos, dx, dy)
 	}
 }
 
@@ -235,6 +296,33 @@ func createPlayerEntity(world *ecs.World) ecs.Entity {
 	if err := world.AddComponent(player, &components.Health{Current: 100, Max: 100}); err != nil {
 		log.Fatalf("failed to add Health component: %v", err)
 	}
+	if err := world.AddComponent(player, &components.Mana{Current: 50, Max: 50, RegenRate: 1.0}); err != nil {
+		log.Fatalf("failed to add Mana component: %v", err)
+	}
+	if err := world.AddComponent(player, &components.Skills{Levels: make(map[string]int), Experience: make(map[string]float64), SchoolBonuses: make(map[string]float64)}); err != nil {
+		log.Fatalf("failed to add Skills component: %v", err)
+	}
+	if err := world.AddComponent(player, &components.Inventory{Items: []string{}, Capacity: 30}); err != nil {
+		log.Fatalf("failed to add Inventory component: %v", err)
+	}
+	if err := world.AddComponent(player, &components.Faction{ID: "player", Reputation: 0}); err != nil {
+		log.Fatalf("failed to add Faction component: %v", err)
+	}
+	if err := world.AddComponent(player, &components.Reputation{Standings: make(map[string]float64)}); err != nil {
+		log.Fatalf("failed to add Reputation component: %v", err)
+	}
+	if err := world.AddComponent(player, &components.Stealth{Visibility: 1.0, BaseVisibility: 1.0, SneakVisibility: 0.3, DetectionRadius: 15.0}); err != nil {
+		log.Fatalf("failed to add Stealth component: %v", err)
+	}
+	if err := world.AddComponent(player, &components.CombatState{}); err != nil {
+		log.Fatalf("failed to add CombatState component: %v", err)
+	}
+	if err := world.AddComponent(player, &components.AudioListener{Volume: 1.0, Enabled: true}); err != nil {
+		log.Fatalf("failed to add AudioListener component: %v", err)
+	}
+	if err := world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1.5, AttackSpeed: 1.0, WeaponType: "melee"}); err != nil {
+		log.Fatalf("failed to add Weapon component: %v", err)
+	}
 	return player
 }
 
@@ -242,7 +330,7 @@ func createPlayerEntity(world *ecs.World) ecs.Entity {
 func registerClientSystems(world *ecs.World, player ecs.Entity, cfg *config.Config) {
 	world.RegisterSystem(&systems.RenderSystem{PlayerEntity: player})
 	world.RegisterSystem(&systems.AudioSystem{Genre: cfg.Genre})
-	world.RegisterSystem(&systems.WeatherSystem{})
+	world.RegisterSystem(systems.NewWeatherSystem(cfg.Genre, 300.0))
 }
 
 // startAmbientAudio initializes and plays genre-appropriate ambient audio.
