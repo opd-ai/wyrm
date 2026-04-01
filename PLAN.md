@@ -51,15 +51,15 @@ Phase 9 (environment): IndoorOutdoorSystem, HazardSystem
 
 **Completion Checklist:**
 
-- [ ] Register NPC behavior systems (NPCPathfindingSystem, NPCNeedsSystem, NPCOccupationSystem, EmotionalStateSystem, NPCMemorySystem, GossipSystem)
-- [ ] Register faction depth systems (FactionRankSystem, FactionCoupSystem, FactionExclusiveContentSystem, DynamicFactionWarSystem)
-- [ ] Register crime depth systems (GuardPursuitSystem, BriberySystem, CrimeEvidenceSystem, PardonSystem, CriminalFactionQuestSystem)
-- [ ] Register economy depth systems (EconomicEventSystem, MarketManipulationSystem, TradeRouteSystem, InvestmentSystem, PlayerShopSystem, CityBuildingSystem, CityEventSystem, TradingSystem)
-- [ ] Register combat depth systems (MagicSystem, ProjectileSystem, StealthSystem, DistractionSystem, HidingSpotSystem, VehiclePhysicsSystem, VehicleCombatSystem, FlyingVehicleSystem, NavalVehicleSystem, MountSystem)
-- [ ] Register skills/crafting systems (SkillProgressionSystem, SkillBookSystem, SkillSynergySystem, ActionUnlockSystem, NPCTrainingSystem, CraftingSystem)
-- [ ] Register dialog/social systems (DialogConsequenceSystem, MultiNPCConversationSystem, PartySystem, VehicleCustomizationSystem)
-- [ ] Register environment systems (IndoorOutdoorSystem, HazardSystem)
-- [ ] Verify all 57 systems registered: `grep -c 'RegisterSystem' cmd/server/main.go`
+- [x] Register NPC behavior systems (NPCPathfindingSystem, NPCNeedsSystem, NPCOccupationSystem, EmotionalStateSystem, NPCMemorySystem, GossipSystem)
+- [x] Register faction depth systems (FactionRankSystem, FactionCoupSystem, FactionExclusiveContentSystem, DynamicFactionWarSystem)
+- [x] Register crime depth systems (GuardPursuitSystem, BriberySystem, CrimeEvidenceSystem, PardonSystem, CriminalFactionQuestSystem)
+- [x] Register economy depth systems (EconomicEventSystem, MarketManipulationSystem, TradeRouteSystem, InvestmentSystem, PlayerShopSystem, CityBuildingSystem, CityEventSystem, TradingSystem)
+- [x] Register combat depth systems (MagicSystem, ProjectileSystem, StealthSystem, DistractionSystem, HidingSpotSystem, VehiclePhysicsSystem, VehicleCombatSystem, FlyingVehicleSystem, NavalVehicleSystem, MountSystem)
+- [x] Register skills/crafting systems (SkillProgressionSystem, SkillBookSystem, SkillSynergySystem, ActionUnlockSystem, NPCTrainingSystem, CraftingSystem)
+- [x] Register dialog/social systems (DialogConsequenceSystem, MultiNPCConversationSystem, PartySystem, VehicleCustomizationSystem)
+- [x] Register environment systems (IndoorOutdoorSystem, HazardSystem)
+- [x] Verify all 57 systems registered: `grep -c 'RegisterSystem' cmd/server/main.go`
 
 **Validation:** `grep -c 'RegisterSystem' cmd/server/main.go` shows 57 registrations.
 
@@ -77,8 +77,8 @@ world.RegisterSystem(systems.NewWeatherSystem(cfg.Genre, 300.0))
 
 **Completion Checklist:**
 
-- [ ] Replace `&systems.WeatherSystem{}` with `systems.NewWeatherSystem(cfg.Genre, 300.0)` in `cmd/client/main.go`
-- [ ] Verify client builds: `go build ./cmd/client`
+- [x] Replace `&systems.WeatherSystem{}` with `systems.NewWeatherSystem(cfg.Genre, 300.0)` in `cmd/client/main.go`
+- [x] Verify client builds: `go build ./cmd/client`
 
 ### 1C: Add Player Collision Detection (4 hours)
 
@@ -93,12 +93,12 @@ world.RegisterSystem(systems.NewWeatherSystem(cfg.Genre, 300.0))
 
 **Completion Checklist:**
 
-- [ ] Store `worldMap` reference on the Game struct
-- [ ] Add bounds-checking before worldMap indexing in `processMovementInput()`
-- [ ] Add bounds-checking before worldMap indexing in `processStrafeInput()`
-- [ ] Implement wall-cell rejection (value > 0) for candidate positions
-- [ ] Implement player radius (0.3 units) wall sliding
-- [ ] Test that player cannot walk through rendered walls
+- [x] Store `worldMap` reference on the Game struct
+- [x] Add bounds-checking before worldMap indexing in `processMovementInput()`
+- [x] Add bounds-checking before worldMap indexing in `processStrafeInput()`
+- [x] Implement wall-cell rejection (value > 0) for candidate positions
+- [x] Implement player radius (0.3 units) wall sliding
+- [x] Test that player cannot walk through rendered walls
 
 **Validation:** Player cannot walk through rendered walls.
 
@@ -121,16 +121,16 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Add Mana component to player entity
-- [ ] Add Skills component with initialized maps
-- [ ] Add Inventory component with capacity
-- [ ] Add Faction component with player ID
-- [ ] Add Reputation component with standings map
-- [ ] Add Stealth component with detection parameters
-- [ ] Add CombatState component
-- [ ] Add AudioListener component
-- [ ] Add Weapon component (Fists default)
-- [ ] Verify client builds and player entity has all components
+- [x] Add Mana component to player entity
+- [x] Add Skills component with initialized maps
+- [x] Add Inventory component with capacity
+- [x] Add Faction component with player ID
+- [x] Add Reputation component with standings map
+- [x] Add Stealth component with detection parameters
+- [x] Add CombatState component
+- [x] Add AudioListener component
+- [x] Add Weapon component (Fists default)
+- [x] Verify client builds and player entity has all components
 
 ### 1E: Minimal HUD Implementation (8 hours)
 
@@ -149,14 +149,14 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Implement health bar overlay (red bar, bottom-left)
-- [ ] Implement mana bar overlay (blue bar, below health)
-- [ ] Display current position X, Y and chunk coordinates
-- [ ] Display genre indicator and weather state
-- [ ] Display connection status (online/offline)
-- [ ] Implement compass showing cardinal direction from player angle
-- [ ] Implement minimap (top-right, terrain from worldMap)
-- [ ] Verify HUD renders correctly at target resolution (1280×720)
+- [x] Implement health bar overlay (red bar, bottom-left)
+- [x] Implement mana bar overlay (blue bar, below health)
+- [x] Display current position X, Y and chunk coordinates
+- [x] Display genre indicator and weather state
+- [x] Display connection status (online/offline)
+- [x] Implement compass showing cardinal direction from player angle
+- [x] Implement minimap (top-right, terrain from worldMap)
+- [x] Verify HUD renders correctly at target resolution (1280×720)
 
 ### 1F: Integrate Input Rebinding (4 hours)
 
@@ -170,11 +170,11 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Import `pkg/input` in client
-- [ ] Create `input.Rebinder` with config-loaded key bindings
-- [ ] Replace all `ebiten.IsKeyPressed()` calls with `rebinder.IsPressed()` equivalents
-- [ ] Bind Escape key to pause state toggle
-- [ ] Verify all movement and action keys work through the rebinder
+- [x] Import `pkg/input` in client
+- [x] Create `input.Rebinder` with config-loaded key bindings
+- [x] Replace all `ebiten.IsKeyPressed()` calls with `rebinder.IsPressed()` equivalents
+- [x] Bind Escape key to pause state toggle
+- [x] Verify all movement and action keys work through the rebinder
 
 ### 1G: Integrate Rendering Subpackages (8 hours)
 
@@ -188,12 +188,12 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Import and integrate `pkg/rendering/texture/` for procedural wall/floor textures
-- [ ] Import and integrate `pkg/rendering/lighting/` with `LightManager` and time-of-day cycle
-- [ ] Import and integrate `pkg/rendering/postprocess/` with genre-specific effects
-- [ ] Import and integrate `pkg/rendering/particles/` with weather-driven particles
-- [ ] Verify all rendering subpackages produce visible output in the client
-- [ ] Confirm 60 FPS target at 1280×720 is maintained
+- [x] Import and integrate `pkg/rendering/texture/` for procedural wall/floor textures
+- [x] Import and integrate `pkg/rendering/lighting/` with `LightManager` and time-of-day cycle
+- [x] Import and integrate `pkg/rendering/postprocess/` with genre-specific effects
+- [x] Import and integrate `pkg/rendering/particles/` with weather-driven particles
+- [x] Verify all rendering subpackages produce visible output in the client
+- [x] Confirm 60 FPS target at 1280×720 is maintained
 
 ### 1H: Add AudioListener and Audio Integration (4 hours)
 
@@ -208,12 +208,12 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Verify `AudioListener` component is on player entity (from 1D)
-- [ ] Create `AudioState` entity for ambient/combat state tracking
-- [ ] Import `pkg/audio/ambient/` and generate biome-aware soundscapes
-- [ ] Import `pkg/audio/music/` and generate adaptive genre-specific music
-- [ ] Replace single sine wave with soundscape and music output
-- [ ] Verify AudioSystem finds AudioListener and produces spatial audio
+- [x] Verify `AudioListener` component is on player entity (from 1D)
+- [x] Create `AudioState` entity for ambient/combat state tracking
+- [x] Import `pkg/audio/ambient/` and generate biome-aware soundscapes
+- [x] Import `pkg/audio/music/` and generate adaptive genre-specific music
+- [x] Replace single sine wave with soundscape and music output
+- [x] Verify AudioSystem finds AudioListener and produces spatial audio
 
 ---
 
