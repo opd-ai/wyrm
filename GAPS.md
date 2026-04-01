@@ -600,8 +600,8 @@ Four LOD levels are defined in `pkg/world/chunk/manager.go` (`LODFull`, `LODHalf
 
 **Resolution Checklist:**
 
-- [ ] Implement distance-based LOD level selection in chunk streaming
-- [ ] Feed LOD-appropriate chunk data to raycaster for distant terrain
+- [x] Implement distance-based LOD level selection in chunk streaming
+- [x] Feed LOD-appropriate chunk data to raycaster for distant terrain
 - [ ] Verify visual quality at LOD boundaries
 - [ ] Benchmark memory savings from LOD usage
 
@@ -637,9 +637,9 @@ The noise generator (`pkg/procgen/noise/generator.go`, 56 lines) uses hash-based
 
 **Resolution Checklist:**
 
-- [ ] Implement background chunk generation goroutine with work queue
-- [ ] Return placeholder chunk for not-yet-generated chunks
-- [ ] Swap placeholder with real chunk when generation completes
+- [x] Implement background chunk generation goroutine with work queue
+- [x] Return placeholder chunk for not-yet-generated chunks
+- [x] Swap placeholder with real chunk when generation completes
 - [ ] Verify no frame stutter when crossing chunk boundaries
 - [ ] Add benchmark for chunk generation latency
 
