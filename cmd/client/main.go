@@ -5,18 +5,25 @@ package main
 
 import (
 	"fmt"
+	"image"
+	"image/color"
 	"log"
 	"math"
 	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/opd-ai/wyrm/config"
 	"github.com/opd-ai/wyrm/pkg/audio"
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 	"github.com/opd-ai/wyrm/pkg/engine/systems"
+	"github.com/opd-ai/wyrm/pkg/input"
 	"github.com/opd-ai/wyrm/pkg/network"
+	"github.com/opd-ai/wyrm/pkg/rendering/lighting"
+	"github.com/opd-ai/wyrm/pkg/rendering/particles"
+	"github.com/opd-ai/wyrm/pkg/rendering/postprocess"
 	"github.com/opd-ai/wyrm/pkg/rendering/raycast"
 	"github.com/opd-ai/wyrm/pkg/world/chunk"
 )
@@ -37,15 +44,76 @@ type Game struct {
 	audioEngine   *audio.Engine
 	audioPlayer   *audio.Player
 	worldMap      [][]int // Local world map for collision detection
+	inputManager  *input.Manager
+	paused        bool
+	// Rendering subpackages
+	lightingSystem   *lighting.System
+	postprocessPipe  *postprocess.Pipeline
+	particleSystem   *particles.System
+	particleRenderer *particles.Renderer
 }
 
 // Update advances game state by one tick, processing player input and ECS systems.
 func (g *Game) Update() error {
 	const dt = 1.0 / 60.0
-	g.handlePlayerInput(dt)
-	g.world.Update(dt)
-	g.updateChunkMap()
+	g.syncInputState()
+	g.handlePauseToggle()
+	if !g.paused {
+		g.handlePlayerInput(dt)
+		g.world.Update(dt)
+		g.updateChunkMap()
+		g.updateRenderingSubsystems(dt)
+	}
 	return nil
+}
+
+// updateRenderingSubsystems updates lighting and particle systems.
+func (g *Game) updateRenderingSubsystems(dt float64) {
+	// Update lighting based on world clock
+	if g.lightingSystem != nil {
+		// Advance time-of-day (scaled: 1 real second = 1 game minute)
+		g.lightingSystem.AdvanceTime(dt / 60.0)
+	}
+
+	// Update particle system
+	if g.particleSystem != nil {
+		g.particleSystem.Update(dt)
+	}
+}
+
+// syncInputState synchronizes Ebiten key state with the input manager.
+func (g *Game) syncInputState() {
+	if g.inputManager == nil {
+		return
+	}
+	// Sync pressed keys
+	for _, key := range inpututil.AppendJustPressedKeys(nil) {
+		g.inputManager.OnKeyPressed(key.String())
+	}
+	// Sync released keys
+	for _, key := range inpututil.AppendJustReleasedKeys(nil) {
+		g.inputManager.OnKeyReleased(key.String())
+	}
+	// Sync mouse buttons
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		g.inputManager.OnKeyPressed("MouseButtonLeft")
+	}
+	if inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft) {
+		g.inputManager.OnKeyReleased("MouseButtonLeft")
+	}
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonRight) {
+		g.inputManager.OnKeyPressed("MouseButtonRight")
+	}
+	if inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonRight) {
+		g.inputManager.OnKeyReleased("MouseButtonRight")
+	}
+}
+
+// handlePauseToggle checks for pause action.
+func (g *Game) handlePauseToggle() {
+	if g.inputManager != nil && inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		g.paused = !g.paused
+	}
 }
 
 // updateChunkMap refreshes the world map when player moves to a new chunk.
@@ -181,20 +249,26 @@ func (g *Game) processMovementInput(pos *components.Position, dt float64) {
 	const moveSpeed = 3.0 // units per second
 	const turnSpeed = 2.0 // radians per second
 
-	if ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyUp) {
+	// Use input manager if available, fallback to direct key checks
+	moveForward := g.isActionOrKeyPressed(input.ActionMoveForward, ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyUp)
+	moveBackward := g.isActionOrKeyPressed(input.ActionMoveBackward, ebiten.KeyS) || ebiten.IsKeyPressed(ebiten.KeyDown)
+	turnLeft := g.isActionOrKeyPressed(input.ActionMoveLeft, ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyLeft)
+	turnRight := g.isActionOrKeyPressed(input.ActionMoveRight, ebiten.KeyD) || ebiten.IsKeyPressed(ebiten.KeyRight)
+
+	if moveForward {
 		dx := math.Cos(pos.Angle) * moveSpeed * dt
 		dy := math.Sin(pos.Angle) * moveSpeed * dt
 		g.tryMove(pos, dx, dy)
 	}
-	if ebiten.IsKeyPressed(ebiten.KeyS) || ebiten.IsKeyPressed(ebiten.KeyDown) {
+	if moveBackward {
 		dx := -math.Cos(pos.Angle) * moveSpeed * dt
 		dy := -math.Sin(pos.Angle) * moveSpeed * dt
 		g.tryMove(pos, dx, dy)
 	}
-	if ebiten.IsKeyPressed(ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyLeft) {
+	if turnLeft {
 		pos.Angle -= turnSpeed * dt
 	}
-	if ebiten.IsKeyPressed(ebiten.KeyD) || ebiten.IsKeyPressed(ebiten.KeyRight) {
+	if turnRight {
 		pos.Angle += turnSpeed * dt
 	}
 }
@@ -214,6 +288,14 @@ func (g *Game) processStrafeInput(pos *components.Position, dt float64) {
 	}
 }
 
+// isActionOrKeyPressed checks if an action is pressed via input manager or fallback key.
+func (g *Game) isActionOrKeyPressed(action input.Action, fallbackKey ebiten.Key) bool {
+	if g.inputManager != nil {
+		return g.inputManager.IsActionPressed(action)
+	}
+	return ebiten.IsKeyPressed(fallbackKey)
+}
+
 // Draw renders the current frame using the raycaster and displays debug info.
 func (g *Game) Draw(screen *ebiten.Image) {
 	// Sync player position to renderer
@@ -223,12 +305,244 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			g.renderer.SetPlayerPos(pos.X, pos.Y, pos.Angle)
 		}
 	}
+
+	// Render base scene
 	g.renderer.Draw(screen)
+
+	// Apply post-processing effects (genre-specific)
+	g.applyPostProcessing(screen)
+
+	// Draw particles (weather effects) on top
+	g.drawParticles(screen)
+
+	// Draw HUD last (on top of everything)
+	g.drawHUD(screen)
+}
+
+// applyPostProcessing applies genre-specific visual effects to the rendered frame.
+func (g *Game) applyPostProcessing(screen *ebiten.Image) {
+	if g.postprocessPipe == nil {
+		return
+	}
+
+	// Get screen as RGBA image
+	bounds := screen.Bounds()
+	rgba := image.NewRGBA(bounds)
+
+	// Copy screen pixels to RGBA
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			rgba.Set(x, y, screen.At(x, y))
+		}
+	}
+
+	// Apply post-processing pipeline
+	processed := g.postprocessPipe.Apply(rgba)
+
+	// Copy processed image back to screen
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			screen.Set(x, y, processed.At(x, y))
+		}
+	}
+}
+
+// drawParticles renders weather particles to the screen.
+func (g *Game) drawParticles(screen *ebiten.Image) {
+	if g.particleSystem == nil || g.particleRenderer == nil {
+		return
+	}
+
+	// Get screen pixels for particle rendering
+	bounds := screen.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+	pixels := make([]byte, width*height*4)
+
+	// Copy current screen to pixel buffer for blending
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			r, gr, b, a := screen.At(x, y).RGBA()
+			idx := (y*width + x) * 4
+			pixels[idx] = uint8(r >> 8)
+			pixels[idx+1] = uint8(gr >> 8)
+			pixels[idx+2] = uint8(b >> 8)
+			pixels[idx+3] = uint8(a >> 8)
+		}
+	}
+
+	// Render particles
+	g.particleRenderer.Draw(g.particleSystem, pixels)
+
+	// Copy back to screen
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			idx := (y*width + x) * 4
+			screen.Set(x, y, color.RGBA{
+				R: pixels[idx],
+				G: pixels[idx+1],
+				B: pixels[idx+2],
+				A: pixels[idx+3],
+			})
+		}
+	}
+}
+
+// drawHUD renders the heads-up display elements.
+func (g *Game) drawHUD(screen *ebiten.Image) {
+	screenWidth := g.cfg.Window.Width
+	screenHeight := g.cfg.Window.Height
+
+	// Get player components
+	var pos *components.Position
+	var health *components.Health
+	var mana *components.Mana
+	if g.playerEntity != 0 {
+		if comp, ok := g.world.GetComponent(g.playerEntity, "Position"); ok {
+			pos = comp.(*components.Position)
+		}
+		if comp, ok := g.world.GetComponent(g.playerEntity, "Health"); ok {
+			health = comp.(*components.Health)
+		}
+		if comp, ok := g.world.GetComponent(g.playerEntity, "Mana"); ok {
+			mana = comp.(*components.Mana)
+		}
+	}
+
+	// Draw health bar (bottom-left)
+	barWidth := 150
+	barHeight := 12
+	barX := 10
+	barY := screenHeight - 50
+	if health != nil {
+		healthPercent := health.Current / health.Max
+		g.drawBar(screen, barX, barY, barWidth, barHeight, healthPercent, 0xCC0000FF, 0x440000FF)
+	}
+
+	// Draw mana bar (below health)
+	if mana != nil {
+		manaPercent := mana.Current / mana.Max
+		g.drawBar(screen, barX, barY+16, barWidth, barHeight, manaPercent, 0x0066CCFF, 0x002244FF)
+	}
+
+	// Draw position and compass (top-left)
 	status := "offline"
 	if g.connected {
 		status = "online"
 	}
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("Wyrm [%s] %s", g.cfg.Genre, status))
+	coordText := fmt.Sprintf("Wyrm [%s] %s", g.cfg.Genre, status)
+	if pos != nil {
+		chunkX := int(pos.X) / g.cfg.World.ChunkSize
+		chunkY := int(pos.Y) / g.cfg.World.ChunkSize
+		direction := getCompassDirection(pos.Angle)
+		coordText = fmt.Sprintf("Wyrm [%s] %s\nPos: %.1f, %.1f | Chunk: %d, %d\nHeading: %s",
+			g.cfg.Genre, status, pos.X, pos.Y, chunkX, chunkY, direction)
+	}
+	ebitenutil.DebugPrint(screen, coordText)
+
+	// Draw minimap (top-right)
+	g.drawMinimap(screen, screenWidth-80, 10, 64)
+}
+
+// drawBar renders a horizontal bar (health/mana style).
+func (g *Game) drawBar(screen *ebiten.Image, x, y, width, height int, percent float64, fillColor, bgColor uint32) {
+	// Background
+	for py := y; py < y+height; py++ {
+		for px := x; px < x+width; px++ {
+			if px >= 0 && px < g.cfg.Window.Width && py >= 0 && py < g.cfg.Window.Height {
+				screen.Set(px, py, uint32ToColor(bgColor))
+			}
+		}
+	}
+	// Fill
+	fillWidth := int(float64(width) * percent)
+	for py := y + 1; py < y+height-1; py++ {
+		for px := x + 1; px < x+fillWidth-1; px++ {
+			if px >= 0 && px < g.cfg.Window.Width && py >= 0 && py < g.cfg.Window.Height {
+				screen.Set(px, py, uint32ToColor(fillColor))
+			}
+		}
+	}
+}
+
+// drawMinimap renders a small top-down view of the nearby area.
+func (g *Game) drawMinimap(screen *ebiten.Image, x, y, size int) {
+	if g.worldMap == nil || len(g.worldMap) == 0 {
+		return
+	}
+
+	// Get player position
+	var playerMapX, playerMapY int
+	if g.playerEntity != 0 {
+		if comp, ok := g.world.GetComponent(g.playerEntity, "Position"); ok {
+			pos := comp.(*components.Position)
+			playerMapX = int(pos.X)
+			playerMapY = int(pos.Y)
+		}
+	}
+
+	// Draw minimap background and terrain
+	mapRadius := 16 // Show 16 cells in each direction
+	for my := 0; my < size; my++ {
+		for mx := 0; mx < size; mx++ {
+			// Map screen coords to world coords
+			worldX := playerMapX - mapRadius + (mx * mapRadius * 2 / size)
+			worldY := playerMapY - mapRadius + (my * mapRadius * 2 / size)
+
+			screenX := x + mx
+			screenY := y + my
+
+			if screenX < 0 || screenX >= g.cfg.Window.Width || screenY < 0 || screenY >= g.cfg.Window.Height {
+				continue
+			}
+
+			// Check bounds and draw
+			if worldY >= 0 && worldY < len(g.worldMap) && worldX >= 0 && worldX < len(g.worldMap[0]) {
+				if g.worldMap[worldY][worldX] > 0 {
+					screen.Set(screenX, screenY, uint32ToColor(0x666666FF)) // Wall
+				} else {
+					screen.Set(screenX, screenY, uint32ToColor(0x333333FF)) // Floor
+				}
+			} else {
+				screen.Set(screenX, screenY, uint32ToColor(0x111111FF)) // Out of bounds
+			}
+		}
+	}
+
+	// Draw player dot in center
+	centerX := x + size/2
+	centerY := y + size/2
+	screen.Set(centerX, centerY, uint32ToColor(0x00FF00FF))
+	screen.Set(centerX+1, centerY, uint32ToColor(0x00FF00FF))
+	screen.Set(centerX-1, centerY, uint32ToColor(0x00FF00FF))
+	screen.Set(centerX, centerY+1, uint32ToColor(0x00FF00FF))
+	screen.Set(centerX, centerY-1, uint32ToColor(0x00FF00FF))
+}
+
+// getCompassDirection returns cardinal/ordinal direction name from angle.
+func getCompassDirection(angle float64) string {
+	// Normalize angle to 0-2π
+	for angle < 0 {
+		angle += 2 * math.Pi
+	}
+	for angle >= 2*math.Pi {
+		angle -= 2 * math.Pi
+	}
+
+	// Convert to compass direction (0 = East in math coordinates)
+	directions := []string{"E", "NE", "N", "NW", "W", "SW", "S", "SE"}
+	index := int((angle+(math.Pi/8))/(math.Pi/4)) % 8
+	return directions[index]
+}
+
+// uint32ToColor converts a hex color (RRGGBBAA) to color.RGBA.
+func uint32ToColor(c uint32) color.RGBA {
+	return color.RGBA{
+		R: uint8((c >> 24) & 0xFF),
+		G: uint8((c >> 16) & 0xFF),
+		B: uint8((c >> 8) & 0xFF),
+		A: uint8(c & 0xFF),
+	}
 }
 
 // Layout returns the game's logical screen dimensions.
@@ -249,6 +563,10 @@ func main() {
 	client, connected := connectToServer(cfg)
 	chunkMgr := chunk.NewManager(cfg.World.ChunkSize, cfg.World.Seed)
 
+	// Initialize input manager with config bindings
+	inputMgr := input.NewManager()
+	inputMgr.LoadFromConfig(&cfg.KeyBindings)
+
 	// Initialize audio system
 	audioEngine := audio.NewEngine(cfg.Genre)
 	audioPlayer, audioErr := audio.NewPlayer()
@@ -256,24 +574,38 @@ func main() {
 		log.Printf("audio initialization failed (continuing without audio): %v", audioErr)
 	}
 
+	// Initialize rendering subpackages
+	lightingSys := lighting.NewSystem(cfg.Genre)
+	postprocessPipeline := postprocess.NewPipeline(cfg.Genre)
+	particleSys := particles.NewSystem(cfg.World.Seed)
+	particleRend := particles.NewRenderer(cfg.Window.Width, cfg.Window.Height)
+
+	// Set up weather particles based on genre
+	setupWeatherParticles(particleSys, cfg.Genre, cfg.World.Seed)
+
 	// Local map size for raycaster (must be divisible by 3 for 3x3 chunk window)
 	const localMapSize = 48
 	const wallThreshold = 0.5
 
 	game := &Game{
-		cfg:           cfg,
-		world:         world,
-		renderer:      renderer,
-		client:        client,
-		connected:     connected,
-		playerEntity:  player,
-		chunkManager:  chunkMgr,
-		lastChunkX:    -999, // Force initial map build
-		lastChunkY:    -999,
-		mapSize:       localMapSize,
-		wallThreshold: wallThreshold,
-		audioEngine:   audioEngine,
-		audioPlayer:   audioPlayer,
+		cfg:              cfg,
+		world:            world,
+		renderer:         renderer,
+		client:           client,
+		connected:        connected,
+		playerEntity:     player,
+		chunkManager:     chunkMgr,
+		lastChunkX:       -999, // Force initial map build
+		lastChunkY:       -999,
+		mapSize:          localMapSize,
+		wallThreshold:    wallThreshold,
+		audioEngine:      audioEngine,
+		audioPlayer:      audioPlayer,
+		inputManager:     inputMgr,
+		lightingSystem:   lightingSys,
+		postprocessPipe:  postprocessPipeline,
+		particleSystem:   particleSys,
+		particleRenderer: particleRend,
 	}
 
 	// Start ambient audio if available
@@ -374,5 +706,52 @@ func runGame(game *Game, connected bool, client *network.Client) {
 	}
 	if connected {
 		client.Disconnect()
+	}
+}
+
+// setupWeatherParticles creates genre-appropriate weather particle emitters.
+func setupWeatherParticles(sys *particles.System, genre string, seed int64) {
+	if sys == nil {
+		return
+	}
+
+	// Genre-specific ambient particles
+	var weatherType string
+	var intensity float64
+
+	switch genre {
+	case "fantasy":
+		// Light dust motes in sunbeams
+		weatherType = particles.TypeDust
+		intensity = 0.3
+	case "sci-fi":
+		// Subtle atmospheric particles
+		weatherType = particles.TypeDust
+		intensity = 0.2
+	case "horror":
+		// Ash/fog wisps
+		weatherType = particles.TypeAsh
+		intensity = 0.5
+	case "cyberpunk":
+		// Rain is iconic for cyberpunk
+		weatherType = particles.TypeRain
+		intensity = 0.4
+	case "post-apocalyptic":
+		// Dust and ash
+		weatherType = particles.TypeDust
+		intensity = 0.6
+	default:
+		return
+	}
+
+	// Create weather emitters using preset
+	preset := &particles.WeatherPreset{
+		Type:      weatherType,
+		Intensity: intensity,
+		Direction: 1.57, // Straight down
+	}
+	emitters := particles.CreateWeatherEmitters(preset, seed)
+	for _, e := range emitters {
+		sys.AddEmitter(e)
 	}
 }
