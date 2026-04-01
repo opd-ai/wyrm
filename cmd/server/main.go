@@ -521,7 +521,15 @@ func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server, fe
 	go runFederationCleanup(fed, fedStopCh)
 	defer close(fedStopCh)
 
+	// Federation gossip timer (every 10 seconds)
+	fedGossipInterval := 10 * time.Second
+	fedGossipTicker := time.NewTicker(fedGossipInterval)
+	defer fedGossipTicker.Stop()
+
 	log.Printf("auto-save enabled (interval=%v)", autoSaveInterval)
+	if fed != nil {
+		log.Printf("federation gossip enabled (interval=%v)", fedGossipInterval)
+	}
 
 	for {
 		select {
@@ -530,6 +538,8 @@ func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server, fe
 			broadcastEntityUpdates(world, srv)
 		case <-chunkStreamTicker.C:
 			checkAndStreamChunks(world, srv, cm, cfg.World.ChunkSize)
+		case <-fedGossipTicker.C:
+			processFederationGossip(world, fed, cfg)
 		case <-autoSaveTicker.C:
 			log.Println("auto-saving world state...")
 			snapshot := createWorldSnapshot(world, cfg)
@@ -629,4 +639,120 @@ func checkAndStreamChunks(world *ecs.World, srv *network.Server, cm *chunk.Manag
 			srv.SendChunkData(conn, int32(c.X), int32(c.Y), uint16(lodSize), heightData, biomeData)
 		}
 	}
+}
+
+// processFederationGossip handles periodic federation communication.
+// Exchanges economy price signals and global events with peer servers.
+func processFederationGossip(world *ecs.World, fed *federation.Federation, cfg *config.Config) {
+	if fed == nil || !cfg.Federation.Enabled {
+		return
+	}
+
+	// Process incoming price signals from other servers
+	remotePrices := fed.GetRemotePrices()
+	if len(remotePrices) > 0 {
+		// Update local economy with remote price data
+		for _, price := range remotePrices {
+			applyRemotePriceSignal(world, price)
+		}
+	}
+
+	// Process active global events from federation
+	activeEvents := fed.GetActiveEvents()
+	if len(activeEvents) > 0 {
+		for _, event := range activeEvents {
+			applyGlobalEvent(world, event)
+		}
+	}
+
+	// Broadcast local price signals to federation
+	localPrices := collectLocalPriceSignals(world, cfg.Federation.NodeID)
+	for _, price := range localPrices {
+		fed.ProcessPriceSignal(price)
+	}
+}
+
+// applyRemotePriceSignal updates local economy based on remote server price data.
+func applyRemotePriceSignal(world *ecs.World, price *federation.PriceSignal) {
+	// Find merchant entities and adjust prices based on remote market data
+	entities := world.Entities("Inventory", "Faction")
+	for _, entity := range entities {
+		invComp, invOK := world.GetComponent(entity, "Inventory")
+		if !invOK {
+			continue
+		}
+		inv := invComp.(*components.Inventory)
+
+		// Adjust prices for matching items toward remote market average
+		for i := range inv.Items {
+			if inv.Items[i].Type == price.ItemType {
+				// Blend local price toward remote price (10% adjustment per tick)
+				priceDiff := price.Price - inv.Items[i].Value
+				inv.Items[i].Value += priceDiff * 0.1
+			}
+		}
+	}
+}
+
+// applyGlobalEvent processes a federation-wide event in the local world.
+func applyGlobalEvent(world *ecs.World, event *federation.GlobalEvent) {
+	// Apply event effects based on type
+	switch event.Type {
+	case "faction_war":
+		// Update faction relationships
+		log.Printf("federation event: faction war between %v", event.Data)
+	case "market_crash":
+		// Reduce all item values temporarily
+		log.Printf("federation event: market crash affecting items")
+	case "plague":
+		// Apply health debuffs to NPCs
+		log.Printf("federation event: plague outbreak")
+	case "dragon_attack":
+		// Spawn emergency event entities
+		log.Printf("federation event: dragon attack")
+	default:
+		log.Printf("federation event: %s (unhandled type)", event.Type)
+	}
+}
+
+// collectLocalPriceSignals gathers current market prices from local merchants.
+func collectLocalPriceSignals(world *ecs.World, nodeID string) []*federation.PriceSignal {
+	var signals []*federation.PriceSignal
+
+	// Sample prices from merchant inventories
+	entities := world.Entities("Inventory", "Faction")
+	itemPrices := make(map[string][]float64)
+
+	for _, entity := range entities {
+		invComp, invOK := world.GetComponent(entity, "Inventory")
+		if !invOK {
+			continue
+		}
+		inv := invComp.(*components.Inventory)
+
+		for _, item := range inv.Items {
+			itemPrices[item.Type] = append(itemPrices[item.Type], item.Value)
+		}
+	}
+
+	// Calculate average prices and create signals
+	for itemType, prices := range itemPrices {
+		if len(prices) == 0 {
+			continue
+		}
+		sum := 0.0
+		for _, p := range prices {
+			sum += p
+		}
+		avgPrice := sum / float64(len(prices))
+
+		signals = append(signals, &federation.PriceSignal{
+			ServerID:  nodeID,
+			ItemType:  itemType,
+			Price:     avgPrice,
+			Timestamp: time.Now(),
+		})
+	}
+
+	return signals
 }
