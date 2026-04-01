@@ -8,6 +8,7 @@ import (
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/world/housing"
@@ -316,8 +317,8 @@ func (ui *HousingUI) Draw(screen *ebiten.Image) {
 	}
 
 	// Draw semi-transparent background
-	drawRect(screen, 50, 50, 540, 380, color.RGBA{20, 20, 20, 220})
-	drawRect(screen, 52, 52, 536, 376, color.RGBA{40, 40, 60, 255})
+	ebitenutil.DrawRect(screen, 50, 50, 540, 380, color.RGBA{20, 20, 20, 220})
+	ebitenutil.DrawRect(screen, 52, 52, 536, 376, color.RGBA{40, 40, 60, 255})
 
 	// Draw title based on mode
 	var title string
@@ -331,7 +332,7 @@ func (ui *HousingUI) Draw(screen *ebiten.Image) {
 	case HousingModeGuild:
 		title = "Guild Territories"
 	}
-	drawText(screen, title, 60, 60, color.White)
+	ebitenutil.DebugPrintAt(screen, title, 60, 60)
 
 	// Draw mode-specific content
 	switch ui.mode {
@@ -346,40 +347,38 @@ func (ui *HousingUI) Draw(screen *ebiten.Image) {
 	}
 
 	// Draw controls help
-	drawText(screen, "[Tab] Switch Mode  [Esc] Close", 60, 410, color.RGBA{180, 180, 180, 255})
+	ebitenutil.DebugPrintAt(screen, "[Tab] Switch Mode  [Esc] Close", 60, 410)
 }
 
 // drawListingsMode renders property listings.
 func (ui *HousingUI) drawListingsMode(screen *ebiten.Image) {
 	y := 90
-	drawText(screen, fmt.Sprintf("Gold: %d", ui.playerGold), 450, y, color.RGBA{255, 215, 0, 255})
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Gold: %d", ui.playerGold), 450, y)
 	y += 25
 
 	if len(ui.listings) == 0 {
-		drawText(screen, "No properties available", 60, y, color.RGBA{150, 150, 150, 255})
+		ebitenutil.DebugPrintAt(screen, "No properties available", 60, y)
 		return
 	}
 
 	for i, listing := range ui.listings {
-		listColor := color.RGBA{200, 200, 200, 255}
 		if i == ui.selectedIndex {
-			listColor = color.RGBA{255, 255, 100, 255}
-			drawRect(screen, 55, y-3, 530, 50, color.RGBA{60, 60, 80, 255})
+			ebitenutil.DrawRect(screen, 55, float64(y-3), 530, 50, color.RGBA{60, 60, 80, 255})
 		}
 
 		price := ui.propertyMarket.GetCurrentPrice(listing.ID)
-		drawText(screen, listing.Name, 60, y, listColor)
-		drawText(screen, listing.Description, 60, y+15, color.RGBA{150, 150, 150, 255})
-		drawText(screen, fmt.Sprintf("Price: %d gold", price), 60, y+30, color.RGBA{200, 200, 100, 255})
+		ebitenutil.DebugPrintAt(screen, listing.Name, 60, y)
+		ebitenutil.DebugPrintAt(screen, listing.Description, 60, y+15)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Price: %d gold", price), 60, y+30)
 
 		if price > ui.playerGold {
-			drawText(screen, "(Cannot afford)", 400, y, color.RGBA{200, 100, 100, 255})
+			ebitenutil.DebugPrintAt(screen, "(Cannot afford)", 400, y)
 		}
 
 		y += 60
 	}
 
-	drawText(screen, "[Enter] Purchase  [↑/↓] Navigate", 60, 380, color.RGBA{120, 120, 120, 255})
+	ebitenutil.DebugPrintAt(screen, "[Enter] Purchase  [Up/Down] Navigate", 60, 380)
 }
 
 // drawMyHousesMode renders owned houses.
@@ -387,25 +386,23 @@ func (ui *HousingUI) drawMyHousesMode(screen *ebiten.Image) {
 	y := 90
 
 	if len(ui.playerHouses) == 0 {
-		drawText(screen, "You don't own any properties yet", 60, y, color.RGBA{150, 150, 150, 255})
+		ebitenutil.DebugPrintAt(screen, "You don't own any properties yet", 60, y)
 		return
 	}
 
 	for i, house := range ui.playerHouses {
-		listColor := color.RGBA{200, 200, 200, 255}
 		if i == ui.houseIndex {
-			listColor = color.RGBA{255, 255, 100, 255}
-			drawRect(screen, 55, y-3, 530, 50, color.RGBA{60, 60, 80, 255})
+			ebitenutil.DrawRect(screen, 55, float64(y-3), 530, 50, color.RGBA{60, 60, 80, 255})
 		}
 
-		drawText(screen, fmt.Sprintf("House: %s", house.ID), 60, y, listColor)
-		drawText(screen, fmt.Sprintf("Location: (%.0f, %.0f)", house.WorldX, house.WorldZ), 60, y+15, color.RGBA{150, 150, 150, 255})
-		drawText(screen, fmt.Sprintf("Furniture: %d items", len(house.Furniture)), 60, y+30, color.RGBA{150, 150, 150, 255})
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("House: %s", house.ID), 60, y)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Location: (%.0f, %.0f)", house.WorldX, house.WorldZ), 60, y+15)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Furniture: %d items", len(house.Furniture)), 60, y+30)
 
 		y += 60
 	}
 
-	drawText(screen, "[F] Place Furniture  [↑/↓] Navigate", 60, 380, color.RGBA{120, 120, 120, 255})
+	ebitenutil.DebugPrintAt(screen, "[F] Place Furniture  [Up/Down] Navigate", 60, 380)
 }
 
 // drawFurnitureMode renders furniture placement interface.
@@ -413,33 +410,33 @@ func (ui *HousingUI) drawFurnitureMode(screen *ebiten.Image) {
 	y := 90
 
 	// Show selected furniture type
-	drawText(screen, "Selected Furniture:", 60, y, color.White)
+	ebitenutil.DebugPrintAt(screen, "Selected Furniture:", 60, y)
 	y += 20
 
 	for i, ftype := range ui.furnitureTypes {
-		ftColor := color.RGBA{150, 150, 150, 255}
+		prefix := "  "
 		if i == ui.furnitureIndex {
-			ftColor = color.RGBA{100, 255, 100, 255}
+			prefix = "> "
 		}
-		drawText(screen, ftype, 70+i*80, y, ftColor)
+		ebitenutil.DebugPrintAt(screen, prefix+ftype, 70+i*80, y)
 	}
 	y += 30
 
 	// Show placement preview info
 	mode, px, py, pz, rot, valid := ui.furniturePlacement.GetPreviewState()
 	if mode != housing.PlacementModeNone {
-		drawText(screen, fmt.Sprintf("Position: (%.1f, %.1f, %.1f)", px, py, pz), 60, y, color.White)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Position: (%.1f, %.1f, %.1f)", px, py, pz), 60, y)
 		y += 20
-		drawText(screen, fmt.Sprintf("Rotation: %.0f°", rot*57.3), 60, y, color.White) // rad to deg
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Rotation: %.0f deg", rot*57.3), 60, y)
 		y += 20
 		if valid {
-			drawText(screen, "Position: Valid", 60, y, color.RGBA{100, 255, 100, 255})
+			ebitenutil.DebugPrintAt(screen, "Position: Valid", 60, y)
 		} else {
-			drawText(screen, "Position: Invalid", 60, y, color.RGBA{255, 100, 100, 255})
+			ebitenutil.DebugPrintAt(screen, "Position: Invalid", 60, y)
 		}
 	}
 
-	drawText(screen, "[←/→] Type  [R] Rotate  [Enter] Place  [Backspace] Exit", 60, 380, color.RGBA{120, 120, 120, 255})
+	ebitenutil.DebugPrintAt(screen, "[Left/Right] Type  [R] Rotate  [Enter] Place  [Backspace] Exit", 60, 380)
 }
 
 // drawGuildMode renders guild territory information.
@@ -448,14 +445,14 @@ func (ui *HousingUI) drawGuildMode(screen *ebiten.Image) {
 
 	territories := ui.guildManager.ExportTerritories()
 	if len(territories) == 0 {
-		drawText(screen, "No guild territories claimed", 60, y, color.RGBA{150, 150, 150, 255})
+		ebitenutil.DebugPrintAt(screen, "No guild territories claimed", 60, y)
 		return
 	}
 
 	for _, territory := range territories {
-		drawText(screen, territory.Name, 60, y, color.RGBA{200, 200, 200, 255})
-		drawText(screen, fmt.Sprintf("Guild: %s", territory.GuildID), 60, y+15, color.RGBA{150, 150, 150, 255})
-		drawText(screen, fmt.Sprintf("Location: (%.0f, %.0f) R:%.0f", territory.CenterX, territory.CenterZ, territory.Radius), 60, y+30, color.RGBA{150, 150, 150, 255})
+		ebitenutil.DebugPrintAt(screen, territory.Name, 60, y)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Guild: %s", territory.GuildID), 60, y+15)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Location: (%.0f, %.0f) R:%.0f", territory.CenterX, territory.CenterZ, territory.Radius), 60, y+30)
 		y += 50
 	}
 }
@@ -508,10 +505,10 @@ func getPlayerGold(g *Game) int {
 	if g.world == nil {
 		return 0
 	}
-	invComp, ok := g.world.GetComponent(g.playerEntity, "Inventory")
+	currComp, ok := g.world.GetComponent(g.playerEntity, "Currency")
 	if !ok {
 		return 0
 	}
-	inv := invComp.(*components.Inventory)
-	return inv.Gold
+	curr := currComp.(*components.Currency)
+	return curr.Gold
 }

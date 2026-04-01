@@ -50,5 +50,5 @@ func (ui *PvPUI) SetPlayerFlag(entityID uint64, flagged bool) {}
 // IsPlayerFlagged stub.
 func (ui *PvPUI) IsPlayerFlagged(entityID uint64) bool { return false }
 
-// getPlayerInventoryStrings stub.
-func getPlayerInventoryStrings(g *Game) []string { return nil }
+// getPlayerInventoryStrings stub - returns nil for test builds.
+func getPlayerInventoryStrings(_ interface{}) []string { return nil }

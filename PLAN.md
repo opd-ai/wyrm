@@ -635,13 +635,13 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Import `pkg/world/housing/` and integrate house purchase UI
-- [ ] Implement first-person furniture placement
-- [ ] Implement guild territory management
-- [ ] Import `pkg/world/pvp/` and display PvP zone indicators
-- [ ] Implement PvP flagging system
-- [ ] Implement loot drop mechanics in hostile/PvP zones
-- [ ] Verify player can buy, enter, and furnish a house
+- [x] Import `pkg/world/housing/` and integrate house purchase UI
+- [x] Implement first-person furniture placement
+- [x] Implement guild territory management
+- [x] Import `pkg/world/pvp/` and display PvP zone indicators
+- [x] Implement PvP flagging system
+- [x] Implement loot drop mechanics in hostile/PvP zones
+- [x] Verify player can buy, enter, and furnish a house
 
 ---
 

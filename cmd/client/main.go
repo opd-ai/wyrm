@@ -504,6 +504,31 @@ func (g *Game) handleFactionToggle() {
 			g.factionUI.Toggle()
 		}
 	}
+
+	// Check for H key press (for Housing)
+	if inpututil.IsKeyJustPressed(ebiten.KeyH) {
+		if g.housingUI != nil {
+			if g.housingUI.IsActive() {
+				g.housingUI.Close()
+			} else {
+				// Update player state before opening
+				g.housingUI.SetPlayerState(uint64(g.playerEntity), getPlayerGold(g), 1)
+				g.housingUI.Open()
+			}
+		}
+	}
+}
+
+// getPlayerPosition returns the player's current position, or a default if not found.
+func (g *Game) getPlayerPosition() *components.Position {
+	if g.world == nil || g.playerEntity == 0 {
+		return &components.Position{X: 0, Y: 0, Z: 0}
+	}
+	comp, ok := g.world.GetComponent(g.playerEntity, "Position")
+	if !ok {
+		return &components.Position{X: 0, Y: 0, Z: 0}
+	}
+	return comp.(*components.Position)
 }
 
 // updateChunkMap refreshes the world map when player moves to a new chunk.

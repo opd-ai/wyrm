@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/world/pvp"
@@ -172,20 +173,18 @@ func (ui *PvPUI) drawZoneIndicator(screen *ebiten.Image, zoneType pvp.ZoneType, 
 	x, y := screen.Bounds().Dx()-200, 10
 
 	var zoneName, zoneDesc string
-	var bgColor, textColor color.RGBA
+	var bgColor color.RGBA
 
 	switch zoneType {
 	case pvp.ZoneSafe:
 		zoneName = "SAFE ZONE"
 		zoneDesc = "No PvP allowed"
 		bgColor = color.RGBA{20, 80, 20, 200}
-		textColor = color.RGBA{100, 255, 100, 255}
 
 	case pvp.ZoneContested:
 		zoneName = "CONTESTED"
 		zoneDesc = "Opt-in PvP"
 		bgColor = color.RGBA{80, 80, 20, 200}
-		textColor = color.RGBA{255, 255, 100, 255}
 		// Flash if flagged
 		if isFlagged && ui.indicatorFlash < 30 {
 			bgColor = color.RGBA{100, 100, 30, 200}
@@ -195,7 +194,6 @@ func (ui *PvPUI) drawZoneIndicator(screen *ebiten.Image, zoneType pvp.ZoneType, 
 		zoneName = "HOSTILE"
 		zoneDesc = "Full PvP - Loot drops!"
 		bgColor = color.RGBA{100, 20, 20, 200}
-		textColor = color.RGBA{255, 100, 100, 255}
 		// Flash warning
 		if ui.indicatorFlash < 30 {
 			bgColor = color.RGBA{120, 30, 30, 200}
@@ -203,15 +201,15 @@ func (ui *PvPUI) drawZoneIndicator(screen *ebiten.Image, zoneType pvp.ZoneType, 
 	}
 
 	// Draw background
-	drawRect(screen, x, y, 190, 50, bgColor)
+	ebitenutil.DrawRect(screen, float64(x), float64(y), 190, 50, bgColor)
 
 	// Draw zone name and description
-	drawText(screen, zoneName, x+10, y+5, textColor)
-	drawText(screen, zoneDesc, x+10, y+25, color.RGBA{180, 180, 180, 255})
+	ebitenutil.DebugPrintAt(screen, zoneName, x+10, y+5)
+	ebitenutil.DebugPrintAt(screen, zoneDesc, x+10, y+25)
 
 	// Show zone ID if available
 	if zone != nil {
-		drawText(screen, zone.ID, x+10, y+38, color.RGBA{120, 120, 120, 255})
+		ebitenutil.DebugPrintAt(screen, zone.ID, x+10, y+38)
 	}
 }
 
@@ -220,23 +218,16 @@ func (ui *PvPUI) drawPvPStatus(screen *ebiten.Image, isFlagged bool) {
 	x, y := screen.Bounds().Dx()-200, 70
 
 	var statusText string
-	var statusColor color.RGBA
 
 	if isFlagged {
 		statusText = "PvP FLAGGED"
-		statusColor = color.RGBA{255, 80, 80, 255}
-		// Flash warning
-		if ui.indicatorFlash < 30 {
-			statusColor = color.RGBA{255, 150, 150, 255}
-		}
 	} else {
 		statusText = "PvP: Safe"
-		statusColor = color.RGBA{100, 200, 100, 255}
 	}
 
-	drawRect(screen, x, y, 190, 25, color.RGBA{30, 30, 30, 200})
-	drawText(screen, statusText, x+10, y+5, statusColor)
-	drawText(screen, "[P] Toggle", x+120, y+5, color.RGBA{100, 100, 100, 255})
+	ebitenutil.DrawRect(screen, float64(x), float64(y), 190, 25, color.RGBA{30, 30, 30, 200})
+	ebitenutil.DebugPrintAt(screen, statusText, x+10, y+5)
+	ebitenutil.DebugPrintAt(screen, "[P] Toggle", x+120, y+5)
 }
 
 // drawLootDrop renders a loot drop notification.
@@ -258,12 +249,11 @@ func (ui *PvPUI) drawLootDrop(screen *ebiten.Image) {
 	}
 
 	bgColor := color.RGBA{100, 30, 30, alpha}
-	drawRect(screen, x, y, 200, 60, bgColor)
+	ebitenutil.DrawRect(screen, float64(x), float64(y), 200, 60, bgColor)
 
-	textColor := color.RGBA{255, 200, 200, alpha}
-	drawText(screen, "LOOT DROPPED!", x+50, y+5, textColor)
-	drawText(screen, fmt.Sprintf("%d items", len(ui.recentDrop.Items)), x+70, y+25, textColor)
-	drawText(screen, fmt.Sprintf("At: (%.0f, %.0f)", ui.recentDrop.X, ui.recentDrop.Z), x+50, y+40, color.RGBA{180, 180, 180, alpha})
+	ebitenutil.DebugPrintAt(screen, "LOOT DROPPED!", x+50, y+5)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("%d items", len(ui.recentDrop.Items)), x+70, y+25)
+	ebitenutil.DebugPrintAt(screen, fmt.Sprintf("At: (%.0f, %.0f)", ui.recentDrop.X, ui.recentDrop.Z), x+50, y+40)
 }
 
 // CheckCombat evaluates if PvP damage should be applied between two players.
@@ -360,8 +350,8 @@ func (ui *PvPUI) DrawZoneBoundaryIndicator(screen *ebiten.Image, playerX, player
 		}
 
 		bgColor := color.RGBA{80, 80, 20, alpha}
-		drawRect(screen, x, y, 160, 30, bgColor)
-		drawText(screen, fmt.Sprintf("Zone boundary %s", direction), x+10, y+8, color.RGBA{255, 255, 150, alpha})
+		ebitenutil.DrawRect(screen, float64(x), float64(y), 160, 30, bgColor)
+		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Zone boundary %s", direction), x+10, y+8)
 	}
 }
 
@@ -375,10 +365,5 @@ func getPlayerInventoryStrings(g *Game) []string {
 		return nil
 	}
 	inv := invComp.(*components.Inventory)
-
-	items := make([]string, 0, len(inv.Items))
-	for _, item := range inv.Items {
-		items = append(items, item.ID)
-	}
-	return items
+	return inv.Items
 }

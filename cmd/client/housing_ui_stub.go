@@ -62,5 +62,5 @@ func (ui *HousingUI) IsInPlayerHouse(playerEntity uint64, x, z float64) bool { r
 // GetNearbyHouseForPurchase stub.
 func (ui *HousingUI) GetNearbyHouseForPurchase(x, z float64) *housing.PropertyListing { return nil }
 
-// getPlayerGold stub.
-func getPlayerGold(g *Game) int { return 0 }
+// getPlayerGold stub - returns 0 for test builds.
+func getPlayerGold(_ interface{}) int { return 0 }
