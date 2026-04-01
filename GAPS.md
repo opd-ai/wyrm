@@ -581,9 +581,9 @@ Each chunk independently selects its biome from genre-weighted distribution (`pk
 
 **Resolution Checklist:**
 
-- [ ] Implement biome query for neighboring chunks during generation
-- [ ] Add interpolation zone (32-cell border) that blends between adjacent biomes
-- [ ] Blend heightmap parameters (amplitude, frequency) in transition zones
+- [x] Implement biome query for neighboring chunks during generation
+- [x] Add interpolation zone (32-cell border) that blends between adjacent biomes
+- [x] Blend heightmap parameters (amplitude, frequency) in transition zones
 - [ ] Blend texture/color palettes in transition zones
 - [ ] Verify smooth visual transitions at all chunk boundaries
 

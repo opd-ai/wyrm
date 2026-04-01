@@ -100,7 +100,7 @@ func NewChunk(x, y, size int, seed int64) *Chunk {
 func NewChunkWithNoiseType(x, y, size int, seed int64, noiseType noise.NoiseType) *Chunk {
 	heightMap := generateHeightMapWithNoiseType(size, seed, noiseType)
 	elevationMap := generateElevationMapWithNoiseType(size, seed, heightMap, noiseType)
-	biomeMap := generateBiomeMap(size, seed)
+	biomeMap := generateBiomeMapWorldSpace(x, y, size, seed)
 	terrainTypes := generateTerrainTypes(size, heightMap, elevationMap, biomeMap)
 	detailSpawns := generateDetailSpawns(size, seed, terrainTypes, biomeMap)
 	return &Chunk{
@@ -251,6 +251,108 @@ func generateBiomeMap(size int, seed int64) []float64 {
 	}
 
 	return biomeMap
+}
+
+// BiomeScale controls the world-space frequency of biome noise.
+// Lower values create larger biome regions.
+const BiomeScale = 0.003
+
+// generateBiomeMapWorldSpace creates biome values using world-space coordinates for seamless transitions.
+// This ensures consistent biome values across chunk boundaries.
+func generateBiomeMapWorldSpace(chunkX, chunkY, size int, seed int64) []float64 {
+	biomeMap := make([]float64, size*size)
+
+	// Calculate world-space offset for this chunk
+	worldOffsetX := float64(chunkX * size)
+	worldOffsetY := float64(chunkY * size)
+
+	for y := 0; y < size; y++ {
+		for x := 0; x < size; x++ {
+			idx := y*size + x
+
+			// Calculate world-space coordinates
+			worldX := worldOffsetX + float64(x)
+			worldY := worldOffsetY + float64(y)
+
+			// Use world-space coordinates for seamless noise
+			nx := worldX * BiomeScale
+			ny := worldY * BiomeScale
+
+			biomeValue := 0.0
+			amplitude := 1.0
+			frequency := 1.0
+
+			// 4 octaves for richer biome variation
+			for oct := 0; oct < 4; oct++ {
+				biomeValue += noise.Noise2DSigned(nx*frequency, ny*frequency, seed+2000+int64(oct)) * amplitude
+				amplitude *= 0.5
+				frequency *= 2.0
+			}
+
+			// Normalize to [0, 1]
+			biomeValue = (biomeValue + 1.0) / 2.0
+
+			// Apply edge blending to smooth transitions
+			biomeValue = applyBiomeEdgeBlend(x, y, size, biomeValue)
+
+			biomeMap[idx] = biomeValue
+		}
+	}
+
+	return biomeMap
+}
+
+// applyBiomeEdgeBlend applies smooth blending at chunk edges to prevent abrupt transitions.
+// Uses a smooth interpolation function near chunk boundaries.
+func applyBiomeEdgeBlend(localX, localY, size int, value float64) float64 {
+	// Calculate distance from nearest edge
+	distFromLeft := localX
+	distFromRight := size - 1 - localX
+	distFromTop := localY
+	distFromBottom := size - 1 - localY
+
+	minDistX := minInt(distFromLeft, distFromRight)
+	minDistY := minInt(distFromTop, distFromBottom)
+	minDist := minInt(minDistX, minDistY)
+
+	// If outside blend zone, return unmodified value
+	if minDist >= BiomeBlendWidth {
+		return value
+	}
+
+	// Calculate blend factor (0 at edge, 1 at blend boundary)
+	t := float64(minDist) / float64(BiomeBlendWidth)
+
+	// Smoothstep interpolation for gradual transition
+	blendFactor := biomeSmooth(t)
+
+	// Blend toward center value (0.5) at edges for smoother chunk boundary matching
+	centerValue := 0.5
+	return lerp(centerValue, value, blendFactor)
+}
+
+// biomeSmooth performs smooth Hermite interpolation between 0 and 1 for biome blending.
+func biomeSmooth(t float64) float64 {
+	if t < 0 {
+		t = 0
+	}
+	if t > 1 {
+		t = 1
+	}
+	return t * t * (3 - 2*t)
+}
+
+// lerp performs linear interpolation between a and b.
+func lerp(a, b, t float64) float64 {
+	return a + (b-a)*t
+}
+
+// minInt returns the smaller of two integers.
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // Detail spawn density constants.

@@ -1022,3 +1022,147 @@ func BenchmarkLODManagerGetChunksInView(b *testing.B) {
 		_ = lm.GetChunksInView(3)
 	}
 }
+
+// ========== Biome Blending Tests ==========
+
+func TestBiomeWorldSpaceContinuity(t *testing.T) {
+	seed := int64(12345)
+	size := 64
+
+	// Generate two adjacent chunks
+	chunk0 := NewChunk(0, 0, size, seed)
+	chunk1 := NewChunk(1, 0, size, seed)
+
+	// Get biome values at the boundary
+	// Right edge of chunk 0 (x=size-1) should be similar to left edge of chunk 1 (x=0)
+	rightEdge := chunk0.BiomeMap[(size/2)*size+(size-1)]
+	leftEdge := chunk1.BiomeMap[(size/2)*size+0]
+
+	// With world-space coordinates, these should be continuous
+	// Allow some tolerance due to noise variation
+	diff := abs(rightEdge - leftEdge)
+	if diff > 0.3 {
+		t.Errorf("biome discontinuity at chunk boundary: chunk0 edge=%f, chunk1 edge=%f, diff=%f",
+			rightEdge, leftEdge, diff)
+	}
+}
+
+func TestBiomeMapWorldSpaceVerticalContinuity(t *testing.T) {
+	seed := int64(54321)
+	size := 64
+
+	// Generate two vertically adjacent chunks
+	chunk0 := NewChunk(0, 0, size, seed)
+	chunk1 := NewChunk(0, 1, size, seed)
+
+	// Get biome values at the vertical boundary
+	// Bottom edge of chunk 0 (y=size-1) should match top edge of chunk 1 (y=0)
+	bottomEdge := chunk0.BiomeMap[(size-1)*size+(size/2)]
+	topEdge := chunk1.BiomeMap[0*size+(size/2)]
+
+	diff := abs(bottomEdge - topEdge)
+	if diff > 0.3 {
+		t.Errorf("vertical biome discontinuity at chunk boundary: chunk0 bottom=%f, chunk1 top=%f, diff=%f",
+			bottomEdge, topEdge, diff)
+	}
+}
+
+func TestBiomeDeterminismWithWorldSpace(t *testing.T) {
+	seed := int64(99999)
+	size := 32
+
+	// Generate same chunk twice
+	c1 := NewChunk(5, 10, size, seed)
+	c2 := NewChunk(5, 10, size, seed)
+
+	// Biome maps should be identical
+	for i := range c1.BiomeMap {
+		if c1.BiomeMap[i] != c2.BiomeMap[i] {
+			t.Errorf("biome mismatch at index %d: %f != %f", i, c1.BiomeMap[i], c2.BiomeMap[i])
+		}
+	}
+}
+
+func TestBiomeEdgeBlending(t *testing.T) {
+	// Test that edge blending smooths values near boundaries
+	size := 64
+
+	// Center value should be less blended than edge value
+	centerResult := applyBiomeEdgeBlend(size/2, size/2, size, 0.8)
+	edgeResult := applyBiomeEdgeBlend(0, size/2, size, 0.8)
+
+	// Center should preserve value, edge should be pulled toward 0.5
+	if abs(centerResult-0.8) > 0.01 {
+		t.Errorf("center biome value should be preserved: expected ~0.8, got %f", centerResult)
+	}
+
+	// Edge should be pulled toward center (0.5)
+	if edgeResult >= centerResult {
+		t.Errorf("edge biome should be blended toward center: edge=%f, center=%f", edgeResult, centerResult)
+	}
+}
+
+func TestBiomeSmoothFunction(t *testing.T) {
+	tests := []struct {
+		input    float64
+		expected float64
+	}{
+		{0.0, 0.0},
+		{1.0, 1.0},
+		{0.5, 0.5},
+		{-0.5, 0.0}, // Clamped
+		{1.5, 1.0},  // Clamped
+	}
+
+	for _, tc := range tests {
+		result := biomeSmooth(tc.input)
+		if abs(result-tc.expected) > 0.01 {
+			t.Errorf("biomeSmooth(%f) = %f, expected %f", tc.input, result, tc.expected)
+		}
+	}
+}
+
+func TestLerp(t *testing.T) {
+	tests := []struct {
+		a, b, t  float64
+		expected float64
+	}{
+		{0.0, 1.0, 0.0, 0.0},
+		{0.0, 1.0, 1.0, 1.0},
+		{0.0, 1.0, 0.5, 0.5},
+		{2.0, 4.0, 0.5, 3.0},
+		{10.0, 20.0, 0.25, 12.5},
+	}
+
+	for _, tc := range tests {
+		result := lerp(tc.a, tc.b, tc.t)
+		if abs(result-tc.expected) > 0.0001 {
+			t.Errorf("lerp(%f, %f, %f) = %f, expected %f", tc.a, tc.b, tc.t, result, tc.expected)
+		}
+	}
+}
+
+func TestMinIntFunction(t *testing.T) {
+	tests := []struct {
+		a, b     int
+		expected int
+	}{
+		{1, 2, 1},
+		{5, 3, 3},
+		{0, 0, 0},
+		{-1, 1, -1},
+	}
+
+	for _, tc := range tests {
+		result := minInt(tc.a, tc.b)
+		if result != tc.expected {
+			t.Errorf("minInt(%d, %d) = %d, expected %d", tc.a, tc.b, result, tc.expected)
+		}
+	}
+}
+
+func BenchmarkBiomeMapWorldSpace(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = generateBiomeMapWorldSpace(i%10, i/10, 64, 12345)
+	}
+}
