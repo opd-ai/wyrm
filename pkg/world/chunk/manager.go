@@ -592,6 +592,32 @@ func (c *Chunk) GetBiomeValue(localX, localY int) float64 {
 	return c.BiomeMap[localY*c.Size+localX]
 }
 
+// GetDetailSpawns returns all detail spawns in this chunk.
+func (c *Chunk) GetDetailSpawns() []DetailSpawn {
+	return c.DetailSpawns
+}
+
+// GetDetailSpawnsInArea returns detail spawns within a local area.
+func (c *Chunk) GetDetailSpawnsInArea(minX, minY, maxX, maxY float64) []DetailSpawn {
+	if c.DetailSpawns == nil {
+		return nil
+	}
+
+	result := make([]DetailSpawn, 0)
+	for _, spawn := range c.DetailSpawns {
+		if spawn.LocalX >= minX && spawn.LocalX <= maxX &&
+			spawn.LocalY >= minY && spawn.LocalY <= maxY {
+			result = append(result, spawn)
+		}
+	}
+	return result
+}
+
+// DetailSpawnCount returns the number of detail spawns in this chunk.
+func (c *Chunk) DetailSpawnCount() int {
+	return len(c.DetailSpawns)
+}
+
 // GetElevationDifference returns the elevation difference between two cells.
 func (c *Chunk) GetElevationDifference(x1, y1, x2, y2 int) float64 {
 	e1 := c.GetElevation(x1, y1)
