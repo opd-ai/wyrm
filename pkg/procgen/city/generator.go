@@ -884,113 +884,153 @@ func (c *City) GenerateRoads(rng *rand.Rand) {
 		return
 	}
 
-	// Get road materials for genre
+	materials := c.getRoadMaterials()
+	roads := make([]Road, 0, len(c.Districts)*2)
+
+	// Build MST connecting all districts
+	roads = append(roads, c.generateMSTRoads(rng, materials)...)
+
+	// Add shortcut roads for redundancy
+	roads = append(roads, c.generateShortcutRoads(rng, materials)...)
+
+	// Connect gates to nearest districts
+	roads = append(roads, c.generateGateRoads(materials)...)
+
+	c.Roads = roads
+}
+
+// getRoadMaterials returns the appropriate road materials for the city's genre.
+func (c *City) getRoadMaterials() []string {
 	materials := genreRoadMaterials[c.Genre]
 	if materials == nil {
-		materials = genreRoadMaterials["fantasy"]
+		return genreRoadMaterials["fantasy"]
 	}
+	return materials
+}
 
-	// Build MST connecting all districts using Prim's algorithm
+// generateMSTRoads creates the minimum spanning tree of roads using Prim's algorithm.
+func (c *City) generateMSTRoads(rng *rand.Rand, materials []string) []Road {
 	connected := make([]bool, len(c.Districts))
 	connected[0] = true
 	numConnected := 1
-
-	roads := make([]Road, 0, len(c.Districts))
+	roads := make([]Road, 0, len(c.Districts)-1)
 
 	for numConnected < len(c.Districts) {
-		bestDist := math.MaxFloat64
-		bestFrom := -1
-		bestTo := -1
-
-		// Find shortest edge from connected to unconnected vertex
-		for i := 0; i < len(c.Districts); i++ {
-			if !connected[i] {
-				continue
-			}
-			for j := 0; j < len(c.Districts); j++ {
-				if connected[j] {
-					continue
-				}
-				dx := c.Districts[i].CenterX - c.Districts[j].CenterX
-				dy := c.Districts[i].CenterY - c.Districts[j].CenterY
-				dist := dx*dx + dy*dy
-				if dist < bestDist {
-					bestDist = dist
-					bestFrom = i
-					bestTo = j
-				}
-			}
-		}
-
-		if bestTo < 0 {
+		from, to := c.findShortestEdge(connected)
+		if to < 0 {
 			break
 		}
 
-		// Create road between these districts
-		road := Road{
-			StartX:   c.Districts[bestFrom].CenterX,
-			StartY:   c.Districts[bestFrom].CenterY,
-			EndX:     c.Districts[bestTo].CenterX,
-			EndY:     c.Districts[bestTo].CenterY,
-			Width:    3.0 + rng.Float64()*2.0, // Main roads are 3-5 units wide
-			Type:     "main",
-			Material: materials[rng.Intn(len(materials))],
-		}
-		roads = append(roads, road)
+		roads = append(roads, c.createRoad(
+			c.Districts[from].CenterX, c.Districts[from].CenterY,
+			c.Districts[to].CenterX, c.Districts[to].CenterY,
+			3.0+rng.Float64()*2.0, "main",
+			materials[rng.Intn(len(materials))],
+		))
 
-		connected[bestTo] = true
+		connected[to] = true
 		numConnected++
 	}
+	return roads
+}
 
-	// Add some extra connections for redundancy (30% chance per pair)
+// findShortestEdge finds the shortest edge from a connected to an unconnected district.
+func (c *City) findShortestEdge(connected []bool) (bestFrom, bestTo int) {
+	bestDist := math.MaxFloat64
+	bestFrom, bestTo = -1, -1
+
+	for i := range c.Districts {
+		if !connected[i] {
+			continue
+		}
+		for j := range c.Districts {
+			if connected[j] {
+				continue
+			}
+			dist := c.distSquared(i, j)
+			if dist < bestDist {
+				bestDist = dist
+				bestFrom, bestTo = i, j
+			}
+		}
+	}
+	return bestFrom, bestTo
+}
+
+// distSquared returns the squared distance between two districts.
+func (c *City) distSquared(i, j int) float64 {
+	dx := c.Districts[i].CenterX - c.Districts[j].CenterX
+	dy := c.Districts[i].CenterY - c.Districts[j].CenterY
+	return dx*dx + dy*dy
+}
+
+// generateShortcutRoads adds extra connections for redundancy (30% chance per pair).
+func (c *City) generateShortcutRoads(rng *rand.Rand, materials []string) []Road {
+	var roads []Road
+	const shortcutChance = 0.3
+	const maxShortcutDist = 400.0
+
 	for i := 0; i < len(c.Districts); i++ {
-		for j := i + 2; j < len(c.Districts); j++ { // Skip adjacent (already connected by MST)
-			if rng.Float64() < 0.3 {
-				dx := c.Districts[i].CenterX - c.Districts[j].CenterX
-				dy := c.Districts[i].CenterY - c.Districts[j].CenterY
-				dist := math.Sqrt(dx*dx + dy*dy)
-				if dist < 400 { // Only add shortcut if reasonably close
-					road := Road{
-						StartX:   c.Districts[i].CenterX,
-						StartY:   c.Districts[i].CenterY,
-						EndX:     c.Districts[j].CenterX,
-						EndY:     c.Districts[j].CenterY,
-						Width:    2.0 + rng.Float64()*1.0, // Side roads are 2-3 units wide
-						Type:     "side",
-						Material: materials[rng.Intn(len(materials))],
-					}
-					roads = append(roads, road)
-				}
+		for j := i + 2; j < len(c.Districts); j++ {
+			if rng.Float64() >= shortcutChance {
+				continue
 			}
+			dist := math.Sqrt(c.distSquared(i, j))
+			if dist >= maxShortcutDist {
+				continue
+			}
+			roads = append(roads, c.createRoad(
+				c.Districts[i].CenterX, c.Districts[i].CenterY,
+				c.Districts[j].CenterX, c.Districts[j].CenterY,
+				2.0+rng.Float64()*1.0, "side",
+				materials[rng.Intn(len(materials))],
+			))
 		}
 	}
+	return roads
+}
 
-	// Connect gates to nearest district (if gates exist)
+// generateGateRoads connects city gates to their nearest districts.
+func (c *City) generateGateRoads(materials []string) []Road {
+	roads := make([]Road, 0, len(c.Gates))
 	for _, gate := range c.Gates {
-		nearestIdx := 0
-		nearestDist := math.MaxFloat64
-		for i, d := range c.Districts {
-			dx := gate.X - d.CenterX
-			dy := gate.Y - d.CenterY
-			dist := dx*dx + dy*dy
-			if dist < nearestDist {
-				nearestDist = dist
-				nearestIdx = i
-			}
-		}
-		road := Road{
-			StartX:   gate.X,
-			StartY:   gate.Y,
-			EndX:     c.Districts[nearestIdx].CenterX,
-			EndY:     c.Districts[nearestIdx].CenterY,
-			Width:    4.0, // Gate roads are wide for traffic
-			Type:     "main",
-			Material: materials[0], // Primary material for main roads
-		}
-		roads = append(roads, road)
+		nearestIdx := c.findNearestDistrict(gate.X, gate.Y)
+		roads = append(roads, c.createRoad(
+			gate.X, gate.Y,
+			c.Districts[nearestIdx].CenterX, c.Districts[nearestIdx].CenterY,
+			4.0, "main", materials[0],
+		))
 	}
+	return roads
+}
 
-	c.Roads = roads
+// findNearestDistrict returns the index of the district closest to the given point.
+func (c *City) findNearestDistrict(x, y float64) int {
+	nearestIdx := 0
+	nearestDist := math.MaxFloat64
+	for i, d := range c.Districts {
+		dx := x - d.CenterX
+		dy := y - d.CenterY
+		dist := dx*dx + dy*dy
+		if dist < nearestDist {
+			nearestDist = dist
+			nearestIdx = i
+		}
+	}
+	return nearestIdx
+}
+
+// createRoad creates a new Road with the given parameters.
+func (c *City) createRoad(startX, startY, endX, endY, width float64, roadType, material string) Road {
+	return Road{
+		StartX:   startX,
+		StartY:   startY,
+		EndX:     endX,
+		EndY:     endY,
+		Width:    width,
+		Type:     roadType,
+		Material: material,
+	}
 }
 
 // GetRoads returns all roads in the city.
