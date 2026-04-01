@@ -566,7 +566,7 @@ func (s *MountSystem) ImproveBond(mountEntity ecs.Entity) bool {
 }
 
 // Update processes mount states (hunger, stamina, mood).
-func (s *MountSystem) Update(dt float64) {
+func (s *MountSystem) Update(w *ecs.World, dt float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

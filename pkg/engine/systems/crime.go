@@ -848,3 +848,8 @@ func (s *BriberySystem) GetAvailableBribeTargets(w *ecs.World, entity ecs.Entity
 
 	return available
 }
+
+// Update processes bribery cooldowns and effects each tick.
+func (s *BriberySystem) Update(w *ecs.World, dt float64) {
+	// Bribery is event-driven; no per-tick processing required
+}

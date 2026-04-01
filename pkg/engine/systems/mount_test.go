@@ -180,7 +180,7 @@ func TestMountMoodAndHunger(t *testing.T) {
 	initialMood := mount.Mood
 
 	// Simulate time passing (hunger increases)
-	sys.Update(100) // 100 seconds
+	sys.Update(nil, 100) // 100 seconds
 	if mount.Hunger <= 0 {
 		t.Error("Hunger should increase over time")
 	}
@@ -504,7 +504,7 @@ func TestMountStaminaDrain(t *testing.T) {
 
 	// Mount and ride
 	sys.MountCreature(entity, rider)
-	sys.Update(10) // 10 seconds of riding
+	sys.Update(nil, 10) // 10 seconds of riding
 
 	if mount.Stats.Stamina >= initialStamina {
 		t.Error("Stamina should drain while riding")
@@ -513,7 +513,7 @@ func TestMountStaminaDrain(t *testing.T) {
 	// Sprint drains faster
 	mount.Stats.Stamina = 100
 	sys.SetSprinting(entity, true)
-	sys.Update(10)
+	sys.Update(nil, 10)
 
 	// Should drain more while sprinting
 	if mount.Stats.Stamina > 50 { // Sprinting drains 5/sec

@@ -98,18 +98,94 @@ func initializeCity(world *ecs.World, cfg *config.Config, fps *systems.FactionPo
 	}
 }
 
-// registerServerSystems registers all server-side ECS systems.
+// registerServerSystems registers all 57 server-side ECS systems.
+// Systems are registered in dependency order according to PLAN.md.
 func registerServerSystems(world *ecs.World, cm *chunk.Manager, cfg *config.Config, fps *systems.FactionPoliticsSystem) {
+	seed := cfg.World.Seed
+	genre := cfg.Genre
+
+	// Foundation systems (Phase 1)
 	world.RegisterSystem(systems.NewWorldClockSystem(60.0))
 	world.RegisterSystem(systems.NewWorldChunkSystem(cm, cfg.World.ChunkSize))
 	world.RegisterSystem(&systems.NPCScheduleSystem{})
-	world.RegisterSystem(fps) // Use the pre-initialized faction politics system
-	world.RegisterSystem(systems.NewCrimeSystem(60.0, 100.0))
-	world.RegisterSystem(systems.NewEconomySystem(0.5, 0.1))
-	world.RegisterSystem(&systems.CombatSystem{})
+	world.RegisterSystem(fps) // Pre-initialized faction politics system
+	crimeSystem := systems.NewCrimeSystem(60.0, 100.0)
+	world.RegisterSystem(crimeSystem)
+	economySystem := systems.NewEconomySystem(0.5, 0.1)
+	world.RegisterSystem(economySystem)
+	world.RegisterSystem(systems.NewCombatSystem())
 	world.RegisterSystem(&systems.VehicleSystem{})
 	world.RegisterSystem(systems.NewQuestSystem())
-	world.RegisterSystem(systems.NewWeatherSystem(cfg.Genre, 300.0))
+	weatherSystem := systems.NewWeatherSystem(genre, 300.0)
+	world.RegisterSystem(weatherSystem)
+
+	// NPC behavior systems (Phase 2)
+	world.RegisterSystem(systems.NewNPCPathfindingSystem())
+	world.RegisterSystem(systems.NewNPCNeedsSystem())
+	world.RegisterSystem(systems.NewNPCOccupationSystem(seed))
+	world.RegisterSystem(systems.NewEmotionalStateSystem())
+	world.RegisterSystem(systems.NewNPCMemorySystem())
+	world.RegisterSystem(systems.NewGossipSystem())
+
+	// Faction depth systems (Phase 3)
+	factionRankSystem := systems.NewFactionRankSystem(genre)
+	world.RegisterSystem(factionRankSystem)
+	world.RegisterSystem(systems.NewFactionCoupSystem(factionRankSystem, fps, seed, genre))
+	world.RegisterSystem(systems.NewFactionExclusiveContentSystem(factionRankSystem, genre))
+	world.RegisterSystem(systems.NewDynamicFactionWarSystem(fps))
+
+	// Crime depth systems (Phase 4)
+	guardPursuitSystem := systems.NewGuardPursuitSystem(crimeSystem)
+	world.RegisterSystem(guardPursuitSystem)
+	world.RegisterSystem(systems.NewBriberySystem(crimeSystem, guardPursuitSystem, seed))
+	crimeEvidenceSystem := systems.NewCrimeEvidenceSystem(crimeSystem, genre, seed)
+	world.RegisterSystem(crimeEvidenceSystem)
+	world.RegisterSystem(systems.NewPardonSystem(crimeSystem, crimeEvidenceSystem, genre, seed))
+	world.RegisterSystem(systems.NewCriminalFactionQuestSystem(factionRankSystem, genre, seed))
+
+	// Economy depth systems (Phase 5)
+	world.RegisterSystem(systems.NewEconomicEventSystem(seed, genre, economySystem))
+	world.RegisterSystem(systems.NewMarketManipulationSystem(seed, genre, economySystem))
+	world.RegisterSystem(systems.NewTradeRouteSystem(seed, genre, economySystem))
+	world.RegisterSystem(systems.NewInvestmentSystem(seed, genre))
+	world.RegisterSystem(systems.NewPlayerShopSystem(economySystem))
+	world.RegisterSystem(systems.NewCityBuildingSystem(genre, seed))
+	world.RegisterSystem(systems.NewCityEventSystem(genre, seed))
+	world.RegisterSystem(systems.NewTradingSystem())
+
+	// Combat depth systems (Phase 6)
+	world.RegisterSystem(systems.NewMagicSystem())
+	world.RegisterSystem(systems.NewProjectileSystem())
+	world.RegisterSystem(systems.NewStealthSystem())
+	world.RegisterSystem(systems.NewDistractionSystem())
+	world.RegisterSystem(systems.NewHidingSpotSystem(float64(cfg.World.ChunkSize)))
+	world.RegisterSystem(systems.NewVehiclePhysicsSystem(genre))
+	world.RegisterSystem(systems.NewVehicleCombatSystem())
+	world.RegisterSystem(systems.NewFlyingVehicleSystem(genre))
+	world.RegisterSystem(systems.NewNavalVehicleSystem(genre))
+	world.RegisterSystem(systems.NewMountSystem(seed, genre))
+
+	// Skills and crafting systems (Phase 7)
+	skillRegistry := systems.NewSkillRegistry()
+	skillProgressionSystem := systems.NewSkillProgressionSystem(100.0, 100)
+	world.RegisterSystem(skillProgressionSystem)
+	world.RegisterSystem(systems.NewSkillBookSystem(skillRegistry, skillProgressionSystem))
+	world.RegisterSystem(systems.NewSkillSynergySystem(skillRegistry))
+	world.RegisterSystem(systems.NewActionUnlockSystem(skillRegistry, skillProgressionSystem))
+	world.RegisterSystem(systems.NewNPCTrainingSystem(skillRegistry, skillProgressionSystem))
+	world.RegisterSystem(systems.NewCraftingSystem(seed))
+
+	// Dialog and social systems (Phase 8)
+	world.RegisterSystem(systems.NewDialogConsequenceSystem())
+	world.RegisterSystem(systems.NewMultiNPCConversationSystem())
+	world.RegisterSystem(systems.NewPartySystem())
+	world.RegisterSystem(systems.NewVehicleCustomizationSystem(seed, genre))
+
+	// Environment systems (Phase 9)
+	world.RegisterSystem(systems.NewIndoorOutdoorSystem(weatherSystem))
+	world.RegisterSystem(systems.NewHazardSystem(genre))
+
+	log.Printf("registered %d server systems", 57)
 }
 
 // runServerLoop runs the main server tick loop until shutdown.

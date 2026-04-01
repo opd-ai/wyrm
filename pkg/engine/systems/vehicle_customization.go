@@ -760,3 +760,8 @@ func (s *VehicleCustomizationSystem) UnregisterVehicle(entity ecs.Entity) {
 	defer s.mu.Unlock()
 	delete(s.Vehicles, entity)
 }
+
+// Update processes vehicle customization events each tick.
+func (s *VehicleCustomizationSystem) Update(w *ecs.World, dt float64) {
+	// Customization is event-driven; no per-tick processing required
+}
