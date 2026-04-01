@@ -79,7 +79,7 @@ The client relies entirely on the server for game logic, but there is no protoco
 
 - [x] Decide approach: client-side systems for offline mode OR entity sync protocol (offline mode with full system registration chosen)
 - [x] If offline mode: register necessary client-side game logic systems (Combat, Quest, NPC, etc.)
-- [ ] If entity sync: implement server → client EntityUpdate message pipeline
+- [x] If entity sync: implement server → client EntityUpdate message pipeline (N/A — offline mode chosen)
 - [x] Verify client game loop executes meaningful gameplay logic beyond rendering (56 systems registered)
 
 ---
@@ -253,8 +253,8 @@ The only exit mechanism is OS window close (Ebiten default). There is no:
 - [x] Implement game state machine (Playing, Paused, Settings, CharacterCreation, Quit)
 - [x] Implement Escape key → pause state toggle and menu overlay
 - [x] Implement Resume menu option
-- [ ] Implement Settings screen (keybinds, audio, graphics)
-- [ ] Implement settings persistence via config file update
+- [x] Implement Settings screen (keybinds, audio, graphics)
+- [x] Implement settings persistence via config file update
 - [x] Implement Quit option with confirmation dialog
 
 ---
@@ -618,9 +618,9 @@ The noise generator (`pkg/procgen/noise/generator.go`, 56 lines) uses hash-based
 
 **Resolution Checklist:**
 
-- [ ] Implement 2D gradient (Perlin) noise function
-- [ ] Add noise function selection parameter to terrain generator
-- [ ] Verify deterministic output with gradient noise
+- [x] Implement 2D gradient (Perlin) noise function (GradientNoise2D in pkg/procgen/noise/generator.go)
+- [x] Add noise function selection parameter to terrain generator (NoiseType parameter, used in chunk generation)
+- [x] Verify deterministic output with gradient noise (tests in pkg/procgen/noise/generator_test.go)
 - [ ] Benchmark gradient noise vs current value noise performance
 - [ ] Compare terrain visual quality between noise algorithms
 

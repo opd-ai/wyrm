@@ -89,3 +89,51 @@ func TestLerp(t *testing.T) {
 		t.Error("lerp(0, 10, 0.5) should be 5")
 	}
 }
+
+func TestGradientNoise2DDeterminism(t *testing.T) {
+	seed := int64(12345)
+	x, y := 1.5, 2.7
+
+	v1 := GradientNoise2D(x, y, seed)
+	v2 := GradientNoise2D(x, y, seed)
+
+	if v1 != v2 {
+		t.Errorf("gradient noise should be deterministic: %f != %f", v1, v2)
+	}
+}
+
+func TestGradientNoise2DRange(t *testing.T) {
+	seed := int64(99999)
+	for i := 0; i < 1000; i++ {
+		x := float64(i) * 0.1
+		y := float64(i) * 0.13
+		v := GradientNoise2D(x, y, seed)
+		// Gradient noise output is approximately in [-1, 1] range
+		if v < -1.5 || v > 1.5 {
+			t.Errorf("gradient noise value %f unexpectedly far out of range at (%f, %f)", v, x, y)
+		}
+	}
+}
+
+func TestGradientNoise2DNormalizedRange(t *testing.T) {
+	seed := int64(99999)
+	for i := 0; i < 1000; i++ {
+		x := float64(i) * 0.1
+		y := float64(i) * 0.13
+		v := GradientNoise2DNormalized(x, y, seed)
+		if v < 0 || v > 1 {
+			t.Errorf("normalized gradient noise value %f out of [0, 1] range at (%f, %f)", v, x, y)
+		}
+	}
+}
+
+func TestGradientNoise2DDifferentSeeds(t *testing.T) {
+	// Use fractional coordinates to get influence from multiple grid points
+	x, y := 5.5, 5.5
+	v1 := GradientNoise2D(x, y, 1)
+	v2 := GradientNoise2D(x, y, 2)
+
+	if v1 == v2 {
+		t.Error("different seeds should produce different gradient noise values")
+	}
+}
