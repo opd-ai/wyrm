@@ -621,7 +621,7 @@ The noise generator (`pkg/procgen/noise/generator.go`, 56 lines) uses hash-based
 - [x] Implement 2D gradient (Perlin) noise function (GradientNoise2D in pkg/procgen/noise/generator.go)
 - [x] Add noise function selection parameter to terrain generator (NoiseType parameter, used in chunk generation)
 - [x] Verify deterministic output with gradient noise (tests in pkg/procgen/noise/generator_test.go)
-- [ ] Benchmark gradient noise vs current value noise performance
+- [x] Benchmark gradient noise vs current value noise performance
 - [ ] Compare terrain visual quality between noise algorithms
 
 ---

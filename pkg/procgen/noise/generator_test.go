@@ -137,3 +137,60 @@ func TestGradientNoise2DDifferentSeeds(t *testing.T) {
 		t.Error("different seeds should produce different gradient noise values")
 	}
 }
+
+// ========== Noise Performance Benchmarks ==========
+
+func BenchmarkValueNoise2D(b *testing.B) {
+	seed := int64(12345)
+	for i := 0; i < b.N; i++ {
+		_ = Noise2D(float64(i)*0.1, float64(i)*0.13, seed)
+	}
+}
+
+func BenchmarkValueNoise2DSigned(b *testing.B) {
+	seed := int64(12345)
+	for i := 0; i < b.N; i++ {
+		_ = Noise2DSigned(float64(i)*0.1, float64(i)*0.13, seed)
+	}
+}
+
+func BenchmarkGradientNoise2D(b *testing.B) {
+	seed := int64(12345)
+	for i := 0; i < b.N; i++ {
+		_ = GradientNoise2D(float64(i)*0.1, float64(i)*0.13, seed)
+	}
+}
+
+func BenchmarkGradientNoise2DNormalized(b *testing.B) {
+	seed := int64(12345)
+	for i := 0; i < b.N; i++ {
+		_ = GradientNoise2DNormalized(float64(i)*0.1, float64(i)*0.13, seed)
+	}
+}
+
+// Benchmark noise sampling in a realistic pattern (heightmap generation)
+func BenchmarkValueNoiseHeightmapSample(b *testing.B) {
+	seed := int64(54321)
+	size := 64
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for y := 0; y < size; y++ {
+			for x := 0; x < size; x++ {
+				_ = Noise2DSigned(float64(x)*0.05, float64(y)*0.05, seed)
+			}
+		}
+	}
+}
+
+func BenchmarkGradientNoiseHeightmapSample(b *testing.B) {
+	seed := int64(54321)
+	size := 64
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for y := 0; y < size; y++ {
+			for x := 0; x < size; x++ {
+				_ = GradientNoise2D(float64(x)*0.05, float64(y)*0.05, seed)
+			}
+		}
+	}
+}
