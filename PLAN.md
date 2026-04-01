@@ -412,7 +412,7 @@ Add water rendering for `TerrainWater` cells:
 - [ ] Mipmap selection reduces aliasing artifacts at distance
 - [ ] Roads visually connect POIs and are walkable
 - [ ] Water surfaces animate and look distinct from land
-- [ ] All tests pass: `go test -tags=noebiten ./...`
+- [x] All tests pass: `go test -tags=noebiten ./...`
 
 ---
 
