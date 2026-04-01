@@ -614,75 +614,104 @@ func loadWorldFromSnapshot(world *ecs.World, snapshot *persist.WorldSnapshot) {
 
 // deserializeEntity applies EntityData to an entity in the world.
 func deserializeEntity(world *ecs.World, e ecs.Entity, data persist.EntityData) {
-	if data.HasPosition {
-		if err := world.AddComponent(e, &components.Position{
-			X:     data.PosX,
-			Y:     data.PosY,
-			Z:     data.PosZ,
-			Angle: data.PosAngle,
-		}); err != nil {
-			log.Printf("warning: failed to restore Position for entity %d: %v", data.ID, err)
-		}
-	}
+	restorePositionComponent(world, e, data)
+	restoreHealthComponent(world, e, data)
+	restoreFactionComponent(world, e, data)
+	restoreCrimeComponent(world, e, data)
+	restoreInventoryComponent(world, e, data)
+	restoreSkillsComponent(world, e, data)
+	restoreQuestComponent(world, e, data)
+}
 
-	if data.HasHealth {
-		if err := world.AddComponent(e, &components.Health{
-			Current: data.HealthCurrent,
-			Max:     data.HealthMax,
-		}); err != nil {
-			log.Printf("warning: failed to restore Health for entity %d: %v", data.ID, err)
-		}
+func restorePositionComponent(world *ecs.World, e ecs.Entity, data persist.EntityData) {
+	if !data.HasPosition {
+		return
 	}
-
-	if data.HasFaction {
-		if err := world.AddComponent(e, &components.Faction{
-			ID:         data.FactionID,
-			Reputation: data.FactionReputation,
-		}); err != nil {
-			log.Printf("warning: failed to restore Faction for entity %d: %v", data.ID, err)
-		}
+	if err := world.AddComponent(e, &components.Position{
+		X:     data.PosX,
+		Y:     data.PosY,
+		Z:     data.PosZ,
+		Angle: data.PosAngle,
+	}); err != nil {
+		log.Printf("warning: failed to restore Position for entity %d: %v", data.ID, err)
 	}
+}
 
-	if data.HasCrime {
-		if err := world.AddComponent(e, &components.Crime{
-			WantedLevel:     data.WantedLevel,
-			BountyAmount:    data.BountyAmount,
-			LastCrimeTime:   data.LastCrimeTime,
-			InJail:          data.InJail,
-			JailReleaseTime: data.JailReleaseTime,
-		}); err != nil {
-			log.Printf("warning: failed to restore Crime for entity %d: %v", data.ID, err)
-		}
+func restoreHealthComponent(world *ecs.World, e ecs.Entity, data persist.EntityData) {
+	if !data.HasHealth {
+		return
 	}
-
-	if data.HasInventory {
-		if err := world.AddComponent(e, &components.Inventory{
-			Items:    data.InventoryItems,
-			Capacity: data.InventoryCapacity,
-		}); err != nil {
-			log.Printf("warning: failed to restore Inventory for entity %d: %v", data.ID, err)
-		}
+	if err := world.AddComponent(e, &components.Health{
+		Current: data.HealthCurrent,
+		Max:     data.HealthMax,
+	}); err != nil {
+		log.Printf("warning: failed to restore Health for entity %d: %v", data.ID, err)
 	}
+}
 
-	if data.HasSkills {
-		if err := world.AddComponent(e, &components.Skills{
-			Levels:        data.SkillLevels,
-			Experience:    data.SkillExperience,
-			SchoolBonuses: data.SchoolBonuses,
-		}); err != nil {
-			log.Printf("warning: failed to restore Skills for entity %d: %v", data.ID, err)
-		}
+func restoreFactionComponent(world *ecs.World, e ecs.Entity, data persist.EntityData) {
+	if !data.HasFaction {
+		return
 	}
+	if err := world.AddComponent(e, &components.Faction{
+		ID:         data.FactionID,
+		Reputation: data.FactionReputation,
+	}); err != nil {
+		log.Printf("warning: failed to restore Faction for entity %d: %v", data.ID, err)
+	}
+}
 
-	if data.HasQuest {
-		if err := world.AddComponent(e, &components.Quest{
-			ID:             data.QuestID,
-			CurrentStage:   data.QuestStage,
-			Flags:          data.QuestFlags,
-			Completed:      data.QuestCompleted,
-			LockedBranches: data.LockedBranches,
-		}); err != nil {
-			log.Printf("warning: failed to restore Quest for entity %d: %v", data.ID, err)
-		}
+func restoreCrimeComponent(world *ecs.World, e ecs.Entity, data persist.EntityData) {
+	if !data.HasCrime {
+		return
+	}
+	if err := world.AddComponent(e, &components.Crime{
+		WantedLevel:     data.WantedLevel,
+		BountyAmount:    data.BountyAmount,
+		LastCrimeTime:   data.LastCrimeTime,
+		InJail:          data.InJail,
+		JailReleaseTime: data.JailReleaseTime,
+	}); err != nil {
+		log.Printf("warning: failed to restore Crime for entity %d: %v", data.ID, err)
+	}
+}
+
+func restoreInventoryComponent(world *ecs.World, e ecs.Entity, data persist.EntityData) {
+	if !data.HasInventory {
+		return
+	}
+	if err := world.AddComponent(e, &components.Inventory{
+		Items:    data.InventoryItems,
+		Capacity: data.InventoryCapacity,
+	}); err != nil {
+		log.Printf("warning: failed to restore Inventory for entity %d: %v", data.ID, err)
+	}
+}
+
+func restoreSkillsComponent(world *ecs.World, e ecs.Entity, data persist.EntityData) {
+	if !data.HasSkills {
+		return
+	}
+	if err := world.AddComponent(e, &components.Skills{
+		Levels:        data.SkillLevels,
+		Experience:    data.SkillExperience,
+		SchoolBonuses: data.SchoolBonuses,
+	}); err != nil {
+		log.Printf("warning: failed to restore Skills for entity %d: %v", data.ID, err)
+	}
+}
+
+func restoreQuestComponent(world *ecs.World, e ecs.Entity, data persist.EntityData) {
+	if !data.HasQuest {
+		return
+	}
+	if err := world.AddComponent(e, &components.Quest{
+		ID:             data.QuestID,
+		CurrentStage:   data.QuestStage,
+		Flags:          data.QuestFlags,
+		Completed:      data.QuestCompleted,
+		LockedBranches: data.LockedBranches,
+	}); err != nil {
+		log.Printf("warning: failed to restore Quest for entity %d: %v", data.ID, err)
 	}
 }

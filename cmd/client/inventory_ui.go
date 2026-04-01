@@ -80,35 +80,56 @@ func (ui *InventoryUI) Update(world *ecs.World) {
 		return
 	}
 
-	// Handle confirmation dialogs first
-	if ui.confirmAction != "" {
-		if inpututil.IsKeyJustPressed(ebiten.KeyY) {
-			ui.executeConfirmedAction(world)
-			ui.confirmAction = ""
-		} else if inpututil.IsKeyJustPressed(ebiten.KeyN) || inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-			ui.confirmAction = ""
-		}
+	if ui.handleConfirmationDialog(world) {
 		return
 	}
 
-	// Close on Escape or I key
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) || inpututil.IsKeyJustPressed(ebiten.KeyI) {
-		ui.Close()
+	if ui.handleCloseInput() {
 		return
 	}
 
-	// Get inventory to know item count
 	inv := ui.getInventory(world)
 	if inv == nil {
 		return
 	}
+
 	itemCount := len(inv.Items)
+	ui.handleNavigationInput(itemCount)
+	ui.handleMouseInput(itemCount)
+	ui.handleItemActionInput(itemCount)
+	ui.updateScrollOffset(itemCount)
+}
+
+// handleConfirmationDialog processes Y/N confirmation dialogs.
+func (ui *InventoryUI) handleConfirmationDialog(world *ecs.World) bool {
+	if ui.confirmAction == "" {
+		return false
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyY) {
+		ui.executeConfirmedAction(world)
+		ui.confirmAction = ""
+	} else if inpututil.IsKeyJustPressed(ebiten.KeyN) || inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		ui.confirmAction = ""
+	}
+	return true
+}
+
+// handleCloseInput checks for close key presses.
+func (ui *InventoryUI) handleCloseInput() bool {
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) || inpututil.IsKeyJustPressed(ebiten.KeyI) {
+		ui.Close()
+		return true
+	}
+	return false
+}
+
+// handleNavigationInput processes arrow key navigation.
+func (ui *InventoryUI) handleNavigationInput(itemCount int) {
 	maxSlot := itemCount - 1
 	if maxSlot < 0 {
 		maxSlot = 0
 	}
 
-	// Navigation
 	if inpututil.IsKeyJustPressed(ebiten.KeyUp) {
 		ui.selectedSlot -= ui.gridCols
 		if ui.selectedSlot < 0 {
@@ -121,42 +142,37 @@ func (ui *InventoryUI) Update(world *ecs.World) {
 			ui.selectedSlot = maxSlot
 		}
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyLeft) {
-		if ui.selectedSlot > 0 {
-			ui.selectedSlot--
-		}
+	if inpututil.IsKeyJustPressed(ebiten.KeyLeft) && ui.selectedSlot > 0 {
+		ui.selectedSlot--
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyRight) {
-		if ui.selectedSlot < maxSlot {
-			ui.selectedSlot++
-		}
+	if inpututil.IsKeyJustPressed(ebiten.KeyRight) && ui.selectedSlot < maxSlot {
+		ui.selectedSlot++
 	}
+}
 
-	// Handle mouse click for slot selection
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mx, my := ebiten.CursorPosition()
-		clickedSlot := ui.getSlotAtPosition(mx, my)
-		if clickedSlot >= 0 && clickedSlot < itemCount {
-			ui.selectedSlot = clickedSlot
-		}
+// handleMouseInput processes mouse click for slot selection.
+func (ui *InventoryUI) handleMouseInput(itemCount int) {
+	if !inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		return
 	}
+	mx, my := ebiten.CursorPosition()
+	clickedSlot := ui.getSlotAtPosition(mx, my)
+	if clickedSlot >= 0 && clickedSlot < itemCount {
+		ui.selectedSlot = clickedSlot
+	}
+}
 
-	// Use item (U key or Enter)
+// handleItemActionInput processes use/drop item key presses.
+func (ui *InventoryUI) handleItemActionInput(itemCount int) {
+	if ui.selectedSlot >= itemCount {
+		return
+	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyU) || inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
-		if ui.selectedSlot < itemCount {
-			ui.confirmAction = "use"
-		}
+		ui.confirmAction = "use"
 	}
-
-	// Drop item (D key or Delete)
 	if inpututil.IsKeyJustPressed(ebiten.KeyDelete) || inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
-		if ui.selectedSlot < itemCount {
-			ui.confirmAction = "drop"
-		}
+		ui.confirmAction = "drop"
 	}
-
-	// Update scroll offset to keep selection visible
-	ui.updateScrollOffset(itemCount)
 }
 
 // updateScrollOffset adjusts scroll to keep selected slot visible.

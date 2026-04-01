@@ -131,178 +131,257 @@ func main() {
 }
 
 // initializeCity generates the city and spawns district entities.
+// cityGenerationAdapters holds all adapters needed for city generation.
+type cityGenerationAdapters struct {
+	entity    *adapters.EntityAdapter
+	faction   *adapters.FactionAdapter
+	building  *adapters.BuildingAdapter
+	dialog    *adapters.DialogAdapter
+	item      *adapters.ItemAdapter
+	furniture *adapters.FurnitureAdapter
+}
+
+// newCityGenerationAdapters creates all adapters for city generation.
+func newCityGenerationAdapters() *cityGenerationAdapters {
+	return &cityGenerationAdapters{
+		entity:    adapters.NewEntityAdapter(),
+		faction:   adapters.NewFactionAdapter(),
+		building:  adapters.NewBuildingAdapter(),
+		dialog:    adapters.NewDialogAdapter(),
+		item:      adapters.NewItemAdapter(),
+		furniture: adapters.NewFurnitureAdapter(),
+	}
+}
+
+// districtBuildingResult tracks generated building statistics.
+type districtBuildingResult struct {
+	itemsGenerated     int
+	furnitureGenerated int
+}
+
 func initializeCity(world *ecs.World, cfg *config.Config, fps *systems.FactionPoliticsSystem) {
 	generatedCity := city.Generate(cfg.World.Seed, cfg.Genre)
 	log.Printf("generated city: %s (%s) with %d districts", generatedCity.Name, cfg.Genre, len(generatedCity.Districts))
 
-	// Generate NPCs using V-Series entity generator
-	entityAdapter := adapters.NewEntityAdapter()
-	factionAdapter := adapters.NewFactionAdapter()
-	buildingAdapter := adapters.NewBuildingAdapter()
-	dialogAdapter := adapters.NewDialogAdapter()
-	itemAdapter := adapters.NewItemAdapter()
-	furnitureAdapter := adapters.NewFurnitureAdapter()
-	factions, _ := factionAdapter.GenerateFactions(cfg.World.Seed, cfg.Genre, 20)
+	cga := newCityGenerationAdapters()
+	factions, _ := cga.faction.GenerateFactions(cfg.World.Seed, cfg.Genre, 20)
 
 	for i, district := range generatedCity.Districts {
-		createDistrictEntity(world, district)
-
-		// Generate building interiors for this district
 		districtSeed := cfg.World.Seed + int64(i)*10000
-		buildingsInDistrict := district.Buildings
-		if buildingsInDistrict > 10 {
-			buildingsInDistrict = 10 // Cap buildings per district for performance
-		}
+		factionID := selectDistrictFaction(factions, i)
+		initializeDistrict(world, cfg, cga, district, districtSeed, factionID)
+	}
+}
 
-		itemsGenerated := 0
-		furnitureGenerated := 0
-		for b := 0; b < buildingsInDistrict; b++ {
-			buildingSeed := districtSeed + int64(b)*100
-			buildingType := b % 5 // Cycle through building types
-			floors := 1 + (b % 3)
+// selectDistrictFaction selects a faction for a district.
+func selectDistrictFaction(factions []adapters.GeneratedFaction, districtIndex int) string {
+	if len(factions) == 0 {
+		return "neutral"
+	}
+	return factions[districtIndex%len(factions)].ID
+}
 
-			bldg, err := buildingAdapter.GenerateBuilding(buildingSeed, cfg.Genre, buildingType, floors)
-			if err != nil {
-				log.Printf("warning: building generation failed in district %s: %v", district.Name, err)
-				continue
-			}
+// initializeDistrict populates a single district with buildings and NPCs.
+func initializeDistrict(world *ecs.World, cfg *config.Config, cga *cityGenerationAdapters,
+	district city.District, districtSeed int64, factionID string,
+) {
+	createDistrictEntity(world, district)
+	result := generateDistrictBuildings(world, cfg, cga, district, districtSeed)
+	log.Printf("  generated %d buildings with %d items, %d furniture in district %s",
+		cappedBuildingCount(district.Buildings), result.itemsGenerated, result.furnitureGenerated, district.Name)
 
-			// Create building entity in the world
-			buildingEntity := world.CreateEntity()
-			buildingX := district.CenterX + float64((b%3)-1)*30
-			buildingY := district.CenterY + float64((b/3)-1)*30
+	dialogsGenerated := spawnDistrictNPCs(world, cfg, cga, district, districtSeed, factionID)
+	log.Printf("  spawned NPCs with %d dialogs in district %s", dialogsGenerated, district.Name)
+}
 
-			if err := world.AddComponent(buildingEntity, &components.Position{
-				X: buildingX,
-				Y: buildingY,
-				Z: 0,
-			}); err != nil {
-				continue
-			}
+// cappedBuildingCount returns building count capped at max per district.
+func cappedBuildingCount(buildings int) int {
+	if buildings > 10 {
+		return 10
+	}
+	return buildings
+}
 
-			if err := world.AddComponent(buildingEntity, &components.Building{
-				BuildingType: bldg.Type,
-				Width:        float64(bldg.Width),
-				Height:       float64(bldg.Height),
-				Floors:       bldg.Floors,
-				IsOpen:       true,
-			}); err != nil {
-				continue
-			}
+// generateDistrictBuildings creates all buildings in a district.
+func generateDistrictBuildings(world *ecs.World, cfg *config.Config, cga *cityGenerationAdapters,
+	district city.District, districtSeed int64,
+) districtBuildingResult {
+	buildingsInDistrict := cappedBuildingCount(district.Buildings)
+	result := districtBuildingResult{}
 
-			// Create interior for the building
-			if err := world.AddComponent(buildingEntity, &components.Interior{
-				ParentBuilding: uint64(buildingEntity),
-				Width:          bldg.Width,
-				Height:         bldg.Height,
-				FloorType:      bldg.Style,
-			}); err != nil {
-				continue
-			}
+	for b := 0; b < buildingsInDistrict; b++ {
+		buildingSeed := districtSeed + int64(b)*100
+		buildingType := b % 5
+		floors := 1 + (b % 3)
+		buildingX := district.CenterX + float64((b%3)-1)*30
+		buildingY := district.CenterY + float64((b/3)-1)*30
 
-			// Generate furniture for the building interior
-			furnitureSeed := buildingSeed + 300
-			roomType := []string{"common", "bedroom", "shop", "kitchen", "storage"}[buildingType%5]
-			furnitureItems, err := furnitureAdapter.GenerateRoomFurniture(furnitureSeed, cfg.Genre, roomType, 3)
-			if err == nil && len(furnitureItems) > 0 {
-				furnitureIDs := make([]uint64, 0, len(furnitureItems))
-				for fi, furn := range furnitureItems {
-					furnEntity := world.CreateEntity()
-					if err := world.AddComponent(furnEntity, &components.Position{
-						X: buildingX + float64(fi%3)*2,
-						Y: buildingY + float64(fi/3)*2,
-						Z: 0,
-					}); err != nil {
-						continue
-					}
-					furnitureIDs = append(furnitureIDs, uint64(furnEntity))
-					furnitureGenerated++
-					_ = furn // Furniture data available for future use
-				}
-			}
-
-			// For shop buildings (type 0), generate inventory items
-			if buildingType == 0 {
-				itemSeed := buildingSeed + 500
-				items, err := itemAdapter.GenerateItems(itemSeed, cfg.Genre, 1, 10, "")
-				if err == nil && len(items) > 0 {
-					shopItems := make(map[string]int)
-					shopPrices := make(map[string]float64)
-					for _, itm := range items {
-						shopItems[itm.ID] = 1 + (b % 3) // Quantity varies
-						shopPrices[itm.ID] = float64(itm.Stats.Value)
-					}
-
-					if err := world.AddComponent(buildingEntity, &components.ShopInventory{
-						ShopType:        "general",
-						Items:           shopItems,
-						Prices:          shopPrices,
-						RestockInterval: 24,
-						GoldReserve:     500.0 + float64(b*100),
-					}); err == nil {
-						itemsGenerated += len(items)
-					}
-				}
-			}
-		}
-		log.Printf("  generated %d buildings with %d items, %d furniture in district %s", buildingsInDistrict, itemsGenerated, furnitureGenerated, district.Name)
-
-		// Spawn NPCs in each district using V-Series generator
-		factionID := "neutral"
-		if len(factions) > 0 {
-			factionID = factions[i%len(factions)].ID
-		}
-
-		npcsPerDistrict := 5 + (district.Buildings / 10)
-		if npcsPerDistrict > 20 {
-			npcsPerDistrict = 20
-		}
-
-		npcCfg := adapters.NPCSpawnConfig{
-			Seed:      districtSeed,
-			Genre:     cfg.Genre,
-			FactionID: factionID,
-			Count:     npcsPerDistrict,
-			CenterX:   district.CenterX,
-			CenterY:   district.CenterY,
-			Radius:    100.0,
-		}
-		entities, err := entityAdapter.GenerateAndSpawnNPCs(world, npcCfg)
+		bldg, err := cga.building.GenerateBuilding(buildingSeed, cfg.Genre, buildingType, floors)
 		if err != nil {
-			log.Printf("warning: NPC spawn failed for district %s: %v", district.Name, err)
+			log.Printf("warning: building generation failed in district %s: %v", district.Name, err)
 			continue
 		}
 
-		// Generate dialog trees for each spawned NPC
-		dialogsGenerated := 0
-		for j, npcEntity := range entities {
-			npcDialogSeed := districtSeed + int64(j)*7
-			dialogLines, err := dialogAdapter.GenerateDialogLines(npcDialogSeed, cfg.Genre, 5)
-			if err != nil {
-				continue
-			}
-
-			// Create dialog options from generated lines
-			options := make([]components.DialogOption, len(dialogLines))
-			for k, line := range dialogLines {
-				options[k] = components.DialogOption{
-					ID:          fmt.Sprintf("topic_%d", k),
-					Text:        line.Text,
-					NextTopicID: fmt.Sprintf("topic_%d", (k+1)%len(dialogLines)),
-				}
-			}
-
-			if err := world.AddComponent(npcEntity, &components.DialogState{
-				CurrentTopicID:     "greeting",
-				AvailableResponses: options,
-			}); err != nil {
-				continue
-			}
-			dialogsGenerated++
+		buildingEntity := createBuildingEntity(world, bldg, buildingX, buildingY)
+		if buildingEntity == 0 {
+			continue
 		}
 
-		log.Printf("  spawned %d NPCs with %d dialogs in district %s", len(entities), dialogsGenerated, district.Name)
+		result.furnitureGenerated += generateBuildingFurniture(world, cga, cfg.Genre, buildingSeed, buildingType, buildingX, buildingY)
+
+		if buildingType == 0 {
+			result.itemsGenerated += generateShopInventory(world, cga, cfg.Genre, buildingEntity, buildingSeed, b)
+		}
 	}
+	return result
+}
+
+// createBuildingEntity creates a building entity with position and interior components.
+func createBuildingEntity(world *ecs.World, bldg *adapters.GeneratedBuilding, x, y float64) ecs.Entity {
+	buildingEntity := world.CreateEntity()
+
+	if err := world.AddComponent(buildingEntity, &components.Position{X: x, Y: y, Z: 0}); err != nil {
+		return 0
+	}
+	if err := world.AddComponent(buildingEntity, &components.Building{
+		BuildingType: bldg.Type,
+		Width:        float64(bldg.Width),
+		Height:       float64(bldg.Height),
+		Floors:       bldg.Floors,
+		IsOpen:       true,
+	}); err != nil {
+		return 0
+	}
+	if err := world.AddComponent(buildingEntity, &components.Interior{
+		ParentBuilding: uint64(buildingEntity),
+		Width:          bldg.Width,
+		Height:         bldg.Height,
+		FloorType:      bldg.Style,
+	}); err != nil {
+		return 0
+	}
+	return buildingEntity
+}
+
+// generateBuildingFurniture creates furniture entities for a building.
+func generateBuildingFurniture(world *ecs.World, cga *cityGenerationAdapters, genre string,
+	buildingSeed int64, buildingType int, buildingX, buildingY float64,
+) int {
+	furnitureSeed := buildingSeed + 300
+	roomTypes := []string{"common", "bedroom", "shop", "kitchen", "storage"}
+	roomType := roomTypes[buildingType%5]
+
+	furnitureItems, err := cga.furniture.GenerateRoomFurniture(furnitureSeed, genre, roomType, 3)
+	if err != nil || len(furnitureItems) == 0 {
+		return 0
+	}
+
+	count := 0
+	for fi := range furnitureItems {
+		furnEntity := world.CreateEntity()
+		if err := world.AddComponent(furnEntity, &components.Position{
+			X: buildingX + float64(fi%3)*2,
+			Y: buildingY + float64(fi/3)*2,
+			Z: 0,
+		}); err != nil {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
+// generateShopInventory creates shop inventory for shop buildings.
+func generateShopInventory(world *ecs.World, cga *cityGenerationAdapters, genre string,
+	buildingEntity ecs.Entity, buildingSeed int64, buildingIndex int,
+) int {
+	itemSeed := buildingSeed + 500
+	items, err := cga.item.GenerateItems(itemSeed, genre, 1, 10, "")
+	if err != nil || len(items) == 0 {
+		return 0
+	}
+
+	shopItems := make(map[string]int)
+	shopPrices := make(map[string]float64)
+	for _, itm := range items {
+		shopItems[itm.ID] = 1 + (buildingIndex % 3)
+		shopPrices[itm.ID] = float64(itm.Stats.Value)
+	}
+
+	if err := world.AddComponent(buildingEntity, &components.ShopInventory{
+		ShopType:        "general",
+		Items:           shopItems,
+		Prices:          shopPrices,
+		RestockInterval: 24,
+		GoldReserve:     500.0 + float64(buildingIndex*100),
+	}); err != nil {
+		return 0
+	}
+	return len(items)
+}
+
+// spawnDistrictNPCs spawns NPCs and generates their dialogs.
+func spawnDistrictNPCs(world *ecs.World, cfg *config.Config, cga *cityGenerationAdapters,
+	district city.District, districtSeed int64, factionID string,
+) int {
+	npcsPerDistrict := 5 + (district.Buildings / 10)
+	if npcsPerDistrict > 20 {
+		npcsPerDistrict = 20
+	}
+
+	npcCfg := adapters.NPCSpawnConfig{
+		Seed:      districtSeed,
+		Genre:     cfg.Genre,
+		FactionID: factionID,
+		Count:     npcsPerDistrict,
+		CenterX:   district.CenterX,
+		CenterY:   district.CenterY,
+		Radius:    100.0,
+	}
+	entities, err := cga.entity.GenerateAndSpawnNPCs(world, npcCfg)
+	if err != nil {
+		log.Printf("warning: NPC spawn failed for district %s: %v", district.Name, err)
+		return 0
+	}
+
+	return generateNPCDialogs(world, cga, cfg.Genre, entities, districtSeed)
+}
+
+// generateNPCDialogs creates dialog components for NPCs.
+func generateNPCDialogs(world *ecs.World, cga *cityGenerationAdapters, genre string,
+	entities []ecs.Entity, districtSeed int64,
+) int {
+	dialogsGenerated := 0
+	for j, npcEntity := range entities {
+		npcDialogSeed := districtSeed + int64(j)*7
+		dialogLines, err := cga.dialog.GenerateDialogLines(npcDialogSeed, genre, 5)
+		if err != nil {
+			continue
+		}
+
+		options := buildDialogOptions(dialogLines)
+		if err := world.AddComponent(npcEntity, &components.DialogState{
+			CurrentTopicID:     "greeting",
+			AvailableResponses: options,
+		}); err != nil {
+			continue
+		}
+		dialogsGenerated++
+	}
+	return dialogsGenerated
+}
+
+// buildDialogOptions converts generated dialog lines to component options.
+func buildDialogOptions(dialogLines []adapters.GeneratedDialogLine) []components.DialogOption {
+	options := make([]components.DialogOption, len(dialogLines))
+	for k, line := range dialogLines {
+		options[k] = components.DialogOption{
+			ID:          fmt.Sprintf("topic_%d", k),
+			Text:        line.Text,
+			NextTopicID: fmt.Sprintf("topic_%d", (k+1)%len(dialogLines)),
+		}
+	}
+	return options
 }
 
 // registerServerSystems registers all 57 server-side ECS systems.
