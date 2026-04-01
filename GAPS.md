@@ -641,7 +641,7 @@ The noise generator (`pkg/procgen/noise/generator.go`, 56 lines) uses hash-based
 - [x] Return placeholder chunk for not-yet-generated chunks
 - [x] Swap placeholder with real chunk when generation completes
 - [ ] Verify no frame stutter when crossing chunk boundaries
-- [ ] Add benchmark for chunk generation latency
+- [x] Add benchmark for chunk generation latency
 
 ---
 
