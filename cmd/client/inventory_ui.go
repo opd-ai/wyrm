@@ -28,6 +28,13 @@ type InventoryUI struct {
 	scrollOffset  int
 	confirmAction string // "use" or "drop" when confirming
 	genre         string
+
+	// Container view fields
+	containerEntity ecs.Entity
+	containerName   string
+	containerInv    *components.Inventory
+	playerInv       *components.Inventory
+	viewingMode     int // 0 = player, 1 = container, 2 = transfer
 }
 
 // NewInventoryUI creates a new inventory UI.
@@ -57,12 +64,37 @@ func (ui *InventoryUI) Open() {
 	ui.selectedSlot = 0
 	ui.scrollOffset = 0
 	ui.confirmAction = ""
+	// Clear any container state
+	ui.containerEntity = 0
+	ui.containerName = ""
+	ui.containerInv = nil
+	ui.playerInv = nil
+	ui.viewingMode = 0
+}
+
+// OpenContainer opens the inventory UI with a container for item transfer.
+func (ui *InventoryUI) OpenContainer(containerEntity ecs.Entity, name string, containerInv, playerInv *components.Inventory) {
+	ui.isOpen = true
+	ui.selectedSlot = 0
+	ui.scrollOffset = 0
+	ui.confirmAction = ""
+	ui.containerEntity = containerEntity
+	ui.containerName = name
+	ui.containerInv = containerInv
+	ui.playerInv = playerInv
+	ui.viewingMode = 2 // Transfer mode
 }
 
 // Close closes the inventory UI.
 func (ui *InventoryUI) Close() {
 	ui.isOpen = false
 	ui.confirmAction = ""
+	// Clear container state
+	ui.containerEntity = 0
+	ui.containerName = ""
+	ui.containerInv = nil
+	ui.playerInv = nil
+	ui.viewingMode = 0
 }
 
 // Toggle toggles the inventory UI open/closed state.

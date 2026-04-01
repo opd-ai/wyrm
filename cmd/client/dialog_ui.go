@@ -13,6 +13,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/opd-ai/wyrm/pkg/dialog"
+	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 	"github.com/opd-ai/wyrm/pkg/rendering/subtitles"
 )
@@ -51,6 +52,7 @@ type DialogUI struct {
 	playerEntity     ecs.Entity
 	lastInteraction  time.Time
 	skillCheckResult *dialog.SkillCheckResult
+	world            *ecs.World // World reference for skill lookups
 }
 
 // NewDialogUI creates a new dialog UI system.
@@ -77,6 +79,7 @@ func (d *DialogUI) OpenDialog(world *ecs.World, npcEntity ecs.Entity, npcName st
 	d.npcName = npcName
 	d.selectedOption = 0
 	d.skillCheckResult = nil
+	d.world = world // Store world reference for skill lookups
 
 	// Get NPC's emotional state toward player
 	d.npcEmotion = d.dialogManager.GetEmotionalState(
@@ -344,6 +347,27 @@ func (d *DialogUI) generateGreeting() string {
 	return greeting + recall
 }
 
+// getPlayerSkillLevel returns the player's level in a given skill.
+// Falls back to default if Skills component is not available.
+func (d *DialogUI) getPlayerSkillLevel(skillName string, defaultValue int) int {
+	if d.world == nil {
+		return defaultValue
+	}
+	skillsComp, ok := d.world.GetComponent(d.playerEntity, "Skills")
+	if !ok {
+		return defaultValue
+	}
+	skills := skillsComp.(*components.Skills)
+	if skills.Levels == nil {
+		return defaultValue
+	}
+	level, found := skills.Levels[skillName]
+	if !found {
+		return defaultValue
+	}
+	return level
+}
+
 // generateResponseOptions creates the available dialog choices.
 func (d *DialogUI) generateResponseOptions() {
 	d.options = d.options[:0]
@@ -370,13 +394,14 @@ func (d *DialogUI) generateResponseOptions() {
 
 	// Add persuasion option if not already friendly
 	if d.npcEmotion != dialog.EmotionFriendly {
+		persuasionLevel := d.getPlayerSkillLevel("persuasion", 50)
 		d.options = append(d.options, DialogOption{
 			ID:   "persuade",
 			Text: "[Persuade] Perhaps we could come to an understanding...",
 			SkillCheck: &dialog.SkillCheck{
 				Type:       dialog.SkillCheckPersuasion,
 				Difficulty: dialog.DifficultyMedium,
-				SkillLevel: 50, // TODO: Get from player Skills component
+				SkillLevel: persuasionLevel,
 				NPCState:   d.npcEmotion,
 				Genre:      d.genre,
 			},
@@ -385,13 +410,14 @@ func (d *DialogUI) generateResponseOptions() {
 	}
 
 	// Add intimidation option
+	intimidationLevel := d.getPlayerSkillLevel("intimidation", 30)
 	d.options = append(d.options, DialogOption{
 		ID:   "intimidate",
 		Text: "[Intimidate] You would be wise to cooperate.",
 		SkillCheck: &dialog.SkillCheck{
 			Type:       dialog.SkillCheckIntimidate,
 			Difficulty: dialog.DifficultyMedium,
-			SkillLevel: 30, // TODO: Get from player Skills component
+			SkillLevel: intimidationLevel,
 			NPCState:   d.npcEmotion,
 			Genre:      d.genre,
 		},

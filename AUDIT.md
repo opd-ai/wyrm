@@ -105,7 +105,7 @@ Wyrm is a **"100% procedurally generated first-person open-world RPG"** built in
 
 - [ ] **Network Encode has cyclomatic complexity 11** — `pkg/network/protocol.go:31` — Message type switch with many cases. **Remediation:** Use message type lookup table with encoder function pointers. **Validation:** Complexity ≤10.
 
-- [ ] **4 TODO annotations remain in production code** — `cmd/client/dialog_ui.go:379,394`, `cmd/client/main.go:290,293` — Skill level hardcoded, container/door interaction not implemented. **Remediation:** Replace TODO with actual implementations or tracked issues. **Validation:** `grep -r "TODO" --include="*.go" | wc -l` returns 0.
+- [x] **4 TODO annotations remain in production code** — `cmd/client/dialog_ui.go:379,394`, `cmd/client/main.go:290,293` — Skill level hardcoded, container/door interaction not implemented. **Remediation:** Replace TODO with actual implementations or tracked issues. **Validation:** `grep -r "TODO" --include="*.go" | wc -l` returns 0.
 
 ### LOW
 

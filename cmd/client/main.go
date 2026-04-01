@@ -79,6 +79,12 @@ type Game struct {
 	// Pre-allocated rendering buffers (Phase 2 optimization)
 	particleBuffer     []byte // Pre-allocated buffer for particle rendering
 	particleBufferSize int    // Current buffer size for reallocation check
+	// Pre-allocated UI rendering images
+	minimapImage    *ebiten.Image // Pre-allocated minimap image
+	minimapPixels   []byte        // Pixel buffer for minimap
+	barImage        *ebiten.Image // Pre-allocated bar image (health/mana)
+	crosshairImage  *ebiten.Image // Pre-allocated crosshair image
+	speechBubbleImg *ebiten.Image // Pre-allocated speech bubble image
 	// Audio subpackages
 	ambientMixer  *ambient.Mixer
 	adaptiveMusic *music.AdaptiveMusic
@@ -287,11 +293,9 @@ func (g *Game) processInteraction(target *InteractionResult) {
 			g.craftingUI.OpenWorkbench(g.world, target.Entity)
 		}
 	case InteractionContainer:
-		// TODO: Open container UI
-		log.Printf("Opening container: %s", target.Name)
+		g.handleContainerInteraction(target.Entity, target.Name)
 	case InteractionDoor:
-		// TODO: Open/close door
-		log.Printf("Opening door")
+		g.handleDoorInteraction(target.Entity)
 	case InteractionMount:
 		// Mount or dismount the creature
 		g.handleMountInteraction(target.Entity)
@@ -331,6 +335,53 @@ func (g *Game) pickupItem(itemEntity ecs.Entity) {
 	// Remove item entity from world
 	g.world.DestroyEntity(itemEntity)
 	log.Printf("Picked up item")
+}
+
+// handleContainerInteraction opens the container inventory UI.
+func (g *Game) handleContainerInteraction(containerEntity ecs.Entity, containerName string) {
+	containerInvComp, ok := g.world.GetComponent(containerEntity, "Inventory")
+	if !ok {
+		log.Printf("Container has no inventory component")
+		return
+	}
+	containerInv := containerInvComp.(*components.Inventory)
+
+	// Get player inventory for transfer
+	playerInvComp, ok := g.world.GetComponent(g.playerEntity, "Inventory")
+	if !ok {
+		log.Printf("Player has no inventory component")
+		return
+	}
+
+	// Open inventory UI with container view
+	if g.inventoryUI != nil {
+		g.inventoryUI.OpenContainer(containerEntity, containerName, containerInv, playerInvComp.(*components.Inventory))
+		log.Printf("Opened container: %s (items: %d/%d)", containerName, len(containerInv.Items), containerInv.Capacity)
+	}
+}
+
+// handleDoorInteraction opens or closes a door.
+func (g *Game) handleDoorInteraction(doorEntity ecs.Entity) {
+	// Check for Position component to determine door state
+	posComp, ok := g.world.GetComponent(doorEntity, "Position")
+	if !ok {
+		return
+	}
+	pos := posComp.(*components.Position)
+
+	// Toggle door state: doors store open/closed state in the Angle field (radians)
+	// Open door has angle ~ PI/2, closed door has angle = 0
+	const doorOpenAngle = 1.5708   // PI/2 radians (90 degrees)
+	const doorCloseAngle = 0.0     // 0 radians
+	const doorThreshold = 0.785398 // PI/4 radians (45 degrees)
+
+	if pos.Angle > doorThreshold { // Currently open
+		pos.Angle = doorCloseAngle
+		log.Printf("Closed door")
+	} else { // Currently closed
+		pos.Angle = doorOpenAngle
+		log.Printf("Opened door")
+	}
 }
 
 // handleMountInteraction mounts or dismounts the player from a mount creature.
@@ -407,6 +458,104 @@ func (g *Game) updateRenderingSubsystems(dt float64) {
 		// Sync animation states with NPC schedules
 		g.npcRenderer.SyncAnimationWithSchedule(g.world)
 	}
+}
+
+// initUIBuffers initializes pre-allocated images for UI rendering.
+// Uses WritePixels batch API instead of per-pixel Set() calls.
+func (g *Game) initUIBuffers() {
+	const minimapSize = 64
+	const barMaxWidth = 150
+	const barMaxHeight = 16
+	const speechBubbleW = 42
+	const speechBubbleH = 18
+	const crosshairSize = 11
+
+	// Pre-allocate minimap image and pixel buffer
+	g.minimapImage = ebiten.NewImage(minimapSize, minimapSize)
+	g.minimapPixels = make([]byte, minimapSize*minimapSize*4)
+
+	// Pre-allocate bar image
+	g.barImage = ebiten.NewImage(barMaxWidth, barMaxHeight)
+
+	// Pre-allocate crosshair image (11x11 for the 5-pixel cross)
+	g.crosshairImage = ebiten.NewImage(crosshairSize, crosshairSize)
+	g.initCrosshairImage(crosshairSize)
+
+	// Pre-allocate speech bubble image
+	g.speechBubbleImg = ebiten.NewImage(speechBubbleW, speechBubbleH)
+	g.initSpeechBubbleImage(speechBubbleW, speechBubbleH)
+}
+
+// initCrosshairImage renders the crosshair once into the pre-allocated image.
+func (g *Game) initCrosshairImage(size int) {
+	pixels := make([]byte, size*size*4)
+	center := size / 2
+	green := []byte{0, 255, 0, 255}
+
+	// Horizontal line (center row: center-1, center, center+1)
+	for dx := -1; dx <= 1; dx++ {
+		px := center + dx
+		py := center
+		idx := (py*size + px) * 4
+		copy(pixels[idx:idx+4], green)
+	}
+	// Vertical line (center col: center-1, center+1)
+	for dy := -1; dy <= 1; dy++ {
+		if dy == 0 {
+			continue // Already drawn as part of horizontal
+		}
+		px := center
+		py := center + dy
+		idx := (py*size + px) * 4
+		copy(pixels[idx:idx+4], green)
+	}
+
+	g.crosshairImage.WritePixels(pixels)
+}
+
+// initSpeechBubbleImage renders the speech bubble once into the pre-allocated image.
+func (g *Game) initSpeechBubbleImage(w, h int) {
+	pixels := make([]byte, w*h*4)
+	bubbleR, bubbleG, bubbleB, bubbleA := byte(255), byte(255), byte(255), byte(200)
+	textR, textG, textB, textA := byte(50), byte(50), byte(50), byte(255)
+
+	centerX, centerY := w/2, h/2
+
+	// Draw bubble background (ellipse approximation)
+	for dy := -8; dy <= 8; dy++ {
+		for dx := -20; dx <= 20; dx++ {
+			if float64(dx*dx)/400+float64(dy*dy)/64 <= 1 {
+				px := centerX + dx
+				py := centerY + dy
+				if px >= 0 && px < w && py >= 0 && py < h {
+					idx := (py*w + px) * 4
+					pixels[idx] = bubbleR
+					pixels[idx+1] = bubbleG
+					pixels[idx+2] = bubbleB
+					pixels[idx+3] = bubbleA
+				}
+			}
+		}
+	}
+
+	// Draw "..." text (three dots)
+	for i := -8; i <= 8; i += 8 {
+		for ddx := 0; ddx < 3; ddx++ {
+			for ddy := 0; ddy < 3; ddy++ {
+				px := centerX + i + ddx - 1
+				py := centerY + ddy - 1
+				if px >= 0 && px < w && py >= 0 && py < h {
+					idx := (py*w + px) * 4
+					pixels[idx] = textR
+					pixels[idx+1] = textG
+					pixels[idx+2] = textB
+					pixels[idx+3] = textA
+				}
+			}
+		}
+	}
+
+	g.speechBubbleImg.WritePixels(pixels)
 }
 
 // updateSubtitles updates the subtitle system for dialog display.
@@ -1070,21 +1219,27 @@ func normalizeAngle(angle float64) float64 {
 
 // drawSpeechBubble draws a simple "..." speech indicator at the given position.
 func (g *Game) drawSpeechBubble(screen *ebiten.Image, x, y int) {
-	// Draw simple ellipsis in a bubble
+	// Use pre-allocated speech bubble image for efficiency
+	if g.speechBubbleImg != nil {
+		op := &ebiten.DrawImageOptions{}
+		// Center the bubble at (x, y)
+		op.GeoM.Translate(float64(x-21), float64(y-9))
+		screen.DrawImage(g.speechBubbleImg, op)
+		return
+	}
+
+	// Fallback to direct drawing if image not initialized
 	bubbleColor := color.RGBA{255, 255, 255, 200}
 	textColor := color.RGBA{50, 50, 50, 255}
 
-	// Draw bubble background (small rounded rect approximation)
 	for dy := -8; dy <= 8; dy++ {
 		for dx := -20; dx <= 20; dx++ {
-			// Ellipse check for rounded shape
 			if float64(dx*dx)/400+float64(dy*dy)/64 <= 1 {
 				screen.Set(x+dx, y+dy, bubbleColor)
 			}
 		}
 	}
 
-	// Draw "..." text (simple dots)
 	for i := -8; i <= 8; i += 8 {
 		for ddx := 0; ddx < 3; ddx++ {
 			for ddy := 0; ddy < 3; ddy++ {
@@ -1293,9 +1448,53 @@ func (g *Game) drawWantedStatus(screen *ebiten.Image, x, y int) {
 	}
 }
 
-// drawBar renders a horizontal bar (health/mana style).
+// drawBar renders a horizontal bar (health/mana style) using batch pixel writes.
 func (g *Game) drawBar(screen *ebiten.Image, x, y, width, height int, percent float64, fillColor, bgColor uint32) {
-	// Background
+	// Use pre-allocated bar image for efficiency
+	if g.barImage != nil && width <= 150 && height <= 16 {
+		// Clear and redraw into pre-allocated image
+		g.barImage.Clear()
+		pixels := make([]byte, width*height*4)
+
+		// Background color bytes
+		bgR, bgG, bgB, bgA := uint8(bgColor>>24), uint8(bgColor>>16), uint8(bgColor>>8), uint8(bgColor)
+		fillR, fillG, fillB, fillA := uint8(fillColor>>24), uint8(fillColor>>16), uint8(fillColor>>8), uint8(fillColor)
+
+		// Fill background
+		for py := 0; py < height; py++ {
+			for px := 0; px < width; px++ {
+				idx := (py*width + px) * 4
+				pixels[idx] = bgR
+				pixels[idx+1] = bgG
+				pixels[idx+2] = bgB
+				pixels[idx+3] = bgA
+			}
+		}
+
+		// Fill progress (with 1px border)
+		fillWidth := int(float64(width) * percent)
+		for py := 1; py < height-1; py++ {
+			for px := 1; px < fillWidth-1 && px < width-1; px++ {
+				idx := (py*width + px) * 4
+				pixels[idx] = fillR
+				pixels[idx+1] = fillG
+				pixels[idx+2] = fillB
+				pixels[idx+3] = fillA
+			}
+		}
+
+		// Create a sub-image of the correct size and write pixels
+		subImg := g.barImage.SubImage(image.Rect(0, 0, width, height)).(*ebiten.Image)
+		subImg.WritePixels(pixels)
+
+		// Draw to screen
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Translate(float64(x), float64(y))
+		screen.DrawImage(subImg, op)
+		return
+	}
+
+	// Fallback to direct drawing
 	for py := y; py < y+height; py++ {
 		for px := x; px < x+width; px++ {
 			if px >= 0 && px < g.cfg.Window.Width && py >= 0 && py < g.cfg.Window.Height {
@@ -1303,7 +1502,6 @@ func (g *Game) drawBar(screen *ebiten.Image, x, y, width, height int, percent fl
 			}
 		}
 	}
-	// Fill
 	fillWidth := int(float64(width) * percent)
 	for py := y + 1; py < y+height-1; py++ {
 		for px := x + 1; px < x+fillWidth-1; px++ {
@@ -1314,7 +1512,7 @@ func (g *Game) drawBar(screen *ebiten.Image, x, y, width, height int, percent fl
 	}
 }
 
-// drawMinimap renders a small top-down view of the nearby area.
+// drawMinimap renders a small top-down view of the nearby area using batch pixel writes.
 func (g *Game) drawMinimap(screen *ebiten.Image, x, y, size int) {
 	if g.worldMap == nil || len(g.worldMap) == 0 {
 		return
@@ -1333,11 +1531,71 @@ func (g *Game) drawMinimap(screen *ebiten.Image, x, y, size int) {
 	// Get faction territories
 	territories := g.getFactionTerritories()
 
-	// Draw minimap background and terrain
-	mapRadius := 16 // Show 16 cells in each direction
+	// Use pre-allocated minimap image and pixel buffer
+	if g.minimapImage != nil && g.minimapPixels != nil && size <= 64 {
+		// Ensure pixel buffer is large enough
+		bufSize := size * size * 4
+		if len(g.minimapPixels) < bufSize {
+			g.minimapPixels = make([]byte, bufSize)
+		}
+		pixels := g.minimapPixels[:bufSize]
+
+		mapRadius := 16
+		for my := 0; my < size; my++ {
+			for mx := 0; mx < size; mx++ {
+				worldX := playerMapX - mapRadius + (mx * mapRadius * 2 / size)
+				worldY := playerMapY - mapRadius + (my * mapRadius * 2 / size)
+
+				var baseColor uint32
+				if worldY >= 0 && worldY < len(g.worldMap) && worldX >= 0 && worldX < len(g.worldMap[0]) {
+					if g.worldMap[worldY][worldX] > 0 {
+						baseColor = 0x666666FF
+					} else {
+						baseColor = 0x333333FF
+					}
+				} else {
+					baseColor = 0x111111FF
+				}
+
+				territoryColor := g.getTerritoryColor(float64(worldX), float64(worldY), territories)
+				if territoryColor != 0 {
+					baseColor = blendColors(baseColor, territoryColor, 0.4)
+				}
+
+				idx := (my*size + mx) * 4
+				pixels[idx] = uint8(baseColor >> 24)
+				pixels[idx+1] = uint8(baseColor >> 16)
+				pixels[idx+2] = uint8(baseColor >> 8)
+				pixels[idx+3] = uint8(baseColor)
+			}
+		}
+
+		// Draw player dot in center (green cross)
+		center := size / 2
+		green := []byte{0, 255, 0, 255}
+		for _, off := range [][2]int{{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
+			px, py := center+off[0], center+off[1]
+			if px >= 0 && px < size && py >= 0 && py < size {
+				idx := (py*size + px) * 4
+				copy(pixels[idx:idx+4], green)
+			}
+		}
+
+		// Write pixels to the pre-allocated image
+		subImg := g.minimapImage.SubImage(image.Rect(0, 0, size, size)).(*ebiten.Image)
+		subImg.WritePixels(pixels)
+
+		// Draw to screen
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Translate(float64(x), float64(y))
+		screen.DrawImage(subImg, op)
+		return
+	}
+
+	// Fallback to per-pixel drawing
+	mapRadius := 16
 	for my := 0; my < size; my++ {
 		for mx := 0; mx < size; mx++ {
-			// Map screen coords to world coords
 			worldX := playerMapX - mapRadius + (mx * mapRadius * 2 / size)
 			worldY := playerMapY - mapRadius + (my * mapRadius * 2 / size)
 
@@ -1348,22 +1606,19 @@ func (g *Game) drawMinimap(screen *ebiten.Image, x, y, size int) {
 				continue
 			}
 
-			// Base color
 			var baseColor uint32
 			if worldY >= 0 && worldY < len(g.worldMap) && worldX >= 0 && worldX < len(g.worldMap[0]) {
 				if g.worldMap[worldY][worldX] > 0 {
-					baseColor = 0x666666FF // Wall
+					baseColor = 0x666666FF
 				} else {
-					baseColor = 0x333333FF // Floor
+					baseColor = 0x333333FF
 				}
 			} else {
-				baseColor = 0x111111FF // Out of bounds
+				baseColor = 0x111111FF
 			}
 
-			// Check for faction territory overlay
 			territoryColor := g.getTerritoryColor(float64(worldX), float64(worldY), territories)
 			if territoryColor != 0 {
-				// Blend territory color with base
 				baseColor = blendColors(baseColor, territoryColor, 0.4)
 			}
 
@@ -1371,7 +1626,6 @@ func (g *Game) drawMinimap(screen *ebiten.Image, x, y, size int) {
 		}
 	}
 
-	// Draw player dot in center
 	centerX := x + size/2
 	centerY := y + size/2
 	screen.Set(centerX, centerY, uint32ToColor(0x00FF00FF))
@@ -1606,6 +1860,9 @@ func main() {
 	if audioPlayer != nil {
 		game.startAmbientAudio()
 	}
+
+	// Initialize pre-allocated UI rendering images
+	game.initUIBuffers()
 
 	ebiten.SetWindowSize(cfg.Window.Width, cfg.Window.Height)
 	ebiten.SetWindowTitle(cfg.Window.Title)
