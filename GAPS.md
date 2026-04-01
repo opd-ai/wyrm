@@ -565,7 +565,7 @@ The heightmap system (`pkg/world/chunk/manager.go`) classifies terrain into only
 - [x] Add `TerrainWater` type for heights below a configurable water plane elevation
 - [x] Implement vegetation entity spawning based on biome type and height (DetailSpawn system with Tree, Bush, Grass, Flower types)
 - [x] Implement rock/boulder entity spawning on cliff and mountain terrain (DetailSpawn system with Rock, Boulder, Debris types)
-- [ ] Implement road/path generation connecting city districts and POIs
+- [x] Implement road/path generation connecting city districts and POIs
 - [ ] Verify new terrain types render distinctly in the raycaster
 
 ---

@@ -691,3 +691,67 @@ func TestWallsAndGatesDeterminism(t *testing.T) {
 		}
 	}
 }
+
+func TestRoadGeneration(t *testing.T) {
+	c := Generate(12345, "fantasy")
+
+	// Should have roads (at least one per district minus one for MST)
+	if len(c.Roads) < len(c.Districts)-1 {
+		t.Errorf("expected at least %d roads, got %d", len(c.Districts)-1, len(c.Roads))
+	}
+
+	// All roads should have valid properties
+	for i, road := range c.Roads {
+		if road.Width <= 0 {
+			t.Errorf("road %d has invalid width: %f", i, road.Width)
+		}
+		if road.Type == "" {
+			t.Errorf("road %d has empty type", i)
+		}
+		if road.Material == "" {
+			t.Errorf("road %d has empty material", i)
+		}
+	}
+}
+
+func TestRoadDeterminism(t *testing.T) {
+	c1 := Generate(12345, "fantasy")
+	c2 := Generate(12345, "fantasy")
+
+	if len(c1.Roads) != len(c2.Roads) {
+		t.Errorf("road count should be deterministic: %d vs %d", len(c1.Roads), len(c2.Roads))
+	}
+
+	for i := range c1.Roads {
+		if c1.Roads[i].StartX != c2.Roads[i].StartX || c1.Roads[i].StartY != c2.Roads[i].StartY {
+			t.Errorf("road %d start position differs", i)
+		}
+		if c1.Roads[i].EndX != c2.Roads[i].EndX || c1.Roads[i].EndY != c2.Roads[i].EndY {
+			t.Errorf("road %d end position differs", i)
+		}
+	}
+}
+
+func TestIsOnRoad(t *testing.T) {
+	c := Generate(12345, "fantasy")
+
+	if len(c.Roads) == 0 {
+		t.Skip("no roads generated")
+	}
+
+	road := c.Roads[0]
+	// Point at road start should be on road
+	if !c.IsOnRoad(road.StartX, road.StartY) {
+		t.Error("road start point should be on road")
+	}
+
+	// Point at road end should be on road
+	if !c.IsOnRoad(road.EndX, road.EndY) {
+		t.Error("road end point should be on road")
+	}
+
+	// Point far away should not be on road
+	if c.IsOnRoad(10000, 10000) {
+		t.Error("point far away should not be on road")
+	}
+}

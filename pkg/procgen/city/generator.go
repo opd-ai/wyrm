@@ -875,3 +875,165 @@ func (c *Wall) HasBreach() bool {
 	}
 	return false
 }
+
+// GenerateRoads creates roads connecting districts and key locations.
+// Uses a minimum spanning tree (MST) approach to connect all districts,
+// then adds some extra connections for redundancy.
+func (c *City) GenerateRoads(rng *rand.Rand) {
+	if len(c.Districts) < 2 {
+		return
+	}
+
+	// Get road materials for genre
+	materials := genreRoadMaterials[c.Genre]
+	if materials == nil {
+		materials = genreRoadMaterials["fantasy"]
+	}
+
+	// Build MST connecting all districts using Prim's algorithm
+	connected := make([]bool, len(c.Districts))
+	connected[0] = true
+	numConnected := 1
+
+	roads := make([]Road, 0, len(c.Districts))
+
+	for numConnected < len(c.Districts) {
+		bestDist := math.MaxFloat64
+		bestFrom := -1
+		bestTo := -1
+
+		// Find shortest edge from connected to unconnected vertex
+		for i := 0; i < len(c.Districts); i++ {
+			if !connected[i] {
+				continue
+			}
+			for j := 0; j < len(c.Districts); j++ {
+				if connected[j] {
+					continue
+				}
+				dx := c.Districts[i].CenterX - c.Districts[j].CenterX
+				dy := c.Districts[i].CenterY - c.Districts[j].CenterY
+				dist := dx*dx + dy*dy
+				if dist < bestDist {
+					bestDist = dist
+					bestFrom = i
+					bestTo = j
+				}
+			}
+		}
+
+		if bestTo < 0 {
+			break
+		}
+
+		// Create road between these districts
+		road := Road{
+			StartX:   c.Districts[bestFrom].CenterX,
+			StartY:   c.Districts[bestFrom].CenterY,
+			EndX:     c.Districts[bestTo].CenterX,
+			EndY:     c.Districts[bestTo].CenterY,
+			Width:    3.0 + rng.Float64()*2.0, // Main roads are 3-5 units wide
+			Type:     "main",
+			Material: materials[rng.Intn(len(materials))],
+		}
+		roads = append(roads, road)
+
+		connected[bestTo] = true
+		numConnected++
+	}
+
+	// Add some extra connections for redundancy (30% chance per pair)
+	for i := 0; i < len(c.Districts); i++ {
+		for j := i + 2; j < len(c.Districts); j++ { // Skip adjacent (already connected by MST)
+			if rng.Float64() < 0.3 {
+				dx := c.Districts[i].CenterX - c.Districts[j].CenterX
+				dy := c.Districts[i].CenterY - c.Districts[j].CenterY
+				dist := math.Sqrt(dx*dx + dy*dy)
+				if dist < 400 { // Only add shortcut if reasonably close
+					road := Road{
+						StartX:   c.Districts[i].CenterX,
+						StartY:   c.Districts[i].CenterY,
+						EndX:     c.Districts[j].CenterX,
+						EndY:     c.Districts[j].CenterY,
+						Width:    2.0 + rng.Float64()*1.0, // Side roads are 2-3 units wide
+						Type:     "side",
+						Material: materials[rng.Intn(len(materials))],
+					}
+					roads = append(roads, road)
+				}
+			}
+		}
+	}
+
+	// Connect gates to nearest district (if gates exist)
+	for _, gate := range c.Gates {
+		nearestIdx := 0
+		nearestDist := math.MaxFloat64
+		for i, d := range c.Districts {
+			dx := gate.X - d.CenterX
+			dy := gate.Y - d.CenterY
+			dist := dx*dx + dy*dy
+			if dist < nearestDist {
+				nearestDist = dist
+				nearestIdx = i
+			}
+		}
+		road := Road{
+			StartX:   gate.X,
+			StartY:   gate.Y,
+			EndX:     c.Districts[nearestIdx].CenterX,
+			EndY:     c.Districts[nearestIdx].CenterY,
+			Width:    4.0, // Gate roads are wide for traffic
+			Type:     "main",
+			Material: materials[0], // Primary material for main roads
+		}
+		roads = append(roads, road)
+	}
+
+	c.Roads = roads
+}
+
+// GetRoads returns all roads in the city.
+func (c *City) GetRoads() []Road {
+	return c.Roads
+}
+
+// IsOnRoad checks if a world coordinate is on a road.
+// Returns true if within roadWidth/2 of any road segment.
+func (c *City) IsOnRoad(worldX, worldY float64) bool {
+	for _, road := range c.Roads {
+		if isPointNearLineSegment(worldX, worldY, road.StartX, road.StartY, road.EndX, road.EndY, road.Width/2) {
+			return true
+		}
+	}
+	return false
+}
+
+// isPointNearLineSegment checks if point (px, py) is within distance d of line segment (x1,y1)-(x2,y2).
+func isPointNearLineSegment(px, py, x1, y1, x2, y2, d float64) bool {
+	// Vector from p1 to p2
+	dx := x2 - x1
+	dy := y2 - y1
+	lenSq := dx*dx + dy*dy
+
+	if lenSq == 0 {
+		// Degenerate segment (point)
+		return (px-x1)*(px-x1)+(py-y1)*(py-y1) <= d*d
+	}
+
+	// Project point onto line, clamped to segment
+	t := ((px-x1)*dx + (py-y1)*dy) / lenSq
+	if t < 0 {
+		t = 0
+	} else if t > 1 {
+		t = 1
+	}
+
+	// Closest point on segment
+	closestX := x1 + t*dx
+	closestY := y1 + t*dy
+
+	// Distance from point to closest point on segment
+	distSq := (px-closestX)*(px-closestX) + (py-closestY)*(py-closestY)
+	return distSq <= d*d
+}
