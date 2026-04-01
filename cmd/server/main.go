@@ -528,32 +528,25 @@ func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server, fe
 	ticker := time.NewTicker(tickInterval)
 	defer ticker.Stop()
 
-	// Auto-save timer (every 5 minutes)
-	autoSaveInterval := 5 * time.Minute
-	autoSaveTicker := time.NewTicker(autoSaveInterval)
+	autoSaveTicker := time.NewTicker(5 * time.Minute)
 	defer autoSaveTicker.Stop()
 
-	// Chunk streaming timer (every 500ms - less frequent than entity updates)
-	chunkStreamInterval := 500 * time.Millisecond
-	chunkStreamTicker := time.NewTicker(chunkStreamInterval)
+	chunkStreamTicker := time.NewTicker(500 * time.Millisecond)
 	defer chunkStreamTicker.Stop()
+
+	fedGossipTicker := time.NewTicker(10 * time.Second)
+	defer fedGossipTicker.Stop()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
-	// Start federation cleanup goroutine
 	fedStopCh := make(chan struct{})
 	go runFederationCleanup(fed, fedStopCh)
 	defer close(fedStopCh)
 
-	// Federation gossip timer (every 10 seconds)
-	fedGossipInterval := 10 * time.Second
-	fedGossipTicker := time.NewTicker(fedGossipInterval)
-	defer fedGossipTicker.Stop()
-
-	log.Printf("auto-save enabled (interval=%v)", autoSaveInterval)
+	log.Printf("auto-save enabled (interval=5m0s)")
 	if fed != nil {
-		log.Printf("federation gossip enabled (interval=%v)", fedGossipInterval)
+		log.Printf("federation gossip enabled (interval=10s)")
 	}
 
 	for {
@@ -566,25 +559,35 @@ func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server, fe
 		case <-fedGossipTicker.C:
 			processFederationGossip(world, fed, cfg)
 		case <-autoSaveTicker.C:
-			log.Println("auto-saving world state...")
-			snapshot := createWorldSnapshot(world, cfg)
-			if err := pm.Save(snapshot); err != nil {
-				log.Printf("auto-save failed: %v", err)
-			} else {
-				log.Printf("auto-save complete (%d entities)", len(snapshot.Entities))
-			}
+			performAutoSave(world, cfg, pm)
 		case <-sigCh:
-			log.Println("shutdown signal received, saving world state...")
-			snapshot := createWorldSnapshot(world, cfg)
-			if err := pm.Save(snapshot); err != nil {
-				log.Printf("shutdown save failed: %v", err)
-			} else {
-				log.Printf("shutdown save complete (%d entities)", len(snapshot.Entities))
-			}
-			log.Println("server shutdown complete")
+			performShutdownSave(world, cfg, pm)
 			return
 		}
 	}
+}
+
+// performAutoSave saves the world state periodically.
+func performAutoSave(world *ecs.World, cfg *config.Config, pm *persist.Persister) {
+	log.Println("auto-saving world state...")
+	snapshot := createWorldSnapshot(world, cfg)
+	if err := pm.Save(snapshot); err != nil {
+		log.Printf("auto-save failed: %v", err)
+	} else {
+		log.Printf("auto-save complete (%d entities)", len(snapshot.Entities))
+	}
+}
+
+// performShutdownSave saves the world state before shutdown.
+func performShutdownSave(world *ecs.World, cfg *config.Config, pm *persist.Persister) {
+	log.Println("shutdown signal received, saving world state...")
+	snapshot := createWorldSnapshot(world, cfg)
+	if err := pm.Save(snapshot); err != nil {
+		log.Printf("shutdown save failed: %v", err)
+	} else {
+		log.Printf("shutdown save complete (%d entities)", len(snapshot.Entities))
+	}
+	log.Println("server shutdown complete")
 }
 
 // broadcastEntityUpdates sends entity state updates to all connected clients.

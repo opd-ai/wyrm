@@ -101,7 +101,7 @@ Wyrm is a **"100% procedurally generated first-person open-world RPG"** built in
 
 - [x] **Server main has cyclomatic complexity 12** — `cmd/server/main.go:105` — 105-line function handles initialization and loop. **Remediation:** Extract system registration to `initSystems()`. **Validation:** Function line count <50.
 
-- [ ] **runServerLoop has cyclomatic complexity 11** — `cmd/server/main.go:61` — 61-line tick loop with multiple branches. **Remediation:** Extract tick phases to helper functions. **Validation:** Complexity ≤10.
+- [x] **runServerLoop has cyclomatic complexity 11** — `cmd/server/main.go:61` — 61-line tick loop with multiple branches. **Remediation:** Extract tick phases to helper functions. **Validation:** Complexity ≤10.
 
 - [ ] **Network Encode has cyclomatic complexity 11** — `pkg/network/protocol.go:31` — Message type switch with many cases. **Remediation:** Use message type lookup table with encoder function pointers. **Validation:** Complexity ≤10.
 
