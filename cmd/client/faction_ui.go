@@ -6,12 +6,10 @@ package main
 import (
 	"fmt"
 	"image/color"
-	"sort"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
-	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 )
 
@@ -98,79 +96,10 @@ func (ui *FactionUI) adjustScroll() {
 	}
 }
 
-// FactionDisplayInfo holds faction display data.
-type FactionDisplayInfo struct {
-	ID              string
-	Name            string
-	Reputation      float64
-	Rank            int
-	RankTitle       string
-	XP              int
-	XPToNext        int
-	IsMember        bool
-	IsExalted       bool
-	QuestsCompleted int
-	StandingLevel   string // "Hostile", "Unfriendly", "Neutral", "Friendly", "Allied", "Exalted"
-}
-
 // getFactionInfo retrieves all faction information for the player.
 func (ui *FactionUI) getFactionInfo(world *ecs.World) []FactionDisplayInfo {
-	membershipComp, ok := world.GetComponent(ui.playerEntity, "FactionMembership")
-	if !ok {
-		return nil
-	}
-	membership := membershipComp.(*components.FactionMembership)
-
-	var factions []FactionDisplayInfo
-
-	if membership.Memberships == nil {
-		return factions
-	}
-
-	for factionID, info := range membership.Memberships {
-		fdi := FactionDisplayInfo{
-			ID:              factionID,
-			Name:            ui.getFactionDisplayName(factionID),
-			Reputation:      info.Reputation,
-			Rank:            info.Rank,
-			RankTitle:       info.RankTitle,
-			XP:              info.XP,
-			XPToNext:        info.XPToNext,
-			IsMember:        info.Rank > 0,
-			IsExalted:       info.IsExalted,
-			QuestsCompleted: info.QuestsCompleted,
-			StandingLevel:   ui.getStandingLevel(info.Reputation),
-		}
-		factions = append(factions, fdi)
-	}
-
-	// Sort by reputation descending
-	sort.Slice(factions, func(i, j int) bool {
-		return factions[i].Reputation > factions[j].Reputation
-	})
-
-	return factions
-}
-
-// getFactionDisplayName returns a formatted faction name.
-func (ui *FactionUI) getFactionDisplayName(factionID string) string {
-	// Convert faction ID to display name (e.g., "thieves_guild" -> "Thieves Guild")
-	name := ""
-	capitalize := true
-	for _, c := range factionID {
-		if c == '_' {
-			name += " "
-			capitalize = true
-		} else {
-			if capitalize {
-				name += string(c - 32) // Convert to uppercase if lowercase
-				capitalize = false
-			} else {
-				name += string(c)
-			}
-		}
-	}
-	return name
+	base := &factionUIBase{playerEntity: ui.playerEntity}
+	return base.getFactionInfo(world)
 }
 
 // getStandingLevel returns a textual standing level based on reputation.

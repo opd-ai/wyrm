@@ -114,9 +114,6 @@ func TestFactionUI_GetStandingLevel(t *testing.T) {
 }
 
 func TestFactionUI_GetFactionDisplayName(t *testing.T) {
-	inputMgr := input.NewManager()
-	ui := NewFactionUI("fantasy", 1, inputMgr)
-
 	tests := []struct {
 		id       string
 		expected string
@@ -128,7 +125,7 @@ func TestFactionUI_GetFactionDisplayName(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		result := ui.getFactionDisplayName(tc.id)
+		result := getFactionDisplayName(tc.id)
 		if result != tc.expected {
 			t.Errorf("getFactionDisplayName(%s) = %s, expected %s", tc.id, result, tc.expected)
 		}

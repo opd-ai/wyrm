@@ -104,51 +104,65 @@ func (im *Manager) LoadFromConfig(cfg *config.KeyBindingsConfig) {
 	im.bindings = make(map[Action]string)
 	im.keyToActions = make(map[string][]Action)
 
-	// Movement
-	im.setBindingUnsafe(ActionMoveForward, cfg.MoveForward)
-	im.setBindingUnsafe(ActionMoveBackward, cfg.MoveBackward)
-	im.setBindingUnsafe(ActionMoveLeft, cfg.MoveLeft)
-	im.setBindingUnsafe(ActionMoveRight, cfg.MoveRight)
-	im.setBindingUnsafe(ActionJump, cfg.Jump)
-	im.setBindingUnsafe(ActionCrouch, cfg.Crouch)
-	im.setBindingUnsafe(ActionSprint, cfg.Sprint)
+	// Apply bindings from config using the binding table
+	bindings := im.getConfigBindings(cfg)
+	for _, b := range bindings {
+		im.setBindingUnsafe(b.action, b.key)
+	}
+}
 
-	// Combat
-	im.setBindingUnsafe(ActionAttack, cfg.Attack)
-	im.setBindingUnsafe(ActionBlock, cfg.Block)
-	im.setBindingUnsafe(ActionAbility1, cfg.UseAbility1)
-	im.setBindingUnsafe(ActionAbility2, cfg.UseAbility2)
-	im.setBindingUnsafe(ActionAbility3, cfg.UseAbility3)
-	im.setBindingUnsafe(ActionAbility4, cfg.UseAbility4)
-	im.setBindingUnsafe(ActionQuickHeal, cfg.QuickHeal)
-	im.setBindingUnsafe(ActionToggleWeapon, cfg.ToggleWeapon)
+// actionBinding pairs an action with its key.
+type actionBinding struct {
+	action Action
+	key    string
+}
 
-	// Interaction
-	im.setBindingUnsafe(ActionInteract, cfg.Interact)
-	im.setBindingUnsafe(ActionPickUp, cfg.PickUp)
-	im.setBindingUnsafe(ActionDropItem, cfg.DropItem)
-	im.setBindingUnsafe(ActionUseItem, cfg.UseItem)
-	im.setBindingUnsafe(ActionTalk, cfg.Talk)
-	im.setBindingUnsafe(ActionReadSign, cfg.ReadSign)
-	im.setBindingUnsafe(ActionMount, cfg.Mount)
-	im.setBindingUnsafe(ActionEnterVehicle, cfg.EnterVehicle)
-
-	// UI
-	im.setBindingUnsafe(ActionInventory, cfg.Inventory)
-	im.setBindingUnsafe(ActionMap, cfg.Map)
-	im.setBindingUnsafe(ActionQuestLog, cfg.QuestLog)
-	im.setBindingUnsafe(ActionCharSheet, cfg.CharSheet)
-	im.setBindingUnsafe(ActionSkillTree, cfg.SkillTree)
-	im.setBindingUnsafe(ActionCrafting, cfg.Crafting)
-	im.setBindingUnsafe(ActionPause, cfg.Pause)
-	im.setBindingUnsafe(ActionQuickSave, cfg.QuickSave)
-	im.setBindingUnsafe(ActionQuickLoad, cfg.QuickLoad)
-	im.setBindingUnsafe(ActionScreenshot, cfg.Screenshot)
-	im.setBindingUnsafe(ActionToggleHUD, cfg.ToggleHUD)
-	im.setBindingUnsafe(ActionConsole, cfg.Console)
-	im.setBindingUnsafe(ActionChatWindow, cfg.ChatWindow)
-	im.setBindingUnsafe(ActionSocialMenu, cfg.SocialMenu)
-	im.setBindingUnsafe(ActionTradeWindow, cfg.TradeWindow)
+// getConfigBindings returns all bindings from the config.
+func (im *Manager) getConfigBindings(cfg *config.KeyBindingsConfig) []actionBinding {
+	return []actionBinding{
+		// Movement
+		{ActionMoveForward, cfg.MoveForward},
+		{ActionMoveBackward, cfg.MoveBackward},
+		{ActionMoveLeft, cfg.MoveLeft},
+		{ActionMoveRight, cfg.MoveRight},
+		{ActionJump, cfg.Jump},
+		{ActionCrouch, cfg.Crouch},
+		{ActionSprint, cfg.Sprint},
+		// Combat
+		{ActionAttack, cfg.Attack},
+		{ActionBlock, cfg.Block},
+		{ActionAbility1, cfg.UseAbility1},
+		{ActionAbility2, cfg.UseAbility2},
+		{ActionAbility3, cfg.UseAbility3},
+		{ActionAbility4, cfg.UseAbility4},
+		{ActionQuickHeal, cfg.QuickHeal},
+		{ActionToggleWeapon, cfg.ToggleWeapon},
+		// Interaction
+		{ActionInteract, cfg.Interact},
+		{ActionPickUp, cfg.PickUp},
+		{ActionDropItem, cfg.DropItem},
+		{ActionUseItem, cfg.UseItem},
+		{ActionTalk, cfg.Talk},
+		{ActionReadSign, cfg.ReadSign},
+		{ActionMount, cfg.Mount},
+		{ActionEnterVehicle, cfg.EnterVehicle},
+		// UI
+		{ActionInventory, cfg.Inventory},
+		{ActionMap, cfg.Map},
+		{ActionQuestLog, cfg.QuestLog},
+		{ActionCharSheet, cfg.CharSheet},
+		{ActionSkillTree, cfg.SkillTree},
+		{ActionCrafting, cfg.Crafting},
+		{ActionPause, cfg.Pause},
+		{ActionQuickSave, cfg.QuickSave},
+		{ActionQuickLoad, cfg.QuickLoad},
+		{ActionScreenshot, cfg.Screenshot},
+		{ActionToggleHUD, cfg.ToggleHUD},
+		{ActionConsole, cfg.Console},
+		{ActionChatWindow, cfg.ChatWindow},
+		{ActionSocialMenu, cfg.SocialMenu},
+		{ActionTradeWindow, cfg.TradeWindow},
+	}
 }
 
 // setDefaultBindings sets up the default key bindings.
@@ -156,52 +170,56 @@ func (im *Manager) setDefaultBindings() {
 	im.mu.Lock()
 	defer im.mu.Unlock()
 
+	for _, b := range defaultBindings {
+		im.setBindingUnsafe(b.action, b.key)
+	}
+}
+
+// defaultBindings defines the default key bindings for all actions.
+var defaultBindings = []actionBinding{
 	// Movement
-	im.setBindingUnsafe(ActionMoveForward, "W")
-	im.setBindingUnsafe(ActionMoveBackward, "S")
-	im.setBindingUnsafe(ActionMoveLeft, "A")
-	im.setBindingUnsafe(ActionMoveRight, "D")
-	im.setBindingUnsafe(ActionJump, "Space")
-	im.setBindingUnsafe(ActionCrouch, "ControlLeft")
-	im.setBindingUnsafe(ActionSprint, "ShiftLeft")
-
+	{ActionMoveForward, "W"},
+	{ActionMoveBackward, "S"},
+	{ActionMoveLeft, "A"},
+	{ActionMoveRight, "D"},
+	{ActionJump, "Space"},
+	{ActionCrouch, "ControlLeft"},
+	{ActionSprint, "ShiftLeft"},
 	// Combat
-	im.setBindingUnsafe(ActionAttack, "MouseButtonLeft")
-	im.setBindingUnsafe(ActionBlock, "MouseButtonRight")
-	im.setBindingUnsafe(ActionCastSpell, "Q")
-	im.setBindingUnsafe(ActionAbility1, "1")
-	im.setBindingUnsafe(ActionAbility2, "2")
-	im.setBindingUnsafe(ActionAbility3, "3")
-	im.setBindingUnsafe(ActionAbility4, "4")
-	im.setBindingUnsafe(ActionQuickHeal, "H")
-	im.setBindingUnsafe(ActionToggleWeapon, "Tab")
-
+	{ActionAttack, "MouseButtonLeft"},
+	{ActionBlock, "MouseButtonRight"},
+	{ActionCastSpell, "Q"},
+	{ActionAbility1, "1"},
+	{ActionAbility2, "2"},
+	{ActionAbility3, "3"},
+	{ActionAbility4, "4"},
+	{ActionQuickHeal, "H"},
+	{ActionToggleWeapon, "Tab"},
 	// Interaction
-	im.setBindingUnsafe(ActionInteract, "E")
-	im.setBindingUnsafe(ActionPickUp, "F")
-	im.setBindingUnsafe(ActionDropItem, "G")
-	im.setBindingUnsafe(ActionUseItem, "R")
-	im.setBindingUnsafe(ActionTalk, "T")
-	im.setBindingUnsafe(ActionReadSign, "V")
-	im.setBindingUnsafe(ActionMount, "X")
-	im.setBindingUnsafe(ActionEnterVehicle, "C")
-
+	{ActionInteract, "E"},
+	{ActionPickUp, "F"},
+	{ActionDropItem, "G"},
+	{ActionUseItem, "R"},
+	{ActionTalk, "T"},
+	{ActionReadSign, "V"},
+	{ActionMount, "X"},
+	{ActionEnterVehicle, "C"},
 	// UI
-	im.setBindingUnsafe(ActionInventory, "I")
-	im.setBindingUnsafe(ActionMap, "M")
-	im.setBindingUnsafe(ActionQuestLog, "J")
-	im.setBindingUnsafe(ActionCharSheet, "K")
-	im.setBindingUnsafe(ActionSkillTree, "P")
-	im.setBindingUnsafe(ActionCrafting, "B")
-	im.setBindingUnsafe(ActionPause, "Escape")
-	im.setBindingUnsafe(ActionQuickSave, "F5")
-	im.setBindingUnsafe(ActionQuickLoad, "F9")
-	im.setBindingUnsafe(ActionScreenshot, "F12")
-	im.setBindingUnsafe(ActionToggleHUD, "F1")
-	im.setBindingUnsafe(ActionConsole, "Backquote")
-	im.setBindingUnsafe(ActionChatWindow, "Enter")
-	im.setBindingUnsafe(ActionSocialMenu, "O")
-	im.setBindingUnsafe(ActionTradeWindow, "Y")
+	{ActionInventory, "I"},
+	{ActionMap, "M"},
+	{ActionQuestLog, "J"},
+	{ActionCharSheet, "K"},
+	{ActionSkillTree, "P"},
+	{ActionCrafting, "B"},
+	{ActionPause, "Escape"},
+	{ActionQuickSave, "F5"},
+	{ActionQuickLoad, "F9"},
+	{ActionScreenshot, "F12"},
+	{ActionToggleHUD, "F1"},
+	{ActionConsole, "Backquote"},
+	{ActionChatWindow, "Enter"},
+	{ActionSocialMenu, "O"},
+	{ActionTradeWindow, "Y"},
 }
 
 // setBindingUnsafe sets a binding without acquiring the lock.

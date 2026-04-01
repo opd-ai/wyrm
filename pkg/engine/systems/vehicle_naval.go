@@ -452,15 +452,11 @@ func (s *NavalVehicleSystem) BoardCrew(entity, crew ecs.Entity) error {
 	if vessel == nil {
 		return fmt.Errorf("vessel not found")
 	}
-	if len(vessel.Crew) >= vessel.Archetype.CrewCapacity {
-		return fmt.Errorf("crew capacity full")
+	crewList, err := boardPassengerToSlice(vessel.Crew, vessel.Archetype.CrewCapacity, crew)
+	if err != nil {
+		return err
 	}
-	for _, c := range vessel.Crew {
-		if c == crew {
-			return fmt.Errorf("already aboard")
-		}
-	}
-	vessel.Crew = append(vessel.Crew, crew)
+	vessel.Crew = crewList
 	return nil
 }
 
@@ -473,13 +469,14 @@ func (s *NavalVehicleSystem) DisembarkCrew(entity, crew ecs.Entity) error {
 	if vessel == nil {
 		return fmt.Errorf("vessel not found")
 	}
-	for i, c := range vessel.Crew {
-		if c == crew {
-			vessel.Crew = append(vessel.Crew[:i], vessel.Crew[i+1:]...)
-			return nil
-		}
+	crewList, err := disembarkPassengerFromSlice(vessel.Crew, crew)
+	if err != nil {
+		err = fmt.Errorf("crew member not found")
 	}
-	return fmt.Errorf("crew member not found")
+	if err == nil {
+		vessel.Crew = crewList
+	}
+	return err
 }
 
 // LoadCargo adds cargo to the vessel.
@@ -491,12 +488,7 @@ func (s *NavalVehicleSystem) LoadCargo(entity ecs.Entity, item string, amount fl
 	if vessel == nil {
 		return fmt.Errorf("vessel not found")
 	}
-	currentCargo := s.calculateCurrentCargo(vessel)
-	if currentCargo+amount > vessel.Archetype.CargoCapacity {
-		return fmt.Errorf("cargo capacity exceeded")
-	}
-	vessel.Cargo[item] += amount
-	return nil
+	return loadCargoToContainer(vessel.Cargo, vessel.Archetype.CargoCapacity, item, amount)
 }
 
 // UnloadCargo removes cargo from the vessel.
@@ -508,22 +500,11 @@ func (s *NavalVehicleSystem) UnloadCargo(entity ecs.Entity, item string, amount 
 	if vessel == nil {
 		return fmt.Errorf("vessel not found")
 	}
-	if vessel.Cargo[item] < amount {
-		return fmt.Errorf("not enough cargo")
-	}
-	vessel.Cargo[item] -= amount
-	if vessel.Cargo[item] <= 0 {
-		delete(vessel.Cargo, item)
-	}
-	return nil
+	return unloadCargoFromContainer(vessel.Cargo, item, amount)
 }
 
 func (s *NavalVehicleSystem) calculateCurrentCargo(vessel *NavalVehicleState) float64 {
-	total := 0.0
-	for _, amount := range vessel.Cargo {
-		total += amount
-	}
-	return total
+	return calculateCargoTotal(vessel.Cargo)
 }
 
 // GetCurrentCargo returns the total cargo weight.
@@ -547,14 +528,7 @@ func (s *NavalVehicleSystem) Refuel(entity ecs.Entity, amount float64) error {
 	if vessel == nil {
 		return fmt.Errorf("vessel not found")
 	}
-	if vessel.Archetype.FuelCapacity == 0 {
-		return fmt.Errorf("vessel does not use fuel")
-	}
-	vessel.CurrentFuel += amount
-	if vessel.CurrentFuel > vessel.Archetype.FuelCapacity {
-		vessel.CurrentFuel = vessel.Archetype.FuelCapacity
-	}
-	return nil
+	return refuelVehicle(&vessel.CurrentFuel, vessel.Archetype.FuelCapacity, amount)
 }
 
 // DamageHull damages the vessel's hull.
@@ -566,10 +540,7 @@ func (s *NavalVehicleSystem) DamageHull(entity ecs.Entity, damage int) error {
 	if vessel == nil {
 		return fmt.Errorf("vessel not found")
 	}
-	vessel.CurrentHull -= damage
-	if vessel.CurrentHull < 0 {
-		vessel.CurrentHull = 0
-	}
+	damageVehicleHealth(&vessel.CurrentHull, damage)
 	return nil
 }
 
@@ -582,10 +553,7 @@ func (s *NavalVehicleSystem) RepairHull(entity ecs.Entity, repair int) error {
 	if vessel == nil {
 		return fmt.Errorf("vessel not found")
 	}
-	vessel.CurrentHull += repair
-	if vessel.CurrentHull > vessel.Archetype.MaxHull {
-		vessel.CurrentHull = vessel.Archetype.MaxHull
-	}
+	repairVehicleHealth(&vessel.CurrentHull, vessel.Archetype.MaxHull, repair)
 	return nil
 }
 

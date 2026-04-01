@@ -647,6 +647,55 @@ func DecodeSaveRequest(r io.Reader) (*SaveRequest, error) {
 	return m, nil
 }
 
+// encodeResponsePayload writes the common response payload (success, serverTime, message).
+func encodeResponsePayload(w io.Writer, success bool, serverTimeMs uint32, message string) error {
+	var successByte uint8
+	if success {
+		successByte = 1
+	}
+	if err := binary.Write(w, binary.LittleEndian, successByte); err != nil {
+		return fmt.Errorf("encode Success: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, serverTimeMs); err != nil {
+		return fmt.Errorf("encode ServerTimeMs: %w", err)
+	}
+	msgBytes := []byte(message)
+	msgLen := uint16(len(msgBytes))
+	if err := binary.Write(w, binary.LittleEndian, msgLen); err != nil {
+		return fmt.Errorf("encode Message length: %w", err)
+	}
+	if _, err := w.Write(msgBytes); err != nil {
+		return fmt.Errorf("encode Message: %w", err)
+	}
+	return nil
+}
+
+// decodeResponsePayload reads the common response payload (success, serverTime, message).
+func decodeResponsePayload(r io.Reader) (success bool, serverTimeMs uint32, message string, err error) {
+	var successByte uint8
+	if err = binary.Read(r, binary.LittleEndian, &successByte); err != nil {
+		err = fmt.Errorf("decode Success: %w", err)
+		return success, serverTimeMs, message, err
+	}
+	success = successByte != 0
+	if err = binary.Read(r, binary.LittleEndian, &serverTimeMs); err != nil {
+		err = fmt.Errorf("decode ServerTimeMs: %w", err)
+		return success, serverTimeMs, message, err
+	}
+	var msgLen uint16
+	if err = binary.Read(r, binary.LittleEndian, &msgLen); err != nil {
+		err = fmt.Errorf("decode Message length: %w", err)
+		return success, serverTimeMs, message, err
+	}
+	msgBytes := make([]byte, msgLen)
+	if _, err = io.ReadFull(r, msgBytes); err != nil {
+		err = fmt.Errorf("decode Message: %w", err)
+		return success, serverTimeMs, message, err
+	}
+	message = string(msgBytes)
+	return success, serverTimeMs, message, err
+}
+
 // SaveResponse is sent by server in response to a save request.
 type SaveResponse struct {
 	Success      bool
@@ -662,48 +711,19 @@ func (m *SaveResponse) Encode(w io.Writer) error {
 	if err := binary.Write(w, binary.LittleEndian, m.Type()); err != nil {
 		return fmt.Errorf("encode type: %w", err)
 	}
-	var successByte uint8
-	if m.Success {
-		successByte = 1
-	}
-	if err := binary.Write(w, binary.LittleEndian, successByte); err != nil {
-		return fmt.Errorf("encode Success: %w", err)
-	}
-	if err := binary.Write(w, binary.LittleEndian, m.ServerTimeMs); err != nil {
-		return fmt.Errorf("encode ServerTimeMs: %w", err)
-	}
-	// Write message length and content
-	msgBytes := []byte(m.Message)
-	msgLen := uint16(len(msgBytes))
-	if err := binary.Write(w, binary.LittleEndian, msgLen); err != nil {
-		return fmt.Errorf("encode Message length: %w", err)
-	}
-	if _, err := w.Write(msgBytes); err != nil {
-		return fmt.Errorf("encode Message: %w", err)
-	}
-	return nil
+	return encodeResponsePayload(w, m.Success, m.ServerTimeMs, m.Message)
 }
 
 // DecodeSaveResponse reads a SaveResponse from a reader.
 func DecodeSaveResponse(r io.Reader) (*SaveResponse, error) {
 	m := &SaveResponse{}
-	var successByte uint8
-	if err := binary.Read(r, binary.LittleEndian, &successByte); err != nil {
-		return nil, fmt.Errorf("decode Success: %w", err)
+	success, serverTime, message, err := decodeResponsePayload(r)
+	if err != nil {
+		return nil, err
 	}
-	m.Success = successByte != 0
-	if err := binary.Read(r, binary.LittleEndian, &m.ServerTimeMs); err != nil {
-		return nil, fmt.Errorf("decode ServerTimeMs: %w", err)
-	}
-	var msgLen uint16
-	if err := binary.Read(r, binary.LittleEndian, &msgLen); err != nil {
-		return nil, fmt.Errorf("decode Message length: %w", err)
-	}
-	msgBytes := make([]byte, msgLen)
-	if _, err := io.ReadFull(r, msgBytes); err != nil {
-		return nil, fmt.Errorf("decode Message: %w", err)
-	}
-	m.Message = string(msgBytes)
+	m.Success = success
+	m.ServerTimeMs = serverTime
+	m.Message = message
 	return m, nil
 }
 
@@ -750,47 +770,18 @@ func (m *LoadResponse) Encode(w io.Writer) error {
 	if err := binary.Write(w, binary.LittleEndian, m.Type()); err != nil {
 		return fmt.Errorf("encode type: %w", err)
 	}
-	var successByte uint8
-	if m.Success {
-		successByte = 1
-	}
-	if err := binary.Write(w, binary.LittleEndian, successByte); err != nil {
-		return fmt.Errorf("encode Success: %w", err)
-	}
-	if err := binary.Write(w, binary.LittleEndian, m.ServerTimeMs); err != nil {
-		return fmt.Errorf("encode ServerTimeMs: %w", err)
-	}
-	// Write message length and content
-	msgBytes := []byte(m.Message)
-	msgLen := uint16(len(msgBytes))
-	if err := binary.Write(w, binary.LittleEndian, msgLen); err != nil {
-		return fmt.Errorf("encode Message length: %w", err)
-	}
-	if _, err := w.Write(msgBytes); err != nil {
-		return fmt.Errorf("encode Message: %w", err)
-	}
-	return nil
+	return encodeResponsePayload(w, m.Success, m.ServerTimeMs, m.Message)
 }
 
 // DecodeLoadResponse reads a LoadResponse from a reader.
 func DecodeLoadResponse(r io.Reader) (*LoadResponse, error) {
 	m := &LoadResponse{}
-	var successByte uint8
-	if err := binary.Read(r, binary.LittleEndian, &successByte); err != nil {
-		return nil, fmt.Errorf("decode Success: %w", err)
+	success, serverTime, message, err := decodeResponsePayload(r)
+	if err != nil {
+		return nil, err
 	}
-	m.Success = successByte != 0
-	if err := binary.Read(r, binary.LittleEndian, &m.ServerTimeMs); err != nil {
-		return nil, fmt.Errorf("decode ServerTimeMs: %w", err)
-	}
-	var msgLen uint16
-	if err := binary.Read(r, binary.LittleEndian, &msgLen); err != nil {
-		return nil, fmt.Errorf("decode Message length: %w", err)
-	}
-	msgBytes := make([]byte, msgLen)
-	if _, err := io.ReadFull(r, msgBytes); err != nil {
-		return nil, fmt.Errorf("decode Message: %w", err)
-	}
-	m.Message = string(msgBytes)
+	m.Success = success
+	m.ServerTimeMs = serverTime
+	m.Message = message
 	return m, nil
 }

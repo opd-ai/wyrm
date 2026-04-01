@@ -537,15 +537,11 @@ func (s *FlyingVehicleSystem) BoardPassenger(entity, passenger ecs.Entity) error
 	if aircraft == nil {
 		return fmt.Errorf("aircraft not found")
 	}
-	if len(aircraft.Passengers) >= aircraft.Archetype.Passengers {
-		return fmt.Errorf("passenger capacity full")
+	passengers, err := boardPassengerToSlice(aircraft.Passengers, aircraft.Archetype.Passengers, passenger)
+	if err != nil {
+		return err
 	}
-	for _, p := range aircraft.Passengers {
-		if p == passenger {
-			return fmt.Errorf("already aboard")
-		}
-	}
-	aircraft.Passengers = append(aircraft.Passengers, passenger)
+	aircraft.Passengers = passengers
 	return nil
 }
 
@@ -561,13 +557,12 @@ func (s *FlyingVehicleSystem) DisembarkPassenger(entity, passenger ecs.Entity) e
 	if aircraft.IsFlying {
 		return fmt.Errorf("cannot disembark while flying")
 	}
-	for i, p := range aircraft.Passengers {
-		if p == passenger {
-			aircraft.Passengers = append(aircraft.Passengers[:i], aircraft.Passengers[i+1:]...)
-			return nil
-		}
+	passengers, err := disembarkPassengerFromSlice(aircraft.Passengers, passenger)
+	if err != nil {
+		return err
 	}
-	return fmt.Errorf("passenger not found")
+	aircraft.Passengers = passengers
+	return nil
 }
 
 // LoadCargo adds cargo to the aircraft.
@@ -579,12 +574,7 @@ func (s *FlyingVehicleSystem) LoadCargo(entity ecs.Entity, item string, amount f
 	if aircraft == nil {
 		return fmt.Errorf("aircraft not found")
 	}
-	currentCargo := s.calculateCurrentCargo(aircraft)
-	if currentCargo+amount > aircraft.Archetype.CargoCapacity {
-		return fmt.Errorf("cargo capacity exceeded")
-	}
-	aircraft.Cargo[item] += amount
-	return nil
+	return loadCargoToContainer(aircraft.Cargo, aircraft.Archetype.CargoCapacity, item, amount)
 }
 
 // UnloadCargo removes cargo from the aircraft.
@@ -596,22 +586,11 @@ func (s *FlyingVehicleSystem) UnloadCargo(entity ecs.Entity, item string, amount
 	if aircraft == nil {
 		return fmt.Errorf("aircraft not found")
 	}
-	if aircraft.Cargo[item] < amount {
-		return fmt.Errorf("not enough cargo")
-	}
-	aircraft.Cargo[item] -= amount
-	if aircraft.Cargo[item] <= 0 {
-		delete(aircraft.Cargo, item)
-	}
-	return nil
+	return unloadCargoFromContainer(aircraft.Cargo, item, amount)
 }
 
 func (s *FlyingVehicleSystem) calculateCurrentCargo(aircraft *FlyingVehicleState) float64 {
-	total := 0.0
-	for _, amount := range aircraft.Cargo {
-		total += amount
-	}
-	return total
+	return calculateCargoTotal(aircraft.Cargo)
 }
 
 // GetCurrentCargo returns the total cargo weight.
@@ -635,17 +614,10 @@ func (s *FlyingVehicleSystem) Refuel(entity ecs.Entity, amount float64) error {
 	if aircraft == nil {
 		return fmt.Errorf("aircraft not found")
 	}
-	if aircraft.Archetype.FuelCapacity == 0 {
-		return fmt.Errorf("aircraft does not use fuel")
-	}
 	if aircraft.IsFlying {
 		return fmt.Errorf("cannot refuel while flying")
 	}
-	aircraft.CurrentFuel += amount
-	if aircraft.CurrentFuel > aircraft.Archetype.FuelCapacity {
-		aircraft.CurrentFuel = aircraft.Archetype.FuelCapacity
-	}
-	return nil
+	return refuelVehicle(&aircraft.CurrentFuel, aircraft.Archetype.FuelCapacity, amount)
 }
 
 // DamageAircraft damages the aircraft's health.
@@ -657,10 +629,7 @@ func (s *FlyingVehicleSystem) DamageAircraft(entity ecs.Entity, damage int) erro
 	if aircraft == nil {
 		return fmt.Errorf("aircraft not found")
 	}
-	aircraft.CurrentHealth -= damage
-	if aircraft.CurrentHealth < 0 {
-		aircraft.CurrentHealth = 0
-	}
+	damageVehicleHealth(&aircraft.CurrentHealth, damage)
 	return nil
 }
 
@@ -673,10 +642,7 @@ func (s *FlyingVehicleSystem) RepairAircraft(entity ecs.Entity, repair int) erro
 	if aircraft == nil {
 		return fmt.Errorf("aircraft not found")
 	}
-	aircraft.CurrentHealth += repair
-	if aircraft.CurrentHealth > aircraft.Archetype.MaxHealth {
-		aircraft.CurrentHealth = aircraft.Archetype.MaxHealth
-	}
+	repairVehicleHealth(&aircraft.CurrentHealth, aircraft.Archetype.MaxHealth, repair)
 	return nil
 }
 
