@@ -249,14 +249,14 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Implement interaction ray cast from player position in look direction
-- [ ] Implement nearest-entity search within 2.0 unit range
-- [ ] Highlight interactable entities (NPCs, items, workbenches, doors)
-- [ ] Implement NPC interaction (open dialog UI on E key)
-- [ ] Implement item pickup (add to inventory on E key)
-- [ ] Implement workbench interaction (open crafting UI on E key)
-- [ ] Implement door open/close on E key
-- [ ] Display interaction prompt text on screen
+- [x] Implement interaction ray cast from player position in look direction
+- [x] Implement nearest-entity search within 2.0 unit range
+- [x] Highlight interactable entities (NPCs, items, workbenches, doors)
+- [x] Implement NPC interaction (open dialog UI on E key)
+- [x] Implement item pickup (add to inventory on E key)
+- [x] Implement workbench interaction (open crafting UI on E key)
+- [x] Implement door open/close on E key
+- [x] Display interaction prompt text on screen
 
 ### 2B: Dialog UI (8 hours)
 
@@ -272,14 +272,14 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Import `pkg/dialog/` in client
-- [ ] Create dialog overlay screen (semi-transparent background)
-- [ ] Display NPC name and emotional state
-- [ ] Display dialog text with line wrapping
-- [ ] Display response options (numbered or arrow-selectable)
-- [ ] Wire dialog choice selection into `DialogConsequenceSystem`
-- [ ] Integrate `pkg/rendering/subtitles/` for accessible text rendering
-- [ ] Test branching conversation flow with multiple responses
+- [x] Import `pkg/dialog/` in client
+- [x] Create dialog overlay screen (semi-transparent background)
+- [x] Display NPC name and emotional state
+- [x] Display dialog text with line wrapping
+- [x] Display response options (numbered or arrow-selectable)
+- [x] Wire dialog choice selection into `DialogConsequenceSystem`
+- [x] Integrate `pkg/rendering/subtitles/` for accessible text rendering
+- [x] Test branching conversation flow with multiple responses
 
 ### 2C: Basic Combat Mechanics (10 hours)
 
@@ -295,14 +295,14 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Implement left-click melee attack (swing weapon)
-- [ ] Implement right-click block/defend
-- [ ] Add CombatState cooldown check before allowing attacks
-- [ ] Implement damage calculation using Weapon.Damage vs target Health
-- [ ] Add screen shake visual feedback on hitting an enemy
-- [ ] Add red flash visual feedback on taking damage
-- [ ] Implement death detection and respawn at safe location
-- [ ] Verify combat works against NPC entities
+- [x] Implement left-click melee attack (swing weapon)
+- [x] Implement right-click block/defend
+- [x] Add CombatState cooldown check before allowing attacks
+- [x] Implement damage calculation using Weapon.Damage vs target Health
+- [x] Add screen shake visual feedback on hitting an enemy
+- [x] Add red flash visual feedback on taking damage
+- [x] Implement death detection and respawn at safe location
+- [x] Verify combat works against NPC entities
 
 ### 2D: NPC Entity Rendering (10 hours)
 

@@ -73,6 +73,11 @@ type NPCData struct {
 
 // SpawnNPC creates an NPC entity in the ECS world from generated data.
 func SpawnNPC(world *ecs.World, data *NPCData, x, y float64, factionID string) (ecs.Entity, error) {
+	return SpawnNPCWithGenre(world, data, x, y, factionID, "fantasy")
+}
+
+// SpawnNPCWithGenre creates an NPC entity with genre-appropriate appearance.
+func SpawnNPCWithGenre(world *ecs.World, data *NPCData, x, y float64, factionID, genre string) (ecs.Entity, error) {
 	e := world.CreateEntity()
 
 	if err := world.AddComponent(e, &components.Position{X: x, Y: y, Z: 0}); err != nil {
@@ -109,7 +114,37 @@ func SpawnNPC(world *ecs.World, data *NPCData, x, y float64, factionID string) (
 		return 0, fmt.Errorf("failed to add Schedule: %w", err)
 	}
 
+	// Add Appearance component for visual rendering (Task 2D)
+	// Determine NPC category from faction/tags
+	category := "humanoid"
+	bodyPlan := "villager"
+	if contains(data.Tags, "guard") || factionID == "guard" {
+		bodyPlan = "guard"
+	} else if contains(data.Tags, "merchant") {
+		bodyPlan = "merchant"
+	} else if contains(data.Tags, "noble") {
+		bodyPlan = "noble"
+	}
+	appearance := components.NewAppearance(category, bodyPlan, genre)
+	appearance.AnimState = "idle"
+	appearance.AnimFrame = 0
+	appearance.Scale = 1.0
+	appearance.Opacity = 1.0
+	if err := world.AddComponent(e, appearance); err != nil {
+		return 0, fmt.Errorf("failed to add Appearance: %w", err)
+	}
+
 	return e, nil
+}
+
+// contains checks if a slice contains a string.
+func contains(slice []string, str string) bool {
+	for _, s := range slice {
+		if s == str {
+			return true
+		}
+	}
+	return false
 }
 
 // NPCSpawnConfig holds parameters for spawning multiple NPCs.
@@ -143,7 +178,7 @@ func (a *EntityAdapter) GenerateAndSpawnNPCs(world *ecs.World, cfg NPCSpawnConfi
 		x := cfg.CenterX + float64(i%5-2)*cfg.Radius/5
 		y := cfg.CenterY + float64(i/5-cfg.Count/10)*cfg.Radius/5
 
-		e, err := SpawnNPC(world, data, x, y, cfg.FactionID)
+		e, err := SpawnNPCWithGenre(world, data, x, y, cfg.FactionID, cfg.Genre)
 		if err != nil {
 			continue
 		}
