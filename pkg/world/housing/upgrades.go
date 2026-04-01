@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/opd-ai/wyrm/pkg/util"
+	"github.com/opd-ai/wyrm/pkg/seedutil"
 )
 
 // ============================================================================
@@ -71,7 +71,7 @@ type RentCollectionSystem struct {
 	OwnerProperties map[uint64][]string // Owner -> property IDs
 	OwnerIncome     map[uint64]float64  // Accumulated rental income
 	GameTime        float64
-	rng             *util.PseudoRandom
+	rng             *seedutil.PseudoRandom
 	PaymentPeriod   float64 // Hours between rent payments
 	EvictionGrace   int     // Days before eviction starts
 	DepositMultiple float64 // Deposit as multiple of rent
@@ -85,7 +85,7 @@ func NewRentCollectionSystem(seed int64, genre string) *RentCollectionSystem {
 		Tenants:         make(map[uint64]*TenantInfo),
 		OwnerProperties: make(map[uint64][]string),
 		OwnerIncome:     make(map[uint64]float64),
-		rng:             util.NewPseudoRandom(seed),
+		rng:             seedutil.NewPseudoRandom(seed),
 		PaymentPeriod:   720.0, // 30 days (720 hours)
 		EvictionGrace:   7,     // 7 days grace period
 		DepositMultiple: 2.0,   // 2 months deposit
@@ -599,7 +599,7 @@ type HomeUpgradeSystem struct {
 	AvailableUpgrades map[string]*HomeUpgrade  // All possible upgrades
 	HomeUpgrades      map[string]*UpgradedHome // HouseID -> upgrades
 	GameTime          float64
-	rng               *util.PseudoRandom
+	rng               *seedutil.PseudoRandom
 }
 
 // NewHomeUpgradeSystem creates a new home upgrade system.
@@ -608,7 +608,7 @@ func NewHomeUpgradeSystem(seed int64, genre string) *HomeUpgradeSystem {
 		Genre:             genre,
 		AvailableUpgrades: make(map[string]*HomeUpgrade),
 		HomeUpgrades:      make(map[string]*UpgradedHome),
-		rng:               util.NewPseudoRandom(seed),
+		rng:               seedutil.NewPseudoRandom(seed),
 	}
 	sys.initializeUpgrades()
 	return sys

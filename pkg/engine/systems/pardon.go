@@ -4,7 +4,7 @@ package systems
 import (
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
-	"github.com/opd-ai/wyrm/pkg/util"
+	"github.com/opd-ai/wyrm/pkg/seedutil"
 )
 
 // ============================================================================
@@ -384,12 +384,12 @@ func (s *PardonSystem) clearAllCrimes(entity ecs.Entity) []string {
 
 // formatPardonID creates a pardon ID string.
 func formatPardonID(n int) string {
-	return util.FormatPrefixedID("PD", n)
+	return seedutil.FormatPrefixedID("PD", n)
 }
 
 // formatAmnestyID creates an amnesty ID string.
 func formatAmnestyID(n int) string {
-	return util.FormatPrefixedID("AM", n)
+	return seedutil.FormatPrefixedID("AM", n)
 }
 
 // StartAmnestyEvent begins a new amnesty event.

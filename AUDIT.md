@@ -103,15 +103,15 @@ Wyrm is a **"100% procedurally generated first-person open-world RPG"** built in
 
 - [x] **runServerLoop has cyclomatic complexity 11** — `cmd/server/main.go:61` — 61-line tick loop with multiple branches. **Remediation:** Extract tick phases to helper functions. **Validation:** Complexity ≤10.
 
-- [ ] **Network Encode has cyclomatic complexity 11** — `pkg/network/protocol.go:31` — Message type switch with many cases. **Remediation:** Use message type lookup table with encoder function pointers. **Validation:** Complexity ≤10.
+- [x] **Network Encode has cyclomatic complexity 11** — `pkg/network/protocol.go:31` — Message type switch with many cases. **Remediation:** Use message type lookup table with encoder function pointers. **Validation:** Complexity ≤10.
 
 - [x] **4 TODO annotations remain in production code** — `cmd/client/dialog_ui.go:379,394`, `cmd/client/main.go:290,293` — Skill level hardcoded, container/door interaction not implemented. **Remediation:** Replace TODO with actual implementations or tracked issues. **Validation:** `grep -r "TODO" --include="*.go" | wc -l` returns 0.
 
 ### LOW
 
-- [ ] **Package 'util' has generic name** — `pkg/util/` — Naming violation per go-stats-generator. **Remediation:** Rename to specific purpose (e.g., `pkg/mathutil/`, `pkg/seedutil/`). **Validation:** `go-stats-generator analyze . | grep -i "generic_package_name"` returns empty.
+- [x] **Package 'util' has generic name** — `pkg/util/` — Renamed to `pkg/seedutil/`. **Remediation:** Rename to specific purpose (e.g., `pkg/mathutil/`, `pkg/seedutil/`). **Validation:** `go-stats-generator analyze . | grep -i "generic_package_name"` returns empty.
 
-- [ ] **19 file naming violations** — Various files — Stuttering names (e.g., `server_init.go`, `companion.go`) and generic names (e.g., `constants.go`, `types.go`). **Remediation:** Rename per Go conventions (`init.go`, `behavior.go`). **Validation:** `go-stats-generator analyze . | grep "File Name Violations"` returns 0.
+- [x] **19 file naming violations** — Various files — Stuttering names and generic names renamed to per Go conventions. 20 files renamed: `server_init.go`→`init.go`, `companion.go`→`behavior.go`, `constants.go`→`*_values.go`, `types.go`→`definitions.go`/`protocol.go`, etc. **Remediation:** Rename per Go conventions. **Validation:** `go-stats-generator analyze . | grep "File Name Violations"` returns 0.
 
 - [ ] **25 identifier stuttering violations** — `pkg/engine/components/types.go` — Types like `DialogMemoryEvent`, `VehiclePhysics` stutter package name. **Remediation:** Remove package prefix from type names within package. **Validation:** `go-stats-generator analyze . | grep "Identifier Violations"` returns 0.
 

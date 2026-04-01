@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
-	"github.com/opd-ai/wyrm/pkg/util"
+	"github.com/opd-ai/wyrm/pkg/seedutil"
 )
 
 // FlyingVehicleType represents a type of flying vehicle.
@@ -701,8 +701,8 @@ func (s *FlyingVehicleSystem) Turn(entity ecs.Entity, delta, dt float64) error {
 		return fmt.Errorf("not flying")
 	}
 	maxTurn := aircraft.Archetype.TurnRate * dt
-	delta = util.ClampDelta(delta, maxTurn)
-	aircraft.Heading = util.NormalizeAngle(aircraft.Heading + delta)
+	delta = seedutil.ClampDelta(delta, maxTurn)
+	aircraft.Heading = seedutil.NormalizeAngle(aircraft.Heading + delta)
 	return nil
 }
 

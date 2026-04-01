@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
-	"github.com/opd-ai/wyrm/pkg/util"
+	"github.com/opd-ai/wyrm/pkg/seedutil"
 )
 
 // NavalVehicleType represents a type of naval vehicle.
@@ -371,8 +371,8 @@ func (s *NavalVehicleSystem) Turn(entity ecs.Entity, delta, dt float64) error {
 		return fmt.Errorf("vessel not found")
 	}
 	maxTurn := vessel.Archetype.TurnRate * dt
-	delta = util.ClampDelta(delta, maxTurn)
-	vessel.Heading = util.NormalizeAngle(vessel.Heading + delta)
+	delta = seedutil.ClampDelta(delta, maxTurn)
+	vessel.Heading = seedutil.NormalizeAngle(vessel.Heading + delta)
 	return nil
 }
 

@@ -1,5 +1,5 @@
-// Package util provides shared utility functions for Wyrm.
-package util
+// Package seedutil provides deterministic seed-based random generation utilities for Wyrm.
+package seedutil
 
 import "math"
 

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/opd-ai/wyrm/pkg/util"
+	"github.com/opd-ai/wyrm/pkg/seedutil"
 )
 
 // ============================================================================
@@ -86,7 +86,7 @@ type GuildHallSystem struct {
 	MemberRanks map[string]map[uint64]GuildRank // GuildID -> MemberID -> Rank
 	Permissions map[GuildRank][]string          // Rank -> allowed actions
 	GameTime    float64
-	rng         *util.PseudoRandom
+	rng         *seedutil.PseudoRandom
 }
 
 // NewGuildHallSystem creates a new guild hall system.
@@ -96,7 +96,7 @@ func NewGuildHallSystem(seed int64, genre string) *GuildHallSystem {
 		GuildHalls:  make(map[string]*GuildHall),
 		MemberRanks: make(map[string]map[uint64]GuildRank),
 		Permissions: make(map[GuildRank][]string),
-		rng:         util.NewPseudoRandom(seed),
+		rng:         seedutil.NewPseudoRandom(seed),
 	}
 	sys.initializePermissions()
 	return sys

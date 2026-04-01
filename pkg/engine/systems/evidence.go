@@ -4,7 +4,7 @@ package systems
 import (
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
-	"github.com/opd-ai/wyrm/pkg/util"
+	"github.com/opd-ai/wyrm/pkg/seedutil"
 )
 
 // ============================================================================
@@ -276,12 +276,12 @@ func (s *CrimeEvidenceSystem) RecordCrime(crimeType string, criminalID, victimID
 
 // formatCrimeID creates a crime ID string.
 func formatCrimeID(n int) string {
-	return util.FormatPrefixedID("CR", n)
+	return seedutil.FormatPrefixedID("CR", n)
 }
 
 // formatEvidenceID creates an evidence ID string.
 func formatEvidenceID(n int) string {
-	return util.FormatPrefixedID("EV", n)
+	return seedutil.FormatPrefixedID("EV", n)
 }
 
 // ReportCrime marks a crime as reported to authorities.

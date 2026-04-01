@@ -4,7 +4,7 @@ package systems
 import (
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
-	"github.com/opd-ai/wyrm/pkg/util"
+	"github.com/opd-ai/wyrm/pkg/seedutil"
 )
 
 // ============================================================================
@@ -329,7 +329,7 @@ func (s *CriminalFactionQuestSystem) generateQuest(factionID string, questType C
 
 // formatQuestID creates a quest ID string.
 func formatQuestID(n int) string {
-	return util.FormatPrefixedID("CQ", n)
+	return seedutil.FormatPrefixedID("CQ", n)
 }
 
 // isStealthyQuest determines if a quest requires stealth.
