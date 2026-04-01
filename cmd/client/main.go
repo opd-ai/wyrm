@@ -70,6 +70,8 @@ type Game struct {
 	dialogUI *DialogUI
 	// Combat system
 	combatManager *CombatManager
+	// Menu system
+	menu *Menu
 }
 
 // Update advances game state by one tick, processing player input and ECS systems.
@@ -77,6 +79,17 @@ func (g *Game) Update() error {
 	const dt = 1.0 / 60.0
 	g.syncInputState()
 	g.handlePauseToggle()
+
+	// Check if quit requested
+	if g.menu != nil && g.menu.QuitRequested() {
+		os.Exit(0)
+	}
+
+	// Handle menu UI if open
+	if g.menu != nil && g.menu.IsOpen() {
+		g.menu.Update()
+		return nil
+	}
 
 	// Handle dialog UI if open
 	if g.dialogUI != nil && g.dialogUI.IsOpen() {
@@ -229,10 +242,15 @@ func (g *Game) syncInputState() {
 	}
 }
 
-// handlePauseToggle checks for pause action.
+// handlePauseToggle checks for pause action and toggles the menu.
 func (g *Game) handlePauseToggle() {
-	if g.inputManager != nil && inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-		g.paused = !g.paused
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		if g.menu != nil {
+			g.menu.Toggle()
+			g.paused = g.menu.IsOpen()
+		} else {
+			g.paused = !g.paused
+		}
 	}
 }
 
@@ -774,8 +792,9 @@ func main() {
 	world := ecs.NewWorld()
 	renderer := raycast.NewRenderer(cfg.Window.Width, cfg.Window.Height)
 	player := createPlayerEntity(world)
-	registerClientSystems(world, player, cfg)
 	client, connected := connectToServer(cfg)
+	// Register client systems; in offline mode (!connected), also register game logic systems
+	registerClientSystems(world, player, cfg, !connected)
 	chunkMgr := chunk.NewManager(cfg.World.ChunkSize, cfg.World.Seed)
 
 	// Initialize input manager with config bindings
@@ -906,10 +925,108 @@ func createPlayerEntity(world *ecs.World) ecs.Entity {
 }
 
 // registerClientSystems registers all client-side ECS systems.
-func registerClientSystems(world *ecs.World, player ecs.Entity, cfg *config.Config) {
+// In single-player mode (offline), this also registers core game logic systems.
+func registerClientSystems(world *ecs.World, player ecs.Entity, cfg *config.Config, offline bool) {
+	// Rendering and audio systems (always needed)
 	world.RegisterSystem(&systems.RenderSystem{PlayerEntity: player})
 	world.RegisterSystem(&systems.AudioSystem{Genre: cfg.Genre})
-	world.RegisterSystem(systems.NewWeatherSystem(cfg.Genre, 300.0))
+	weatherSys := systems.NewWeatherSystem(cfg.Genre, 300.0)
+	world.RegisterSystem(weatherSys)
+
+	// In offline mode, register essential gameplay systems for single-player
+	if offline {
+		registerSinglePlayerSystems(world, cfg, weatherSys)
+	}
+}
+
+// registerSinglePlayerSystems registers game logic systems for offline/single-player mode.
+// These systems provide the core RPG mechanics when not connected to a server.
+func registerSinglePlayerSystems(world *ecs.World, cfg *config.Config, weatherSys *systems.WeatherSystem) {
+	seed := cfg.World.Seed
+	genre := cfg.Genre
+
+	// World time (drives NPC schedules, shop hours, etc.)
+	world.RegisterSystem(systems.NewWorldClockSystem(60.0))
+
+	// NPC behavior systems
+	world.RegisterSystem(&systems.NPCScheduleSystem{})
+	world.RegisterSystem(systems.NewNPCPathfindingSystem())
+	world.RegisterSystem(systems.NewNPCNeedsSystem())
+	world.RegisterSystem(systems.NewNPCOccupationSystem(seed))
+	world.RegisterSystem(systems.NewEmotionalStateSystem())
+	world.RegisterSystem(systems.NewNPCMemorySystem())
+	world.RegisterSystem(systems.NewGossipSystem())
+
+	// Faction systems
+	fps := systems.NewFactionPoliticsSystem(0.1)
+	world.RegisterSystem(fps)
+	factionRankSystem := systems.NewFactionRankSystem(genre)
+	world.RegisterSystem(factionRankSystem)
+	world.RegisterSystem(systems.NewFactionCoupSystem(factionRankSystem, fps, seed, genre))
+	world.RegisterSystem(systems.NewFactionExclusiveContentSystem(factionRankSystem, genre))
+	world.RegisterSystem(systems.NewDynamicFactionWarSystem(fps))
+
+	// Crime and law systems
+	crimeSystem := systems.NewCrimeSystem(60.0, 100.0)
+	world.RegisterSystem(crimeSystem)
+	guardPursuitSystem := systems.NewGuardPursuitSystem(crimeSystem)
+	world.RegisterSystem(guardPursuitSystem)
+	world.RegisterSystem(systems.NewBriberySystem(crimeSystem, guardPursuitSystem, seed))
+	crimeEvidenceSystem := systems.NewCrimeEvidenceSystem(crimeSystem, genre, seed)
+	world.RegisterSystem(crimeEvidenceSystem)
+	world.RegisterSystem(systems.NewPardonSystem(crimeSystem, crimeEvidenceSystem, genre, seed))
+	world.RegisterSystem(systems.NewCriminalFactionQuestSystem(factionRankSystem, genre, seed))
+
+	// Economy systems
+	economySystem := systems.NewEconomySystem(0.5, 0.1)
+	world.RegisterSystem(economySystem)
+	world.RegisterSystem(systems.NewEconomicEventSystem(seed, genre, economySystem))
+	world.RegisterSystem(systems.NewMarketManipulationSystem(seed, genre, economySystem))
+	world.RegisterSystem(systems.NewTradeRouteSystem(seed, genre, economySystem))
+	world.RegisterSystem(systems.NewInvestmentSystem(seed, genre))
+	world.RegisterSystem(systems.NewPlayerShopSystem(economySystem))
+	world.RegisterSystem(systems.NewCityBuildingSystem(genre, seed))
+	world.RegisterSystem(systems.NewCityEventSystem(genre, seed))
+	world.RegisterSystem(systems.NewTradingSystem())
+
+	// Combat systems
+	world.RegisterSystem(systems.NewCombatSystem())
+	world.RegisterSystem(systems.NewMagicSystem())
+	world.RegisterSystem(systems.NewProjectileSystem())
+	world.RegisterSystem(systems.NewStealthSystem())
+	world.RegisterSystem(systems.NewDistractionSystem())
+	world.RegisterSystem(systems.NewHidingSpotSystem(float64(cfg.World.ChunkSize)))
+
+	// Vehicle systems
+	world.RegisterSystem(&systems.VehicleSystem{})
+	world.RegisterSystem(systems.NewVehiclePhysicsSystem(genre))
+	world.RegisterSystem(systems.NewVehicleCombatSystem())
+	world.RegisterSystem(systems.NewFlyingVehicleSystem(genre))
+	world.RegisterSystem(systems.NewNavalVehicleSystem(genre))
+	world.RegisterSystem(systems.NewMountSystem(seed, genre))
+
+	// Quest system
+	world.RegisterSystem(systems.NewQuestSystem())
+
+	// Skills and crafting systems
+	skillRegistry := systems.NewSkillRegistry()
+	skillProgressionSystem := systems.NewSkillProgressionSystem(100.0, 100)
+	world.RegisterSystem(skillProgressionSystem)
+	world.RegisterSystem(systems.NewSkillBookSystem(skillRegistry, skillProgressionSystem))
+	world.RegisterSystem(systems.NewSkillSynergySystem(skillRegistry))
+	world.RegisterSystem(systems.NewActionUnlockSystem(skillRegistry, skillProgressionSystem))
+	world.RegisterSystem(systems.NewNPCTrainingSystem(skillRegistry, skillProgressionSystem))
+	world.RegisterSystem(systems.NewCraftingSystem(seed))
+
+	// Dialog and social systems
+	world.RegisterSystem(systems.NewDialogConsequenceSystem())
+	world.RegisterSystem(systems.NewMultiNPCConversationSystem())
+	world.RegisterSystem(systems.NewPartySystem())
+	world.RegisterSystem(systems.NewVehicleCustomizationSystem(seed, genre))
+
+	// Environment systems
+	world.RegisterSystem(systems.NewIndoorOutdoorSystem(weatherSys))
+	world.RegisterSystem(systems.NewHazardSystem(genre))
 }
 
 // startAmbientAudio initializes and plays genre-appropriate ambient audio.

@@ -2,6 +2,7 @@
 package network
 
 import (
+	"fmt"
 	"log"
 	"math"
 	"net"
@@ -285,6 +286,47 @@ func (s *Server) sendWorldState(conn net.Conn, playerID uint64, ackSeq uint32) {
 	_ = state.Encode(conn)
 }
 
+// SendEntityUpdate sends a single entity's state update to a client.
+func (s *Server) SendEntityUpdate(conn net.Conn, entityID uint64, x, y, z, angle, health, velocity float32, state uint8) {
+	update := &EntityUpdate{
+		ServerTimeMs: uint32(serverTimeMs()),
+		EntityID:     entityID,
+		X:            x,
+		Y:            y,
+		Z:            z,
+		Angle:        angle,
+		Health:       health,
+		Velocity:     velocity,
+		State:        state,
+	}
+	_ = update.Encode(conn)
+}
+
+// BroadcastEntityUpdate sends an entity update to all connected clients.
+func (s *Server) BroadcastEntityUpdate(entityID uint64, x, y, z, angle, health, velocity float32, state uint8) {
+	s.mu.Lock()
+	clients := make([]net.Conn, len(s.clients))
+	copy(clients, s.clients)
+	s.mu.Unlock()
+
+	for _, conn := range clients {
+		s.SendEntityUpdate(conn, entityID, x, y, z, angle, health, velocity, state)
+	}
+}
+
+// SendChunkData sends chunk terrain data to a client.
+func (s *Server) SendChunkData(conn net.Conn, chunkX, chunkY int32, chunkSize uint16, heightData []uint16, biomeData []uint8) {
+	chunk := &ChunkData{
+		ServerTimeMs: uint32(serverTimeMs()),
+		ChunkX:       chunkX,
+		ChunkY:       chunkY,
+		ChunkSize:    chunkSize,
+		HeightData:   heightData,
+		BiomeData:    biomeData,
+	}
+	_ = chunk.Encode(conn)
+}
+
 // handlePing responds to a ping with a pong.
 func (s *Server) handlePing(conn net.Conn, ping *Ping) {
 	pong := &Pong{
@@ -391,4 +433,60 @@ func (c *Client) Send(data []byte) error {
 	}
 	_, err := conn.Write(data)
 	return err
+}
+
+// SendPlayerInput sends player input to the server.
+func (c *Client) SendPlayerInput(input *PlayerInput) error {
+	c.mu.Lock()
+	conn := c.conn
+	c.mu.Unlock()
+	if conn == nil {
+		return net.ErrClosed
+	}
+	return input.Encode(conn)
+}
+
+// ReceiveMessage reads and returns the next message from the server.
+// Returns the message type and the decoded message, or an error.
+func (c *Client) ReceiveMessage() (uint8, Message, error) {
+	c.mu.Lock()
+	conn := c.conn
+	c.mu.Unlock()
+	if conn == nil {
+		return 0, nil, net.ErrClosed
+	}
+
+	msgType, err := ReadMessageType(conn)
+	if err != nil {
+		return 0, nil, fmt.Errorf("read message type: %w", err)
+	}
+
+	switch msgType {
+	case MsgTypeWorldState:
+		msg, err := DecodeWorldState(conn)
+		return msgType, msg, err
+	case MsgTypeEntityUpdate:
+		msg, err := DecodeEntityUpdate(conn)
+		return msgType, msg, err
+	case MsgTypeChunkData:
+		msg, err := DecodeChunkData(conn)
+		return msgType, msg, err
+	case MsgTypePong:
+		msg, err := DecodePong(conn)
+		return msgType, msg, err
+	default:
+		return msgType, nil, fmt.Errorf("unknown message type: %d", msgType)
+	}
+}
+
+// SendPing sends a ping message to measure latency.
+func (c *Client) SendPing(clientTimeMs uint32) error {
+	c.mu.Lock()
+	conn := c.conn
+	c.mu.Unlock()
+	if conn == nil {
+		return net.ErrClosed
+	}
+	ping := &Ping{ClientTimeMs: clientTimeMs}
+	return ping.Encode(conn)
 }

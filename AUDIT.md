@@ -483,8 +483,8 @@ No circular dependencies detected.
 ### 6.3 Architecture Gap Resolution Checklist
 
 - [x] Register all 44 unregistered systems (see Section 1.5 checklist)
-- [ ] Add client-side systems for single-player mode or implement entity sync protocol
-- [ ] Implement client-server game state protocol (send/receive EntityUpdate, ChunkData, PlayerInput)
+- [x] Add client-side systems for single-player mode or implement entity sync protocol — implemented in `cmd/client/main.go` via `registerSinglePlayerSystems()` which registers 50+ game logic systems when running offline
+- [x] Implement client-server game state protocol (send/receive EntityUpdate, ChunkData, PlayerInput) — implemented in `pkg/network/protocol.go` with EntityUpdate and ChunkData message types, and in `pkg/network/server.go` with SendEntityUpdate, BroadcastEntityUpdate, SendChunkData, SendPlayerInput, and ReceiveMessage methods
 - [x] Integrate all 14 unused packages at runtime (see Section 2.5 checklist — all packages now integrated)
 - [x] Implement HUD overlay system (health, mana, compass, minimap) — implemented in `cmd/client/main.go` via `drawHUD()` with health/mana bars, compass direction, minimap, interaction prompts
 - [ ] Implement menu system (pause, settings, character creation, quit)

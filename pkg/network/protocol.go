@@ -327,6 +327,222 @@ func decodeEntityAttributes(r io.Reader, e *EntityState) error {
 	return nil
 }
 
+// EntityUpdate represents a single entity's state change.
+// Used for delta updates when only specific entities change.
+type EntityUpdate struct {
+	ServerTimeMs uint32
+	EntityID     uint64
+	X, Y, Z      float32
+	Angle        float32
+	Health       float32
+	Velocity     float32 // Movement speed
+	State        uint8   // Entity state flags (alive, attacking, etc.)
+}
+
+// Type returns the message type identifier.
+func (m *EntityUpdate) Type() uint8 { return MsgTypeEntityUpdate }
+
+// Encode writes the message to a writer.
+func (m *EntityUpdate) Encode(w io.Writer) error {
+	if err := binary.Write(w, binary.LittleEndian, m.Type()); err != nil {
+		return fmt.Errorf("encode type: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.ServerTimeMs); err != nil {
+		return fmt.Errorf("encode ServerTimeMs: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.EntityID); err != nil {
+		return fmt.Errorf("encode EntityID: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.X); err != nil {
+		return fmt.Errorf("encode X: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.Y); err != nil {
+		return fmt.Errorf("encode Y: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.Z); err != nil {
+		return fmt.Errorf("encode Z: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.Angle); err != nil {
+		return fmt.Errorf("encode Angle: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.Health); err != nil {
+		return fmt.Errorf("encode Health: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.Velocity); err != nil {
+		return fmt.Errorf("encode Velocity: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.State); err != nil {
+		return fmt.Errorf("encode State: %w", err)
+	}
+	return nil
+}
+
+// DecodeEntityUpdate reads an EntityUpdate from a reader.
+func DecodeEntityUpdate(r io.Reader) (*EntityUpdate, error) {
+	m := &EntityUpdate{}
+	if err := binary.Read(r, binary.LittleEndian, &m.ServerTimeMs); err != nil {
+		return nil, fmt.Errorf("decode ServerTimeMs: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.EntityID); err != nil {
+		return nil, fmt.Errorf("decode EntityID: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.X); err != nil {
+		return nil, fmt.Errorf("decode X: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.Y); err != nil {
+		return nil, fmt.Errorf("decode Y: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.Z); err != nil {
+		return nil, fmt.Errorf("decode Z: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.Angle); err != nil {
+		return nil, fmt.Errorf("decode Angle: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.Health); err != nil {
+		return nil, fmt.Errorf("decode Health: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.Velocity); err != nil {
+		return nil, fmt.Errorf("decode Velocity: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.State); err != nil {
+		return nil, fmt.Errorf("decode State: %w", err)
+	}
+	return m, nil
+}
+
+// ChunkData represents terrain chunk data sent from server to client.
+// Used when client enters a new chunk area.
+type ChunkData struct {
+	ServerTimeMs uint32
+	ChunkX       int32    // Chunk coordinates
+	ChunkY       int32    // Chunk coordinates
+	ChunkSize    uint16   // Chunk dimensions (e.g., 512)
+	HeightData   []uint16 // Compressed heightmap data
+	BiomeData    []uint8  // Biome type per cell (simplified)
+}
+
+// Type returns the message type identifier.
+func (m *ChunkData) Type() uint8 { return MsgTypeChunkData }
+
+// Encode writes the message to a writer.
+func (m *ChunkData) Encode(w io.Writer) error {
+	if err := binary.Write(w, binary.LittleEndian, m.Type()); err != nil {
+		return fmt.Errorf("encode type: %w", err)
+	}
+	if err := m.encodeHeader(w); err != nil {
+		return err
+	}
+	if err := m.encodeHeightData(w); err != nil {
+		return err
+	}
+	return m.encodeBiomeData(w)
+}
+
+// encodeHeader writes chunk coordinates and size.
+func (m *ChunkData) encodeHeader(w io.Writer) error {
+	if err := binary.Write(w, binary.LittleEndian, m.ServerTimeMs); err != nil {
+		return fmt.Errorf("encode ServerTimeMs: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.ChunkX); err != nil {
+		return fmt.Errorf("encode ChunkX: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.ChunkY); err != nil {
+		return fmt.Errorf("encode ChunkY: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.ChunkSize); err != nil {
+		return fmt.Errorf("encode ChunkSize: %w", err)
+	}
+	return nil
+}
+
+// encodeHeightData writes the heightmap data with length prefix.
+func (m *ChunkData) encodeHeightData(w io.Writer) error {
+	heightCount := uint32(len(m.HeightData))
+	if err := binary.Write(w, binary.LittleEndian, heightCount); err != nil {
+		return fmt.Errorf("encode height count: %w", err)
+	}
+	for _, h := range m.HeightData {
+		if err := binary.Write(w, binary.LittleEndian, h); err != nil {
+			return fmt.Errorf("encode height data: %w", err)
+		}
+	}
+	return nil
+}
+
+// encodeBiomeData writes the biome data with length prefix.
+func (m *ChunkData) encodeBiomeData(w io.Writer) error {
+	biomeCount := uint32(len(m.BiomeData))
+	if err := binary.Write(w, binary.LittleEndian, biomeCount); err != nil {
+		return fmt.Errorf("encode biome count: %w", err)
+	}
+	_, err := w.Write(m.BiomeData)
+	if err != nil {
+		return fmt.Errorf("encode biome data: %w", err)
+	}
+	return nil
+}
+
+// DecodeChunkData reads a ChunkData from a reader.
+func DecodeChunkData(r io.Reader) (*ChunkData, error) {
+	m := &ChunkData{}
+	if err := m.decodeHeader(r); err != nil {
+		return nil, err
+	}
+	if err := m.decodeHeightData(r); err != nil {
+		return nil, err
+	}
+	if err := m.decodeBiomeData(r); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// decodeHeader reads chunk coordinates and size.
+func (m *ChunkData) decodeHeader(r io.Reader) error {
+	if err := binary.Read(r, binary.LittleEndian, &m.ServerTimeMs); err != nil {
+		return fmt.Errorf("decode ServerTimeMs: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.ChunkX); err != nil {
+		return fmt.Errorf("decode ChunkX: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.ChunkY); err != nil {
+		return fmt.Errorf("decode ChunkY: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.ChunkSize); err != nil {
+		return fmt.Errorf("decode ChunkSize: %w", err)
+	}
+	return nil
+}
+
+// decodeHeightData reads the heightmap data with length prefix.
+func (m *ChunkData) decodeHeightData(r io.Reader) error {
+	var heightCount uint32
+	if err := binary.Read(r, binary.LittleEndian, &heightCount); err != nil {
+		return fmt.Errorf("decode height count: %w", err)
+	}
+	m.HeightData = make([]uint16, heightCount)
+	for i := range m.HeightData {
+		if err := binary.Read(r, binary.LittleEndian, &m.HeightData[i]); err != nil {
+			return fmt.Errorf("decode height data: %w", err)
+		}
+	}
+	return nil
+}
+
+// decodeBiomeData reads the biome data with length prefix.
+func (m *ChunkData) decodeBiomeData(r io.Reader) error {
+	var biomeCount uint32
+	if err := binary.Read(r, binary.LittleEndian, &biomeCount); err != nil {
+		return fmt.Errorf("decode biome count: %w", err)
+	}
+	m.BiomeData = make([]uint8, biomeCount)
+	_, err := io.ReadFull(r, m.BiomeData)
+	if err != nil {
+		return fmt.Errorf("decode biome data: %w", err)
+	}
+	return nil
+}
+
 // Ping is sent by client to measure latency.
 type Ping struct {
 	ClientTimeMs uint32
