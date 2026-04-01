@@ -47,6 +47,10 @@ type Renderer struct {
 	// ZBuffer stores the perpendicular distance to walls for each screen column.
 	// Used for sprite occlusion testing. Populated during drawWalls().
 	ZBuffer []float64
+	// Framebuffer stores RGBA pixel data for batch rendering.
+	// Allocated once in constructor, reused each frame.
+	// Format: width * height * 4 bytes (RGBA)
+	Framebuffer []byte
 }
 
 // NewRenderer creates a new raycasting renderer.
@@ -88,9 +92,77 @@ func NewRendererWithGenre(width, height int, genre string, seed int64) *Renderer
 		Genre:       genre,
 		textureSeed: seed,
 		ZBuffer:     make([]float64, width),
+		Framebuffer: make([]byte, width*height*4),
 	}
 	r.initTextures()
 	return r
+}
+
+// SetPixel writes a pixel to the framebuffer at the specified coordinates.
+// Bounds checking is performed to prevent out-of-bounds writes.
+func (r *Renderer) SetPixel(x, y int, red, green, blue, alpha uint8) {
+	if x < 0 || x >= r.Width || y < 0 || y >= r.Height {
+		return
+	}
+	idx := (y*r.Width + x) * 4
+	r.Framebuffer[idx] = red
+	r.Framebuffer[idx+1] = green
+	r.Framebuffer[idx+2] = blue
+	r.Framebuffer[idx+3] = alpha
+}
+
+// SetPixelColor writes a color.RGBA to the framebuffer at the specified coordinates.
+func (r *Renderer) SetPixelColor(x, y int, c color.RGBA) {
+	r.SetPixel(x, y, c.R, c.G, c.B, c.A)
+}
+
+// BlendPixel alpha-blends a pixel onto the existing framebuffer content.
+func (r *Renderer) BlendPixel(x, y int, red, green, blue, alpha uint8) {
+	if x < 0 || x >= r.Width || y < 0 || y >= r.Height {
+		return
+	}
+	if alpha == 255 {
+		r.SetPixel(x, y, red, green, blue, 255)
+		return
+	}
+	if alpha == 0 {
+		return
+	}
+	idx := (y*r.Width + x) * 4
+	a := float64(alpha) / 255.0
+	invA := 1.0 - a
+	r.Framebuffer[idx] = uint8(float64(red)*a + float64(r.Framebuffer[idx])*invA)
+	r.Framebuffer[idx+1] = uint8(float64(green)*a + float64(r.Framebuffer[idx+1])*invA)
+	r.Framebuffer[idx+2] = uint8(float64(blue)*a + float64(r.Framebuffer[idx+2])*invA)
+	r.Framebuffer[idx+3] = 255
+}
+
+// BlendPixelColor alpha-blends a color.RGBA onto the existing framebuffer content.
+func (r *Renderer) BlendPixelColor(x, y int, c color.RGBA) {
+	r.BlendPixel(x, y, c.R, c.G, c.B, c.A)
+}
+
+// ClearFramebuffer zeros the framebuffer to prepare for a new frame.
+func (r *Renderer) ClearFramebuffer() {
+	for i := range r.Framebuffer {
+		r.Framebuffer[i] = 0
+	}
+}
+
+// GetPixel reads a pixel from the framebuffer at the specified coordinates.
+// Returns (0,0,0,0) if coordinates are out of bounds.
+func (r *Renderer) GetPixel(x, y int) (red, green, blue, alpha uint8) {
+	if x < 0 || x >= r.Width || y < 0 || y >= r.Height {
+		return 0, 0, 0, 0
+	}
+	idx := (y*r.Width + x) * 4
+	return r.Framebuffer[idx], r.Framebuffer[idx+1], r.Framebuffer[idx+2], r.Framebuffer[idx+3]
+}
+
+// GetFramebuffer returns the raw framebuffer slice for direct access.
+// Use this for WritePixels() upload to ebiten.Image.
+func (r *Renderer) GetFramebuffer() []byte {
+	return r.Framebuffer
 }
 
 // calculateDeltaDist computes the ray step lengths for DDA.

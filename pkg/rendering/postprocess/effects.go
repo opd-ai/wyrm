@@ -20,10 +20,23 @@ type Effect interface {
 	Name() string
 }
 
+// InPlaceEffect extends Effect with a method to write directly to a destination buffer.
+type InPlaceEffect interface {
+	Effect
+	ApplyTo(src, dst *image.RGBA)
+}
+
 // Pipeline chains multiple effects together.
 type Pipeline struct {
 	effects []Effect
 	genre   string
+	// workBufferA and workBufferB are pre-allocated RGBA buffers for effect processing.
+	// Effects alternate between reading from one and writing to the other.
+	workBufferA *image.RGBA
+	workBufferB *image.RGBA
+	// lastWidth and lastHeight track buffer dimensions for reallocation.
+	lastWidth  int
+	lastHeight int
 }
 
 // NewPipeline creates a post-processing pipeline for the given genre.
@@ -56,6 +69,18 @@ func NewPipeline(genre string) *Pipeline {
 	}
 
 	return p
+}
+
+// ensureBuffers allocates or reallocates work buffers if dimensions changed.
+func (p *Pipeline) ensureBuffers(bounds image.Rectangle) {
+	width := bounds.Dx()
+	height := bounds.Dy()
+	if p.lastWidth != width || p.lastHeight != height {
+		p.workBufferA = image.NewRGBA(bounds)
+		p.workBufferB = image.NewRGBA(bounds)
+		p.lastWidth = width
+		p.lastHeight = height
+	}
 }
 
 // Apply runs all effects in the pipeline on the image.

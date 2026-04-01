@@ -9,10 +9,13 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
-// Draw renders the current view to the screen using DDA raycasting.
+// Draw renders the current view to the framebuffer using DDA raycasting.
+// After calling Draw(), use UploadFramebuffer() to copy to the ebiten.Image.
 func (r *Renderer) Draw(screen *ebiten.Image) {
-	r.drawFloorCeiling(screen)
-	r.drawWalls(screen)
+	r.ClearFramebuffer()
+	r.drawFloorCeiling()
+	r.drawWalls()
+	screen.WritePixels(r.Framebuffer)
 }
 
 // DrawSpritesToScreen renders billboard sprites to an ebiten.Image.
@@ -38,14 +41,17 @@ func (r *Renderer) DrawSpritesToScreen(entities []*SpriteEntity, screen *ebiten.
 	// Sort back-to-front
 	SortSpritesByDistance(visible)
 
-	// Draw each sprite directly to the screen
+	// Draw each sprite directly to the framebuffer
 	for _, e := range visible {
-		r.drawSpriteToScreen(e, screen)
+		r.drawSpriteToFramebuffer(e)
 	}
+
+	// Upload the modified framebuffer to the screen
+	screen.WritePixels(r.Framebuffer)
 }
 
-// drawSpriteToScreen draws a single sprite to an ebiten.Image.
-func (r *Renderer) drawSpriteToScreen(entity *SpriteEntity, screen *ebiten.Image) {
+// drawSpriteToFramebuffer draws a single sprite to the framebuffer.
+func (r *Renderer) drawSpriteToFramebuffer(entity *SpriteEntity) {
 	ctx := r.PrepareSpriteDrawContext(entity)
 	if ctx == nil || ctx.CurrentFrame == nil {
 		return
@@ -63,12 +69,12 @@ func (r *Renderer) drawSpriteToScreen(entity *SpriteEntity, screen *ebiten.Image
 
 	// Draw each visible column
 	for screenX := startX; screenX < endX; screenX++ {
-		r.drawSpriteColumnToScreen(screenX, ctx, screen)
+		r.drawSpriteColumnToFramebuffer(screenX, ctx)
 	}
 }
 
-// drawSpriteColumnToScreen draws a single sprite column to an ebiten.Image.
-func (r *Renderer) drawSpriteColumnToScreen(screenX int, ctx *SpriteDrawContext, screen *ebiten.Image) {
+// drawSpriteColumnToFramebuffer draws a single sprite column to the framebuffer.
+func (r *Renderer) drawSpriteColumnToFramebuffer(screenX int, ctx *SpriteDrawContext) {
 	// Bounds check
 	if screenX < 0 || screenX >= r.Width {
 		return
@@ -114,25 +120,13 @@ func (r *Renderer) drawSpriteColumnToScreen(screenX int, ctx *SpriteDrawContext,
 			continue
 		}
 
-		// Draw to screen
-		if pixel.A < 255 {
-			// Alpha blending with existing pixel
-			existing := screen.At(screenX, screenY)
-			er, eg, eb, _ := existing.RGBA()
-			alpha := float64(pixel.A) / 255.0
-			invAlpha := 1.0 - alpha
-			newR := uint8(float64(pixel.R)*alpha + float64(er>>8)*invAlpha)
-			newG := uint8(float64(pixel.G)*alpha + float64(eg>>8)*invAlpha)
-			newB := uint8(float64(pixel.B)*alpha + float64(eb>>8)*invAlpha)
-			screen.Set(screenX, screenY, color.RGBA{R: newR, G: newG, B: newB, A: 255})
-		} else {
-			screen.Set(screenX, screenY, color.RGBA{R: pixel.R, G: pixel.G, B: pixel.B, A: 255})
-		}
+		// Draw to framebuffer with alpha blending
+		r.BlendPixel(screenX, screenY, pixel.R, pixel.G, pixel.B, pixel.A)
 	}
 }
 
 // drawFloorCeiling renders textured floor and ceiling using raycasting.
-func (r *Renderer) drawFloorCeiling(screen *ebiten.Image) {
+func (r *Renderer) drawFloorCeiling() {
 	halfHeight := r.Height / 2
 
 	for y := halfHeight; y < r.Height; y++ {
@@ -141,7 +135,7 @@ func (r *Renderer) drawFloorCeiling(screen *ebiten.Image) {
 		floorStepX, floorStepY := r.calculateFloorStep(rowDistance, rayDirX0, rayDirY0, rayDirX1, rayDirY1)
 		floorX, floorY := r.calculateFloorStart(rowDistance, rayDirX0, rayDirY0)
 
-		r.renderFloorCeilingRow(screen, y, halfHeight, rowDistance, floorX, floorY, floorStepX, floorStepY)
+		r.renderFloorCeilingRow(y, halfHeight, rowDistance, floorX, floorY, floorStepX, floorStepY)
 	}
 }
 
@@ -183,18 +177,18 @@ func (r *Renderer) calculateFloorStart(rowDistance, rayDirX0, rayDirY0 float64) 
 }
 
 // renderFloorCeilingRow renders a single row of floor and ceiling pixels.
-func (r *Renderer) renderFloorCeilingRow(screen *ebiten.Image, y, halfHeight int, rowDistance, floorX, floorY, floorStepX, floorStepY float64) {
+func (r *Renderer) renderFloorCeilingRow(y, halfHeight int, rowDistance, floorX, floorY, floorStepX, floorStepY float64) {
 	for x := 0; x < r.Width; x++ {
 		texX := floorX - math.Floor(floorX)
 		texY := floorY - math.Floor(floorY)
 
 		floorColor := r.GetFloorTextureColor(texX, texY, rowDistance)
-		screen.Set(x, y, floorColor)
+		r.SetPixelColor(x, y, floorColor)
 
 		ceilY := r.Height - y - 1
 		if ceilY >= 0 && ceilY < halfHeight {
 			ceilColor := r.GetCeilingTextureColor(texX, texY, rowDistance)
-			screen.Set(x, ceilY, ceilColor)
+			r.SetPixelColor(x, ceilY, ceilColor)
 		}
 
 		floorX += floorStepX
@@ -203,18 +197,18 @@ func (r *Renderer) renderFloorCeilingRow(screen *ebiten.Image, y, halfHeight int
 }
 
 // drawWalls casts rays and renders wall columns, populating the ZBuffer.
-func (r *Renderer) drawWalls(screen *ebiten.Image) {
+func (r *Renderer) drawWalls() {
 	// Ensure ZBuffer is sized correctly
 	if len(r.ZBuffer) != r.Width {
 		r.ZBuffer = make([]float64, r.Width)
 	}
 	for x := 0; x < r.Width; x++ {
-		r.drawWallColumn(screen, x)
+		r.drawWallColumn(x)
 	}
 }
 
 // drawWallColumn renders a single vertical wall strip with texture mapping.
-func (r *Renderer) drawWallColumn(screen *ebiten.Image, x int) {
+func (r *Renderer) drawWallColumn(x int) {
 	cameraX := 2.0*float64(x)/float64(r.Width) - 1.0
 	rayAngle := r.PlayerA + cameraX*(r.FOV/2)
 	rayDirX := math.Cos(rayAngle)
@@ -234,7 +228,7 @@ func (r *Renderer) drawWallColumn(screen *ebiten.Image, x int) {
 	// Texture X coordinate (0-1 range)
 	texX := wallX - math.Floor(wallX)
 
-	r.renderWallStrip(screen, x, drawStart, drawEnd, wallHeight, wallType, texX, distance, side)
+	r.renderWallStrip(x, drawStart, drawEnd, wallHeight, wallType, texX, distance, side)
 }
 
 // clampDistance ensures distance is within valid range.
@@ -254,8 +248,8 @@ func calculateWallHeight(screenHeight int, distance float64) int {
 	return wallHeight
 }
 
-// renderWallStrip draws a vertical strip of wall pixels.
-func (r *Renderer) renderWallStrip(screen *ebiten.Image, x, drawStart, drawEnd, wallHeight, wallType int, texX, distance float64, side int) {
+// renderWallStrip draws a vertical strip of wall pixels to the framebuffer.
+func (r *Renderer) renderWallStrip(x, drawStart, drawEnd, wallHeight, wallType int, texX, distance float64, side int) {
 	sideDarken := getSideDarkenFactor(side)
 
 	for y := drawStart; y < drawEnd; y++ {
@@ -265,7 +259,7 @@ func (r *Renderer) renderWallStrip(screen *ebiten.Image, x, drawStart, drawEnd, 
 		texY := float64(y-drawStart) / float64(wallHeight)
 		wallColor := r.GetWallTextureColor(wallType, texX, texY, distance)
 		wallColor = applySideDarkening(wallColor, sideDarken)
-		screen.Set(x, y, wallColor)
+		r.SetPixelColor(x, y, wallColor)
 	}
 }
 

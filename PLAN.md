@@ -113,10 +113,10 @@ In `Draw()`, after all rendering is complete, call `screen.WritePixels(renderer.
 
 ### Validation
 
-- [ ] `go build ./cmd/client` succeeds
-- [ ] `go test -tags=noebiten ./pkg/rendering/...` passes
+- [x] `go build ./cmd/client` succeeds
+- [x] `go test -tags=noebiten ./pkg/rendering/...` passes
 - [ ] Visual output is pixel-identical to current rendering
-- [ ] `grep -rn 'screen\.Set(' cmd/ pkg/rendering/` returns 0 results in hot path
+- [x] `grep -rn 'screen\.Set(' cmd/ pkg/rendering/` returns 0 results in hot path
 - [ ] Frame time benchmark shows ≥10× improvement
 
 ---
