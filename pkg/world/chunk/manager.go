@@ -48,17 +48,61 @@ type Chunk struct {
 	Size         int
 	Seed         int64
 	HeightMap    []float64
-	ElevationMap []float64 // Terrain elevation in world units
-	TerrainTypes []int     // Terrain type per cell
-	BiomeMap     []float64 // Biome noise values for vegetation density
+	ElevationMap []float64     // Terrain elevation in world units
+	TerrainTypes []int         // Terrain type per cell
+	BiomeMap     []float64     // Biome noise values for vegetation density
+	DetailSpawns []DetailSpawn // Vegetation, rocks, and other detail entities
+}
+
+// DetailSpawnType represents different types of detail entities.
+type DetailSpawnType int
+
+const (
+	// Trees and vegetation
+	DetailSpawnTree DetailSpawnType = iota
+	DetailSpawnBush
+	DetailSpawnDeadTree
+	DetailSpawnGrass
+	DetailSpawnFlower
+
+	// Rocks and terrain details
+	DetailSpawnRock
+	DetailSpawnBoulder
+	DetailSpawnDebris
+
+	// Urban details
+	DetailSpawnLampPost
+	DetailSpawnBench
+	DetailSpawnTrashCan
+
+	// Wasteland details
+	DetailSpawnScrap
+	DetailSpawnRubble
+	DetailSpawnBones
+)
+
+// DetailSpawn represents a spawned detail entity in the chunk.
+type DetailSpawn struct {
+	Type      DetailSpawnType
+	LocalX    float64 // X position within chunk (0 to Size)
+	LocalY    float64 // Y position within chunk (0 to Size)
+	Scale     float64 // Size multiplier (0.5 to 1.5 typical)
+	Rotation  float64 // Rotation in radians
+	Variation int     // Variation index for visual variety
 }
 
 // NewChunk creates a new chunk at the given coordinates with generated terrain.
 func NewChunk(x, y, size int, seed int64) *Chunk {
-	heightMap := generateHeightMap(size, seed)
-	elevationMap := generateElevationMap(size, seed, heightMap)
+	return NewChunkWithNoiseType(x, y, size, seed, noise.NoiseTypeValue)
+}
+
+// NewChunkWithNoiseType creates a new chunk with the specified noise algorithm.
+func NewChunkWithNoiseType(x, y, size int, seed int64, noiseType noise.NoiseType) *Chunk {
+	heightMap := generateHeightMapWithNoiseType(size, seed, noiseType)
+	elevationMap := generateElevationMapWithNoiseType(size, seed, heightMap, noiseType)
 	biomeMap := generateBiomeMap(size, seed)
 	terrainTypes := generateTerrainTypes(size, heightMap, elevationMap, biomeMap)
+	detailSpawns := generateDetailSpawns(size, seed, terrainTypes, biomeMap)
 	return &Chunk{
 		X:            x,
 		Y:            y,
@@ -68,17 +112,29 @@ func NewChunk(x, y, size int, seed int64) *Chunk {
 		ElevationMap: elevationMap,
 		TerrainTypes: terrainTypes,
 		BiomeMap:     biomeMap,
+		DetailSpawns: detailSpawns,
 	}
 }
 
-// generateHeightMap creates a procedural heightmap using noise.
+// generateHeightMap creates a procedural heightmap using value noise.
 func generateHeightMap(size int, seed int64) []float64 {
+	return generateHeightMapWithNoiseType(size, seed, noise.NoiseTypeValue)
+}
+
+// generateHeightMapWithNoiseType creates a procedural heightmap using the specified noise.
+func generateHeightMapWithNoiseType(size int, seed int64, noiseType noise.NoiseType) []float64 {
 	heightMap := make([]float64, size*size)
 	rng := rand.New(rand.NewSource(seed))
 
 	// Generate base offset for this chunk
 	offsetX := rng.Float64() * 1000
 	offsetY := rng.Float64() * 1000
+
+	// Select noise function based on type
+	noiseFunc := noise.Noise2DSigned
+	if noiseType == noise.NoiseTypeGradient {
+		noiseFunc = noise.GradientNoise2D
+	}
 
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
@@ -92,7 +148,7 @@ func generateHeightMap(size int, seed int64) []float64 {
 
 			// 4 octaves of noise
 			for oct := 0; oct < 4; oct++ {
-				height += noise.Noise2DSigned(nx*frequency, ny*frequency, seed+int64(oct)) * amplitude
+				height += noiseFunc(nx*frequency, ny*frequency, seed+int64(oct)) * amplitude
 				amplitude *= 0.5
 				frequency *= 2.0
 			}
@@ -109,11 +165,22 @@ func generateHeightMap(size int, seed int64) []float64 {
 // generateElevationMap converts the heightmap to world-unit elevations.
 // Uses additional octaves to create more dramatic vertical features.
 func generateElevationMap(size int, seed int64, heightMap []float64) []float64 {
+	return generateElevationMapWithNoiseType(size, seed, heightMap, noise.NoiseTypeValue)
+}
+
+// generateElevationMapWithNoiseType converts the heightmap to world-unit elevations.
+func generateElevationMapWithNoiseType(size int, seed int64, heightMap []float64, noiseType noise.NoiseType) []float64 {
 	elevationMap := make([]float64, size*size)
 	rng := rand.New(rand.NewSource(seed + 1000))
 
 	offsetX := rng.Float64() * 1000
 	offsetY := rng.Float64() * 1000
+
+	// Select noise function based on type
+	noiseFunc := noise.Noise2DSigned
+	if noiseType == noise.NoiseTypeGradient {
+		noiseFunc = noise.GradientNoise2D
+	}
 
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
@@ -129,7 +196,7 @@ func generateElevationMap(size int, seed int64, heightMap []float64) []float64 {
 			frequency := 1.0
 
 			for oct := 0; oct < ElevationOctaves; oct++ {
-				detail += noise.Noise2DSigned(nx*frequency, ny*frequency, seed+500+int64(oct)) * amplitude
+				detail += noiseFunc(nx*frequency, ny*frequency, seed+500+int64(oct)) * amplitude
 				amplitude *= 0.5
 				frequency *= 2.0
 			}
@@ -184,6 +251,163 @@ func generateBiomeMap(size int, seed int64) []float64 {
 	}
 
 	return biomeMap
+}
+
+// Detail spawn density constants.
+const (
+	// BaseDensity is the base number of spawns per 100 cells.
+	BaseDensity = 5
+	// ForestDensityMultiplier increases density in forested areas.
+	ForestDensityMultiplier = 3.0
+	// MountainDensityMultiplier for rocky mountain areas.
+	MountainDensityMultiplier = 2.0
+)
+
+// generateDetailSpawns creates vegetation and detail entities for the chunk.
+func generateDetailSpawns(size int, seed int64, terrainTypes []int, biomeMap []float64) []DetailSpawn {
+	rng := rand.New(rand.NewSource(seed + 3000))
+	spawns := make([]DetailSpawn, 0, size)
+
+	// Calculate base number of potential spawn attempts
+	baseAttempts := (size * size * BaseDensity) / 100
+
+	for i := 0; i < baseAttempts; i++ {
+		// Random position within chunk
+		localX := rng.Float64() * float64(size)
+		localY := rng.Float64() * float64(size)
+
+		// Get terrain type at this position
+		gridX := int(localX)
+		gridY := int(localY)
+		if gridX >= size {
+			gridX = size - 1
+		}
+		if gridY >= size {
+			gridY = size - 1
+		}
+		idx := gridY*size + gridX
+		terrainType := terrainTypes[idx]
+
+		// Get biome value for density variation
+		biomeValue := 0.5
+		if biomeMap != nil && idx < len(biomeMap) {
+			biomeValue = biomeMap[idx]
+		}
+
+		// Determine if we should spawn based on terrain and biome
+		spawn := selectDetailSpawn(terrainType, biomeValue, rng)
+		if spawn == nil {
+			continue
+		}
+
+		spawn.LocalX = localX
+		spawn.LocalY = localY
+		spawn.Scale = 0.7 + rng.Float64()*0.6    // 0.7 to 1.3
+		spawn.Rotation = rng.Float64() * 6.28318 // 0 to 2π
+		spawn.Variation = rng.Intn(4)            // 0 to 3
+
+		spawns = append(spawns, *spawn)
+	}
+
+	return spawns
+}
+
+// selectDetailSpawn determines what type of detail to spawn based on terrain.
+func selectDetailSpawn(terrainType int, biomeValue float64, rng *rand.Rand) *DetailSpawn {
+	// Skip spawning on impassable terrain
+	if terrainType == TerrainWater || terrainType == TerrainCliff {
+		return nil
+	}
+
+	// Use terrain type and biome to determine spawn type
+	switch terrainType {
+	case TerrainForest:
+		return selectForestSpawn(biomeValue, rng)
+	case TerrainHill, TerrainPeak:
+		return selectMountainSpawn(biomeValue, rng)
+	case TerrainValley:
+		return selectValleySpawn(biomeValue, rng)
+	case TerrainFlat:
+		return selectFlatSpawn(biomeValue, rng)
+	default:
+		return nil
+	}
+}
+
+// selectForestSpawn chooses a spawn for forested terrain.
+func selectForestSpawn(biomeValue float64, rng *rand.Rand) *DetailSpawn {
+	// Higher biome value = denser forest
+	if rng.Float64() > biomeValue*ForestDensityMultiplier {
+		return nil
+	}
+
+	roll := rng.Float64()
+	switch {
+	case roll < 0.6:
+		return &DetailSpawn{Type: DetailSpawnTree}
+	case roll < 0.8:
+		return &DetailSpawn{Type: DetailSpawnBush}
+	case roll < 0.95:
+		return &DetailSpawn{Type: DetailSpawnGrass}
+	default:
+		return &DetailSpawn{Type: DetailSpawnFlower}
+	}
+}
+
+// selectMountainSpawn chooses a spawn for mountain terrain.
+func selectMountainSpawn(biomeValue float64, rng *rand.Rand) *DetailSpawn {
+	if rng.Float64() > MountainDensityMultiplier*0.3 {
+		return nil
+	}
+
+	roll := rng.Float64()
+	switch {
+	case roll < 0.5:
+		return &DetailSpawn{Type: DetailSpawnRock}
+	case roll < 0.8:
+		return &DetailSpawn{Type: DetailSpawnBoulder}
+	default:
+		return &DetailSpawn{Type: DetailSpawnGrass}
+	}
+}
+
+// selectValleySpawn chooses a spawn for valley terrain.
+func selectValleySpawn(biomeValue float64, rng *rand.Rand) *DetailSpawn {
+	if rng.Float64() > biomeValue {
+		return nil
+	}
+
+	roll := rng.Float64()
+	switch {
+	case roll < 0.4:
+		return &DetailSpawn{Type: DetailSpawnGrass}
+	case roll < 0.7:
+		return &DetailSpawn{Type: DetailSpawnFlower}
+	case roll < 0.9:
+		return &DetailSpawn{Type: DetailSpawnBush}
+	default:
+		return &DetailSpawn{Type: DetailSpawnDeadTree}
+	}
+}
+
+// selectFlatSpawn chooses a spawn for flat terrain.
+func selectFlatSpawn(biomeValue float64, rng *rand.Rand) *DetailSpawn {
+	// Sparse spawning on flat terrain
+	if rng.Float64() > biomeValue*0.5 {
+		return nil
+	}
+
+	roll := rng.Float64()
+	switch {
+	case roll < 0.3:
+		return &DetailSpawn{Type: DetailSpawnGrass}
+	case roll < 0.5:
+		return &DetailSpawn{Type: DetailSpawnRock}
+	case roll < 0.7:
+		return &DetailSpawn{Type: DetailSpawnBush}
+	default:
+		return &DetailSpawn{Type: DetailSpawnFlower}
+	}
 }
 
 // generateTerrainTypes classifies each cell based on height and slope.
@@ -379,17 +603,221 @@ func (c *Chunk) GetElevationDifference(x1, y1, x2, y2 int) float64 {
 type Manager struct {
 	ChunkSize int
 	Seed      int64
+	NoiseType noise.NoiseType // Noise algorithm to use for generation
 	mu        sync.RWMutex
 	loaded    map[[2]int]*Chunk
+
+	// Async generation
+	asyncEnabled bool
+	workQueue    chan chunkGenRequest
+	pending      map[[2]int]bool
+	pendingMu    sync.Mutex
+	stopChan     chan struct{}
 }
 
-// NewManager creates a new chunk manager.
+// chunkGenRequest represents a request to generate a chunk.
+type chunkGenRequest struct {
+	X, Y int
+}
+
+// NewManager creates a new chunk manager with default value noise.
 func NewManager(chunkSize int, seed int64) *Manager {
 	return &Manager{
 		ChunkSize: chunkSize,
 		Seed:      seed,
+		NoiseType: noise.NoiseTypeValue,
 		loaded:    make(map[[2]int]*Chunk),
+		pending:   make(map[[2]int]bool),
 	}
+}
+
+// NewManagerWithNoiseType creates a new chunk manager with specified noise type.
+func NewManagerWithNoiseType(chunkSize int, seed int64, noiseType noise.NoiseType) *Manager {
+	return &Manager{
+		ChunkSize: chunkSize,
+		Seed:      seed,
+		NoiseType: noiseType,
+		loaded:    make(map[[2]int]*Chunk),
+		pending:   make(map[[2]int]bool),
+	}
+}
+
+// EnableAsyncGeneration starts background chunk generation workers.
+func (cm *Manager) EnableAsyncGeneration(numWorkers int) {
+	if cm.asyncEnabled {
+		return
+	}
+	cm.asyncEnabled = true
+	cm.workQueue = make(chan chunkGenRequest, 64)
+	cm.stopChan = make(chan struct{})
+
+	for i := 0; i < numWorkers; i++ {
+		go cm.chunkGenerationWorker()
+	}
+}
+
+// DisableAsyncGeneration stops background chunk generation workers.
+func (cm *Manager) DisableAsyncGeneration() {
+	if !cm.asyncEnabled {
+		return
+	}
+	cm.asyncEnabled = false
+	close(cm.stopChan)
+	close(cm.workQueue)
+}
+
+// chunkGenerationWorker processes chunk generation requests.
+func (cm *Manager) chunkGenerationWorker() {
+	for {
+		select {
+		case <-cm.stopChan:
+			return
+		case req, ok := <-cm.workQueue:
+			if !ok {
+				return
+			}
+			cm.generateAndStoreChunk(req.X, req.Y)
+		}
+	}
+}
+
+// generateAndStoreChunk generates a chunk and stores it in the cache.
+func (cm *Manager) generateAndStoreChunk(x, y int) {
+	key := [2]int{x, y}
+
+	// Check if already loaded
+	cm.mu.RLock()
+	if _, ok := cm.loaded[key]; ok {
+		cm.mu.RUnlock()
+		cm.markPendingComplete(key)
+		return
+	}
+	cm.mu.RUnlock()
+
+	// Generate the chunk
+	chunkSeed := mixChunkSeed(cm.Seed, x, y)
+	c := NewChunkWithNoiseType(x, y, cm.ChunkSize, chunkSeed, cm.NoiseType)
+
+	// Store it
+	cm.mu.Lock()
+	// Double-check under write lock
+	if _, ok := cm.loaded[key]; !ok {
+		cm.loaded[key] = c
+	}
+	cm.mu.Unlock()
+
+	cm.markPendingComplete(key)
+}
+
+// markPendingComplete removes a chunk from the pending map.
+func (cm *Manager) markPendingComplete(key [2]int) {
+	cm.pendingMu.Lock()
+	delete(cm.pending, key)
+	cm.pendingMu.Unlock()
+}
+
+// RequestChunkAsync queues a chunk for async generation if not already loaded.
+// Returns immediately. Use GetChunk or GetChunkOrPlaceholder to retrieve.
+func (cm *Manager) RequestChunkAsync(x, y int) {
+	if !cm.asyncEnabled {
+		return
+	}
+
+	key := [2]int{x, y}
+
+	// Check if already loaded
+	cm.mu.RLock()
+	if _, ok := cm.loaded[key]; ok {
+		cm.mu.RUnlock()
+		return
+	}
+	cm.mu.RUnlock()
+
+	// Check if already pending
+	cm.pendingMu.Lock()
+	if cm.pending[key] {
+		cm.pendingMu.Unlock()
+		return
+	}
+	cm.pending[key] = true
+	cm.pendingMu.Unlock()
+
+	// Queue for generation
+	select {
+	case cm.workQueue <- chunkGenRequest{X: x, Y: y}:
+	default:
+		// Queue full, mark as not pending so it can be retried
+		cm.pendingMu.Lock()
+		delete(cm.pending, key)
+		cm.pendingMu.Unlock()
+	}
+}
+
+// GetChunkOrPlaceholder returns the chunk if loaded, or a placeholder if pending generation.
+// The placeholder is a flat, average-height chunk using the biome color.
+func (cm *Manager) GetChunkOrPlaceholder(x, y int) (*Chunk, bool) {
+	key := [2]int{x, y}
+
+	cm.mu.RLock()
+	if c, ok := cm.loaded[key]; ok {
+		cm.mu.RUnlock()
+		return c, true // true = real chunk
+	}
+	cm.mu.RUnlock()
+
+	// If async is enabled, request generation
+	if cm.asyncEnabled {
+		cm.RequestChunkAsync(x, y)
+	}
+
+	// Return a placeholder
+	return cm.createPlaceholderChunk(x, y), false // false = placeholder
+}
+
+// createPlaceholderChunk creates a minimal placeholder chunk for display while waiting.
+func (cm *Manager) createPlaceholderChunk(x, y int) *Chunk {
+	size := cm.ChunkSize
+	chunkSeed := mixChunkSeed(cm.Seed, x, y)
+
+	// Create flat heightmap at 0.5 (middle height)
+	heightMap := make([]float64, size*size)
+	elevationMap := make([]float64, size*size)
+	terrainTypes := make([]int, size*size)
+	biomeMap := make([]float64, size*size)
+
+	for i := range heightMap {
+		heightMap[i] = 0.5
+		elevationMap[i] = MaxElevation * 0.25 // Quarter elevation
+		terrainTypes[i] = TerrainFlat
+		biomeMap[i] = 0.5
+	}
+
+	return &Chunk{
+		X:            x,
+		Y:            y,
+		Size:         size,
+		Seed:         chunkSeed,
+		HeightMap:    heightMap,
+		ElevationMap: elevationMap,
+		TerrainTypes: terrainTypes,
+		BiomeMap:     biomeMap,
+		DetailSpawns: nil, // No details in placeholder
+	}
+}
+
+// IsChunkPending returns true if a chunk is queued for generation.
+func (cm *Manager) IsChunkPending(x, y int) bool {
+	cm.pendingMu.Lock()
+	defer cm.pendingMu.Unlock()
+	return cm.pending[[2]int{x, y}]
+}
+
+// IsChunkLoaded returns true if a chunk is loaded in the cache.
+func (cm *Manager) IsChunkLoaded(x, y int) bool {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	_, ok := cm.loaded[[2]int{x, y}]
+	return ok
 }
 
 // GetChunk returns the chunk at the given coordinates, loading it if needed.
@@ -411,7 +839,7 @@ func (cm *Manager) GetChunk(x, y int) *Chunk {
 	}
 
 	chunkSeed := mixChunkSeed(cm.Seed, x, y)
-	c := NewChunk(x, y, cm.ChunkSize, chunkSeed)
+	c := NewChunkWithNoiseType(x, y, cm.ChunkSize, chunkSeed, cm.NoiseType)
 	cm.loaded[key] = c
 	return c
 }
