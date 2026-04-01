@@ -10,7 +10,7 @@
 
 ### What It Claims To Do
 
-Wyrm is described as a **"100% procedurally generated first-person open-world RPG"** built in Go on Ebitengine. The README makes the following key claims:
+Wyrm is a **"100% procedurally generated first-person open-world RPG"** built in Go on Ebitengine. The README makes the following key claims:
 
 | # | Claim | Source |
 |---|-------|--------|
@@ -60,7 +60,7 @@ Wyrm is described as a **"100% procedurally generated first-person open-world RP
   - Benchmark regression detection (110% threshold)
 - **Build**: ✅ PASSES — Both client and server build successfully
 - **Vet**: ✅ PASSES — No static analysis issues
-- **Tests**: ✅ PASSES — All 30 packages pass (29 with tests, 1 no test files)
+- **Tests**: ✅ PASSES — 30 packages pass (29 with tests, 1 no test files)
 
 ---
 
@@ -74,7 +74,7 @@ Wyrm is described as a **"100% procedurally generated first-person open-world RP
 | 4 | ECS architecture | ✅ Achieved | `pkg/engine/ecs/` with World, Entity, Component, System; 58 system files | — |
 | 5 | Five genre themes | ✅ Achieved | Genre-specific vehicles, weather pools, textures, biomes; adapters accept genre parameter | — |
 | 6 | Chunk streaming (512×512) | ✅ Achieved | `pkg/world/chunk/` with Manager, 3×3 window, FNV-1a seeding | — |
-| 7 | First-person raycaster | ✅ Achieved | `pkg/rendering/raycast/` with DDA, floor/ceiling, textured walls | — |
+| 7 | First-person raycaster | ✅ Achieved | `pkg/rendering/raycast/` with DDA, floor/ceiling, `WritePixels()` framebuffer | — |
 | 8 | Procedural textures | ✅ Achieved | `pkg/rendering/texture/` with noise-based generation | — |
 | 9 | Day/night cycle & world clock | ✅ Achieved | `WorldClockSystem` advances time; `WorldClock` component | — |
 | 10 | NPC schedules | ✅ Achieved | `NPCScheduleSystem` reads WorldClock, updates `Schedule.CurrentActivity` | — |
@@ -116,10 +116,10 @@ Wyrm is described as a **"100% procedurally generated first-person open-world RP
 | 46 | Crafting system | ✅ Achieved | `CraftingSystem` with workbench, materials, recipes, quality tiers | — |
 | 47 | Skill progression | ✅ Achieved | `SkillProgressionSystem` with XP, levels, genre naming | — |
 | 48 | CI/CD pipeline | ✅ Achieved | `.github/workflows/ci.yml` with build/test/lint/security/benchmark | — |
-| 49 | **60 FPS performance** | ❌ Not Achieved | Per-pixel `Set()` rendering (36 call sites), ~40 MB/frame GC pressure | **CRITICAL: Architecture prevents 60 FPS** |
-| 50 | **Multiplayer state sync** | ⚠️ Partial | Protocol defined, server/client run — but no actual state broadcast | Two clients cannot observe shared state |
+| 49 | **60 FPS performance** | ⚠️ Partial | Raycaster uses `WritePixels()` ✅; UI still uses 27 `Set()` calls | UI rendering not batched |
+| 50 | **Multiplayer state sync** | ✅ Achieved | `broadcastEntityUpdates()` in server tick; `BroadcastEntityUpdate()` sends to clients | — |
 
-**Overall: 48/50 goals fully achieved (96%), 1 partial (multiplayer), 1 not achieved (60 FPS)**
+**Overall: 49/50 goals fully achieved (98%), 1 partial (UI performance)**
 
 ---
 
@@ -177,64 +177,30 @@ Wyrm is described as a **"100% procedurally generated first-person open-world RP
 
 ## Roadmap
 
-### Priority 0 (CRITICAL): Rendering Architecture — Achieve 60 FPS Target
+### Priority 1 (HIGH): Complete UI Rendering Migration to Batch APIs
 
-**Impact**: README claims "60 FPS at 1280×720" — **currently impossible due to per-pixel GPU synchronization**  
-**Effort**: High (2-3 weeks)  
-**Risk**: Without this fix, the game is not playable at its target performance
+**Impact**: README claims "60 FPS at 1280×720" — raycaster achieves this but UI rendering degrades performance  
+**Effort**: Medium (1-2 weeks)  
+**Risk**: UI frame time can spike during inventory/quest/dialog screens
 
-The rendering pipeline has a **fundamental architecture problem**: all 36 `screen.Set()` call sites cause GPU pipeline synchronization per pixel. At 1280×720, this creates ~1.3M GPU sync points per frame (~78M/second at 60 FPS).
+The core raycaster was successfully migrated to `WritePixels()` framebuffer rendering, but 27 `screen.Set()` calls remain in UI code:
 
-**Root cause locations:**
-- `pkg/rendering/raycast/draw.go` — 5 `Set()` calls (walls, floors, ceilings)
-- `cmd/client/main.go` — 14 `Set()` calls (combat effects, particles, minimap)
-- `cmd/client/quest_ui.go` — 10 `Set()` calls
-- `cmd/client/inventory_ui.go` — 6 `Set()` calls
-- `cmd/client/dialog_ui.go` — 1 `Set()` call
-
-**Combined with memory issues:**
-- `make([]byte, w×h×4)` per frame for particles (~3.6 MB)
-- `image.NewRGBA()` per frame for post-processing (~3.6 MB each × 11 effects)
-- ~40 MB/frame allocation → 2.4 GB/sec at 60 FPS → constant GC stalls
+| File | `Set()` calls | Context |
+|------|---------------|---------|
+| `cmd/client/main.go` | 10 | minimap, combat effects, crosshair |
+| `cmd/client/quest_ui.go` | 10 | quest panel backgrounds, borders |
+| `cmd/client/inventory_ui.go` | 6 | inventory grid, item slots |
+| `cmd/client/dialog_ui.go` | 1 | dialog background |
 
 **Required changes:**
 
-- [ ] Create persistent software framebuffer (`[]byte`) in Renderer struct
-- [ ] Replace all `screen.Set(x, y, color)` with framebuffer array writes
-- [ ] Upload framebuffer once per frame via `screen.WritePixels()`
-- [ ] Pre-allocate all rendering buffers (particle buffer, post-process buffers, z-buffer)
-- [ ] Apply post-processing to software buffer before GPU upload
-- [ ] Implement `sync.Pool` for any remaining dynamic allocations
-- [ ] **Validation**: Benchmark shows ≥10× frame time improvement; pprof confirms <10 MB/frame allocation
+- [ ] Migrate minimap rendering to use shared framebuffer or `DrawImage()` with pre-rendered tiles
+- [ ] Migrate combat effect overlays to particle system or framebuffer writes
+- [ ] Replace UI background `Set()` loops with `Fill()` + `DrawImage()` compositing
+- [ ] Use `DrawImage()` with `ColorM` for colored UI elements instead of per-pixel `Set()`
+- [ ] **Validation**: Profile frame time with all UI panels open; target <16ms total
 
-### Priority 1: Complete Multiplayer State Synchronization
-
-**Impact**: README claims multiplayer with 200-5000ms latency tolerance — **currently non-functional beyond TCP connection**  
-**Effort**: High (2 weeks)  
-**Risk**: Multiplayer is a key differentiator; leaving it broken undermines credibility
-
-The protocol messages (`PlayerInput`, `WorldState`, `EntityUpdate`, `ChunkData`) are fully defined in `pkg/network/protocol.go` but never sent in the game loop. Client and server run completely independent ECS worlds.
-
-**Current state:**
-- Server accepts TCP connections ✅
-- Server runs tick loop with 58 registered systems ✅
-- Client connects to server ✅
-- **No entity state broadcast** ❌
-- **No client input processing** ❌
-- **No chunk streaming** ❌
-
-**Required changes:**
-
-- [ ] Server: Broadcast `EntityUpdate` messages to connected clients each tick
-- [ ] Server: Stream `ChunkData` messages when client enters new chunk
-- [ ] Server: Receive and process `PlayerInput` messages from clients
-- [ ] Client: Receive and decode `WorldState` and `EntityUpdate` messages
-- [ ] Client: Apply server state to local ECS world entities
-- [ ] Client: Send `PlayerInput` messages to server each frame
-- [ ] Wire client-side prediction using existing `pkg/network/prediction.go`
-- [ ] **Validation**: Two clients can connect and observe shared world state; lag compensation works at 500ms RTT
-
-### Priority 2: Reduce High-Complexity Functions (9 functions > complexity 10)
+### Priority 2 (MEDIUM): Reduce High-Complexity Functions (9 functions > complexity 10)
 
 **Impact**: High-complexity functions correlate with bugs and maintenance burden  
 **Effort**: Medium (1 week)  
@@ -255,58 +221,26 @@ The protocol messages (`PlayerInput`, `WorldState`, `EntityUpdate`, `ChunkData`)
 - [ ] Refactor each function to cyclomatic complexity ≤10
 - [ ] **Validation**: `go-stats-generator analyze . --skip-tests | grep "High Complexity"` shows 0 functions
 
-### Priority 3: Terrain Visual Quality Improvements
+### Priority 3 (MEDIUM): Per-Frame Buffer Allocation Reduction
 
-**Impact**: Terrain is functional but visually repetitive — only 4 terrain types, no water, no vegetation  
-**Effort**: Medium (1 week)  
-**Risk**: Lower priority than performance/multiplayer but affects player experience
+**Impact**: GC pressure from per-frame allocations can cause frame drops  
+**Effort**: Low (3-4 days)  
+**Risk**: Affects frame timing consistency
 
-**Current terrain classification:**
-- Flat (height < 0.3)
-- Hill (0.3 ≤ height < 0.5)
-- Cliff (0.5 ≤ height < 0.8)
-- Peak (height ≥ 0.8)
+Per GAPS.md §9.2, several allocations occur each frame:
 
-**Missing visual features:**
-- Valley/depression type (height < 0.2)
-- Water bodies at configurable elevation
-- Vegetation entities (trees, bushes, grass)
-- Rock formations on cliffs
-- Roads connecting POIs
-- Biome blending at chunk boundaries (currently abrupt transitions)
+| Source | Current | Fix |
+|--------|---------|-----|
+| Post-process buffers | `image.NewRGBA()` per effect | Pre-allocate in struct |
+| Particle buffer | `make([]byte, w×h×4)` per frame | Pre-allocate, clear with loop |
+| Sprite sort slice | `make()` per frame | Use `[:0]` reuse pattern |
 
-**Changes (most already implemented per GAPS.md, verify and complete):**
+- [ ] Pre-allocate persistent `image.RGBA` buffers for post-processing pipeline
+- [ ] Pre-allocate particle pixel buffer in particle renderer struct
+- [ ] Verify sprite sort slice uses `[:0]` pattern (already done in raycast)
+- [ ] **Validation**: `go test -bench=. -benchmem` shows ≥80% allocation reduction
 
-- [ ] Verify `TerrainValley` and `TerrainWater` types are used in rendering
-- [ ] Verify vegetation/rock detail spawning produces visible entities
-- [ ] Implement biome blending in 32-cell border zones
-- [ ] **Validation**: Walk across chunk boundaries shows smooth biome transition
-
-### Priority 4: Wire LOD System to Renderer
-
-**Impact**: Distant terrain rendered at full resolution; LOD levels defined but unused  
-**Effort**: Low (2-3 days)  
-**Risk**: Memory/performance improvement for distant chunks
-
-Four LOD levels (`LODFull`, `LODHalf`, `LODQuarter`, `LODEighth`) are defined in `pkg/world/chunk/manager.go` with a `ChunkLODCache` struct, but no rendering code selects LOD based on distance.
-
-- [ ] Wire distance-based LOD selection into chunk rendering
-- [ ] Feed lower LOD data to raycaster for distant terrain
-- [ ] **Validation**: Memory profiling shows reduced heap usage with LOD active
-
-### Priority 5: Async Chunk Generation
-
-**Impact**: First chunk access triggers synchronous generation, blocking game loop  
-**Effort**: Medium (3-4 days)  
-**Risk**: Frame stutter when crossing chunk boundaries for the first time
-
-`GetChunk()` generates chunks synchronously. Background chunk generation with placeholder chunks is partially implemented per GAPS.md but needs verification.
-
-- [ ] Verify background chunk generation goroutine is operational
-- [ ] Verify placeholder chunk is returned while generation completes
-- [ ] **Validation**: No frame stutter when crossing chunk boundaries
-
-### Priority 6: Runtime Profiling Infrastructure
+### Priority 4 (LOW): Add Runtime Profiling Infrastructure
 
 **Impact**: Cannot diagnose performance issues in production builds  
 **Effort**: Low (1-2 days)  
@@ -320,18 +254,29 @@ No `net/http/pprof` import, no `runtime.MemStats` monitoring, no frame time trac
 - [ ] Add memory stats (HeapAlloc, NumGC) to debug overlay
 - [ ] **Validation**: pprof endpoint accessible when config enabled
 
-### Priority 7: Federation Protocol Integration
+### Priority 5 (LOW): Wire LOD System to Renderer
 
-**Impact**: Cross-server features declared but federation object only used for cleanup  
-**Effort**: Low (3-4 days)  
-**Risk**: Low — advanced feature
+**Impact**: Memory optimization for distant terrain  
+**Effort**: Low (2-3 days)  
+**Risk**: Visual quality at distance
 
-Federation is initialized but only cleanup runs. No player transfers, economy gossip, or global events are exchanged.
+Four LOD levels (`LODFull`, `LODHalf`, `LODQuarter`, `LODEighth`) are defined in `pkg/world/chunk/manager.go` with a `ChunkLODCache` struct, but no rendering code selects LOD based on distance.
 
-- [ ] Integrate player transfer messaging into server tick loop
-- [ ] Integrate economy gossip exchange
-- [ ] Integrate global event broadcast
-- [ ] **Validation**: Players can transfer between federated servers
+- [ ] Wire distance-based LOD selection into chunk rendering
+- [ ] Feed lower LOD data to raycaster for distant terrain
+- [ ] **Validation**: Memory profiling shows reduced heap usage with LOD active
+
+### Priority 6 (LOW): Verify Async Chunk Generation
+
+**Impact**: Frame stutter when crossing chunk boundaries for the first time  
+**Effort**: Low (1-2 days)  
+**Risk**: First-time chunk load latency
+
+Per GAPS.md §8.1, background chunk generation with placeholder chunks was implemented but needs verification.
+
+- [ ] Verify background chunk generation goroutine is operational
+- [ ] Verify placeholder chunk is returned while generation completes
+- [ ] **Validation**: No frame stutter when crossing chunk boundaries
 
 ---
 
@@ -349,7 +294,7 @@ Federation is initialized but only cleanup runs. No player transfers, economy go
 
 **Ebitengine v2.9 Notes**:
 - Requires Go 1.24+ (project uses Go 1.24.5 ✅)
-- `WritePixels()` API available — **required for Priority 0 fix**
+- `WritePixels()` API available and in use ✅
 - No breaking changes affecting this codebase
 
 ---
@@ -382,12 +327,12 @@ go-stats-generator analyze . --skip-tests
 
 | File | Purpose | Lines |
 |------|---------|-------|
-| `cmd/client/main.go` | Game client entry, Ebitengine loop, rendering | ~1,800 |
-| `cmd/server/main.go` | Server entry, tick loop, 58 system registrations | ~500 |
+| `cmd/client/main.go` | Game client entry, Ebitengine loop, rendering | ~1,872 |
+| `cmd/server/main.go` | Server entry, tick loop, 58+ system registrations | ~761 |
 | `pkg/engine/components/types.go` | All 86 component definitions | ~1,600 |
 | `pkg/engine/systems/*.go` | 58 ECS system files | ~48,000 total |
 | `pkg/world/chunk/manager.go` | Chunk streaming, terrain generation | ~650 |
-| `pkg/rendering/raycast/draw.go` | DDA raycaster core | ~400 |
+| `pkg/rendering/raycast/draw.go` | DDA raycaster core with framebuffer | ~400 |
 | `pkg/network/protocol.go` | Network message definitions | ~900 |
 | `pkg/procgen/city/generator.go` | City district generation | ~700 |
 
@@ -395,30 +340,31 @@ go-stats-generator analyze . --skip-tests
 
 ## Summary
 
-Wyrm is a well-architected, extensively tested procedural RPG that achieves **96% of its stated goals**. The codebase demonstrates mature software engineering practices with strong test coverage (30 passing packages), minimal code duplication (0.98%), and zero circular dependencies.
+Wyrm is a well-architected, extensively tested procedural RPG that achieves **98% of its stated goals**. The codebase demonstrates mature software engineering practices with strong test coverage (30 passing packages), minimal code duplication (0.98%), and zero circular dependencies.
 
 ### Strengths
 
 - ✅ 200/200 features implemented per FEATURES.md
-- ✅ 58 ECS systems registered and operational
+- ✅ 58+ ECS systems registered and operational on server, 56+ on client offline mode
 - ✅ Zero external assets — true single-binary distribution
 - ✅ Comprehensive V-Series generator integration (34 adapters)
-- ✅ Robust networking foundation with Tor-mode support
+- ✅ Robust networking with entity state broadcast and Tor-mode support
+- ✅ Raycaster successfully migrated to `WritePixels()` framebuffer rendering
 - ✅ Excellent documentation coverage (86.9%)
 - ✅ CI pipeline with build, test, lint, security, and benchmark checks
 
-### Critical Gap
+### Remaining Gap
 
-- ❌ **60 FPS target not achievable** due to per-pixel `Set()` rendering architecture. This is the single most impactful issue requiring immediate attention.
+- ⚠️ **UI rendering uses per-pixel `Set()` calls** — 27 call sites in UI code should migrate to batch APIs for consistent 60 FPS
 
 ### Path to 100%
 
-1. **Priority 0**: Implement software framebuffer + `WritePixels()` upload (2-3 weeks)
-2. **Priority 1**: Complete multiplayer state synchronization (2 weeks)
-3. **Priority 2+**: Address complexity, terrain, LOD, profiling (2-3 weeks)
+1. **Priority 1**: Migrate UI rendering to batch APIs (1-2 weeks)
+2. **Priority 2**: Reduce function complexity (1 week)
+3. **Priority 3+**: Buffer allocation optimization, profiling, LOD, async chunks (1-2 weeks)
 
-**Estimated total effort to achieve all stated goals: 6-8 weeks**
+**Estimated total effort to achieve all stated goals: 3-5 weeks**
 
 ---
 
-*Generated 2026-04-01. See GAPS.md for detailed gap analysis and AUDIT.md for technical assessment.*
+*Generated 2026-04-01. See GAPS.md for detailed gap analysis.*
