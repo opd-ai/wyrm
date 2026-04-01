@@ -29,10 +29,33 @@ func main() {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	// Initialize persistence manager
+	// Initialize persistence and load/create world
 	pm := initializePersistence(cfg)
+	world, cm, loadedFromSave := initializeWorld(cfg, pm)
 
-	// Try to load existing save
+	// Initialize all game systems
+	fps := initializeFactions(world, cfg)
+	initializeWorldContent(world, cfg, fps, loadedFromSave)
+	initializeManagers(world, cfg)
+	registerServerSystems(world, cm, cfg, fps)
+	initializeQuestContent(world, cfg, loadedFromSave)
+
+	// Initialize federation if enabled
+	fed := initializeFederationIfEnabled(cfg)
+
+	// Start network server
+	srv := startNetworkServer(cfg, world, pm)
+	defer srv.Stop()
+
+	log.Printf("server listening on %s (tick_rate=%d)", cfg.Server.Address, cfg.Server.TickRate)
+	if cfg.Federation.Enabled {
+		log.Printf("federation enabled: node_id=%s, peers=%v", cfg.Federation.NodeID, cfg.Federation.Peers)
+	}
+	runServerLoop(world, cfg, srv, fed, pm, cm)
+}
+
+// initializeWorld creates or loads the game world.
+func initializeWorld(cfg *config.Config, pm *persist.Persister) (*ecs.World, *chunk.Manager, bool) {
 	existingSave, err := pm.Load(cfg.World.Seed)
 	if err != nil {
 		log.Printf("warning: failed to load save: %v", err)
@@ -42,15 +65,17 @@ func main() {
 	world := ecs.NewWorld()
 	cm := chunk.NewManager(cfg.World.ChunkSize, cfg.World.Seed)
 
-	// If we loaded a save, apply it; otherwise generate new world
 	if loadedFromSave {
 		log.Printf("loading world from save (seed=%d, timestamp=%v)", existingSave.Seed, existingSave.Timestamp)
 		loadWorldFromSnapshot(world, existingSave)
 	} else {
 		log.Printf("generating new world (seed=%d, genre=%s)", cfg.World.Seed, cfg.Genre)
 	}
+	return world, cm, loadedFromSave
+}
 
-	fps := initializeFactions(world, cfg)
+// initializeWorldContent generates all world content if not loaded from save.
+func initializeWorldContent(world *ecs.World, cfg *config.Config, fps *systems.FactionPoliticsSystem, loadedFromSave bool) {
 	if !loadedFromSave {
 		initializeCity(world, cfg, fps)
 		initializeDungeons(world, cfg)
@@ -64,42 +89,48 @@ func main() {
 		initializeAudioSources(world, cfg)
 	}
 	initializeWorldClock(world)
+}
 
-	// Initialize world management systems
+// initializeManagers creates all game managers.
+func initializeManagers(world *ecs.World, cfg *config.Config) {
 	hm := initializeHousing(cfg)
 	zm := initializePvP(cfg)
 	dm := initializeDialogManager(cfg)
 	compMgr := initializeCompanionManager(world, cfg)
 
-	// Store managers for access during server loop (using world context or package-level vars)
-	_ = hm      // Housing manager available for player housing operations
-	_ = zm      // PvP zone manager available for combat resolution
-	_ = dm      // Dialog manager available for NPC conversations
-	_ = compMgr // Companion manager available for companion AI
+	// Managers available for server loop operations
+	_ = hm      // Housing manager
+	_ = zm      // PvP zone manager
+	_ = dm      // Dialog manager
+	_ = compMgr // Companion manager
+}
 
-	registerServerSystems(world, cm, cfg, fps)
-
-	// Initialize quests after systems are registered (needs QuestSystem)
+// initializeQuestContent initializes quests and recipes after systems are registered.
+func initializeQuestContent(world *ecs.World, cfg *config.Config, loadedFromSave bool) {
 	qs := findQuestSystem(world)
 	if qs != nil && !loadedFromSave {
 		initializeQuests(world, cfg, qs)
 		initializeRecipes(world, cfg)
 	}
+}
 
-	// Initialize federation if enabled
-	var fed *federation.Federation
+// initializeFederationIfEnabled creates the federation if enabled in config.
+func initializeFederationIfEnabled(cfg *config.Config) *federation.Federation {
 	if cfg.Federation.Enabled {
-		fed = initializeFederation(cfg)
+		return initializeFederation(cfg)
 	}
+	return nil
+}
 
+// startNetworkServer starts the network server and sets up save/load handlers.
+func startNetworkServer(cfg *config.Config, world *ecs.World, pm *persist.Persister) *network.Server {
 	srv := network.NewServer(cfg.Server.Address)
 	if err := srv.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "server start: %v\n", err)
 		os.Exit(1)
 	}
-	defer srv.Stop()
 
-	// Set up save/load handlers for client requests (package-level handlers)
+	// Set up save/load handlers for client requests
 	network.SetSaveHandler(func() error {
 		snapshot := createWorldSnapshot(world, cfg)
 		if err := pm.Save(snapshot); err != nil {
@@ -118,17 +149,11 @@ func main() {
 		if snapshot == nil {
 			return fmt.Errorf("no save file found")
 		}
-		// Note: Full world restoration would require re-initializing entities
-		// For now, just acknowledge the load request
 		log.Printf("client load request: found save with %d entities", len(snapshot.Entities))
 		return nil
 	})
 
-	log.Printf("server listening on %s (tick_rate=%d)", cfg.Server.Address, cfg.Server.TickRate)
-	if cfg.Federation.Enabled {
-		log.Printf("federation enabled: node_id=%s, peers=%v", cfg.Federation.NodeID, cfg.Federation.Peers)
-	}
-	runServerLoop(world, cfg, srv, fed, pm, cm)
+	return srv
 }
 
 // initializeCity generates the city and spawns district entities.
