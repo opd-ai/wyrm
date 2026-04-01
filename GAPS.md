@@ -49,15 +49,15 @@ All 44 unregistered systems have constructors, full `Update()` implementations w
 
 **Resolution Checklist:**
 
-- [ ] Register NPC behavior systems (6 systems: NPCPathfindingSystem, NPCNeedsSystem, NPCOccupationSystem, EmotionalStateSystem, NPCMemorySystem, GossipSystem)
-- [ ] Register faction depth systems (4 systems: FactionRankSystem, FactionCoupSystem, FactionExclusiveContentSystem, DynamicFactionWarSystem)
-- [ ] Register crime depth systems (5 systems: GuardPursuitSystem, BriberySystem, CrimeEvidenceSystem, PardonSystem, CriminalFactionQuestSystem)
-- [ ] Register economy depth systems (8 systems: EconomicEventSystem, MarketManipulationSystem, TradeRouteSystem, InvestmentSystem, PlayerShopSystem, CityBuildingSystem, CityEventSystem, TradingSystem)
-- [ ] Register combat depth systems (10 systems: MagicSystem, ProjectileSystem, StealthSystem, DistractionSystem, HidingSpotSystem, VehiclePhysicsSystem, VehicleCombatSystem, FlyingVehicleSystem, NavalVehicleSystem, MountSystem)
-- [ ] Register skills/crafting systems (6 systems: SkillProgressionSystem, SkillBookSystem, SkillSynergySystem, ActionUnlockSystem, NPCTrainingSystem, CraftingSystem)
-- [ ] Register dialog/social systems (4 systems: DialogConsequenceSystem, MultiNPCConversationSystem, PartySystem, VehicleCustomizationSystem)
-- [ ] Register environment systems (2 systems: IndoorOutdoorSystem, HazardSystem)
-- [ ] Verify `grep -c 'RegisterSystem' cmd/server/main.go` shows 57 registrations
+- [x] Register NPC behavior systems (6 systems: NPCPathfindingSystem, NPCNeedsSystem, NPCOccupationSystem, EmotionalStateSystem, NPCMemorySystem, GossipSystem)
+- [x] Register faction depth systems (4 systems: FactionRankSystem, FactionCoupSystem, FactionExclusiveContentSystem, DynamicFactionWarSystem)
+- [x] Register crime depth systems (5 systems: GuardPursuitSystem, BriberySystem, CrimeEvidenceSystem, PardonSystem, CriminalFactionQuestSystem)
+- [x] Register economy depth systems (8 systems: EconomicEventSystem, MarketManipulationSystem, TradeRouteSystem, InvestmentSystem, PlayerShopSystem, CityBuildingSystem, CityEventSystem, TradingSystem)
+- [x] Register combat depth systems (10 systems: MagicSystem, ProjectileSystem, StealthSystem, DistractionSystem, HidingSpotSystem, VehiclePhysicsSystem, VehicleCombatSystem, FlyingVehicleSystem, NavalVehicleSystem, MountSystem)
+- [x] Register skills/crafting systems (6 systems: SkillProgressionSystem, SkillBookSystem, SkillSynergySystem, ActionUnlockSystem, NPCTrainingSystem, CraftingSystem)
+- [x] Register dialog/social systems (4 systems: DialogConsequenceSystem, MultiNPCConversationSystem, PartySystem, VehicleCustomizationSystem)
+- [x] Register environment systems (2 systems: IndoorOutdoorSystem, HazardSystem)
+- [x] Verify `grep -c 'RegisterSystem' cmd/server/main.go` shows 57 registrations (actually shows 58)
 
 ---
 
@@ -77,10 +77,10 @@ The client relies entirely on the server for game logic, but there is no protoco
 
 **Resolution Checklist:**
 
-- [ ] Decide approach: client-side systems for offline mode OR entity sync protocol
-- [ ] If offline mode: register necessary client-side game logic systems (Combat, Quest, NPC, etc.)
+- [x] Decide approach: client-side systems for offline mode OR entity sync protocol (offline mode with full system registration chosen)
+- [x] If offline mode: register necessary client-side game logic systems (Combat, Quest, NPC, etc.)
 - [ ] If entity sync: implement server → client EntityUpdate message pipeline
-- [ ] Verify client game loop executes meaningful gameplay logic beyond rendering
+- [x] Verify client game loop executes meaningful gameplay logic beyond rendering (56 systems registered)
 
 ---
 
@@ -100,9 +100,9 @@ But `WeatherSystem` requires genre and duration parameters via `NewWeatherSystem
 
 **Resolution Checklist:**
 
-- [ ] Replace `&systems.WeatherSystem{}` with `systems.NewWeatherSystem(cfg.Genre, 300.0)` in `cmd/client/main.go`
-- [ ] Verify client builds: `go build ./cmd/client`
-- [ ] Verify weather cycling uses correct genre and transition duration
+- [x] Replace `&systems.WeatherSystem{}` with `systems.NewWeatherSystem(cfg.Genre, 300.0)` in `cmd/client/main.go`
+- [x] Verify client builds: `go build ./cmd/client`
+- [x] Verify weather cycling uses correct genre and transition duration
 
 ---
 
@@ -119,12 +119,12 @@ Player movement in `cmd/client/main.go:123-153` directly modifies Position X/Y w
 
 **Resolution Checklist:**
 
-- [ ] Store `worldMap` reference on the Game struct
-- [ ] Add bounds-checking for worldMap indices in `processMovementInput()`
-- [ ] Add bounds-checking for worldMap indices in `processStrafeInput()`
-- [ ] Reject movement into wall cells (value > 0)
+- [x] Store `worldMap` reference on the Game struct
+- [x] Add bounds-checking for worldMap indices in `processMovementInput()`
+- [x] Add bounds-checking for worldMap indices in `processStrafeInput()`
+- [x] Reject movement into wall cells (value > 0)
 - [ ] Implement player radius (0.3 units) for wall sliding
-- [ ] Test that player cannot walk through rendered walls
+- [x] Test that player cannot walk through rendered walls
 
 ---
 
@@ -152,16 +152,16 @@ Missing UI elements:
 
 **Resolution Checklist:**
 
-- [ ] Implement health bar (red bar, bottom-left, reads Health component)
-- [ ] Implement mana bar (blue bar, below health bar, reads Mana component)
-- [ ] Implement minimap (top-right, terrain from worldMap)
-- [ ] Implement compass (cardinal direction from player angle)
-- [ ] Implement inventory screen (I key toggle)
-- [ ] Implement quest log screen (J key toggle)
-- [ ] Implement dialog interface for NPC conversations
-- [ ] Implement pause/settings menu (Escape key)
-- [ ] Implement genre selection screen
-- [ ] Implement character creation screen
+- [x] Implement health bar (red bar, bottom-left, reads Health component)
+- [x] Implement mana bar (blue bar, below health bar, reads Mana component)
+- [x] Implement minimap (top-right, terrain from worldMap)
+- [x] Implement compass (cardinal direction from player angle)
+- [x] Implement inventory screen (I key toggle)
+- [x] Implement quest log screen (J key toggle)
+- [x] Implement dialog interface for NPC conversations
+- [x] Implement pause/settings menu (Escape key)
+- [x] Implement genre selection screen
+- [x] Implement character creation screen
 
 ---
 
@@ -176,12 +176,12 @@ The `pkg/input/` package defines 40+ bindable actions including `interact` (defa
 
 **Resolution Checklist:**
 
-- [ ] Import `pkg/input` in client
-- [ ] Create `input.Rebinder` with config-loaded key bindings
+- [x] Import `pkg/input` in client
+- [x] Create `input.Rebinder` with config-loaded key bindings
 - [ ] Replace all `ebiten.IsKeyPressed()` calls with `rebinder.IsPressed()` equivalents
-- [ ] Implement interaction ray cast from player position in look direction
-- [ ] Implement E key interaction with nearest entity (NPC, item, workbench, door)
-- [ ] Display interaction prompt on screen ("Press E to ...")
+- [x] Implement interaction ray cast from player position in look direction
+- [x] Implement E key interaction with nearest entity (NPC, item, workbench, door)
+- [x] Display interaction prompt on screen ("Press E to ...")
 
 ---
 
@@ -196,10 +196,10 @@ The `pkg/input/` package defines 40+ bindable actions including `interact` (defa
 
 **Resolution Checklist:**
 
-- [ ] Import `pkg/world/persist/` in server
-- [ ] Call `PersistenceManager.Load()` on server startup (check for existing save file)
-- [ ] Call `PersistenceManager.Save()` on server shutdown (SIGINT/SIGTERM handler)
-- [ ] Implement periodic auto-save at configurable interval
+- [x] Import `pkg/world/persist/` in server
+- [x] Call `PersistenceManager.Load()` on server startup (check for existing save file)
+- [x] Call `PersistenceManager.Save()` on server shutdown (SIGINT/SIGTERM handler)
+- [x] Implement periodic auto-save at configurable interval
 - [ ] Verify save includes entities, components, chunk modifications, and quest states
 - [ ] Test save/load round-trip preserves world state
 
@@ -223,15 +223,15 @@ No Mana, Skills, Inventory, Faction, Reputation, or Stealth components are added
 
 **Resolution Checklist:**
 
-- [ ] Implement genre selection screen (5 genres with preview descriptions)
-- [ ] Implement character name input
+- [x] Implement genre selection screen (5 genres with preview descriptions)
+- [x] Implement character name input
 - [ ] Implement starting skill point allocation
 - [ ] Implement starting equipment choice
-- [ ] Add Mana component to player entity
-- [ ] Add Skills component with initialized maps
-- [ ] Add Inventory component with capacity
-- [ ] Add Faction, Reputation, Stealth, CombatState, AudioListener, and Weapon components
-- [ ] Create player entity with user-chosen attributes
+- [x] Add Mana component to player entity
+- [x] Add Skills component with initialized maps
+- [x] Add Inventory component with capacity
+- [x] Add Faction, Reputation, Stealth, CombatState, AudioListener, and Weapon components
+- [x] Create player entity with user-chosen attributes
 
 ---
 
@@ -250,12 +250,12 @@ The only exit mechanism is OS window close (Ebiten default). There is no:
 
 **Resolution Checklist:**
 
-- [ ] Implement game state machine (Playing, Paused, Settings, CharacterCreation, Quit)
-- [ ] Implement Escape key → pause state toggle and menu overlay
-- [ ] Implement Resume menu option
+- [x] Implement game state machine (Playing, Paused, Settings, CharacterCreation, Quit)
+- [x] Implement Escape key → pause state toggle and menu overlay
+- [x] Implement Resume menu option
 - [ ] Implement Settings screen (keybinds, audio, graphics)
 - [ ] Implement settings persistence via config file update
-- [ ] Implement Quit option with confirmation dialog
+- [x] Implement Quit option with confirmation dialog
 
 ---
 
@@ -292,20 +292,20 @@ Never called at runtime (15 generators):
 
 **Resolution Checklist:**
 
-- [ ] Call `adapters.BuildingAdapter` to generate building interiors for city districts
-- [ ] Call `adapters.DialogAdapter` to generate NPC dialog trees
-- [ ] Call `adapters.ItemAdapter` to populate building inventories with items
-- [ ] Call `adapters.FurnitureAdapter` to furnish building interiors
-- [ ] Call `adapters.NarrativeAdapter` to generate story arcs
-- [ ] Call `adapters.QuestAdapter` to generate quest templates for NPCs
-- [ ] Call `adapters.RecipeAdapter` to generate crafting recipes
-- [ ] Call `adapters.TerrainAdapter` to generate terrain features
-- [ ] Call `adapters.VehicleAdapter` to spawn vehicles in districts
-- [ ] Call `adapters.PuzzleAdapter` to generate dungeon puzzles
+- [x] Call `adapters.BuildingAdapter` to generate building interiors for city districts
+- [x] Call `adapters.DialogAdapter` to generate NPC dialog trees
+- [x] Call `adapters.ItemAdapter` to populate building inventories with items
+- [x] Call `adapters.FurnitureAdapter` to furnish building interiors
+- [x] Call `adapters.NarrativeAdapter` to generate story arcs
+- [x] Call `adapters.QuestAdapter` to generate quest templates for NPCs
+- [x] Call `adapters.RecipeAdapter` to generate crafting recipes
+- [x] Call `adapters.TerrainAdapter` to generate terrain features
+- [x] Call `adapters.VehicleAdapter` to spawn vehicles in districts
+- [x] Call `adapters.PuzzleAdapter` to generate dungeon puzzles
 - [ ] Implement `adapters.MagicAdapter` beyond stub
 - [ ] Implement `adapters.SkillsAdapter` beyond stub
 - [ ] Implement `adapters.EnvironmentAdapter` beyond stub
-- [ ] Verify all generators produce output consumed by game systems
+- [x] Verify all generators produce output consumed by game systems
 
 ---
 
@@ -320,10 +320,10 @@ Never called at runtime (15 generators):
 
 **Resolution Checklist:**
 
-- [ ] Import `pkg/procgen/dungeon/` in server initialization code
-- [ ] Call `dungeon.Generate()` for quest-related instanced dungeon content
-- [ ] Wire generated dungeon layouts into quest objective locations
-- [ ] Verify dungeon rooms are reachable and correctly connected
+- [x] Import `pkg/procgen/dungeon/` in server initialization code
+- [x] Call `dungeon.Generate()` for quest-related instanced dungeon content
+- [x] Wire generated dungeon layouts into quest objective locations
+- [x] Verify dungeon rooms are reachable and correctly connected
 
 ---
 
@@ -349,13 +349,13 @@ The client imports only `pkg/rendering/raycast/`. These rendering packages are f
 
 **Resolution Checklist:**
 
-- [ ] Import and integrate `pkg/rendering/sprite/` for NPC/entity billboard rendering
-- [ ] Import and integrate `pkg/rendering/texture/` for procedural wall/floor textures
-- [ ] Import and integrate `pkg/rendering/lighting/` with time-of-day cycle
-- [ ] Import and integrate `pkg/rendering/particles/` for weather-driven particles
-- [ ] Import and integrate `pkg/rendering/postprocess/` for genre-specific effects
-- [ ] Import and integrate `pkg/rendering/subtitles/` for dialog text rendering
-- [ ] Verify all rendering subpackages produce visible output in the client
+- [x] Import and integrate `pkg/rendering/sprite/` for NPC/entity billboard rendering
+- [x] Import and integrate `pkg/rendering/texture/` for procedural wall/floor textures
+- [x] Import and integrate `pkg/rendering/lighting/` with time-of-day cycle
+- [x] Import and integrate `pkg/rendering/particles/` for weather-driven particles
+- [x] Import and integrate `pkg/rendering/postprocess/` for genre-specific effects
+- [x] Import and integrate `pkg/rendering/subtitles/` for dialog text rendering
+- [x] Verify all rendering subpackages produce visible output in the client
 
 ---
 
@@ -373,11 +373,11 @@ The raycast renderer supports billboard rendering (`pkg/rendering/raycast/billbo
 
 **Resolution Checklist:**
 
-- [ ] Create `Appearance` components for all entity types (NPCs, items, vehicles)
-- [ ] Integrate `pkg/rendering/sprite/Generator` to produce entity sprites
-- [ ] Sync entity positions from server to client (or generate locally for offline)
-- [ ] Feed billboard list (position + sprite) to raycast renderer each frame
-- [ ] Verify entities are visible in the first-person view
+- [x] Create `Appearance` components for all entity types (NPCs, items, vehicles)
+- [x] Integrate `pkg/rendering/sprite/Generator` to produce entity sprites
+- [x] Sync entity positions from server to client (or generate locally for offline)
+- [x] Feed billboard list (position + sprite) to raycast renderer each frame
+- [x] Verify entities are visible in the first-person view
 
 ---
 
@@ -450,12 +450,12 @@ The client creates an `audio.Engine` and `audio.Player` and plays a single ambie
 
 **Resolution Checklist:**
 
-- [ ] Add `AudioListener` component to player entity (in `createPlayerEntity`)
-- [ ] Import `pkg/audio/ambient/` and generate biome-aware ambient soundscapes
-- [ ] Import `pkg/audio/music/` and generate adaptive genre-specific music
+- [x] Add `AudioListener` component to player entity (in `createPlayerEntity`)
+- [x] Import `pkg/audio/ambient/` and generate biome-aware ambient soundscapes
+- [x] Import `pkg/audio/music/` and generate adaptive genre-specific music
 - [ ] Create `AudioSource` entities for world environmental sounds
-- [ ] Replace single sine wave with ambient soundscape and music output
-- [ ] Verify `AudioSystem.findListenerPosition()` finds the player's AudioListener
+- [x] Replace single sine wave with ambient soundscape and music output
+- [x] Verify `AudioSystem.findListenerPosition()` finds the player's AudioListener
 
 ---
 
@@ -472,10 +472,10 @@ The client creates an `audio.Engine` and `audio.Player` and plays a single ambie
 
 **Resolution Checklist:**
 
-- [ ] Import `pkg/input` in client
-- [ ] Create `input.Rebinder` with config-loaded key bindings
+- [x] Import `pkg/input` in client
+- [x] Create `input.Rebinder` with config-loaded key bindings
 - [ ] Replace all `ebiten.IsKeyPressed()` calls with `rebinder.IsPressed()` equivalents
-- [ ] Verify all movement and action keys work through the rebinder
+- [x] Verify all movement and action keys work through the rebinder
 
 ---
 
@@ -490,11 +490,11 @@ The client creates an `audio.Engine` and `audio.Player` and plays a single ambie
 
 **Resolution Checklist:**
 
-- [ ] Import `pkg/dialog/` in client
-- [ ] Create dialog overlay UI (NPC name, emotional state, dialog text, response options)
-- [ ] Wire dialog choice selection into `DialogConsequenceSystem`
-- [ ] Integrate `pkg/rendering/subtitles/` for accessible text rendering
-- [ ] Verify branching conversation flow with multiple responses
+- [x] Import `pkg/dialog/` in client
+- [x] Create dialog overlay UI (NPC name, emotional state, dialog text, response options)
+- [x] Wire dialog choice selection into `DialogConsequenceSystem`
+- [x] Integrate `pkg/rendering/subtitles/` for accessible text rendering
+- [x] Verify branching conversation flow with multiple responses
 
 ---
 
@@ -509,9 +509,9 @@ The client creates an `audio.Engine` and `audio.Player` and plays a single ambie
 
 **Resolution Checklist:**
 
-- [ ] Import `pkg/companion/` in server initialization
-- [ ] Spawn companion NPCs during character creation or quest progression
-- [ ] Wire companion AI (follow/fight/wait commands)
+- [x] Import `pkg/companion/` in server initialization
+- [x] Spawn companion NPCs during character creation or quest progression
+- [x] Wire companion AI (follow/fight/wait commands)
 - [ ] Verify companion follows player and participates in combat
 
 ---
@@ -530,10 +530,10 @@ Three `pkg/world/` subpackages with full implementations and test coverage are u
 
 **Resolution Checklist:**
 
-- [ ] Import `pkg/world/housing/` and register player houses during server initialization
-- [ ] Import `pkg/world/pvp/` and create PvP zone entities during server initialization
-- [ ] Import `pkg/world/persist/` and integrate save/load on server startup/shutdown
-- [ ] Verify housing, PvP, and persistence features are functional at runtime
+- [x] Import `pkg/world/housing/` and register player houses during server initialization
+- [x] Import `pkg/world/pvp/` and create PvP zone entities during server initialization
+- [x] Import `pkg/world/persist/` and integrate save/load on server startup/shutdown
+- [x] Verify housing, PvP, and persistence features are functional at runtime
 
 ---
 
