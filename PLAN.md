@@ -580,12 +580,12 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Implement mount riding with MountSystem (mount/dismount, movement)
-- [ ] Implement vehicle physics with VehiclePhysicsSystem (steering, acceleration)
-- [ ] Implement cockpit/rider camera view transition
-- [ ] Implement vehicle fuel/durability management
-- [ ] Verify mount and vehicle entities are spawned in the world
-- [ ] Verify player can mount, ride, and dismount vehicles
+- [x] Implement mount riding with MountSystem (mount/dismount, movement)
+- [x] Implement vehicle physics with VehiclePhysicsSystem (steering, acceleration)
+- [x] Implement cockpit/rider camera view transition
+- [x] Implement vehicle fuel/durability management
+- [x] Verify mount and vehicle entities are spawned in the world
+- [x] Verify player can mount, ride, and dismount vehicles
 
 ### 4E: Weather and Environment Polish (8 hours)
 
@@ -597,12 +597,12 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Implement weather particles (rain, snow, dust, ash) via particles package
-- [ ] Implement indoor/outdoor transitions with IndoorOutdoorSystem
-- [ ] Implement environmental hazard damage with HazardSystem
-- [ ] Implement time-of-day lighting cycle via LightManager
-- [ ] Implement genre-specific atmospheric effects (e.g., neon glow for cyberpunk, fog for horror)
-- [ ] Verify weather visuals match WeatherSystem state
+- [x] Implement weather particles (rain, snow, dust, ash) via particles package
+- [x] Implement indoor/outdoor transitions with IndoorOutdoorSystem
+- [x] Implement environmental hazard damage with HazardSystem
+- [x] Implement time-of-day lighting cycle via LightManager
+- [x] Implement genre-specific atmospheric effects (e.g., neon glow for cyberpunk, fog for horror)
+- [x] Verify weather visuals match WeatherSystem state
 
 ### 4F: NPC Life Simulation (12 hours)
 
