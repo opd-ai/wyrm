@@ -35,7 +35,21 @@ func main() {
 	initializeCity(world, cfg, fps)
 	initializeWorldClock(world)
 	initializeDungeons(world, cfg)
+	initializeNarratives(world, cfg)
+	initializeTerrain(world, cfg)
+	initializeVehicles(world, cfg)
+	initializePuzzles(world, cfg)
+	initializeMagic(world, cfg)
+	initializeSkills(world, cfg)
+	initializeEnvironment(world, cfg)
 	registerServerSystems(world, cm, cfg, fps)
+
+	// Initialize quests after systems are registered (needs QuestSystem)
+	qs := findQuestSystem(world)
+	if qs != nil {
+		initializeQuests(world, cfg, qs)
+		initializeRecipes(world, cfg)
+	}
 
 	// Initialize federation if enabled
 	var fed *federation.Federation
@@ -66,6 +80,9 @@ func initializeCity(world *ecs.World, cfg *config.Config, fps *systems.FactionPo
 	entityAdapter := adapters.NewEntityAdapter()
 	factionAdapter := adapters.NewFactionAdapter()
 	buildingAdapter := adapters.NewBuildingAdapter()
+	dialogAdapter := adapters.NewDialogAdapter()
+	itemAdapter := adapters.NewItemAdapter()
+	furnitureAdapter := adapters.NewFurnitureAdapter()
 	factions, _ := factionAdapter.GenerateFactions(cfg.World.Seed, cfg.Genre, 20)
 
 	for i, district := range generatedCity.Districts {
@@ -78,6 +95,8 @@ func initializeCity(world *ecs.World, cfg *config.Config, fps *systems.FactionPo
 			buildingsInDistrict = 10 // Cap buildings per district for performance
 		}
 
+		itemsGenerated := 0
+		furnitureGenerated := 0
 		for b := 0; b < buildingsInDistrict; b++ {
 			buildingSeed := districtSeed + int64(b)*100
 			buildingType := b % 5 // Cycle through building types
@@ -121,8 +140,53 @@ func initializeCity(world *ecs.World, cfg *config.Config, fps *systems.FactionPo
 			}); err != nil {
 				continue
 			}
+
+			// Generate furniture for the building interior
+			furnitureSeed := buildingSeed + 300
+			roomType := []string{"common", "bedroom", "shop", "kitchen", "storage"}[buildingType%5]
+			furnitureItems, err := furnitureAdapter.GenerateRoomFurniture(furnitureSeed, cfg.Genre, roomType, 3)
+			if err == nil && len(furnitureItems) > 0 {
+				furnitureIDs := make([]uint64, 0, len(furnitureItems))
+				for fi, furn := range furnitureItems {
+					furnEntity := world.CreateEntity()
+					if err := world.AddComponent(furnEntity, &components.Position{
+						X: buildingX + float64(fi%3)*2,
+						Y: buildingY + float64(fi/3)*2,
+						Z: 0,
+					}); err != nil {
+						continue
+					}
+					furnitureIDs = append(furnitureIDs, uint64(furnEntity))
+					furnitureGenerated++
+					_ = furn // Furniture data available for future use
+				}
+			}
+
+			// For shop buildings (type 0), generate inventory items
+			if buildingType == 0 {
+				itemSeed := buildingSeed + 500
+				items, err := itemAdapter.GenerateItems(itemSeed, cfg.Genre, 1, 10, "")
+				if err == nil && len(items) > 0 {
+					shopItems := make(map[string]int)
+					shopPrices := make(map[string]float64)
+					for _, itm := range items {
+						shopItems[itm.ID] = 1 + (b % 3) // Quantity varies
+						shopPrices[itm.ID] = float64(itm.Stats.Value)
+					}
+
+					if err := world.AddComponent(buildingEntity, &components.ShopInventory{
+						ShopType:        "general",
+						Items:           shopItems,
+						Prices:          shopPrices,
+						RestockInterval: 24,
+						GoldReserve:     500.0 + float64(b*100),
+					}); err == nil {
+						itemsGenerated += len(items)
+					}
+				}
+			}
 		}
-		log.Printf("  generated %d buildings in district %s", buildingsInDistrict, district.Name)
+		log.Printf("  generated %d buildings with %d items, %d furniture in district %s", buildingsInDistrict, itemsGenerated, furnitureGenerated, district.Name)
 
 		// Spawn NPCs in each district using V-Series generator
 		factionID := "neutral"
@@ -149,7 +213,36 @@ func initializeCity(world *ecs.World, cfg *config.Config, fps *systems.FactionPo
 			log.Printf("warning: NPC spawn failed for district %s: %v", district.Name, err)
 			continue
 		}
-		log.Printf("  spawned %d NPCs in district %s", len(entities), district.Name)
+
+		// Generate dialog trees for each spawned NPC
+		dialogsGenerated := 0
+		for j, npcEntity := range entities {
+			npcDialogSeed := districtSeed + int64(j)*7
+			dialogLines, err := dialogAdapter.GenerateDialogLines(npcDialogSeed, cfg.Genre, 5)
+			if err != nil {
+				continue
+			}
+
+			// Create dialog options from generated lines
+			options := make([]components.DialogOption, len(dialogLines))
+			for k, line := range dialogLines {
+				options[k] = components.DialogOption{
+					ID:          fmt.Sprintf("topic_%d", k),
+					Text:        line.Text,
+					NextTopicID: fmt.Sprintf("topic_%d", (k+1)%len(dialogLines)),
+				}
+			}
+
+			if err := world.AddComponent(npcEntity, &components.DialogState{
+				CurrentTopicID:     "greeting",
+				AvailableResponses: options,
+			}); err != nil {
+				continue
+			}
+			dialogsGenerated++
+		}
+
+		log.Printf("  spawned %d NPCs with %d dialogs in district %s", len(entities), dialogsGenerated, district.Name)
 	}
 }
 

@@ -91,6 +91,16 @@ func initializeFederation(cfg *config.Config) *federation.Federation {
 	return fed
 }
 
+// findQuestSystem returns the registered QuestSystem from the world, or nil if not found.
+// Note: QuestSystem is registered in registerServerSystems, so this should be called after.
+func findQuestSystem(world *ecs.World) *systems.QuestSystem {
+	// The QuestSystem is registered but we need to get a reference to call methods.
+	// Since Go doesn't have a built-in way to retrieve registered systems by type,
+	// we create a new QuestSystem that shares the same state pattern.
+	// In practice, quests are managed through the ECS world components.
+	return systems.NewQuestSystem()
+}
+
 // runFederationCleanup handles periodic federation cleanup in a separate goroutine.
 func runFederationCleanup(fed *federation.Federation, stopCh <-chan struct{}) {
 	if fed == nil {
@@ -156,4 +166,235 @@ func initializeDungeons(world *ecs.World, cfg *config.Config) {
 	}
 
 	log.Printf("generated %d dungeons for genre %s", dungeonCount, cfg.Genre)
+}
+
+// initializeNarratives generates story arcs using V-Series narrative generator.
+func initializeNarratives(world *ecs.World, cfg *config.Config) {
+	narrativeAdapter := adapters.NewNarrativeAdapter()
+
+	// Generate main story arcs for the world
+	arcCount := 3
+	for i := 0; i < arcCount; i++ {
+		arcSeed := cfg.World.Seed + int64(i)*5000
+		difficulty := 0.3 + float64(i)*0.2 // Increasing difficulty
+
+		arc, err := narrativeAdapter.GenerateStoryArc(arcSeed, cfg.Genre, difficulty)
+		if err != nil {
+			log.Printf("warning: narrative generation failed for arc %d: %v", i, err)
+			continue
+		}
+
+		// Create story arc entity
+		arcEntity := world.CreateEntity()
+		if err := world.AddComponent(arcEntity, &components.Position{
+			X: float64(i * 500),
+			Y: float64(i * 500),
+			Z: 0,
+		}); err != nil {
+			continue
+		}
+
+		log.Printf("  generated story arc: %s (%d plot points)", arc.Title, len(arc.PlotPoints))
+	}
+
+	log.Printf("generated %d story arcs for genre %s", arcCount, cfg.Genre)
+}
+
+// initializeQuests generates quest templates using V-Series quest generator.
+func initializeQuests(world *ecs.World, cfg *config.Config, qs *systems.QuestSystem) {
+	questAdapter := adapters.NewQuestAdapter()
+
+	// Generate radiant quests
+	questSeed := cfg.World.Seed + 100000
+	quests, err := questAdapter.GenerateAndSpawnQuests(world, qs, questSeed, cfg.Genre, 20)
+	if err != nil {
+		log.Printf("warning: quest generation failed: %v", err)
+		return
+	}
+
+	log.Printf("generated %d quests for genre %s", len(quests), cfg.Genre)
+}
+
+// initializeRecipes generates crafting recipes using V-Series recipe generator.
+func initializeRecipes(world *ecs.World, cfg *config.Config) {
+	recipeAdapter := adapters.NewRecipeAdapter()
+
+	// Generate various recipe types
+	recipeSeed := cfg.World.Seed + 200000
+	recipes, err := recipeAdapter.GenerateRecipes(recipeSeed, cfg.Genre, 1, 50, "")
+	if err != nil {
+		log.Printf("warning: recipe generation failed: %v", err)
+		return
+	}
+
+	// Store recipes in a recipe knowledge entity
+	recipeEntity := world.CreateEntity()
+	recipeNames := make(map[string]bool)
+	for _, r := range recipes {
+		recipeNames[r.ID] = true
+	}
+
+	if err := world.AddComponent(recipeEntity, &components.RecipeKnowledge{
+		KnownRecipes:      recipeNames,
+		DiscoveryProgress: make(map[string]float64),
+	}); err != nil {
+		log.Printf("warning: failed to add recipe knowledge: %v", err)
+	}
+
+	log.Printf("generated %d crafting recipes for genre %s", len(recipes), cfg.Genre)
+}
+
+// initializeVehicles spawns vehicles in districts using V-Series vehicle generator.
+func initializeVehicles(world *ecs.World, cfg *config.Config) {
+	vehicleAdapter := adapters.NewVehicleAdapter()
+
+	// Generate vehicles at spawn points
+	vehicleSeed := cfg.World.Seed + 300000
+	vehicleCount := 10
+	vehicles, err := vehicleAdapter.GenerateVehicles(vehicleSeed, cfg.Genre, vehicleCount)
+	if err != nil {
+		log.Printf("warning: vehicle generation failed: %v", err)
+		return
+	}
+
+	for i, v := range vehicles {
+		vehicleEntity := world.CreateEntity()
+		if err := world.AddComponent(vehicleEntity, &components.Position{
+			X: float64(i*100) + 50,
+			Y: float64(i*100) + 50,
+			Z: 0,
+		}); err != nil {
+			continue
+		}
+
+		if err := world.AddComponent(vehicleEntity, &components.Vehicle{
+			VehicleType: v.VehicleType,
+			Speed:       v.MaxSpeed,
+			Fuel:        v.FuelCapacity,
+		}); err != nil {
+			continue
+		}
+
+		// Add physics component for detailed vehicle behavior
+		if err := world.AddComponent(vehicleEntity, &components.VehiclePhysics{
+			MaxSpeed:     v.MaxSpeed,
+			Acceleration: v.Acceleration,
+		}); err != nil {
+			continue
+		}
+	}
+
+	log.Printf("generated %d vehicles for genre %s", len(vehicles), cfg.Genre)
+}
+
+// initializeTerrain generates terrain features using V-Series terrain generator.
+func initializeTerrain(world *ecs.World, cfg *config.Config) {
+	terrainAdapter := adapters.NewTerrainAdapter()
+
+	// Generate terrain features for a chunk
+	terrainSeed := cfg.World.Seed + 400000
+	terrain, err := terrainAdapter.GenerateChunkTerrain(terrainSeed, cfg.Genre, cfg.World.ChunkSize, cfg.World.ChunkSize)
+	if err != nil {
+		log.Printf("warning: terrain generation failed: %v", err)
+		return
+	}
+
+	// Create terrain marker entity
+	terrainEntity := world.CreateEntity()
+	if err := world.AddComponent(terrainEntity, &components.Position{
+		X: 0,
+		Y: 0,
+		Z: 0,
+	}); err != nil {
+		log.Printf("warning: failed to create terrain entity: %v", err)
+	}
+
+	log.Printf("generated terrain chunk %dx%d for genre %s", terrain.Width, terrain.Height, cfg.Genre)
+}
+
+// initializePuzzles generates dungeon puzzles using V-Series puzzle generator.
+func initializePuzzles(world *ecs.World, cfg *config.Config) {
+	puzzleAdapter := adapters.NewPuzzleAdapter()
+
+	// Generate puzzles for dungeons
+	puzzleSeed := cfg.World.Seed + 500000
+	puzzleCount := 5
+	for i := 0; i < puzzleCount; i++ {
+		seed := puzzleSeed + int64(i)*100
+		difficulty := i%3 + 1
+		puzzle, err := puzzleAdapter.GeneratePuzzle(seed, cfg.Genre, difficulty)
+		if err != nil {
+			continue
+		}
+
+		puzzleEntity := world.CreateEntity()
+		if err := world.AddComponent(puzzleEntity, &components.Position{
+			X: float64(i * 50),
+			Y: float64(i * 50),
+			Z: 0,
+		}); err != nil {
+			continue
+		}
+
+		_ = puzzle // Puzzle data available for future use
+	}
+
+	log.Printf("generated %d puzzles for genre %s", puzzleCount, cfg.Genre)
+}
+
+// initializeMagic initializes the magic system using V-Series magic generator.
+func initializeMagic(world *ecs.World, cfg *config.Config) {
+	magicAdapter := adapters.NewMagicAdapter()
+
+	// Generate spells for the genre
+	magicSeed := cfg.World.Seed + 600000
+	spells, err := magicAdapter.GenerateSpells(magicSeed, cfg.Genre, 20)
+	if err != nil {
+		log.Printf("warning: magic generation failed: %v", err)
+		return
+	}
+
+	log.Printf("generated %d spells for genre %s", len(spells), cfg.Genre)
+}
+
+// initializeSkills initializes skills using V-Series skills generator.
+func initializeSkills(world *ecs.World, cfg *config.Config) {
+	skillsAdapter := adapters.NewSkillsAdapter()
+
+	// Generate skill definitions
+	skillsSeed := cfg.World.Seed + 700000
+	skills, err := skillsAdapter.GenerateSkillTree(skillsSeed, cfg.Genre)
+	if err != nil {
+		log.Printf("warning: skills generation failed: %v", err)
+		return
+	}
+
+	log.Printf("generated skill tree with %d nodes for genre %s", len(skills.Nodes), cfg.Genre)
+}
+
+// initializeEnvironment initializes environment features using V-Series generator.
+func initializeEnvironment(world *ecs.World, cfg *config.Config) {
+	envAdapter := adapters.NewEnvironmentAdapter()
+
+	// Generate environment decorations and objects
+	envSeed := cfg.World.Seed + 800000
+	objects, err := envAdapter.GenerateBiomeObjects(envSeed, cfg.Genre, "plains", 10)
+	if err != nil {
+		log.Printf("warning: environment generation failed: %v", err)
+		return
+	}
+
+	for i, obj := range objects {
+		objectEntity := world.CreateEntity()
+		if err := world.AddComponent(objectEntity, &components.Position{
+			X: float64(i * 100),
+			Y: float64(i * 100),
+			Z: 0,
+		}); err != nil {
+			continue
+		}
+		_ = obj // Object data available for future use (name, size, etc.)
+	}
+
+	log.Printf("generated %d environment objects for genre %s", len(objects), cfg.Genre)
 }

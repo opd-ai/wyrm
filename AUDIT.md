@@ -226,9 +226,9 @@ Track progress toward calling all generators at runtime:
 - [x] Noise Functions — called by `pkg/world/chunk/`
 - [x] Dungeon Generator — called in `cmd/server/server_init.go:initializeDungeons()`
 - [x] Building Adapter — called in `cmd/server/main.go:initializeCity()` for district buildings
-- [ ] Dialog Adapter — call to generate NPC dialog trees
-- [ ] Item Adapter — call to populate building inventories with items
-- [ ] Furniture Adapter — call to furnish building interiors
+- [x] Dialog Adapter — called in `cmd/server/main.go:initializeCity()` to generate NPC dialog trees
+- [x] Item Adapter — called in `cmd/server/main.go:initializeCity()` to populate shop inventories
+- [x] Furniture Adapter — called in `cmd/server/main.go:initializeCity()` to furnish building interiors
 - [ ] Narrative Adapter — call to generate story arcs
 - [ ] Quest Adapter — call to generate quest templates for NPCs
 - [ ] Recipe Adapter — call to generate crafting recipes
