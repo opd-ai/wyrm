@@ -72,6 +72,8 @@ type Game struct {
 	combatManager *CombatManager
 	// Menu system
 	menu *Menu
+	// State synchronization (online mode)
+	stateSync *StateSynchronizer
 }
 
 // Update advances game state by one tick, processing player input and ECS systems.
@@ -105,6 +107,10 @@ func (g *Game) Update() error {
 		g.updateChunkMap()
 		g.updateRenderingSubsystems(dt)
 		g.updateSubtitles(dt)
+		// Synchronize state with server (if connected)
+		if g.stateSync != nil {
+			g.stateSync.Update(dt)
+		}
 	}
 	return nil
 }
@@ -462,6 +468,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// Draw dialog UI overlay if active
 	if g.dialogUI != nil && g.dialogUI.IsOpen() {
 		g.dialogUI.Draw(screen)
+	}
+
+	// Draw menu overlay if active
+	if g.menu != nil && g.menu.IsOpen() {
+		g.menu.Draw(screen)
 	}
 
 	// Draw death screen if dead
@@ -843,6 +854,9 @@ func main() {
 	// Initialize combat manager
 	combatMgr := NewCombatManager(player, inputMgr)
 
+	// Initialize menu system
+	menu := NewMenu(cfg, inputMgr)
+
 	game := &Game{
 		cfg:              cfg,
 		world:            world,
@@ -872,6 +886,13 @@ func main() {
 		interactionSys:   interactionSys,
 		dialogUI:         dialogUI,
 		combatManager:    combatMgr,
+		menu:             menu,
+	}
+
+	// Initialize state synchronization if connected to server
+	if connected {
+		game.stateSync = NewStateSynchronizer(client, world, player)
+		game.stateSync.Start()
 	}
 
 	// Start ambient audio if available

@@ -487,8 +487,8 @@ No circular dependencies detected.
 - [x] Implement client-server game state protocol (send/receive EntityUpdate, ChunkData, PlayerInput) — implemented in `pkg/network/protocol.go` with EntityUpdate and ChunkData message types, and in `pkg/network/server.go` with SendEntityUpdate, BroadcastEntityUpdate, SendChunkData, SendPlayerInput, and ReceiveMessage methods
 - [x] Integrate all 14 unused packages at runtime (see Section 2.5 checklist — all packages now integrated)
 - [x] Implement HUD overlay system (health, mana, compass, minimap) — implemented in `cmd/client/main.go` via `drawHUD()` with health/mana bars, compass direction, minimap, interaction prompts
-- [ ] Implement menu system (pause, settings, character creation, quit)
+- [x] Implement menu system (pause, settings, character creation, quit) — implemented in `cmd/client/menu.go` with pause menu, settings (volume, music, SFX, fullscreen, FPS toggle), and quit functionality
 - [x] Implement dialog UI for NPC conversations — implemented in `cmd/client/dialog_ui.go` with full UI, skill checks, emotion tracking
 - [x] Add player collision detection against worldMap wall cells — implemented via `canMoveTo()` and `tryMove()` with wall sliding
 - [x] Integrate `pkg/world/persist/` for save/load on server startup/shutdown — Persister now initialized in server_init.go
-- [ ] Implement game state synchronization between client and server ECS worlds
+- [x] Implement game state synchronization between client and server ECS worlds — implemented in `cmd/client/sync.go` with StateSynchronizer providing WorldState/EntityUpdate/ChunkData message handling, client-side prediction, and server reconciliation
