@@ -99,6 +99,13 @@ type DifficultyConfig struct {
 	PermaDeath             bool            `mapstructure:"perma_death"`
 	FriendlyFire           bool            `mapstructure:"friendly_fire"`
 	AutoAim                bool            `mapstructure:"auto_aim"`
+	// Death penalty settings
+	DeathXPLossPercent     float64 `mapstructure:"death_xp_loss_percent"`    // 0.0-1.0, portion of XP lost on death
+	DeathGoldLossPercent   float64 `mapstructure:"death_gold_loss_percent"`  // 0.0-1.0, portion of gold lost on death
+	DeathDropItems         bool    `mapstructure:"death_drop_items"`         // Whether items drop on death
+	DeathRespawnAtGrave    bool    `mapstructure:"death_respawn_at_grave"`   // Respawn at death location or checkpoint
+	DeathDurabilityLoss    float64 `mapstructure:"death_durability_loss"`    // 0.0-1.0, equipment durability lost
+	DeathCorpseRetrievable bool    `mapstructure:"death_corpse_retrievable"` // Can retrieve items from corpse
 }
 
 // KeyBindingsConfig holds configurable key bindings.
@@ -277,6 +284,12 @@ func setDefaults() {
 	viper.SetDefault("difficulty.perma_death", false)
 	viper.SetDefault("difficulty.friendly_fire", false)
 	viper.SetDefault("difficulty.auto_aim", false)
+	viper.SetDefault("difficulty.death_xp_loss_percent", 0.1)   // 10% XP loss
+	viper.SetDefault("difficulty.death_gold_loss_percent", 0.1) // 10% gold loss
+	viper.SetDefault("difficulty.death_drop_items", false)
+	viper.SetDefault("difficulty.death_respawn_at_grave", false)
+	viper.SetDefault("difficulty.death_durability_loss", 0.1) // 10% durability
+	viper.SetDefault("difficulty.death_corpse_retrievable", true)
 
 	// Default key bindings
 	viper.SetDefault("keybindings.move_forward", "W")

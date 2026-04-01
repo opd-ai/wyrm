@@ -526,13 +526,13 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 **Completion Checklist:**
 
 - [x] Implement ranged combat (bow/gun) with ProjectileSystem
-- [ ] Implement magic combat (spell casting) with MagicSystem
-- [ ] Implement stealth mode (sneak, backstab, detection) with StealthSystem
-- [ ] Implement block/dodge mechanics
-- [ ] Implement enemy AI combat (NPCs fight back using CombatState)
-- [ ] Implement health regeneration outside combat
-- [ ] Implement configurable death penalties via Difficulty settings
-- [ ] Verify all three combat styles (melee, ranged, magic) are functional
+- [x] Implement magic combat (spell casting) with MagicSystem
+- [x] Implement stealth mode (sneak, backstab, detection) with StealthSystem
+- [x] Implement block/dodge mechanics
+- [x] Implement enemy AI combat (NPCs fight back using CombatState)
+- [x] Implement health regeneration outside combat
+- [x] Implement configurable death penalties via Difficulty settings
+- [x] Verify all three combat styles (melee, ranged, magic) are functional
 
 ### 4B: Crafting and Economy (12 hours)
 
@@ -545,13 +545,13 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Implement crafting UI with workbench interaction
-- [ ] Implement resource gathering from ResourceNode components
-- [ ] Implement recipe discovery through exploration
-- [ ] Integrate PlayerShopSystem for player-owned shops
-- [ ] Display dynamic pricing at shop entities
-- [ ] Display trade routes on minimap/map
-- [ ] Verify crafting end-to-end: gather materials → use workbench → produce item
+- [x] Implement crafting UI with workbench interaction
+- [x] Implement resource gathering from ResourceNode components
+- [x] Implement recipe discovery through exploration
+- [x] Integrate PlayerShopSystem for player-owned shops
+- [x] Display dynamic pricing at shop entities
+- [x] Display trade routes on minimap/map
+- [x] Verify crafting end-to-end: gather materials → use workbench → produce item
 
 ### 4C: Faction and Crime Depth (12 hours)
 
@@ -563,13 +563,13 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Implement faction rank UI showing standing with each faction
-- [ ] Integrate FactionArcManager for faction quest arcs
-- [ ] Implement crime consequences (guard pursuit, jail time)
-- [ ] Implement bounty display in HUD
-- [ ] Implement bribery option during guard encounters
-- [ ] Display faction territory visual boundaries on map/minimap
-- [ ] Verify faction reputation changes based on player actions
+- [x] Implement faction rank UI showing standing with each faction
+- [x] Integrate FactionArcManager for faction quest arcs
+- [x] Implement crime consequences (guard pursuit, jail time)
+- [x] Implement bounty display in HUD
+- [x] Implement bribery option during guard encounters
+- [x] Display faction territory visual boundaries on map/minimap
+- [x] Verify faction reputation changes based on player actions
 
 ### 4D: Vehicle and Mount Integration (8 hours)
 

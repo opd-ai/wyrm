@@ -56,6 +56,7 @@ const (
 	ActionCharSheet   Action = "character_sheet"
 	ActionSkillTree   Action = "skill_tree"
 	ActionCrafting    Action = "crafting"
+	ActionFactions    Action = "factions"
 	ActionPause       Action = "pause"
 	ActionQuickSave   Action = "quick_save"
 	ActionQuickLoad   Action = "quick_load"

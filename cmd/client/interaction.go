@@ -20,6 +20,8 @@ const (
 	InteractionWorkbench
 	InteractionDoor
 	InteractionContainer
+	InteractionMount
+	InteractionVehicle
 )
 
 // InteractionResult holds information about an interactable entity.
@@ -141,6 +143,19 @@ func (is *InteractionSystem) getEntityInteractionType(world *ecs.World, entity e
 		return InteractionNPC
 	}
 
+	// Check for vehicle (has Vehicle and VehicleState components)
+	if _, ok := world.GetComponent(entity, "Vehicle"); ok {
+		if _, ok := world.GetComponent(entity, "VehicleState"); ok {
+			return InteractionVehicle
+		}
+	}
+
+	// Check for mount (has mountable marker - Position + no Vehicle but entity is mount type)
+	// Mounts are managed by MountSystem, check for presence
+	if _, ok := world.GetComponent(entity, "MountInfo"); ok {
+		return InteractionMount
+	}
+
 	// Check for workbench
 	if _, ok := world.GetComponent(entity, "Workbench"); ok {
 		return InteractionWorkbench
@@ -180,6 +195,12 @@ func (is *InteractionSystem) getInteractionInfo(world *ecs.World, entity ecs.Ent
 	case InteractionContainer:
 		name = "Container"
 		prompt = "Press E to open"
+	case InteractionMount:
+		name = is.getMountName(world, entity)
+		prompt = "Press E to mount " + name
+	case InteractionVehicle:
+		name = is.getVehicleName(world, entity)
+		prompt = "Press E to enter " + name
 	default:
 		name = "Unknown"
 		prompt = ""
@@ -236,4 +257,29 @@ func (is *InteractionSystem) GetCurrentTarget() *InteractionResult {
 // ClearTarget clears the current interaction target.
 func (is *InteractionSystem) ClearTarget() {
 	is.currentTarget = nil
+}
+
+// getMountName gets the name of a mountable creature.
+func (is *InteractionSystem) getMountName(world *ecs.World, entity ecs.Entity) string {
+	if miComp, ok := world.GetComponent(entity, "MountInfo"); ok {
+		mi := miComp.(*components.MountInfo)
+		if mi.Name != "" {
+			return mi.Name
+		}
+		if mi.MountType != "" {
+			return mi.MountType
+		}
+	}
+	return "Mount"
+}
+
+// getVehicleName gets the name of a vehicle.
+func (is *InteractionSystem) getVehicleName(world *ecs.World, entity ecs.Entity) string {
+	if vComp, ok := world.GetComponent(entity, "Vehicle"); ok {
+		v := vComp.(*components.Vehicle)
+		if v.VehicleType != "" {
+			return v.VehicleType
+		}
+	}
+	return "Vehicle"
 }

@@ -23,6 +23,7 @@ type CombatManager struct {
 	combatSystem     *systems.CombatSystem
 	projectileSystem *systems.ProjectileSystem
 	magicSystem      *systems.MagicSystem
+	stealthSystem    *systems.StealthSystem
 	inputManager     *input.Manager
 
 	// Visual feedback state
@@ -33,11 +34,20 @@ type CombatManager struct {
 
 	// Attack state
 	isBlocking      bool
+	isSneaking      bool
 	lastAttackTime  time.Time
 	attackCooldown  time.Duration
 	comboCount      int
 	comboResetTime  time.Time
 	comboWindowSecs float64
+
+	// Dodge state
+	isDodging      bool
+	dodgeEndTime   time.Time
+	dodgeCooldown  time.Duration
+	lastDodgeTime  time.Time
+	dodgeDuration  time.Duration
+	blockReduction float64 // Percentage of damage blocked (0.5 = 50%)
 
 	// Death and respawn
 	isDead       bool
@@ -65,6 +75,7 @@ func NewCombatManager(playerEntity ecs.Entity, inputManager *input.Manager) *Com
 		combatSystem:       systems.NewCombatSystem(),
 		projectileSystem:   systems.NewProjectileSystem(),
 		magicSystem:        systems.NewMagicSystem(),
+		stealthSystem:      systems.NewStealthSystem(),
 		inputManager:       inputManager,
 		attackCooldown:     500 * time.Millisecond,
 		comboWindowSecs:    1.5,
@@ -73,6 +84,9 @@ func NewCombatManager(playerEntity ecs.Entity, inputManager *input.Manager) *Com
 		aimDirX:            0,
 		aimDirY:            1, // Default aim direction (forward)
 		selectedSpellIndex: 0,
+		dodgeCooldown:      1 * time.Second,
+		dodgeDuration:      300 * time.Millisecond,
+		blockReduction:     0.5, // Block reduces damage by 50%
 	}
 }
 
@@ -80,6 +94,9 @@ func NewCombatManager(playerEntity ecs.Entity, inputManager *input.Manager) *Com
 func (cm *CombatManager) Update(world *ecs.World, dt float64) {
 	// Update visual feedback timers
 	cm.updateVisualFeedback(dt)
+
+	// Update dodge state
+	cm.updateDodgeState(world)
 
 	// Check for player death
 	if cm.checkPlayerDeath(world) {
@@ -107,12 +124,25 @@ func (cm *CombatManager) Update(world *ecs.World, dt float64) {
 
 	// Run magic system update for spell effects and mana regen
 	cm.magicSystem.Update(world, dt)
+
+	// Run stealth system update for detection and alert decay
+	cm.stealthSystem.Update(world, dt)
 }
 
 // handleCombatInput processes player attack and block inputs.
 func (cm *CombatManager) handleCombatInput(world *ecs.World) {
 	// Update aim direction based on mouse position (for ranged weapons)
 	cm.updateAimDirection(world)
+
+	// Check for sneak toggle input (C key for stealth toggle)
+	if inpututil.IsKeyJustPressed(ebiten.KeyC) {
+		cm.toggleSneak(world)
+	}
+
+	// Check for dodge input (Space key or dodge action)
+	if inpututil.IsKeyJustPressed(ebiten.KeySpace) && cm.canDodge() {
+		cm.performDodge(world)
+	}
 
 	// Check for attack input (left mouse click or action key)
 	attackPressed := ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) ||
@@ -130,6 +160,7 @@ func (cm *CombatManager) handleCombatInput(world *ecs.World) {
 		cm.isActionPressed(input.ActionBlock)
 
 	cm.isBlocking = blockPressed
+	cm.updateBlockState(world)
 }
 
 // isActionPressed checks if an input action is pressed.
@@ -178,19 +209,176 @@ func (cm *CombatManager) getEquippedWeaponType(world *ecs.World) string {
 }
 
 // performMeleeAttack executes a melee attack against the nearest target.
+// If sneaking and target is unaware, performs a backstab with bonus damage.
 func (cm *CombatManager) performMeleeAttack(world *ecs.World) {
 	target := cm.combatSystem.FindNearestTarget(world, cm.playerEntity)
 
 	if target != 0 {
+		// Check for backstab opportunity
+		if cm.isSneaking && cm.stealthSystem.IsTargetUnaware(world, cm.playerEntity, target) {
+			cm.performBackstab(world, target)
+			return
+		}
+
 		if cm.combatSystem.InitiateAttack(world, cm.playerEntity, target) {
 			cm.lastAttackTime = time.Now()
 			cm.incrementCombo()
 			cm.triggerScreenShake(0.05, 0.1)
+
+			// Attacking breaks stealth
+			if cm.isSneaking {
+				cm.breakStealth(world)
+			}
 		}
 	} else {
 		cm.lastAttackTime = time.Now()
 		cm.resetCombo()
 	}
+}
+
+// performBackstab executes a stealth backstab attack with bonus damage.
+func (cm *CombatManager) performBackstab(world *ecs.World, target ecs.Entity) {
+	// Get base weapon damage
+	baseDamage := cm.getWeaponDamage(world)
+
+	// Apply backstab multiplier from stealth system
+	backstabDamage := cm.stealthSystem.GetBackstabDamage(world, baseDamage, cm.playerEntity, target)
+
+	// Apply damage directly to target
+	healthComp, exists := world.GetComponent(target, "Health")
+	if exists && healthComp != nil {
+		health, ok := healthComp.(*components.Health)
+		if ok {
+			health.Current -= backstabDamage
+		}
+	}
+
+	cm.lastAttackTime = time.Now()
+	cm.triggerScreenShake(0.1, 0.15) // Stronger feedback for backstab
+
+	// Backstab breaks stealth
+	cm.breakStealth(world)
+}
+
+// getWeaponDamage returns the equipped weapon's damage or default.
+func (cm *CombatManager) getWeaponDamage(world *ecs.World) float64 {
+	weaponComp, exists := world.GetComponent(cm.playerEntity, "Weapon")
+	if !exists || weaponComp == nil {
+		return 10.0 // Default damage
+	}
+	weapon, ok := weaponComp.(*components.Weapon)
+	if !ok {
+		return 10.0
+	}
+	if weapon.Damage <= 0 {
+		return 10.0
+	}
+	return weapon.Damage
+}
+
+// toggleSneak toggles the player's sneaking state.
+func (cm *CombatManager) toggleSneak(world *ecs.World) {
+	if cm.isDead {
+		return
+	}
+	cm.isSneaking = !cm.isSneaking
+	cm.stealthSystem.SetSneaking(world, cm.playerEntity, cm.isSneaking)
+}
+
+// breakStealth forces the player out of stealth mode.
+func (cm *CombatManager) breakStealth(world *ecs.World) {
+	cm.isSneaking = false
+	cm.stealthSystem.SetSneaking(world, cm.playerEntity, false)
+}
+
+// IsSneaking returns whether the player is currently sneaking.
+func (cm *CombatManager) IsSneaking() bool {
+	return cm.isSneaking
+}
+
+// canDodge checks if the player can perform a dodge roll.
+func (cm *CombatManager) canDodge() bool {
+	if cm.isDead || cm.isDodging || cm.isBlocking {
+		return false
+	}
+	return time.Since(cm.lastDodgeTime) >= cm.dodgeCooldown
+}
+
+// performDodge initiates a dodge roll with invulnerability frames.
+func (cm *CombatManager) performDodge(world *ecs.World) {
+	cm.isDodging = true
+	cm.lastDodgeTime = time.Now()
+	cm.dodgeEndTime = time.Now().Add(cm.dodgeDuration)
+
+	// Update CombatState component
+	cm.updateCombatStateDodge(world, true)
+
+	// Dodging breaks stealth
+	if cm.isSneaking {
+		cm.breakStealth(world)
+	}
+}
+
+// updateDodgeState checks if dodge has ended.
+func (cm *CombatManager) updateDodgeState(world *ecs.World) {
+	if cm.isDodging && time.Now().After(cm.dodgeEndTime) {
+		cm.isDodging = false
+		cm.updateCombatStateDodge(world, false)
+	}
+}
+
+// updateCombatStateDodge updates the CombatState component's dodge fields.
+func (cm *CombatManager) updateCombatStateDodge(world *ecs.World, dodging bool) {
+	combatComp, exists := world.GetComponent(cm.playerEntity, "CombatState")
+	if !exists || combatComp == nil {
+		return
+	}
+	combatState, ok := combatComp.(*components.CombatState)
+	if !ok {
+		return
+	}
+	combatState.IsDodging = dodging
+	combatState.DodgeInvulnerable = dodging
+}
+
+// updateBlockState updates the CombatState component's block fields.
+func (cm *CombatManager) updateBlockState(world *ecs.World) {
+	combatComp, exists := world.GetComponent(cm.playerEntity, "CombatState")
+	if !exists || combatComp == nil {
+		return
+	}
+	combatState, ok := combatComp.(*components.CombatState)
+	if !ok {
+		return
+	}
+	combatState.IsBlocking = cm.isBlocking
+	combatState.BlockReduction = cm.blockReduction
+}
+
+// IsDodging returns whether the player is currently dodging.
+func (cm *CombatManager) IsDodging() bool {
+	return cm.isDodging
+}
+
+// GetBlockReduction returns the current block damage reduction.
+func (cm *CombatManager) GetBlockReduction() float64 {
+	if cm.isBlocking {
+		return cm.blockReduction
+	}
+	return 0
+}
+
+// CalculateIncomingDamage adjusts damage based on block/dodge state.
+func (cm *CombatManager) CalculateIncomingDamage(baseDamage float64) float64 {
+	// Dodging = invulnerable
+	if cm.isDodging {
+		return 0
+	}
+	// Blocking = reduced damage
+	if cm.isBlocking {
+		return baseDamage * (1.0 - cm.blockReduction)
+	}
+	return baseDamage
 }
 
 // performRangedAttack fires a projectile in the aim direction.

@@ -167,6 +167,19 @@ type Inventory struct {
 // Type returns the component type identifier for Inventory.
 func (i *Inventory) Type() string { return "Inventory" }
 
+// Currency represents an entity's monetary resources.
+type Currency struct {
+	// Gold is the primary currency amount.
+	Gold int
+	// Silver is a secondary currency (100 = 1 gold).
+	Silver int
+	// Copper is a tertiary currency (100 = 1 silver).
+	Copper int
+}
+
+// Type returns the component type identifier for Currency.
+func (c *Currency) Type() string { return "Currency" }
+
 // Vehicle represents a vehicle component.
 type Vehicle struct {
 	VehicleType string
@@ -233,6 +246,29 @@ type VehicleState struct {
 
 // Type returns the component type identifier for VehicleState.
 func (vs *VehicleState) Type() string { return "VehicleState" }
+
+// MountInfo stores data about a mountable creature entity.
+type MountInfo struct {
+	// MountType is the type of mount (e.g., "horse", "wolf", "dragon").
+	MountType string
+	// Name is the custom name given to this mount.
+	Name string
+	// OwnerEntity is the entity ID of the owner (0 = wild/no owner).
+	OwnerEntity uint64
+	// RiderEntity is the current rider (0 = not mounted).
+	RiderEntity uint64
+	// IsMounted indicates if someone is currently riding.
+	IsMounted bool
+	// Speed is the movement speed when mounted.
+	Speed float64
+	// Stamina is current stamina.
+	Stamina float64
+	// MaxStamina is maximum stamina.
+	MaxStamina float64
+}
+
+// Type returns the component type identifier for MountInfo.
+func (mi *MountInfo) Type() string { return "MountInfo" }
 
 // VehicleArchetype defines a vehicle template with genre-specific properties.
 type VehicleArchetype struct {
@@ -564,6 +600,16 @@ type CombatState struct {
 	TargetEntity uint64
 	// InCombat indicates the entity is engaged in combat.
 	InCombat bool
+	// IsBlocking indicates the entity is blocking incoming attacks.
+	IsBlocking bool
+	// BlockReduction is the percentage of damage blocked (0.0 to 1.0).
+	BlockReduction float64
+	// IsDodging indicates the entity is performing a dodge roll.
+	IsDodging bool
+	// DodgeEndTime is the game time when the dodge ends.
+	DodgeEndTime float64
+	// DodgeInvulnerable indicates dodge grants invulnerability frames.
+	DodgeInvulnerable bool
 }
 
 // Type returns the component type identifier for CombatState.
@@ -694,6 +740,23 @@ type Tool struct {
 // Type returns the component type identifier for Tool.
 func (t *Tool) Type() string { return "Tool" }
 
+// Equipment holds equipped items in various slots.
+type Equipment struct {
+	// Slots maps slot names to equipped items.
+	Slots map[string]*EquipmentSlot
+}
+
+// EquipmentSlot represents a single equipment slot.
+type EquipmentSlot struct {
+	ItemID        string
+	Name          string
+	Durability    float64
+	MaxDurability float64
+}
+
+// Type returns the component type identifier for Equipment.
+func (e *Equipment) Type() string { return "Equipment" }
+
 // RecipeKnowledge tracks which recipes an entity has discovered.
 type RecipeKnowledge struct {
 	// KnownRecipes is a set of recipe IDs the entity can craft.
@@ -744,6 +807,51 @@ type Mana struct {
 
 // Type returns the component type identifier for Mana.
 func (m *Mana) Type() string { return "Mana" }
+
+// Stamina represents an entity's stamina resource for physical actions.
+type Stamina struct {
+	// Current is the current stamina level.
+	Current float64
+	// Max is the maximum stamina capacity.
+	Max float64
+	// RegenRate is stamina regenerated per second.
+	RegenRate float64
+}
+
+// Type returns the component type identifier for Stamina.
+func (s *Stamina) Type() string { return "Stamina" }
+
+// DeathState tracks an entity's death status and respawn information.
+type DeathState struct {
+	// IsDead indicates whether the entity is currently dead.
+	IsDead bool
+	// DeathTime is the game time when death occurred.
+	DeathTime float64
+	// RespawnTime is the game time when respawn is available.
+	RespawnTime float64
+	// RespawnPosition is where the entity will respawn.
+	RespawnX, RespawnY, RespawnZ float64
+	// PenaltiesApplied indicates death penalties have been processed.
+	PenaltiesApplied bool
+}
+
+// Type returns the component type identifier for DeathState.
+func (d *DeathState) Type() string { return "DeathState" }
+
+// Corpse represents a dead entity's remains containing lootable items.
+type Corpse struct {
+	// OwnerEntity is the entity ID of the original owner.
+	OwnerEntity uint64
+	// DeathTime is when the entity died.
+	DeathTime float64
+	// DecayTime is when the corpse will despawn.
+	DecayTime float64
+	// LootedBy tracks which entities have looted this corpse.
+	LootedBy map[uint64]bool
+}
+
+// Type returns the component type identifier for Corpse.
+func (c *Corpse) Type() string { return "Corpse" }
 
 // SpellEffect represents an active status effect on an entity.
 type SpellEffect struct {

@@ -62,6 +62,11 @@ type Game struct {
 	// Game state
 	gameState         GameState
 	characterCreation *CharacterCreation
+	// Mount/Vehicle state
+	isRidingMount        bool
+	currentMountEntity   ecs.Entity
+	isInVehicle          bool
+	currentVehicleEntity ecs.Entity
 	// Rendering subpackages
 	lightingSystem   *lighting.System
 	postprocessPipe  *postprocess.Pipeline
@@ -87,6 +92,10 @@ type Game struct {
 	inventoryUI *InventoryUI
 	// Quest UI
 	questUI *QuestUI
+	// Crafting UI
+	craftingUI *CraftingUI
+	// Faction UI
+	factionUI *FactionUI
 	// State synchronization (online mode)
 	stateSync *StateSynchronizer
 	// NPC rendering
@@ -106,6 +115,7 @@ func (g *Game) Update() error {
 	g.handlePauseToggle()
 	g.handleInventoryToggle()
 	g.handleQuestToggle()
+	g.handleFactionToggle()
 
 	// Check if quit requested
 	if g.menu != nil && g.menu.QuitRequested() {
@@ -130,9 +140,21 @@ func (g *Game) Update() error {
 		return nil
 	}
 
+	// Handle crafting UI if open
+	if g.craftingUI != nil && g.craftingUI.IsOpen() {
+		g.craftingUI.Update(g.world)
+		return nil
+	}
+
 	// Handle dialog UI if open
 	if g.dialogUI != nil && g.dialogUI.IsOpen() {
 		g.dialogUI.Update()
+		return nil
+	}
+
+	// Handle faction UI if open
+	if g.factionUI != nil && g.factionUI.IsOpen() {
+		g.factionUI.Update(g.world)
 		return nil
 	}
 
@@ -223,14 +245,22 @@ func (g *Game) processInteraction(target *InteractionResult) {
 		// Pick up item
 		g.pickupItem(target.Entity)
 	case InteractionWorkbench:
-		// TODO: Open crafting UI (Phase 4B)
-		log.Printf("Using workbench: %s", target.Name)
+		// Open crafting UI for this workbench
+		if g.craftingUI != nil {
+			g.craftingUI.OpenWorkbench(g.world, target.Entity)
+		}
 	case InteractionContainer:
 		// TODO: Open container UI
 		log.Printf("Opening container: %s", target.Name)
 	case InteractionDoor:
 		// TODO: Open/close door
 		log.Printf("Opening door")
+	case InteractionMount:
+		// Mount or dismount the creature
+		g.handleMountInteraction(target.Entity)
+	case InteractionVehicle:
+		// Enter or exit the vehicle
+		g.handleVehicleInteraction(target.Entity)
 	}
 }
 
@@ -264,6 +294,60 @@ func (g *Game) pickupItem(itemEntity ecs.Entity) {
 	// Remove item entity from world
 	g.world.DestroyEntity(itemEntity)
 	log.Printf("Picked up item")
+}
+
+// handleMountInteraction mounts or dismounts the player from a mount creature.
+func (g *Game) handleMountInteraction(mountEntity ecs.Entity) {
+	miComp, ok := g.world.GetComponent(mountEntity, "MountInfo")
+	if !ok {
+		return
+	}
+	mi := miComp.(*components.MountInfo)
+
+	if mi.IsMounted && mi.RiderEntity == uint64(g.playerEntity) {
+		// Dismount
+		mi.IsMounted = false
+		mi.RiderEntity = 0
+		g.isRidingMount = false
+		g.currentMountEntity = 0
+		log.Printf("Dismounted from %s", mi.Name)
+	} else if !mi.IsMounted {
+		// Mount
+		mi.IsMounted = true
+		mi.RiderEntity = uint64(g.playerEntity)
+		g.isRidingMount = true
+		g.currentMountEntity = mountEntity
+		log.Printf("Mounted %s", mi.Name)
+	}
+}
+
+// handleVehicleInteraction enters or exits a vehicle.
+func (g *Game) handleVehicleInteraction(vehicleEntity ecs.Entity) {
+	stateComp, ok := g.world.GetComponent(vehicleEntity, "VehicleState")
+	if !ok {
+		return
+	}
+	state := stateComp.(*components.VehicleState)
+
+	if state.IsOccupied && state.DriverEntity == uint64(g.playerEntity) {
+		// Exit vehicle
+		state.IsOccupied = false
+		state.DriverEntity = 0
+		state.EngineRunning = false
+		state.InCockpitView = false
+		g.isInVehicle = false
+		g.currentVehicleEntity = 0
+		log.Printf("Exited vehicle")
+	} else if !state.IsOccupied {
+		// Enter vehicle
+		state.IsOccupied = true
+		state.DriverEntity = uint64(g.playerEntity)
+		state.EngineRunning = true
+		state.InCockpitView = true
+		g.isInVehicle = true
+		g.currentVehicleEntity = vehicleEntity
+		log.Printf("Entered vehicle")
+	}
 }
 
 // updateRenderingSubsystems updates lighting and particle systems.
@@ -370,6 +454,33 @@ func (g *Game) handleQuestToggle() {
 	if inpututil.IsKeyJustPressed(ebiten.KeyJ) {
 		if g.questUI != nil {
 			g.questUI.Toggle()
+		}
+	}
+}
+
+// handleFactionToggle checks for faction action and toggles the faction UI.
+func (g *Game) handleFactionToggle() {
+	// Don't toggle if menu, dialog, inventory, or quest is open
+	if g.menu != nil && g.menu.IsOpen() {
+		return
+	}
+	if g.dialogUI != nil && g.dialogUI.IsOpen() {
+		return
+	}
+	if g.inventoryUI != nil && g.inventoryUI.IsOpen() {
+		return
+	}
+	if g.questUI != nil && g.questUI.IsOpen() {
+		return
+	}
+	if g.craftingUI != nil && g.craftingUI.IsOpen() {
+		return
+	}
+
+	// Check for F key press (for Factions)
+	if inpututil.IsKeyJustPressed(ebiten.KeyF) {
+		if g.factionUI != nil {
+			g.factionUI.Toggle()
 		}
 	}
 }
@@ -645,6 +756,16 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.questUI.Draw(screen)
 	}
 
+	// Draw crafting UI overlay if active
+	if g.craftingUI != nil && g.craftingUI.IsOpen() {
+		g.craftingUI.Draw(screen, g.world)
+	}
+
+	// Draw faction UI overlay if active
+	if g.factionUI != nil && g.factionUI.IsOpen() {
+		g.factionUI.Draw(screen, g.world)
+	}
+
 	// Draw dialog UI overlay if active
 	if g.dialogUI != nil && g.dialogUI.IsOpen() {
 		g.dialogUI.Draw(screen)
@@ -865,6 +986,9 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 	// Draw minimap (top-right)
 	g.drawMinimap(screen, screenWidth-80, 10, 64)
 
+	// Draw bounty/wanted status (below minimap)
+	g.drawWantedStatus(screen, screenWidth-80, 80)
+
 	// Draw interaction prompt (bottom-center)
 	g.drawInteractionPrompt(screen)
 }
@@ -890,6 +1014,71 @@ func (g *Game) drawInteractionPrompt(screen *ebiten.Image) {
 	y := screenHeight - 100
 
 	ebitenutil.DebugPrintAt(screen, target.Prompt, x, y)
+}
+
+// drawWantedStatus renders the player's bounty and wanted status.
+func (g *Game) drawWantedStatus(screen *ebiten.Image, x, y int) {
+	if g.playerEntity == 0 {
+		return
+	}
+
+	crimeComp, ok := g.world.GetComponent(g.playerEntity, "Crime")
+	if !ok {
+		return
+	}
+	crime := crimeComp.(*components.Crime)
+
+	// Only show if wanted or has bounty
+	if crime.WantedLevel == 0 && crime.BountyAmount == 0 && !crime.InJail {
+		return
+	}
+
+	// Draw wanted status box
+	boxWidth := 70
+	boxHeight := 40
+	if crime.InJail {
+		boxHeight = 50
+	}
+
+	// Background
+	bgColor := color.RGBA{0, 0, 0, 180}
+	ebitenutil.DrawRect(screen, float64(x), float64(y), float64(boxWidth), float64(boxHeight), bgColor)
+
+	// Border color based on wanted level
+	var borderColor color.RGBA
+	switch crime.WantedLevel {
+	case 1:
+		borderColor = color.RGBA{255, 255, 0, 255} // Yellow
+	case 2:
+		borderColor = color.RGBA{255, 165, 0, 255} // Orange
+	case 3, 4, 5:
+		borderColor = color.RGBA{255, 0, 0, 255} // Red
+	default:
+		borderColor = color.RGBA{100, 100, 100, 255}
+	}
+	ebitenutil.DrawRect(screen, float64(x), float64(y), float64(boxWidth), 2, borderColor)
+
+	// Wanted level text
+	wantedStr := ""
+	if crime.WantedLevel > 0 {
+		stars := ""
+		for i := 0; i < crime.WantedLevel; i++ {
+			stars += "*"
+		}
+		wantedStr = fmt.Sprintf("WANTED %s", stars)
+		ebitenutil.DebugPrintAt(screen, wantedStr, x+5, y+5)
+	}
+
+	// Bounty amount
+	if crime.BountyAmount > 0 {
+		bountyStr := fmt.Sprintf("Bounty: %dg", crime.BountyAmount)
+		ebitenutil.DebugPrintAt(screen, bountyStr, x+5, y+20)
+	}
+
+	// Jail status
+	if crime.InJail {
+		ebitenutil.DebugPrintAt(screen, "IN JAIL", x+5, y+35)
+	}
 }
 
 // drawBar renders a horizontal bar (health/mana style).
@@ -929,6 +1118,9 @@ func (g *Game) drawMinimap(screen *ebiten.Image, x, y, size int) {
 		}
 	}
 
+	// Get faction territories
+	territories := g.getFactionTerritories()
+
 	// Draw minimap background and terrain
 	mapRadius := 16 // Show 16 cells in each direction
 	for my := 0; my < size; my++ {
@@ -944,16 +1136,26 @@ func (g *Game) drawMinimap(screen *ebiten.Image, x, y, size int) {
 				continue
 			}
 
-			// Check bounds and draw
+			// Base color
+			var baseColor uint32
 			if worldY >= 0 && worldY < len(g.worldMap) && worldX >= 0 && worldX < len(g.worldMap[0]) {
 				if g.worldMap[worldY][worldX] > 0 {
-					screen.Set(screenX, screenY, uint32ToColor(0x666666FF)) // Wall
+					baseColor = 0x666666FF // Wall
 				} else {
-					screen.Set(screenX, screenY, uint32ToColor(0x333333FF)) // Floor
+					baseColor = 0x333333FF // Floor
 				}
 			} else {
-				screen.Set(screenX, screenY, uint32ToColor(0x111111FF)) // Out of bounds
+				baseColor = 0x111111FF // Out of bounds
 			}
+
+			// Check for faction territory overlay
+			territoryColor := g.getTerritoryColor(float64(worldX), float64(worldY), territories)
+			if territoryColor != 0 {
+				// Blend territory color with base
+				baseColor = blendColors(baseColor, territoryColor, 0.4)
+			}
+
+			screen.Set(screenX, screenY, uint32ToColor(baseColor))
 		}
 	}
 
@@ -965,6 +1167,54 @@ func (g *Game) drawMinimap(screen *ebiten.Image, x, y, size int) {
 	screen.Set(centerX-1, centerY, uint32ToColor(0x00FF00FF))
 	screen.Set(centerX, centerY+1, uint32ToColor(0x00FF00FF))
 	screen.Set(centerX, centerY-1, uint32ToColor(0x00FF00FF))
+}
+
+// getFactionTerritories retrieves all faction territory entities.
+func (g *Game) getFactionTerritories() []*components.FactionTerritory {
+	var territories []*components.FactionTerritory
+	for _, e := range g.world.Entities("FactionTerritory") {
+		if comp, ok := g.world.GetComponent(e, "FactionTerritory"); ok {
+			territories = append(territories, comp.(*components.FactionTerritory))
+		}
+	}
+	return territories
+}
+
+// getTerritoryColor returns a color for the territory at the given point.
+func (g *Game) getTerritoryColor(x, y float64, territories []*components.FactionTerritory) uint32 {
+	for _, t := range territories {
+		if t.ContainsPoint(x, y) {
+			return g.factionToColor(t.FactionID)
+		}
+	}
+	return 0
+}
+
+// factionToColor maps faction IDs to minimap colors.
+func (g *Game) factionToColor(factionID string) uint32 {
+	// Use a simple hash to get consistent colors per faction
+	hash := uint32(0)
+	for _, c := range factionID {
+		hash = hash*31 + uint32(c)
+	}
+	// Generate color with moderate saturation and alpha
+	r := uint8(80 + (hash % 80))
+	g := uint8(80 + ((hash / 256) % 80))
+	b := uint8(80 + ((hash / 65536) % 80))
+	return uint32(r)<<24 | uint32(g)<<16 | uint32(b)<<8 | 0xCC
+}
+
+// blendColors blends two RGBA colors by the given factor (0=first, 1=second).
+func blendColors(c1, c2 uint32, factor float64) uint32 {
+	r1, g1, b1, a1 := uint8((c1>>24)&0xFF), uint8((c1>>16)&0xFF), uint8((c1>>8)&0xFF), uint8(c1&0xFF)
+	r2, g2, b2, a2 := uint8((c2>>24)&0xFF), uint8((c2>>16)&0xFF), uint8((c2>>8)&0xFF), uint8(c2&0xFF)
+
+	r := uint8(float64(r1)*(1-factor) + float64(r2)*factor)
+	g := uint8(float64(g1)*(1-factor) + float64(g2)*factor)
+	b := uint8(float64(b1)*(1-factor) + float64(b2)*factor)
+	a := uint8(float64(a1)*(1-factor) + float64(a2)*factor)
+
+	return uint32(r)<<24 | uint32(g)<<16 | uint32(b)<<8 | uint32(a)
 }
 
 // getCompassDirection returns cardinal/ordinal direction name from angle.
@@ -1077,6 +1327,12 @@ func main() {
 	// Initialize quest UI
 	questUI := NewQuestUI(cfg.Genre, player, inputMgr)
 
+	// Initialize crafting UI
+	craftingUI := NewCraftingUI(cfg.Genre, player)
+
+	// Initialize faction UI
+	factionUI := NewFactionUI(cfg.Genre, player)
+
 	// Initialize NPC renderer
 	npcRend := NewNPCRenderer(cfg.Genre, cfg.World.Seed)
 
@@ -1114,6 +1370,8 @@ func main() {
 		menu:              menu,
 		inventoryUI:       inventoryUI,
 		questUI:           questUI,
+		craftingUI:        craftingUI,
+		factionUI:         factionUI,
 		npcRenderer:       npcRend,
 	}
 

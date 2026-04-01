@@ -320,7 +320,8 @@ func registerServerSystems(world *ecs.World, cm *chunk.Manager, cfg *config.Conf
 	world.RegisterSystem(crimeSystem)
 	economySystem := systems.NewEconomySystem(0.5, 0.1)
 	world.RegisterSystem(economySystem)
-	world.RegisterSystem(systems.NewCombatSystem())
+	combatSystem := systems.NewCombatSystem()
+	world.RegisterSystem(combatSystem)
 	world.RegisterSystem(&systems.VehicleSystem{})
 	world.RegisterSystem(systems.NewQuestSystem())
 	weatherSystem := systems.NewWeatherSystem(genre, 300.0)
@@ -331,8 +332,12 @@ func registerServerSystems(world *ecs.World, cm *chunk.Manager, cfg *config.Conf
 	world.RegisterSystem(systems.NewNPCNeedsSystem())
 	world.RegisterSystem(systems.NewNPCOccupationSystem(seed))
 	world.RegisterSystem(systems.NewEmotionalStateSystem())
-	world.RegisterSystem(systems.NewNPCMemorySystem())
+	npcMemorySystem := systems.NewNPCMemorySystem()
+	world.RegisterSystem(npcMemorySystem)
 	world.RegisterSystem(systems.NewGossipSystem())
+
+	// NPC combat AI system (uses combat and memory systems)
+	world.RegisterSystem(systems.NewNPCCombatAISystem(combatSystem, npcMemorySystem))
 
 	// Faction depth systems (Phase 3)
 	factionRankSystem := systems.NewFactionRankSystem(genre)
@@ -340,6 +345,10 @@ func registerServerSystems(world *ecs.World, cm *chunk.Manager, cfg *config.Conf
 	world.RegisterSystem(systems.NewFactionCoupSystem(factionRankSystem, fps, seed, genre))
 	world.RegisterSystem(systems.NewFactionExclusiveContentSystem(factionRankSystem, genre))
 	world.RegisterSystem(systems.NewDynamicFactionWarSystem(fps))
+
+	// Faction quest arcs (Phase 4C)
+	factionArcManager := systems.NewFactionArcManager(genre)
+	_ = factionArcManager // Available for quest system integration
 
 	// Crime depth systems (Phase 4)
 	guardPursuitSystem := systems.NewGuardPursuitSystem(crimeSystem)
@@ -371,6 +380,7 @@ func registerServerSystems(world *ecs.World, cm *chunk.Manager, cfg *config.Conf
 	world.RegisterSystem(systems.NewFlyingVehicleSystem(genre))
 	world.RegisterSystem(systems.NewNavalVehicleSystem(genre))
 	world.RegisterSystem(systems.NewMountSystem(seed, genre))
+	world.RegisterSystem(systems.NewHealthRegenSystem())
 
 	// Skills and crafting systems (Phase 7)
 	skillRegistry := systems.NewSkillRegistry()
@@ -392,7 +402,19 @@ func registerServerSystems(world *ecs.World, cm *chunk.Manager, cfg *config.Conf
 	world.RegisterSystem(systems.NewIndoorOutdoorSystem(weatherSystem))
 	world.RegisterSystem(systems.NewHazardSystem(genre))
 
-	log.Printf("registered %d server systems", 57)
+	// Death penalty system (uses difficulty config)
+	deathPenaltyConfig := systems.DeathPenaltyConfig{
+		PermaDeath:        cfg.Difficulty.PermaDeath,
+		XPLossPercent:     cfg.Difficulty.DeathXPLossPercent,
+		GoldLossPercent:   cfg.Difficulty.DeathGoldLossPercent,
+		DropItems:         cfg.Difficulty.DeathDropItems,
+		RespawnAtGrave:    cfg.Difficulty.DeathRespawnAtGrave,
+		DurabilityLoss:    cfg.Difficulty.DeathDurabilityLoss,
+		CorpseRetrievable: cfg.Difficulty.DeathCorpseRetrievable,
+	}
+	world.RegisterSystem(systems.NewDeathPenaltySystem(deathPenaltyConfig))
+
+	log.Printf("registered %d server systems", 60)
 }
 
 // runServerLoop runs the main server tick loop until shutdown.
