@@ -400,13 +400,13 @@ The protocol messages (`PlayerInput`, `WorldState`, `EntityUpdate`, `ChunkData`)
 
 **Resolution Checklist:**
 
-- [ ] Server: broadcast `EntityUpdate` messages to connected clients each tick
-- [ ] Server: stream `ChunkData` messages when client enters new chunk
-- [ ] Server: receive and process `PlayerInput` messages from clients
-- [ ] Client: receive and decode `WorldState` and `EntityUpdate` messages
-- [ ] Client: apply server state to local ECS world entities
-- [ ] Client: send `PlayerInput` messages to server each frame
-- [ ] Implement client-side prediction using `pkg/network/prediction.go`
+- [x] Server: broadcast `EntityUpdate` messages to connected clients each tick
+- [x] Server: stream `ChunkData` messages when client enters new chunk
+- [x] Server: receive and process `PlayerInput` messages from clients
+- [x] Client: receive and decode `WorldState` and `EntityUpdate` messages
+- [x] Client: apply server state to local ECS world entities
+- [x] Client: send `PlayerInput` messages to server each frame
+- [x] Implement client-side prediction using `pkg/network/prediction.go`
 - [ ] Verify two clients can connect and observe shared world state
 
 ---

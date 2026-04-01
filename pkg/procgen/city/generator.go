@@ -23,6 +23,7 @@ type City struct {
 	IndustrialZones  []IndustrialZone
 	Walls            Wall
 	Gates            []CityGate
+	Roads            []Road // Roads connecting districts and POIs
 }
 
 // District represents a city district.
@@ -619,6 +620,29 @@ type CityGate struct {
 	GuardCount int  // Number of guards stationed
 	Locked     bool // Requires key or permission
 	Style      string
+}
+
+// Road represents a path connecting two points in the city.
+type Road struct {
+	StartX, StartY float64
+	EndX, EndY     float64
+	Width          float64 // Road width in units
+	Type           string  // "main", "side", "path", "highway"
+	Material       string  // Surface material (cobblestone, asphalt, dirt, etc.)
+}
+
+// RoadPoint represents a point along a road path.
+type RoadPoint struct {
+	X, Y float64
+}
+
+// genreRoadMaterials maps genres to appropriate road surface materials.
+var genreRoadMaterials = map[string][]string{
+	"fantasy":          {"cobblestone", "brick", "dirt_path", "flagstone"},
+	"sci-fi":           {"plasteel_grating", "hover_lane", "mag_rail", "energy_path"},
+	"horror":           {"cracked_asphalt", "bone_path", "mud", "rotting_wood"},
+	"cyberpunk":        {"neon_asphalt", "holo_guide", "smart_pavement", "chrome_strip"},
+	"post-apocalyptic": {"cracked_highway", "rubble_path", "dirt", "scrap_bridge"},
 }
 
 // genreWallMaterials maps genres to appropriate wall construction materials.
