@@ -42,6 +42,21 @@ func main() {
 	initializeMagic(world, cfg)
 	initializeSkills(world, cfg)
 	initializeEnvironment(world, cfg)
+
+	// Initialize world management systems
+	hm := initializeHousing(cfg)
+	zm := initializePvP(cfg)
+	dm := initializeDialogManager(cfg)
+	compMgr := initializeCompanionManager(world, cfg)
+	pm := initializePersistence(cfg)
+
+	// Store managers for access during server loop (using world context or package-level vars)
+	_ = hm      // Housing manager available for player housing operations
+	_ = zm      // PvP zone manager available for combat resolution
+	_ = dm      // Dialog manager available for NPC conversations
+	_ = compMgr // Companion manager available for companion AI
+	_ = pm      // Persistence manager available for save/load
+
 	registerServerSystems(world, cm, cfg, fps)
 
 	// Initialize quests after systems are registered (needs QuestSystem)

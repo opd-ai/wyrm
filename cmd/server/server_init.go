@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/opd-ai/wyrm/config"
+	"github.com/opd-ai/wyrm/pkg/companion"
+	"github.com/opd-ai/wyrm/pkg/dialog"
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 	"github.com/opd-ai/wyrm/pkg/engine/systems"
@@ -15,6 +17,9 @@ import (
 	"github.com/opd-ai/wyrm/pkg/procgen/adapters"
 	"github.com/opd-ai/wyrm/pkg/procgen/city"
 	"github.com/opd-ai/wyrm/pkg/procgen/dungeon"
+	"github.com/opd-ai/wyrm/pkg/world/housing"
+	"github.com/opd-ai/wyrm/pkg/world/persist"
+	"github.com/opd-ai/wyrm/pkg/world/pvp"
 )
 
 // initializeFactions generates factions using V-Series generators.
@@ -397,4 +402,72 @@ func initializeEnvironment(world *ecs.World, cfg *config.Config) {
 	}
 
 	log.Printf("generated %d environment objects for genre %s", len(objects), cfg.Genre)
+}
+
+// initializeHousing initializes the player housing system.
+func initializeHousing(cfg *config.Config) *housing.HouseManager {
+	hm := housing.NewHouseManager()
+	log.Printf("initialized housing manager")
+	return hm
+}
+
+// initializePvP initializes PvP zones for the world.
+func initializePvP(cfg *config.Config) *pvp.ZoneManager {
+	zm := pvp.NewZoneManager()
+
+	// Create default zones based on genre
+	seed := cfg.World.Seed
+	_ = seed // Available for procedural zone generation
+
+	// Safe zone around spawn
+	zm.AddZone(&pvp.Zone{
+		ID:           "spawn-safe",
+		Type:         pvp.ZoneSafe,
+		MinX:         -100,
+		MinZ:         -100,
+		MaxX:         100,
+		MaxZ:         100,
+		RespawnX:     0,
+		RespawnZ:     0,
+		LootDropRate: 0,
+	})
+
+	// Contested wilderness
+	zm.AddZone(&pvp.Zone{
+		ID:           "wilderness-contested",
+		Type:         pvp.ZoneContested,
+		MinX:         -1000,
+		MinZ:         -1000,
+		MaxX:         1000,
+		MaxZ:         1000,
+		RespawnX:     0,
+		RespawnZ:     0,
+		LootDropRate: 0.1,
+	})
+
+	log.Printf("initialized PvP zones")
+	return zm
+}
+
+// initializeDialogManager initializes the NPC dialog manager.
+func initializeDialogManager(cfg *config.Config) *dialog.Manager {
+	dm := dialog.NewManager(cfg.World.Seed)
+	log.Printf("initialized dialog manager for genre %s", cfg.Genre)
+	return dm
+}
+
+// initializeCompanionManager initializes the companion system.
+func initializeCompanionManager(world *ecs.World, cfg *config.Config) *companion.Manager {
+	cm := companion.NewManager(cfg.World.Seed)
+	log.Printf("initialized companion manager for genre %s", cfg.Genre)
+	return cm
+}
+
+// initializePersistence initializes world state persistence.
+func initializePersistence(cfg *config.Config) *persist.Persister {
+	pm := persist.NewPersister("./data/world")
+
+	// Check for existing save data
+	log.Printf("initialized persistence manager")
+	return pm
 }

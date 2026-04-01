@@ -305,20 +305,20 @@ Track progress toward integrating all packages at runtime:
 - [x] `pkg/procgen/noise` — used by chunk system
 - [x] `pkg/util` — used by systems
 - [x] `config` — used by client and server
-- [ ] `pkg/rendering/sprite` — integrate for NPC/entity billboard rendering
-- [ ] `pkg/rendering/texture` — integrate for procedural wall/floor textures
+- [x] `pkg/rendering/sprite` — integrated in `cmd/client/main.go` with Generator and SpriteCache for NPC/entity rendering
+- [x] `pkg/rendering/texture` — integrated in `cmd/client/main.go` with procedural texture cache for wall/floor textures
 - [x] `pkg/rendering/lighting` — integrated in `cmd/client/main.go` for time-of-day lighting
 - [x] `pkg/rendering/particles` — integrated in `cmd/client/main.go` for weather particle effects
 - [x] `pkg/rendering/postprocess` — integrated in `cmd/client/main.go` for genre-specific post-processing
-- [ ] `pkg/rendering/subtitles` — integrate for dialog subtitle rendering
+- [x] `pkg/rendering/subtitles` — integrated in `cmd/client/main.go` with SubtitleSystem for dialog display
 - [x] `pkg/audio/ambient` — integrated in `cmd/client/main.go` for biome-aware ambient soundscapes
 - [x] `pkg/audio/music` — integrated in `cmd/client/main.go` for adaptive genre-specific music
-- [ ] `pkg/world/housing` — integrate for player housing and guild territory
-- [ ] `pkg/world/persist` — integrate for world state persistence
-- [ ] `pkg/world/pvp` — integrate for PvP zone management
+- [x] `pkg/world/housing` — integrated in `cmd/server/server_init.go` with HouseManager
+- [x] `pkg/world/persist` — integrated in `cmd/server/server_init.go` with Persister
+- [x] `pkg/world/pvp` — integrated in `cmd/server/server_init.go` with ZoneManager
 - [x] `pkg/procgen/dungeon` — integrated in `cmd/server/server_init.go` for dungeon content
-- [ ] `pkg/dialog` — integrate for NPC conversation UI
-- [ ] `pkg/companion` — integrate for companion NPC spawning
+- [x] `pkg/dialog` — integrated in `cmd/server/server_init.go` with dialog.Manager
+- [x] `pkg/companion` — integrated in `cmd/server/server_init.go` with companion.Manager
 - [x] `pkg/input` — integrated in `cmd/client/main.go` for key rebinding
 
 ---

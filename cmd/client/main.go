@@ -194,6 +194,13 @@ func (g *Game) updateRenderingSubsystems(dt float64) {
 	}
 }
 
+// updateSubtitles updates the subtitle system for dialog display.
+func (g *Game) updateSubtitles(dt float64) {
+	if g.subtitleSystem != nil {
+		g.subtitleSystem.Update()
+	}
+}
+
 // syncInputState synchronizes Ebiten key state with the input manager.
 func (g *Game) syncInputState() {
 	if g.inputManager == nil {
