@@ -33,6 +33,14 @@ import (
 	"github.com/opd-ai/wyrm/pkg/world/chunk"
 )
 
+// GameState represents the current state of the game.
+type GameState int
+
+const (
+	GameStateCharacterCreation GameState = iota
+	GameStatePlaying
+)
+
 // Game implements the ebiten.Game interface.
 type Game struct {
 	cfg           *config.Config
@@ -51,6 +59,9 @@ type Game struct {
 	worldMap      [][]int // Local world map for collision detection
 	inputManager  *input.Manager
 	paused        bool
+	// Game state
+	gameState         GameState
+	characterCreation *CharacterCreation
 	// Rendering subpackages
 	lightingSystem   *lighting.System
 	postprocessPipe  *postprocess.Pipeline
@@ -72,15 +83,29 @@ type Game struct {
 	combatManager *CombatManager
 	// Menu system
 	menu *Menu
+	// Inventory UI
+	inventoryUI *InventoryUI
+	// Quest UI
+	questUI *QuestUI
 	// State synchronization (online mode)
 	stateSync *StateSynchronizer
+	// NPC rendering
+	npcRenderer *NPCRenderer
 }
 
 // Update advances game state by one tick, processing player input and ECS systems.
 func (g *Game) Update() error {
 	const dt = 1.0 / 60.0
 	g.syncInputState()
+
+	// Handle character creation state
+	if g.gameState == GameStateCharacterCreation {
+		return g.updateCharacterCreation()
+	}
+
 	g.handlePauseToggle()
+	g.handleInventoryToggle()
+	g.handleQuestToggle()
 
 	// Check if quit requested
 	if g.menu != nil && g.menu.QuitRequested() {
@@ -90,6 +115,18 @@ func (g *Game) Update() error {
 	// Handle menu UI if open
 	if g.menu != nil && g.menu.IsOpen() {
 		g.menu.Update()
+		return nil
+	}
+
+	// Handle inventory UI if open
+	if g.inventoryUI != nil && g.inventoryUI.IsOpen() {
+		g.inventoryUI.Update(g.world)
+		return nil
+	}
+
+	// Handle quest UI if open
+	if g.questUI != nil && g.questUI.IsOpen() {
+		g.questUI.Update(g.world, dt)
 		return nil
 	}
 
@@ -110,8 +147,38 @@ func (g *Game) Update() error {
 		// Synchronize state with server (if connected)
 		if g.stateSync != nil {
 			g.stateSync.Update(dt)
+			g.sendPlayerInputToServer()
+		}
+		// Update quest UI notifications (even when not open)
+		if g.questUI != nil {
+			g.questUI.Update(g.world, dt)
 		}
 	}
+	return nil
+}
+
+// updateCharacterCreation handles the character creation screen state.
+func (g *Game) updateCharacterCreation() error {
+	if g.characterCreation == nil {
+		g.characterCreation = NewCharacterCreation()
+	}
+
+	g.characterCreation.Update()
+
+	if g.characterCreation.IsComplete() {
+		// Apply character creation choices to player entity
+		g.characterCreation.ApplyToPlayer(g.world, g.playerEntity)
+
+		// Update config with selected genre if changed
+		if g.characterCreation.GetSelectedGenre() != "" {
+			g.cfg.Genre = g.characterCreation.GetSelectedGenre()
+		}
+
+		// Transition to playing state
+		g.gameState = GameStatePlaying
+		g.characterCreation = nil
+	}
+
 	return nil
 }
 
@@ -211,6 +278,14 @@ func (g *Game) updateRenderingSubsystems(dt float64) {
 	if g.particleSystem != nil {
 		g.particleSystem.Update(dt)
 	}
+
+	// Update NPC animations
+	if g.npcRenderer != nil {
+		// Update animation frame timers
+		g.npcRenderer.UpdateAnimations(g.world, dt)
+		// Sync animation states with NPC schedules
+		g.npcRenderer.SyncAnimationWithSchedule(g.world)
+	}
 }
 
 // updateSubtitles updates the subtitle system for dialog display.
@@ -256,6 +331,45 @@ func (g *Game) handlePauseToggle() {
 			g.paused = g.menu.IsOpen()
 		} else {
 			g.paused = !g.paused
+		}
+	}
+}
+
+// handleInventoryToggle checks for inventory action and toggles the inventory UI.
+func (g *Game) handleInventoryToggle() {
+	// Don't toggle inventory if menu or dialog is open
+	if g.menu != nil && g.menu.IsOpen() {
+		return
+	}
+	if g.dialogUI != nil && g.dialogUI.IsOpen() {
+		return
+	}
+
+	// Check for I key press
+	if inpututil.IsKeyJustPressed(ebiten.KeyI) {
+		if g.inventoryUI != nil {
+			g.inventoryUI.Toggle()
+		}
+	}
+}
+
+// handleQuestToggle checks for quest log action and toggles the quest UI.
+func (g *Game) handleQuestToggle() {
+	// Don't toggle quest log if menu, dialog, or inventory is open
+	if g.menu != nil && g.menu.IsOpen() {
+		return
+	}
+	if g.dialogUI != nil && g.dialogUI.IsOpen() {
+		return
+	}
+	if g.inventoryUI != nil && g.inventoryUI.IsOpen() {
+		return
+	}
+
+	// Check for J key press
+	if inpututil.IsKeyJustPressed(ebiten.KeyJ) {
+		if g.questUI != nil {
+			g.questUI.Toggle()
 		}
 	}
 }
@@ -440,8 +554,61 @@ func (g *Game) isActionOrKeyPressed(action input.Action, fallbackKey ebiten.Key)
 	return ebiten.IsKeyPressed(fallbackKey)
 }
 
+// sendPlayerInputToServer sends current player input state to the server.
+func (g *Game) sendPlayerInputToServer() {
+	if g.stateSync == nil {
+		return
+	}
+
+	// Gather current input state
+	var moveForward, moveRight, turn float32
+
+	// Forward/backward
+	if g.isActionOrKeyPressed(input.ActionMoveForward, ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyUp) {
+		moveForward = 1.0
+	} else if g.isActionOrKeyPressed(input.ActionMoveBackward, ebiten.KeyS) || ebiten.IsKeyPressed(ebiten.KeyDown) {
+		moveForward = -1.0
+	}
+
+	// Strafe left/right (Q/E)
+	if ebiten.IsKeyPressed(ebiten.KeyQ) {
+		moveRight = -1.0
+	} else if ebiten.IsKeyPressed(ebiten.KeyE) {
+		moveRight = 1.0
+	}
+
+	// Turning (A/D or arrows)
+	if g.isActionOrKeyPressed(input.ActionMoveLeft, ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyLeft) {
+		turn = -0.05
+	} else if g.isActionOrKeyPressed(input.ActionMoveRight, ebiten.KeyD) || ebiten.IsKeyPressed(ebiten.KeyRight) {
+		turn = 0.05
+	}
+
+	// Jump (Space)
+	jump := ebiten.IsKeyPressed(ebiten.KeySpace)
+
+	// Attack (Left mouse)
+	attack := ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
+
+	// Use/Interact (Right mouse or E)
+	use := ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight)
+
+	// Only send if there's actual input
+	if moveForward != 0 || moveRight != 0 || turn != 0 || jump || attack || use {
+		if err := g.stateSync.SendPlayerInput(moveForward, moveRight, turn, jump, attack, use); err != nil {
+			log.Printf("failed to send player input: %v", err)
+		}
+	}
+}
+
 // Draw renders the current frame using the raycaster and displays debug info.
 func (g *Game) Draw(screen *ebiten.Image) {
+	// Handle character creation state
+	if g.gameState == GameStateCharacterCreation {
+		g.drawCharacterCreation(screen)
+		return
+	}
+
 	// Sync player position to renderer
 	if g.playerEntity != 0 {
 		if comp, ok := g.world.GetComponent(g.playerEntity, "Position"); ok {
@@ -450,8 +617,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 	}
 
-	// Render base scene
+	// Render base scene (walls, floor, ceiling)
 	g.renderer.Draw(screen)
+
+	// Render NPC sprites as billboards
+	g.drawNPCs(screen)
 
 	// Apply post-processing effects (genre-specific)
 	g.applyPostProcessing(screen)
@@ -464,6 +634,16 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// Draw HUD last (on top of everything)
 	g.drawHUD(screen)
+
+	// Draw inventory UI overlay if active
+	if g.inventoryUI != nil && g.inventoryUI.IsOpen() {
+		g.inventoryUI.Draw(screen, g.world)
+	}
+
+	// Draw quest UI overlay and tracker
+	if g.questUI != nil {
+		g.questUI.Draw(screen)
+	}
 
 	// Draw dialog UI overlay if active
 	if g.dialogUI != nil && g.dialogUI.IsOpen() {
@@ -505,6 +685,14 @@ func (g *Game) applyCombatVisualFeedback(screen *ebiten.Image) {
 	}
 }
 
+// drawCharacterCreation renders the character creation screen.
+func (g *Game) drawCharacterCreation(screen *ebiten.Image) {
+	if g.characterCreation == nil {
+		return
+	}
+	g.characterCreation.Draw(screen)
+}
+
 // drawDeathScreen draws the death overlay when the player is dead.
 func (g *Game) drawDeathScreen(screen *ebiten.Image) {
 	if g.combatManager == nil || !g.combatManager.IsDead() {
@@ -535,6 +723,22 @@ func (g *Game) drawDeathScreen(screen *ebiten.Image) {
 
 	ebitenutil.DebugPrintAt(screen, deathText, deathX, deathY)
 	ebitenutil.DebugPrintAt(screen, respawnText, respawnX, respawnY)
+}
+
+// drawNPCs renders NPC entities as billboard sprites in the first-person view.
+func (g *Game) drawNPCs(screen *ebiten.Image) {
+	if g.npcRenderer == nil {
+		return
+	}
+
+	// Build sprite entities from ECS world
+	spriteEntities := g.npcRenderer.BuildSpriteEntities(g.world, g.playerEntity)
+	if len(spriteEntities) == 0 {
+		return
+	}
+
+	// Render sprites to screen using the raycast renderer's billboard system
+	g.renderer.DrawSpritesToScreen(spriteEntities, screen)
 }
 
 // applyPostProcessing applies genre-specific visual effects to the rendered frame.
@@ -857,36 +1061,60 @@ func main() {
 	// Initialize menu system
 	menu := NewMenu(cfg, inputMgr)
 
+	// Set up save/load handlers if connected
+	if connected {
+		menu.SetSaveHandler(func() error {
+			return client.SendSaveRequest()
+		})
+		menu.SetLoadHandler(func() error {
+			return client.SendLoadRequest()
+		})
+	}
+
+	// Initialize inventory UI
+	inventoryUI := NewInventoryUI(cfg.Genre, player, inputMgr)
+
+	// Initialize quest UI
+	questUI := NewQuestUI(cfg.Genre, player, inputMgr)
+
+	// Initialize NPC renderer
+	npcRend := NewNPCRenderer(cfg.Genre, cfg.World.Seed)
+
 	game := &Game{
-		cfg:              cfg,
-		world:            world,
-		renderer:         renderer,
-		client:           client,
-		connected:        connected,
-		playerEntity:     player,
-		chunkManager:     chunkMgr,
-		lastChunkX:       -999, // Force initial map build
-		lastChunkY:       -999,
-		mapSize:          localMapSize,
-		wallThreshold:    wallThreshold,
-		audioEngine:      audioEngine,
-		audioPlayer:      audioPlayer,
-		inputManager:     inputMgr,
-		lightingSystem:   lightingSys,
-		postprocessPipe:  postprocessPipeline,
-		particleSystem:   particleSys,
-		particleRenderer: particleRend,
-		spriteGenerator:  spriteGen,
-		spriteCache:      spriteCache,
-		textureCache:     textureCache,
-		subtitleSystem:   subtitleSys,
-		ambientMixer:     ambientMix,
-		adaptiveMusic:    adaptiveMusic,
-		currentRegion:    ambient.RegionPlains, // Default starting region
-		interactionSys:   interactionSys,
-		dialogUI:         dialogUI,
-		combatManager:    combatMgr,
-		menu:             menu,
+		cfg:               cfg,
+		world:             world,
+		renderer:          renderer,
+		client:            client,
+		connected:         connected,
+		playerEntity:      player,
+		chunkManager:      chunkMgr,
+		lastChunkX:        -999, // Force initial map build
+		lastChunkY:        -999,
+		mapSize:           localMapSize,
+		wallThreshold:     wallThreshold,
+		audioEngine:       audioEngine,
+		audioPlayer:       audioPlayer,
+		inputManager:      inputMgr,
+		gameState:         GameStateCharacterCreation,
+		characterCreation: NewCharacterCreation(),
+		lightingSystem:    lightingSys,
+		postprocessPipe:   postprocessPipeline,
+		particleSystem:    particleSys,
+		particleRenderer:  particleRend,
+		spriteGenerator:   spriteGen,
+		spriteCache:       spriteCache,
+		textureCache:      textureCache,
+		subtitleSystem:    subtitleSys,
+		ambientMixer:      ambientMix,
+		adaptiveMusic:     adaptiveMusic,
+		currentRegion:     ambient.RegionPlains, // Default starting region
+		interactionSys:    interactionSys,
+		dialogUI:          dialogUI,
+		combatManager:     combatMgr,
+		menu:              menu,
+		inventoryUI:       inventoryUI,
+		questUI:           questUI,
+		npcRenderer:       npcRend,
 	}
 
 	// Initialize state synchronization if connected to server

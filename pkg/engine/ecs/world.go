@@ -108,3 +108,26 @@ func (w *World) Update(dt float64) {
 		s.Update(w, dt)
 	}
 }
+
+// AllEntities returns all entity IDs in the world, sorted for deterministic order.
+func (w *World) AllEntities() []Entity {
+	result := make([]Entity, 0, len(w.components))
+	for e := range w.components {
+		result = append(result, e)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i] < result[j] })
+	return result
+}
+
+// CreateEntityWithID creates an entity with a specific ID (used for load).
+// If the ID already exists, it returns the existing entity.
+// Updates nextID if the given ID is >= current nextID to prevent collisions.
+func (w *World) CreateEntityWithID(id Entity) Entity {
+	if _, exists := w.components[id]; !exists {
+		w.components[id] = make(map[string]Component)
+	}
+	if id >= w.nextID {
+		w.nextID = id + 1
+	}
+	return id
+}

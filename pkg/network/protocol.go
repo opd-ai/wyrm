@@ -15,6 +15,10 @@ const (
 	MsgTypeChunkData    uint8 = 4
 	MsgTypePing         uint8 = 5
 	MsgTypePong         uint8 = 6
+	MsgTypeSaveRequest  uint8 = 7
+	MsgTypeSaveResponse uint8 = 8
+	MsgTypeLoadRequest  uint8 = 9
+	MsgTypeLoadResponse uint8 = 10
 )
 
 // Message is the interface all network messages implement.
@@ -613,4 +617,180 @@ func ReadMessageType(r io.Reader) (uint8, error) {
 		return 0, err
 	}
 	return msgType, nil
+}
+
+// SaveRequest is sent by client to request a world save.
+type SaveRequest struct {
+	ClientTimeMs uint32
+}
+
+// Type returns the message type identifier.
+func (m *SaveRequest) Type() uint8 { return MsgTypeSaveRequest }
+
+// Encode writes the message to a writer.
+func (m *SaveRequest) Encode(w io.Writer) error {
+	if err := binary.Write(w, binary.LittleEndian, m.Type()); err != nil {
+		return fmt.Errorf("encode type: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.ClientTimeMs); err != nil {
+		return fmt.Errorf("encode ClientTimeMs: %w", err)
+	}
+	return nil
+}
+
+// DecodeSaveRequest reads a SaveRequest from a reader.
+func DecodeSaveRequest(r io.Reader) (*SaveRequest, error) {
+	m := &SaveRequest{}
+	if err := binary.Read(r, binary.LittleEndian, &m.ClientTimeMs); err != nil {
+		return nil, fmt.Errorf("decode ClientTimeMs: %w", err)
+	}
+	return m, nil
+}
+
+// SaveResponse is sent by server in response to a save request.
+type SaveResponse struct {
+	Success      bool
+	ServerTimeMs uint32
+	Message      string // Error message if failed, or save path if succeeded
+}
+
+// Type returns the message type identifier.
+func (m *SaveResponse) Type() uint8 { return MsgTypeSaveResponse }
+
+// Encode writes the message to a writer.
+func (m *SaveResponse) Encode(w io.Writer) error {
+	if err := binary.Write(w, binary.LittleEndian, m.Type()); err != nil {
+		return fmt.Errorf("encode type: %w", err)
+	}
+	var successByte uint8
+	if m.Success {
+		successByte = 1
+	}
+	if err := binary.Write(w, binary.LittleEndian, successByte); err != nil {
+		return fmt.Errorf("encode Success: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.ServerTimeMs); err != nil {
+		return fmt.Errorf("encode ServerTimeMs: %w", err)
+	}
+	// Write message length and content
+	msgBytes := []byte(m.Message)
+	msgLen := uint16(len(msgBytes))
+	if err := binary.Write(w, binary.LittleEndian, msgLen); err != nil {
+		return fmt.Errorf("encode Message length: %w", err)
+	}
+	if _, err := w.Write(msgBytes); err != nil {
+		return fmt.Errorf("encode Message: %w", err)
+	}
+	return nil
+}
+
+// DecodeSaveResponse reads a SaveResponse from a reader.
+func DecodeSaveResponse(r io.Reader) (*SaveResponse, error) {
+	m := &SaveResponse{}
+	var successByte uint8
+	if err := binary.Read(r, binary.LittleEndian, &successByte); err != nil {
+		return nil, fmt.Errorf("decode Success: %w", err)
+	}
+	m.Success = successByte != 0
+	if err := binary.Read(r, binary.LittleEndian, &m.ServerTimeMs); err != nil {
+		return nil, fmt.Errorf("decode ServerTimeMs: %w", err)
+	}
+	var msgLen uint16
+	if err := binary.Read(r, binary.LittleEndian, &msgLen); err != nil {
+		return nil, fmt.Errorf("decode Message length: %w", err)
+	}
+	msgBytes := make([]byte, msgLen)
+	if _, err := io.ReadFull(r, msgBytes); err != nil {
+		return nil, fmt.Errorf("decode Message: %w", err)
+	}
+	m.Message = string(msgBytes)
+	return m, nil
+}
+
+// LoadRequest is sent by client to request loading the last save.
+type LoadRequest struct {
+	ClientTimeMs uint32
+}
+
+// Type returns the message type identifier.
+func (m *LoadRequest) Type() uint8 { return MsgTypeLoadRequest }
+
+// Encode writes the message to a writer.
+func (m *LoadRequest) Encode(w io.Writer) error {
+	if err := binary.Write(w, binary.LittleEndian, m.Type()); err != nil {
+		return fmt.Errorf("encode type: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.ClientTimeMs); err != nil {
+		return fmt.Errorf("encode ClientTimeMs: %w", err)
+	}
+	return nil
+}
+
+// DecodeLoadRequest reads a LoadRequest from a reader.
+func DecodeLoadRequest(r io.Reader) (*LoadRequest, error) {
+	m := &LoadRequest{}
+	if err := binary.Read(r, binary.LittleEndian, &m.ClientTimeMs); err != nil {
+		return nil, fmt.Errorf("decode ClientTimeMs: %w", err)
+	}
+	return m, nil
+}
+
+// LoadResponse is sent by server in response to a load request.
+type LoadResponse struct {
+	Success      bool
+	ServerTimeMs uint32
+	Message      string // Error message if failed, or load result if succeeded
+}
+
+// Type returns the message type identifier.
+func (m *LoadResponse) Type() uint8 { return MsgTypeLoadResponse }
+
+// Encode writes the message to a writer.
+func (m *LoadResponse) Encode(w io.Writer) error {
+	if err := binary.Write(w, binary.LittleEndian, m.Type()); err != nil {
+		return fmt.Errorf("encode type: %w", err)
+	}
+	var successByte uint8
+	if m.Success {
+		successByte = 1
+	}
+	if err := binary.Write(w, binary.LittleEndian, successByte); err != nil {
+		return fmt.Errorf("encode Success: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.ServerTimeMs); err != nil {
+		return fmt.Errorf("encode ServerTimeMs: %w", err)
+	}
+	// Write message length and content
+	msgBytes := []byte(m.Message)
+	msgLen := uint16(len(msgBytes))
+	if err := binary.Write(w, binary.LittleEndian, msgLen); err != nil {
+		return fmt.Errorf("encode Message length: %w", err)
+	}
+	if _, err := w.Write(msgBytes); err != nil {
+		return fmt.Errorf("encode Message: %w", err)
+	}
+	return nil
+}
+
+// DecodeLoadResponse reads a LoadResponse from a reader.
+func DecodeLoadResponse(r io.Reader) (*LoadResponse, error) {
+	m := &LoadResponse{}
+	var successByte uint8
+	if err := binary.Read(r, binary.LittleEndian, &successByte); err != nil {
+		return nil, fmt.Errorf("decode Success: %w", err)
+	}
+	m.Success = successByte != 0
+	if err := binary.Read(r, binary.LittleEndian, &m.ServerTimeMs); err != nil {
+		return nil, fmt.Errorf("decode ServerTimeMs: %w", err)
+	}
+	var msgLen uint16
+	if err := binary.Read(r, binary.LittleEndian, &msgLen); err != nil {
+		return nil, fmt.Errorf("decode Message length: %w", err)
+	}
+	msgBytes := make([]byte, msgLen)
+	if _, err := io.ReadFull(r, msgBytes); err != nil {
+		return nil, fmt.Errorf("decode Message: %w", err)
+	}
+	m.Message = string(msgBytes)
+	return m, nil
 }

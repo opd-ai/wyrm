@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 	"github.com/opd-ai/wyrm/pkg/engine/systems"
@@ -18,9 +19,11 @@ import (
 
 // CombatManager handles player combat input and visual feedback.
 type CombatManager struct {
-	playerEntity ecs.Entity
-	combatSystem *systems.CombatSystem
-	inputManager *input.Manager
+	playerEntity     ecs.Entity
+	combatSystem     *systems.CombatSystem
+	projectileSystem *systems.ProjectileSystem
+	magicSystem      *systems.MagicSystem
+	inputManager     *input.Manager
 
 	// Visual feedback state
 	screenShakeMagnitude float64
@@ -41,6 +44,13 @@ type CombatManager struct {
 	deathTime    time.Time
 	respawnDelay time.Duration
 	respawnPos   Position3D
+
+	// Aim direction for ranged attacks (normalized)
+	aimDirX, aimDirY float64
+
+	// Magic state
+	selectedSpellIndex int // Index of currently selected spell
+	lastSpellCastTime  time.Time
 }
 
 // Position3D represents a 3D position for respawn point.
@@ -51,13 +61,18 @@ type Position3D struct {
 // NewCombatManager creates a new combat manager.
 func NewCombatManager(playerEntity ecs.Entity, inputManager *input.Manager) *CombatManager {
 	return &CombatManager{
-		playerEntity:    playerEntity,
-		combatSystem:    systems.NewCombatSystem(),
-		inputManager:    inputManager,
-		attackCooldown:  500 * time.Millisecond,
-		comboWindowSecs: 1.5,
-		respawnDelay:    3 * time.Second,
-		respawnPos:      Position3D{X: 8.5, Y: 8.5, Z: 0},
+		playerEntity:       playerEntity,
+		combatSystem:       systems.NewCombatSystem(),
+		projectileSystem:   systems.NewProjectileSystem(),
+		magicSystem:        systems.NewMagicSystem(),
+		inputManager:       inputManager,
+		attackCooldown:     500 * time.Millisecond,
+		comboWindowSecs:    1.5,
+		respawnDelay:       3 * time.Second,
+		respawnPos:         Position3D{X: 8.5, Y: 8.5, Z: 0},
+		aimDirX:            0,
+		aimDirY:            1, // Default aim direction (forward)
+		selectedSpellIndex: 0,
 	}
 }
 
@@ -86,10 +101,19 @@ func (cm *CombatManager) Update(world *ecs.World, dt float64) {
 
 	// Run combat system update
 	cm.combatSystem.Update(world, dt)
+
+	// Run projectile system update for ranged combat
+	cm.projectileSystem.Update(world, dt)
+
+	// Run magic system update for spell effects and mana regen
+	cm.magicSystem.Update(world, dt)
 }
 
 // handleCombatInput processes player attack and block inputs.
 func (cm *CombatManager) handleCombatInput(world *ecs.World) {
+	// Update aim direction based on mouse position (for ranged weapons)
+	cm.updateAimDirection(world)
+
 	// Check for attack input (left mouse click or action key)
 	attackPressed := ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) ||
 		cm.isActionPressed(input.ActionAttack)
@@ -97,6 +121,9 @@ func (cm *CombatManager) handleCombatInput(world *ecs.World) {
 	if attackPressed && cm.canAttack() {
 		cm.performAttack(world)
 	}
+
+	// Check for spell cast input (number keys or spell action)
+	cm.handleSpellInput(world)
 
 	// Check for block input (right mouse click or action key)
 	blockPressed := ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight) ||
@@ -121,24 +148,224 @@ func (cm *CombatManager) canAttack() bool {
 	return time.Since(cm.lastAttackTime) >= cm.attackCooldown
 }
 
-// performAttack executes a melee attack against the nearest target.
+// performAttack executes an attack based on equipped weapon type.
 func (cm *CombatManager) performAttack(world *ecs.World) {
-	// Find nearest target in attack range
+	// Check equipped weapon type
+	weaponType := cm.getEquippedWeaponType(world)
+
+	switch weaponType {
+	case "ranged":
+		cm.performRangedAttack(world)
+	case "magic":
+		// Magic combat handled by MagicSystem (placeholder)
+		cm.performMeleeAttack(world)
+	default:
+		cm.performMeleeAttack(world)
+	}
+}
+
+// getEquippedWeaponType returns the type of the player's equipped weapon.
+func (cm *CombatManager) getEquippedWeaponType(world *ecs.World) string {
+	weaponComp, exists := world.GetComponent(cm.playerEntity, "Weapon")
+	if !exists || weaponComp == nil {
+		return "melee" // Default to melee if no weapon
+	}
+	weapon, ok := weaponComp.(*components.Weapon)
+	if !ok || weapon.WeaponType == "" {
+		return "melee"
+	}
+	return weapon.WeaponType
+}
+
+// performMeleeAttack executes a melee attack against the nearest target.
+func (cm *CombatManager) performMeleeAttack(world *ecs.World) {
 	target := cm.combatSystem.FindNearestTarget(world, cm.playerEntity)
 
 	if target != 0 {
-		// Initiate attack through combat system
 		if cm.combatSystem.InitiateAttack(world, cm.playerEntity, target) {
 			cm.lastAttackTime = time.Now()
 			cm.incrementCombo()
-
-			// Trigger screen shake for attack feedback
 			cm.triggerScreenShake(0.05, 0.1)
 		}
 	} else {
-		// Swing attack animation even without target (miss)
 		cm.lastAttackTime = time.Now()
 		cm.resetCombo()
+	}
+}
+
+// performRangedAttack fires a projectile in the aim direction.
+func (cm *CombatManager) performRangedAttack(world *ecs.World) {
+	// Get player position
+	posComp, exists := world.GetComponent(cm.playerEntity, "Position")
+	if !exists || posComp == nil {
+		return
+	}
+	pos, ok := posComp.(*components.Position)
+	if !ok {
+		return
+	}
+
+	// Get weapon damage and speed
+	damage, speed, projRange := cm.getRangedWeaponStats(world)
+
+	// Calculate target position based on aim direction and range
+	targetX := pos.X + cm.aimDirX*projRange
+	targetY := pos.Y + cm.aimDirY*projRange
+	targetZ := pos.Z
+
+	// Spawn projectile using ProjectileSystem
+	cm.projectileSystem.SpawnProjectile(
+		world, cm.playerEntity,
+		targetX, targetY, targetZ,
+		damage, speed, "arrow", // projectileType varies by weapon
+	)
+
+	cm.lastAttackTime = time.Now()
+	cm.triggerScreenShake(0.02, 0.05) // Lighter shake for ranged
+}
+
+// getRangedWeaponStats returns damage, speed, and range for the equipped ranged weapon.
+func (cm *CombatManager) getRangedWeaponStats(world *ecs.World) (damage, speed, weaponRange float64) {
+	weaponComp, exists := world.GetComponent(cm.playerEntity, "Weapon")
+	if !exists || weaponComp == nil {
+		return 10.0, 15.0, 20.0 // Defaults
+	}
+	weapon, ok := weaponComp.(*components.Weapon)
+	if !ok {
+		return 10.0, 15.0, 20.0
+	}
+	damage = weapon.Damage
+	if damage <= 0 {
+		damage = 10.0
+	}
+	speed = 15.0 // Fixed projectile speed
+	weaponRange = weapon.Range
+	if weaponRange <= 0 {
+		weaponRange = 20.0
+	}
+	return damage, speed, weaponRange
+}
+
+// updateAimDirection calculates aim direction from player position to screen center.
+// In first-person view, aim direction follows camera facing direction.
+func (cm *CombatManager) updateAimDirection(world *ecs.World) {
+	// Get player position and facing direction
+	posComp, exists := world.GetComponent(cm.playerEntity, "Position")
+	if !exists || posComp == nil {
+		return
+	}
+	pos, ok := posComp.(*components.Position)
+	if !ok {
+		return
+	}
+
+	// Use player's Angle (from Position component) for aim direction
+	// Angle is typically stored in radians
+	cm.aimDirX = math.Cos(pos.Angle)
+	cm.aimDirY = math.Sin(pos.Angle)
+}
+
+// handleSpellInput processes spell casting and selection input.
+func (cm *CombatManager) handleSpellInput(world *ecs.World) {
+	// Spell selection with number keys 1-9
+	for i := 0; i < 9; i++ {
+		key := ebiten.Key(int(ebiten.Key1) + i)
+		if inpututil.IsKeyJustPressed(key) {
+			cm.selectedSpellIndex = i
+		}
+	}
+
+	// Cast spell with Q key or ActionCastSpell
+	castPressed := inpututil.IsKeyJustPressed(ebiten.KeyQ) ||
+		cm.isActionPressed(input.ActionCastSpell)
+
+	if castPressed && cm.canCastSpell() {
+		cm.performMagicAttack(world)
+	}
+}
+
+// canCastSpell checks if player can cast a spell (not dead, has mana).
+func (cm *CombatManager) canCastSpell() bool {
+	if cm.isDead || cm.isBlocking {
+		return false
+	}
+	// Rate limit spell casting to prevent spam
+	return time.Since(cm.lastSpellCastTime) >= 200*time.Millisecond
+}
+
+// performMagicAttack casts the selected spell toward the aim direction.
+func (cm *CombatManager) performMagicAttack(world *ecs.World) {
+	// Get player's spell book
+	spellID := cm.getSelectedSpellID(world)
+	if spellID == "" {
+		return
+	}
+
+	// Get player position for target calculation
+	posComp, exists := world.GetComponent(cm.playerEntity, "Position")
+	if !exists || posComp == nil {
+		return
+	}
+	pos, ok := posComp.(*components.Position)
+	if !ok {
+		return
+	}
+
+	// Calculate target position based on aim direction
+	spellRange := 15.0 // Default spell range
+	targetX := pos.X + cm.aimDirX*spellRange
+	targetY := pos.Y + cm.aimDirY*spellRange
+	targetZ := pos.Z
+
+	// Cast spell at target position
+	if cm.magicSystem.CastSpellAtPosition(world, cm.playerEntity, spellID, targetX, targetY, targetZ, cm.projectileSystem) {
+		cm.lastSpellCastTime = time.Now()
+		cm.triggerScreenShake(0.03, 0.08) // Magic effect shake
+	}
+}
+
+// getSelectedSpellID returns the spell ID at the selected index from the player's spellbook.
+func (cm *CombatManager) getSelectedSpellID(world *ecs.World) string {
+	spellBookComp, exists := world.GetComponent(cm.playerEntity, "Spellbook")
+	if !exists || spellBookComp == nil {
+		return ""
+	}
+	spellBook, ok := spellBookComp.(*components.Spellbook)
+	if !ok || len(spellBook.Spells) == 0 {
+		return ""
+	}
+
+	// If there's an active spell already selected, use that
+	if spellBook.ActiveSpellID != "" {
+		return spellBook.ActiveSpellID
+	}
+
+	// Convert map to slice for indexed access
+	spellIDs := make([]string, 0, len(spellBook.Spells))
+	for id := range spellBook.Spells {
+		spellIDs = append(spellIDs, id)
+	}
+
+	// Clamp selected index to valid range
+	idx := cm.selectedSpellIndex
+	if idx < 0 {
+		idx = 0
+	}
+	if idx >= len(spellIDs) {
+		idx = len(spellIDs) - 1
+	}
+	return spellIDs[idx]
+}
+
+// GetSelectedSpellIndex returns the currently selected spell slot (0-8).
+func (cm *CombatManager) GetSelectedSpellIndex() int {
+	return cm.selectedSpellIndex
+}
+
+// SetSelectedSpellIndex sets the currently selected spell slot.
+func (cm *CombatManager) SetSelectedSpellIndex(index int) {
+	if index >= 0 && index < 9 {
+		cm.selectedSpellIndex = index
 	}
 }
 

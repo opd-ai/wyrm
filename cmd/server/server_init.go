@@ -471,3 +471,218 @@ func initializePersistence(cfg *config.Config) *persist.Persister {
 	log.Printf("initialized persistence manager")
 	return pm
 }
+
+// createWorldSnapshot creates a snapshot of the current world state for persistence.
+func createWorldSnapshot(world *ecs.World, cfg *config.Config) *persist.WorldSnapshot {
+	snapshot := persist.NewWorldSnapshot(cfg.World.Seed, cfg.Genre)
+
+	// Get world clock state
+	for _, e := range world.Entities("WorldClock") {
+		comp, ok := world.GetComponent(e, "WorldClock")
+		if !ok {
+			continue
+		}
+		clock := comp.(*components.WorldClock)
+		snapshot.WorldHour = clock.Hour
+		snapshot.WorldDay = clock.Day
+		break
+	}
+
+	// Serialize all entities with their components
+	allEntities := world.AllEntities()
+	for _, entityID := range allEntities {
+		entityData := serializeEntity(world, entityID)
+		snapshot.Entities = append(snapshot.Entities, entityData)
+	}
+
+	// Serialize economy nodes
+	for _, e := range world.Entities("EconomyNode") {
+		comp, ok := world.GetComponent(e, "EconomyNode")
+		if !ok {
+			continue
+		}
+		node := comp.(*components.EconomyNode)
+		snapshot.EconomyNodes = append(snapshot.EconomyNodes, persist.EconomyNodeData{
+			EntityID:   uint64(e),
+			PriceTable: node.PriceTable,
+			Supply:     node.Supply,
+			Demand:     node.Demand,
+		})
+	}
+
+	return snapshot
+}
+
+// serializeEntity converts an entity and its components to EntityData.
+func serializeEntity(world *ecs.World, entityID ecs.Entity) persist.EntityData {
+	data := persist.NewEntityData(uint64(entityID))
+
+	// Position component
+	if comp, ok := world.GetComponent(entityID, "Position"); ok {
+		pos := comp.(*components.Position)
+		data.HasPosition = true
+		data.PosX = pos.X
+		data.PosY = pos.Y
+		data.PosZ = pos.Z
+		data.PosAngle = pos.Angle
+	}
+
+	// Health component
+	if comp, ok := world.GetComponent(entityID, "Health"); ok {
+		health := comp.(*components.Health)
+		data.HasHealth = true
+		data.HealthCurrent = health.Current
+		data.HealthMax = health.Max
+	}
+
+	// Faction component
+	if comp, ok := world.GetComponent(entityID, "Faction"); ok {
+		faction := comp.(*components.Faction)
+		data.HasFaction = true
+		data.FactionID = faction.ID
+		data.FactionReputation = faction.Reputation
+	}
+
+	// Crime component
+	if comp, ok := world.GetComponent(entityID, "Crime"); ok {
+		crime := comp.(*components.Crime)
+		data.HasCrime = true
+		data.WantedLevel = crime.WantedLevel
+		data.BountyAmount = crime.BountyAmount
+		data.LastCrimeTime = crime.LastCrimeTime
+		data.InJail = crime.InJail
+		data.JailReleaseTime = crime.JailReleaseTime
+	}
+
+	// Inventory component
+	if comp, ok := world.GetComponent(entityID, "Inventory"); ok {
+		inv := comp.(*components.Inventory)
+		data.HasInventory = true
+		data.InventoryItems = inv.Items
+		data.InventoryCapacity = inv.Capacity
+	}
+
+	// Skills component
+	if comp, ok := world.GetComponent(entityID, "Skills"); ok {
+		skills := comp.(*components.Skills)
+		data.HasSkills = true
+		data.SkillLevels = skills.Levels
+		data.SkillExperience = skills.Experience
+		data.SchoolBonuses = skills.SchoolBonuses
+	}
+
+	// Quest component
+	if comp, ok := world.GetComponent(entityID, "Quest"); ok {
+		quest := comp.(*components.Quest)
+		data.HasQuest = true
+		data.QuestID = quest.ID
+		data.QuestStage = quest.CurrentStage
+		data.QuestFlags = quest.Flags
+		data.QuestCompleted = quest.Completed
+		data.LockedBranches = quest.LockedBranches
+	}
+
+	return data
+}
+
+// loadWorldFromSnapshot restores world state from a persisted snapshot.
+func loadWorldFromSnapshot(world *ecs.World, snapshot *persist.WorldSnapshot) {
+	if snapshot == nil {
+		return
+	}
+
+	// Restore entities
+	for _, entityData := range snapshot.Entities {
+		e := world.CreateEntityWithID(ecs.Entity(entityData.ID))
+		deserializeEntity(world, e, entityData)
+	}
+
+	// Restore economy nodes (already done during entity deserialization)
+
+	// Restore world clock
+	clockEntity := world.CreateEntity()
+	if err := world.AddComponent(clockEntity, &components.WorldClock{
+		Hour:       snapshot.WorldHour,
+		Day:        snapshot.WorldDay,
+		HourLength: 60.0,
+	}); err != nil {
+		log.Printf("warning: failed to restore world clock: %v", err)
+	}
+
+	log.Printf("restored %d entities from snapshot", len(snapshot.Entities))
+}
+
+// deserializeEntity applies EntityData to an entity in the world.
+func deserializeEntity(world *ecs.World, e ecs.Entity, data persist.EntityData) {
+	if data.HasPosition {
+		if err := world.AddComponent(e, &components.Position{
+			X:     data.PosX,
+			Y:     data.PosY,
+			Z:     data.PosZ,
+			Angle: data.PosAngle,
+		}); err != nil {
+			log.Printf("warning: failed to restore Position for entity %d: %v", data.ID, err)
+		}
+	}
+
+	if data.HasHealth {
+		if err := world.AddComponent(e, &components.Health{
+			Current: data.HealthCurrent,
+			Max:     data.HealthMax,
+		}); err != nil {
+			log.Printf("warning: failed to restore Health for entity %d: %v", data.ID, err)
+		}
+	}
+
+	if data.HasFaction {
+		if err := world.AddComponent(e, &components.Faction{
+			ID:         data.FactionID,
+			Reputation: data.FactionReputation,
+		}); err != nil {
+			log.Printf("warning: failed to restore Faction for entity %d: %v", data.ID, err)
+		}
+	}
+
+	if data.HasCrime {
+		if err := world.AddComponent(e, &components.Crime{
+			WantedLevel:     data.WantedLevel,
+			BountyAmount:    data.BountyAmount,
+			LastCrimeTime:   data.LastCrimeTime,
+			InJail:          data.InJail,
+			JailReleaseTime: data.JailReleaseTime,
+		}); err != nil {
+			log.Printf("warning: failed to restore Crime for entity %d: %v", data.ID, err)
+		}
+	}
+
+	if data.HasInventory {
+		if err := world.AddComponent(e, &components.Inventory{
+			Items:    data.InventoryItems,
+			Capacity: data.InventoryCapacity,
+		}); err != nil {
+			log.Printf("warning: failed to restore Inventory for entity %d: %v", data.ID, err)
+		}
+	}
+
+	if data.HasSkills {
+		if err := world.AddComponent(e, &components.Skills{
+			Levels:        data.SkillLevels,
+			Experience:    data.SkillExperience,
+			SchoolBonuses: data.SchoolBonuses,
+		}); err != nil {
+			log.Printf("warning: failed to restore Skills for entity %d: %v", data.ID, err)
+		}
+	}
+
+	if data.HasQuest {
+		if err := world.AddComponent(e, &components.Quest{
+			ID:             data.QuestID,
+			CurrentStage:   data.QuestStage,
+			Flags:          data.QuestFlags,
+			Completed:      data.QuestCompleted,
+			LockedBranches: data.LockedBranches,
+		}); err != nil {
+			log.Printf("warning: failed to restore Quest for entity %d: %v", data.ID, err)
+		}
+	}
+}

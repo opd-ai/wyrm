@@ -27,6 +27,7 @@ const (
 const (
 	ActionAttack       Action = "attack"
 	ActionBlock        Action = "block"
+	ActionCastSpell    Action = "cast_spell"
 	ActionAbility1     Action = "ability_1"
 	ActionAbility2     Action = "ability_2"
 	ActionAbility3     Action = "ability_3"
@@ -166,6 +167,7 @@ func (im *Manager) setDefaultBindings() {
 	// Combat
 	im.setBindingUnsafe(ActionAttack, "MouseButtonLeft")
 	im.setBindingUnsafe(ActionBlock, "MouseButtonRight")
+	im.setBindingUnsafe(ActionCastSpell, "Q")
 	im.setBindingUnsafe(ActionAbility1, "1")
 	im.setBindingUnsafe(ActionAbility2, "2")
 	im.setBindingUnsafe(ActionAbility3, "3")

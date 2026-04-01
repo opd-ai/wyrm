@@ -12,6 +12,7 @@ type Config struct {
 	Window        WindowConfig        `mapstructure:"window"`
 	Server        ServerConfig        `mapstructure:"server"`
 	World         WorldConfig         `mapstructure:"world"`
+	Audio         AudioConfig         `mapstructure:"audio"`
 	Federation    FederationConfig    `mapstructure:"federation"`
 	Accessibility AccessibilityConfig `mapstructure:"accessibility"`
 	Difficulty    DifficultyConfig    `mapstructure:"difficulty"`
@@ -21,9 +22,18 @@ type Config struct {
 
 // WindowConfig holds display settings.
 type WindowConfig struct {
-	Width  int    `mapstructure:"width"`
-	Height int    `mapstructure:"height"`
-	Title  string `mapstructure:"title"`
+	Width      int    `mapstructure:"width"`
+	Height     int    `mapstructure:"height"`
+	Title      string `mapstructure:"title"`
+	Fullscreen bool   `mapstructure:"fullscreen"`
+	ShowFPS    bool   `mapstructure:"show_fps"`
+}
+
+// AudioConfig holds audio settings.
+type AudioConfig struct {
+	MasterVolume int  `mapstructure:"master_volume"` // 0-10
+	MusicEnabled bool `mapstructure:"music_enabled"`
+	SFXEnabled   bool `mapstructure:"sfx_enabled"`
 }
 
 // ServerConfig holds server settings.
@@ -232,6 +242,12 @@ func setDefaults() {
 	viper.SetDefault("window.width", 1280)
 	viper.SetDefault("window.height", 720)
 	viper.SetDefault("window.title", "Wyrm")
+	viper.SetDefault("window.fullscreen", false)
+	viper.SetDefault("window.show_fps", true)
+
+	viper.SetDefault("audio.master_volume", 7)
+	viper.SetDefault("audio.music_enabled", true)
+	viper.SetDefault("audio.sfx_enabled", true)
 
 	viper.SetDefault("server.address", "localhost:7777")
 	viper.SetDefault("server.protocol", "tcp")
@@ -306,4 +322,26 @@ func setDefaults() {
 	viper.SetDefault("keybindings.trade_window", "Y")
 
 	viper.SetDefault("genre", "fantasy")
+}
+
+// Save writes the current configuration to a file.
+func (c *Config) Save(path string) error {
+	// Update viper with current config values
+	viper.Set("window.width", c.Window.Width)
+	viper.Set("window.height", c.Window.Height)
+	viper.Set("window.title", c.Window.Title)
+	viper.Set("window.fullscreen", c.Window.Fullscreen)
+	viper.Set("window.show_fps", c.Window.ShowFPS)
+
+	viper.Set("audio.master_volume", c.Audio.MasterVolume)
+	viper.Set("audio.music_enabled", c.Audio.MusicEnabled)
+	viper.Set("audio.sfx_enabled", c.Audio.SFXEnabled)
+
+	viper.Set("genre", c.Genre)
+
+	// Write to file
+	if path == "" {
+		return viper.WriteConfig()
+	}
+	return viper.WriteConfigAs(path)
 }

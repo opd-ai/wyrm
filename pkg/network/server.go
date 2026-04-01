@@ -20,6 +20,7 @@ type Server struct {
 	clientPlayers map[net.Conn]uint64 // Connection to player entity ID
 	playerStates  map[uint64]*PlayerState
 	lastAck       map[net.Conn]uint32 // Last acknowledged input sequence per client
+	clientChunks  map[net.Conn][2]int // Last known chunk position per client
 	running       bool
 }
 
@@ -39,6 +40,7 @@ func NewServer(address string) *Server {
 		clientPlayers: make(map[net.Conn]uint64),
 		playerStates:  make(map[uint64]*PlayerState),
 		lastAck:       make(map[net.Conn]uint32),
+		clientChunks:  make(map[net.Conn][2]int),
 	}
 }
 
@@ -153,6 +155,7 @@ func (s *Server) cleanupClient(conn net.Conn) {
 	delete(s.clientPlayers, conn)
 	delete(s.playerStates, entityID)
 	delete(s.lastAck, conn)
+	delete(s.clientChunks, conn)
 	s.mu.Unlock()
 
 	conn.Close()
@@ -176,6 +179,10 @@ func (s *Server) dispatchMessage(conn net.Conn, msgType uint8) error {
 		return s.handlePlayerInputMessage(conn)
 	case MsgTypePing:
 		return s.handlePingMessage(conn)
+	case MsgTypeSaveRequest:
+		return s.handleSaveRequestMessage(conn)
+	case MsgTypeLoadRequest:
+		return s.handleLoadRequestMessage(conn)
 	default:
 		log.Printf("unknown message type: %d", msgType)
 		return nil
@@ -190,6 +197,99 @@ func (s *Server) handlePlayerInputMessage(conn net.Conn) error {
 		return err
 	}
 	s.handlePlayerInput(conn, input)
+	return nil
+}
+
+// SaveHandler is a callback for save requests.
+type SaveHandler func() error
+
+// LoadHandler is a callback for load requests.
+type LoadHandler func() error
+
+var (
+	saveHandler SaveHandler
+	loadHandler LoadHandler
+)
+
+// SetSaveHandler registers a callback for save requests.
+func SetSaveHandler(handler SaveHandler) {
+	saveHandler = handler
+}
+
+// SetLoadHandler registers a callback for load requests.
+func SetLoadHandler(handler LoadHandler) {
+	loadHandler = handler
+}
+
+// handleSaveRequestMessage decodes and processes a save request.
+func (s *Server) handleSaveRequestMessage(conn net.Conn) error {
+	_, err := DecodeSaveRequest(conn)
+	if err != nil {
+		log.Printf("decode SaveRequest: %v", err)
+		return err
+	}
+
+	// Trigger save via registered handler
+	var resp *SaveResponse
+	if saveHandler != nil {
+		if err := saveHandler(); err != nil {
+			resp = &SaveResponse{
+				Success:      false,
+				ServerTimeMs: uint32(serverTimeMs()),
+				Message:      err.Error(),
+			}
+		} else {
+			resp = &SaveResponse{
+				Success:      true,
+				ServerTimeMs: uint32(serverTimeMs()),
+				Message:      "World saved successfully",
+			}
+		}
+	} else {
+		resp = &SaveResponse{
+			Success:      false,
+			ServerTimeMs: uint32(serverTimeMs()),
+			Message:      "Save not available",
+		}
+	}
+
+	_ = resp.Encode(conn)
+	return nil
+}
+
+// handleLoadRequestMessage decodes and processes a load request.
+func (s *Server) handleLoadRequestMessage(conn net.Conn) error {
+	_, err := DecodeLoadRequest(conn)
+	if err != nil {
+		log.Printf("decode LoadRequest: %v", err)
+		return err
+	}
+
+	// Trigger load via registered handler
+	var resp *LoadResponse
+	if loadHandler != nil {
+		if err := loadHandler(); err != nil {
+			resp = &LoadResponse{
+				Success:      false,
+				ServerTimeMs: uint32(serverTimeMs()),
+				Message:      err.Error(),
+			}
+		} else {
+			resp = &LoadResponse{
+				Success:      true,
+				ServerTimeMs: uint32(serverTimeMs()),
+				Message:      "World loaded successfully",
+			}
+		}
+	} else {
+		resp = &LoadResponse{
+			Success:      false,
+			ServerTimeMs: uint32(serverTimeMs()),
+			Message:      "Load not available",
+		}
+	}
+
+	_ = resp.Encode(conn)
 	return nil
 }
 
@@ -341,6 +441,53 @@ func serverTimeMs() int64 {
 	return time.Now().UnixMilli()
 }
 
+// UpdateClientChunkPosition checks if a client has moved to a new chunk
+// and sends chunk data if so. Returns true if chunk data was sent.
+// chunkSize is the size of each chunk in world units.
+func (s *Server) UpdateClientChunkPosition(conn net.Conn, x, y float32, chunkSize int) bool {
+	newChunkX := int(x) / chunkSize
+	newChunkY := int(y) / chunkSize
+
+	s.mu.Lock()
+	oldChunk, exists := s.clientChunks[conn]
+	if exists && oldChunk[0] == newChunkX && oldChunk[1] == newChunkY {
+		s.mu.Unlock()
+		return false // Same chunk, no update needed
+	}
+	s.clientChunks[conn] = [2]int{newChunkX, newChunkY}
+	s.mu.Unlock()
+
+	return true // Chunk changed, caller should send chunk data
+}
+
+// GetClientChunk returns the client's current chunk coordinates.
+func (s *Server) GetClientChunk(conn net.Conn) (int, int, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	chunk, exists := s.clientChunks[conn]
+	if !exists {
+		return 0, 0, false
+	}
+	return chunk[0], chunk[1], true
+}
+
+// GetConnectedClients returns a copy of the connected clients slice.
+func (s *Server) GetConnectedClients() []net.Conn {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	clients := make([]net.Conn, len(s.clients))
+	copy(clients, s.clients)
+	return clients
+}
+
+// GetPlayerState returns the state for a player entity, if it exists.
+func (s *Server) GetPlayerState(entityID uint64) (*PlayerState, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state, exists := s.playerStates[entityID]
+	return state, exists
+}
+
 // removeClient removes a client from the tracked connections.
 func (s *Server) removeClient(conn net.Conn) {
 	s.mu.Lock()
@@ -489,4 +636,28 @@ func (c *Client) SendPing(clientTimeMs uint32) error {
 	}
 	ping := &Ping{ClientTimeMs: clientTimeMs}
 	return ping.Encode(conn)
+}
+
+// SendSaveRequest sends a save request to the server.
+func (c *Client) SendSaveRequest() error {
+	c.mu.Lock()
+	conn := c.conn
+	c.mu.Unlock()
+	if conn == nil {
+		return net.ErrClosed
+	}
+	req := &SaveRequest{ClientTimeMs: uint32(time.Now().UnixMilli())}
+	return req.Encode(conn)
+}
+
+// SendLoadRequest sends a load request to the server.
+func (c *Client) SendLoadRequest() error {
+	c.mu.Lock()
+	conn := c.conn
+	c.mu.Unlock()
+	if conn == nil {
+		return net.ErrClosed
+	}
+	req := &LoadRequest{ClientTimeMs: uint32(time.Now().UnixMilli())}
+	return req.Encode(conn)
 }

@@ -318,12 +318,12 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Create `Appearance` components for NPC entity types
-- [ ] Integrate `pkg/rendering/sprite/Generator` to produce NPC sprites
-- [ ] Feed NPC positions and sprites into raycast billboard renderer
-- [ ] Implement sprite animation based on NPC state (idle, walking, working)
-- [ ] Verify NPCs are visible in the first-person view
-- [ ] Ensure NPC rendering works in offline mode (local NPC generation)
+- [x] Create `Appearance` components for NPC entity types
+- [x] Integrate `pkg/rendering/sprite/Generator` to produce NPC sprites
+- [x] Feed NPC positions and sprites into raycast billboard renderer
+- [x] Implement sprite animation based on NPC state (idle, walking, working)
+- [x] Verify NPCs are visible in the first-person view
+- [x] Ensure NPC rendering works in offline mode (local NPC generation)
 
 ### 2E: Inventory UI (8 hours)
 
@@ -338,14 +338,14 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Implement I key toggle for inventory overlay
-- [ ] Implement grid display of held items
-- [ ] Implement click-to-select item interaction
-- [ ] Implement item use action
-- [ ] Implement item drop action
-- [ ] Display equipment slots (weapon, armor, accessories)
-- [ ] Display weight/capacity indicator
-- [ ] Verify inventory updates reflect in Inventory component
+- [x] Implement I key toggle for inventory overlay
+- [x] Implement grid display of held items
+- [x] Implement click-to-select item interaction
+- [x] Implement item use action
+- [x] Implement item drop action
+- [x] Display equipment slots (weapon, armor, accessories)
+- [x] Display weight/capacity indicator
+- [x] Verify inventory updates reflect in Inventory component
 
 ### 2F: Quest System Integration (6 hours)
 
@@ -360,12 +360,12 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Implement J key toggle for quest log overlay
-- [ ] Display active quests with descriptions and objectives
-- [ ] Implement on-screen quest tracker showing active objective
-- [ ] Implement quest completion notification display
-- [ ] Wire `adapters.QuestAdapter` into server world initialization
-- [ ] Verify quest acceptance, tracking, and completion end-to-end
+- [x] Implement J key toggle for quest log overlay
+- [x] Display active quests with descriptions and objectives
+- [x] Implement on-screen quest tracker showing active objective
+- [x] Implement quest completion notification display
+- [x] Wire `adapters.QuestAdapter` into server world initialization
+- [x] Verify quest acceptance, tracking, and completion end-to-end
 
 ### 2G: Content Generator Integration (6 hours)
 
@@ -381,13 +381,13 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Call `adapters.BuildingAdapter` to generate building interiors for city districts
-- [ ] Call `adapters.ItemAdapter` to populate building inventories with items
-- [ ] Call `adapters.QuestAdapter` to generate quest templates for NPCs
-- [ ] Call `adapters.RecipeAdapter` to generate crafting recipes
-- [ ] Call `adapters.VehicleAdapter` to spawn vehicles in districts
-- [ ] Call `dungeon.Generate()` to create dungeon instances for quest objectives
-- [ ] Verify all generators produce output consumed by game systems
+- [x] Call `adapters.BuildingAdapter` to generate building interiors for city districts
+- [x] Call `adapters.ItemAdapter` to populate building inventories with items
+- [x] Call `adapters.QuestAdapter` to generate quest templates for NPCs
+- [x] Call `adapters.RecipeAdapter` to generate crafting recipes
+- [x] Call `adapters.VehicleAdapter` to spawn vehicles in districts
+- [x] Call `dungeon.Generate()` to create dungeon instances for quest objectives
+- [x] Verify all generators produce output consumed by game systems
 
 ---
 
@@ -419,12 +419,12 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Import `pkg/world/persist/` in server
-- [ ] Implement save-file check and load on server startup
-- [ ] Implement world state save on server shutdown (SIGINT/SIGTERM handler)
-- [ ] Implement periodic auto-save at configurable interval
-- [ ] Verify save includes entities, components, chunk modifications, and quest states
-- [ ] Test save/load round-trip: save → restart → load → verify state matches
+- [x] Import `pkg/world/persist/` in server
+- [x] Implement save-file check and load on server startup
+- [x] Implement world state save on server shutdown (SIGINT/SIGTERM handler)
+- [x] Implement periodic auto-save at configurable interval
+- [x] Verify save includes entities, components, chunk modifications, and quest states
+- [x] Test save/load round-trip: save → restart → load → verify state matches
 
 ### 3B: Client-Server Protocol Implementation (16 hours)
 
@@ -442,16 +442,16 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Server: accept client connections and assign player entity ID
-- [ ] Server: encode and broadcast `EntityUpdate` messages each tick
-- [ ] Server: stream `ChunkData` messages when client enters new chunk
-- [ ] Client: receive and decode `WorldState` messages
-- [ ] Client: receive and decode `EntityUpdate` messages
-- [ ] Client: apply server state to local ECS world
-- [ ] Client: send `PlayerInput` messages to server on each frame
-- [ ] Server: receive and process `PlayerInput` messages (validate, apply)
-- [ ] Implement client-side prediction using `pkg/network/prediction.go`
-- [ ] Verify two clients can connect and see each other's movements
+- [x] Server: accept client connections and assign player entity ID
+- [x] Server: encode and broadcast `EntityUpdate` messages each tick
+- [x] Server: stream `ChunkData` messages when client enters new chunk
+- [x] Client: receive and decode `WorldState` messages
+- [x] Client: receive and decode `EntityUpdate` messages
+- [x] Client: apply server state to local ECS world
+- [x] Client: send `PlayerInput` messages to server on each frame
+- [x] Server: receive and process `PlayerInput` messages (validate, apply)
+- [x] Implement client-side prediction using `pkg/network/prediction.go`
+- [x] Verify two clients can connect and see each other's movements
 
 ### 3C: Character Creation Screen (8 hours)
 
@@ -467,13 +467,13 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Create character creation screen displayed before game start
-- [ ] Implement genre selection UI (5 genres with preview descriptions)
-- [ ] Implement player name text input
-- [ ] Implement starting skill point allocation across skill schools
-- [ ] Implement starting equipment choice
-- [ ] Create player entity with chosen attributes (genre, name, skills, equipment)
-- [ ] Verify character creation flows into game start seamlessly
+- [x] Create character creation screen displayed before game start
+- [x] Implement genre selection UI (5 genres with preview descriptions)
+- [x] Implement player name text input
+- [x] Implement starting skill point allocation across skill schools
+- [x] Implement starting equipment choice
+- [x] Create player entity with chosen attributes (genre, name, skills, equipment)
+- [x] Verify character creation flows into game start seamlessly
 
 ### 3D: Pause Menu and Settings (8 hours)
 
@@ -488,15 +488,15 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Implement Escape key → pause game state and show menu overlay
-- [ ] Implement Resume menu option (return to gameplay)
-- [ ] Implement Settings submenu with key binding configuration
-- [ ] Implement Settings submenu with audio volume controls
-- [ ] Implement Settings submenu with graphics options
-- [ ] Implement settings persistence via config file update
-- [ ] Implement Save menu option (trigger server save)
-- [ ] Implement Load menu option (trigger server load)
-- [ ] Implement Quit menu option with confirmation dialog
+- [x] Implement Escape key → pause game state and show menu overlay
+- [x] Implement Resume menu option (return to gameplay)
+- [x] Implement Settings submenu with key binding configuration
+- [x] Implement Settings submenu with audio volume controls
+- [x] Implement Settings submenu with graphics options
+- [x] Implement settings persistence via config file update
+- [x] Implement Save menu option (trigger server save)
+- [x] Implement Load menu option (trigger server load)
+- [x] Implement Quit menu option with confirmation dialog
 
 ---
 
@@ -525,7 +525,7 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Implement ranged combat (bow/gun) with ProjectileSystem
+- [x] Implement ranged combat (bow/gun) with ProjectileSystem
 - [ ] Implement magic combat (spell casting) with MagicSystem
 - [ ] Implement stealth mode (sneak, backstab, detection) with StealthSystem
 - [ ] Implement block/dodge mechanics

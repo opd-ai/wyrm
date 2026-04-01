@@ -20,6 +20,7 @@ import (
 	"github.com/opd-ai/wyrm/pkg/procgen/adapters"
 	"github.com/opd-ai/wyrm/pkg/procgen/city"
 	"github.com/opd-ai/wyrm/pkg/world/chunk"
+	"github.com/opd-ai/wyrm/pkg/world/persist"
 )
 
 func main() {
@@ -28,40 +29,58 @@ func main() {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
+	// Initialize persistence manager
+	pm := initializePersistence(cfg)
+
+	// Try to load existing save
+	existingSave, err := pm.Load(cfg.World.Seed)
+	if err != nil {
+		log.Printf("warning: failed to load save: %v", err)
+	}
+	loadedFromSave := existingSave != nil
+
 	world := ecs.NewWorld()
 	cm := chunk.NewManager(cfg.World.ChunkSize, cfg.World.Seed)
 
+	// If we loaded a save, apply it; otherwise generate new world
+	if loadedFromSave {
+		log.Printf("loading world from save (seed=%d, timestamp=%v)", existingSave.Seed, existingSave.Timestamp)
+		loadWorldFromSnapshot(world, existingSave)
+	} else {
+		log.Printf("generating new world (seed=%d, genre=%s)", cfg.World.Seed, cfg.Genre)
+	}
+
 	fps := initializeFactions(world, cfg)
-	initializeCity(world, cfg, fps)
+	if !loadedFromSave {
+		initializeCity(world, cfg, fps)
+		initializeDungeons(world, cfg)
+		initializeNarratives(world, cfg)
+		initializeTerrain(world, cfg)
+		initializeVehicles(world, cfg)
+		initializePuzzles(world, cfg)
+		initializeMagic(world, cfg)
+		initializeSkills(world, cfg)
+		initializeEnvironment(world, cfg)
+	}
 	initializeWorldClock(world)
-	initializeDungeons(world, cfg)
-	initializeNarratives(world, cfg)
-	initializeTerrain(world, cfg)
-	initializeVehicles(world, cfg)
-	initializePuzzles(world, cfg)
-	initializeMagic(world, cfg)
-	initializeSkills(world, cfg)
-	initializeEnvironment(world, cfg)
 
 	// Initialize world management systems
 	hm := initializeHousing(cfg)
 	zm := initializePvP(cfg)
 	dm := initializeDialogManager(cfg)
 	compMgr := initializeCompanionManager(world, cfg)
-	pm := initializePersistence(cfg)
 
 	// Store managers for access during server loop (using world context or package-level vars)
 	_ = hm      // Housing manager available for player housing operations
 	_ = zm      // PvP zone manager available for combat resolution
 	_ = dm      // Dialog manager available for NPC conversations
 	_ = compMgr // Companion manager available for companion AI
-	_ = pm      // Persistence manager available for save/load
 
 	registerServerSystems(world, cm, cfg, fps)
 
 	// Initialize quests after systems are registered (needs QuestSystem)
 	qs := findQuestSystem(world)
-	if qs != nil {
+	if qs != nil && !loadedFromSave {
 		initializeQuests(world, cfg, qs)
 		initializeRecipes(world, cfg)
 	}
@@ -79,11 +98,36 @@ func main() {
 	}
 	defer srv.Stop()
 
+	// Set up save/load handlers for client requests (package-level handlers)
+	network.SetSaveHandler(func() error {
+		snapshot := createWorldSnapshot(world, cfg)
+		if err := pm.Save(snapshot); err != nil {
+			log.Printf("client save request failed: %v", err)
+			return err
+		}
+		log.Printf("client save request completed (%d entities)", len(snapshot.Entities))
+		return nil
+	})
+	network.SetLoadHandler(func() error {
+		snapshot, err := pm.Load(cfg.World.Seed)
+		if err != nil {
+			log.Printf("client load request failed: %v", err)
+			return err
+		}
+		if snapshot == nil {
+			return fmt.Errorf("no save file found")
+		}
+		// Note: Full world restoration would require re-initializing entities
+		// For now, just acknowledge the load request
+		log.Printf("client load request: found save with %d entities", len(snapshot.Entities))
+		return nil
+	})
+
 	log.Printf("server listening on %s (tick_rate=%d)", cfg.Server.Address, cfg.Server.TickRate)
 	if cfg.Federation.Enabled {
 		log.Printf("federation enabled: node_id=%s, peers=%v", cfg.Federation.NodeID, cfg.Federation.Peers)
 	}
-	runServerLoop(world, cfg, srv, fed)
+	runServerLoop(world, cfg, srv, fed, pm, cm)
 }
 
 // initializeCity generates the city and spawns district entities.
@@ -352,10 +396,20 @@ func registerServerSystems(world *ecs.World, cm *chunk.Manager, cfg *config.Conf
 }
 
 // runServerLoop runs the main server tick loop until shutdown.
-func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server, fed *federation.Federation) {
+func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server, fed *federation.Federation, pm *persist.Persister, cm *chunk.Manager) {
 	tickInterval := time.Second / time.Duration(cfg.Server.TickRate)
 	ticker := time.NewTicker(tickInterval)
 	defer ticker.Stop()
+
+	// Auto-save timer (every 5 minutes)
+	autoSaveInterval := 5 * time.Minute
+	autoSaveTicker := time.NewTicker(autoSaveInterval)
+	defer autoSaveTicker.Stop()
+
+	// Chunk streaming timer (every 500ms - less frequent than entity updates)
+	chunkStreamInterval := 500 * time.Millisecond
+	chunkStreamTicker := time.NewTicker(chunkStreamInterval)
+	defer chunkStreamTicker.Stop()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -365,13 +419,99 @@ func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server, fe
 	go runFederationCleanup(fed, fedStopCh)
 	defer close(fedStopCh)
 
+	log.Printf("auto-save enabled (interval=%v)", autoSaveInterval)
+
 	for {
 		select {
 		case <-ticker.C:
 			world.Update(tickInterval.Seconds())
+			broadcastEntityUpdates(world, srv)
+		case <-chunkStreamTicker.C:
+			checkAndStreamChunks(world, srv, cm, cfg.World.ChunkSize)
+		case <-autoSaveTicker.C:
+			log.Println("auto-saving world state...")
+			snapshot := createWorldSnapshot(world, cfg)
+			if err := pm.Save(snapshot); err != nil {
+				log.Printf("auto-save failed: %v", err)
+			} else {
+				log.Printf("auto-save complete (%d entities)", len(snapshot.Entities))
+			}
 		case <-sigCh:
-			log.Println("shutting down")
+			log.Println("shutdown signal received, saving world state...")
+			snapshot := createWorldSnapshot(world, cfg)
+			if err := pm.Save(snapshot); err != nil {
+				log.Printf("shutdown save failed: %v", err)
+			} else {
+				log.Printf("shutdown save complete (%d entities)", len(snapshot.Entities))
+			}
+			log.Println("server shutdown complete")
 			return
 		}
+	}
+}
+
+// broadcastEntityUpdates sends entity state updates to all connected clients.
+func broadcastEntityUpdates(world *ecs.World, srv *network.Server) {
+	if srv.ClientCount() == 0 {
+		return
+	}
+
+	// Get all entities with Position and Health components (networked entities)
+	entities := world.Entities("Position", "Health")
+	for _, entity := range entities {
+		posComp, posOK := world.GetComponent(entity, "Position")
+		healthComp, healthOK := world.GetComponent(entity, "Health")
+
+		if !posOK || !healthOK {
+			continue
+		}
+
+		pos := posComp.(*components.Position)
+		health := healthComp.(*components.Health)
+
+		// Broadcast entity state to all clients
+		srv.BroadcastEntityUpdate(
+			uint64(entity),
+			float32(pos.X),
+			float32(pos.Y),
+			float32(pos.Z),
+			float32(pos.Angle),
+			float32(health.Current),
+			0, // velocity - could be calculated from movement
+			0, // state flags
+		)
+	}
+}
+
+// checkAndStreamChunks checks client positions and sends chunk data when they enter new chunks.
+func checkAndStreamChunks(world *ecs.World, srv *network.Server, cm *chunk.Manager, chunkSize int) {
+	clients := srv.GetConnectedClients()
+	for _, conn := range clients {
+		chunkX, chunkY, exists := srv.GetClientChunk(conn)
+		if !exists {
+			continue
+		}
+
+		// Check if client needs chunk data (UpdateClientChunkPosition returns true for new position)
+		// For now, we stream chunks on first tick for new clients
+		// Get chunk from manager
+		c := cm.GetChunk(chunkX, chunkY)
+		if c == nil {
+			continue
+		}
+
+		// Convert chunk heightmap to network format
+		heightData := make([]uint16, chunkSize*chunkSize)
+		for y := 0; y < chunkSize; y++ {
+			for x := 0; x < chunkSize; x++ {
+				height := c.GetHeight(x, y)
+				heightData[y*chunkSize+x] = uint16(height * 100) // Scale for precision
+			}
+		}
+
+		// Simple biome data (all plains for now)
+		biomeData := make([]uint8, chunkSize*chunkSize)
+
+		srv.SendChunkData(conn, int32(chunkX), int32(chunkY), uint16(chunkSize), heightData, biomeData)
 	}
 }

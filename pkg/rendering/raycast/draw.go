@@ -15,6 +15,122 @@ func (r *Renderer) Draw(screen *ebiten.Image) {
 	r.drawWalls(screen)
 }
 
+// DrawSpritesToScreen renders billboard sprites to an ebiten.Image.
+// This is a convenience method that handles the conversion between the
+// pixel buffer-based DrawSprites and ebiten's Image type.
+func (r *Renderer) DrawSpritesToScreen(entities []*SpriteEntity, screen *ebiten.Image) {
+	if len(entities) == 0 {
+		return
+	}
+
+	// Transform all entities and filter invisible ones
+	visible := make([]*SpriteEntity, 0, len(entities))
+	for _, e := range entities {
+		if r.TransformEntityToScreen(e) {
+			visible = append(visible, e)
+		}
+	}
+
+	if len(visible) == 0 {
+		return
+	}
+
+	// Sort back-to-front
+	SortSpritesByDistance(visible)
+
+	// Draw each sprite directly to the screen
+	for _, e := range visible {
+		r.drawSpriteToScreen(e, screen)
+	}
+}
+
+// drawSpriteToScreen draws a single sprite to an ebiten.Image.
+func (r *Renderer) drawSpriteToScreen(entity *SpriteEntity, screen *ebiten.Image) {
+	ctx := r.PrepareSpriteDrawContext(entity)
+	if ctx == nil || ctx.CurrentFrame == nil {
+		return
+	}
+
+	// Clamp X bounds to screen
+	startX := ctx.StartX
+	if startX < 0 {
+		startX = 0
+	}
+	endX := ctx.EndX
+	if endX > r.Width {
+		endX = r.Width
+	}
+
+	// Draw each visible column
+	for screenX := startX; screenX < endX; screenX++ {
+		r.drawSpriteColumnToScreen(screenX, ctx, screen)
+	}
+}
+
+// drawSpriteColumnToScreen draws a single sprite column to an ebiten.Image.
+func (r *Renderer) drawSpriteColumnToScreen(screenX int, ctx *SpriteDrawContext, screen *ebiten.Image) {
+	// Bounds check
+	if screenX < 0 || screenX >= r.Width {
+		return
+	}
+
+	// Z-buffer test: skip if this column is behind a wall
+	if ctx.Distance >= r.GetZBufferAt(screenX) {
+		return
+	}
+
+	// Calculate texture X coordinate
+	texX := (screenX - ctx.StartX) * ctx.SpriteWidth / ctx.ScreenSpriteWidth
+	if texX < 0 || texX >= ctx.SpriteWidth {
+		return
+	}
+
+	// Draw each pixel in the column
+	for screenY := ctx.StartY; screenY < ctx.EndY; screenY++ {
+		if screenY < 0 || screenY >= r.Height {
+			continue
+		}
+
+		// Calculate texture Y coordinate
+		texY := (screenY - ctx.StartY) * ctx.SpriteHeight / ctx.ScreenSpriteHeight
+		if texY < 0 || texY >= ctx.SpriteHeight {
+			continue
+		}
+
+		// Get pixel from sprite
+		pixel := GetSpritePixel(ctx.CurrentFrame, texX, texY, ctx.FlipH)
+		if pixel.A == 0 {
+			continue
+		}
+
+		// Apply fog and opacity
+		pixel = r.ApplyFogToColor(pixel, ctx.Distance)
+		if ctx.Opacity < 1.0 {
+			pixel = ApplyOpacity(pixel, ctx.Opacity)
+		}
+
+		// Skip if completely transparent
+		if pixel.A == 0 {
+			continue
+		}
+
+		// Draw to screen
+		if pixel.A < 255 {
+			// Alpha blending with existing pixel
+			existing := screen.At(screenX, screenY)
+			er, eg, eb, _ := existing.RGBA()
+			alpha := float64(pixel.A) / 255.0
+			invAlpha := 1.0 - alpha
+			newR := uint8(float64(pixel.R)*alpha + float64(er>>8)*invAlpha)
+			newG := uint8(float64(pixel.G)*alpha + float64(eg>>8)*invAlpha)
+			newB := uint8(float64(pixel.B)*alpha + float64(eb>>8)*invAlpha)
+			screen.Set(screenX, screenY, color.RGBA{R: newR, G: newG, B: newB, A: 255})
+		} else {
+			screen.Set(screenX, screenY, color.RGBA{R: pixel.R, G: pixel.G, B: pixel.B, A: 255})
+		}
+	}
+}
+
 // drawFloorCeiling renders textured floor and ceiling using raycasting.
 func (r *Renderer) drawFloorCeiling(screen *ebiten.Image) {
 	halfHeight := r.Height / 2
