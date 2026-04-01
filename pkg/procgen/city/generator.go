@@ -176,6 +176,9 @@ func Generate(seed int64, genre string) *City {
 	// Generate defensive walls and gates
 	city.GenerateWallsAndGates(rng)
 
+	// Generate roads connecting districts
+	city.GenerateRoads(rng)
+
 	return city
 }
 
