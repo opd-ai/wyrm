@@ -12,10 +12,14 @@ import (
 
 // Terrain types for vertical features.
 const (
-	TerrainFlat  = 0 // Normal walkable terrain
-	TerrainHill  = 1 // Elevated terrain (gradual slope)
-	TerrainCliff = 2 // Steep terrain (impassable edge)
-	TerrainPeak  = 3 // High elevation peak
+	TerrainFlat   = 0 // Normal walkable terrain
+	TerrainHill   = 1 // Elevated terrain (gradual slope)
+	TerrainCliff  = 2 // Steep terrain (impassable edge)
+	TerrainPeak   = 3 // High elevation peak
+	TerrainValley = 4 // Low-lying depression
+	TerrainWater  = 5 // Water surface (below water level)
+	TerrainForest = 6 // Tree-covered terrain
+	TerrainRoad   = 7 // Flat walkway connecting POIs
 )
 
 // Terrain elevation constants.
@@ -26,6 +30,12 @@ const (
 	CliffThreshold = 0.15
 	// PeakThreshold is the height value above which terrain becomes a peak.
 	PeakThreshold = 0.8
+	// ValleyThreshold is the height value below which terrain becomes a valley.
+	ValleyThreshold = 0.2
+	// WaterLevel is the height value below which terrain becomes water.
+	WaterLevel = 0.15
+	// ForestNoiseThreshold is the noise value above which forest appears.
+	ForestNoiseThreshold = 0.55
 	// MaxElevation is the maximum terrain elevation in world units.
 	MaxElevation = 10.0
 	// ElevationOctaves is the number of noise octaves for elevation.
@@ -40,13 +50,15 @@ type Chunk struct {
 	HeightMap    []float64
 	ElevationMap []float64 // Terrain elevation in world units
 	TerrainTypes []int     // Terrain type per cell
+	BiomeMap     []float64 // Biome noise values for vegetation density
 }
 
 // NewChunk creates a new chunk at the given coordinates with generated terrain.
 func NewChunk(x, y, size int, seed int64) *Chunk {
 	heightMap := generateHeightMap(size, seed)
 	elevationMap := generateElevationMap(size, seed, heightMap)
-	terrainTypes := generateTerrainTypes(size, heightMap, elevationMap)
+	biomeMap := generateBiomeMap(size, seed)
+	terrainTypes := generateTerrainTypes(size, heightMap, elevationMap, biomeMap)
 	return &Chunk{
 		X:            x,
 		Y:            y,
@@ -55,6 +67,7 @@ func NewChunk(x, y, size int, seed int64) *Chunk {
 		HeightMap:    heightMap,
 		ElevationMap: elevationMap,
 		TerrainTypes: terrainTypes,
+		BiomeMap:     biomeMap,
 	}
 }
 
@@ -139,15 +152,53 @@ func generateElevationMap(size int, seed int64, heightMap []float64) []float64 {
 	return elevationMap
 }
 
+// generateBiomeMap creates a noise-based biome map for vegetation placement.
+func generateBiomeMap(size int, seed int64) []float64 {
+	biomeMap := make([]float64, size*size)
+	rng := rand.New(rand.NewSource(seed + 2000))
+
+	offsetX := rng.Float64() * 1000
+	offsetY := rng.Float64() * 1000
+
+	for y := 0; y < size; y++ {
+		for x := 0; x < size; x++ {
+			idx := y*size + x
+			// Use larger scale noise for biome regions
+			nx := (float64(x) + offsetX) * 0.008
+			ny := (float64(y) + offsetY) * 0.008
+
+			biomeValue := 0.0
+			amplitude := 1.0
+			frequency := 1.0
+
+			// 3 octaves for biome variation
+			for oct := 0; oct < 3; oct++ {
+				biomeValue += noise.Noise2DSigned(nx*frequency, ny*frequency, seed+2000+int64(oct)) * amplitude
+				amplitude *= 0.5
+				frequency *= 2.0
+			}
+
+			// Normalize to [0, 1]
+			biomeMap[idx] = (biomeValue + 1.0) / 2.0
+		}
+	}
+
+	return biomeMap
+}
+
 // generateTerrainTypes classifies each cell based on height and slope.
-func generateTerrainTypes(size int, heightMap, elevationMap []float64) []int {
+func generateTerrainTypes(size int, heightMap, elevationMap, biomeMap []float64) []int {
 	terrainTypes := make([]int, size*size)
 
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
 			idx := y*size + x
 			height := heightMap[idx]
-			terrainTypes[idx] = classifyTerrain(x, y, size, height, elevationMap)
+			biome := 0.0
+			if biomeMap != nil && idx < len(biomeMap) {
+				biome = biomeMap[idx]
+			}
+			terrainTypes[idx] = classifyTerrain(x, y, size, height, biome, elevationMap)
 		}
 	}
 
@@ -155,8 +206,18 @@ func generateTerrainTypes(size int, heightMap, elevationMap []float64) []int {
 }
 
 // classifyTerrain determines the terrain type for a single cell.
-func classifyTerrain(x, y, size int, height float64, elevationMap []float64) int {
-	// Check for peaks first
+func classifyTerrain(x, y, size int, height, biome float64, elevationMap []float64) int {
+	// Check for water first (lowest priority terrain)
+	if height < WaterLevel {
+		return TerrainWater
+	}
+
+	// Check for valleys (low-lying areas above water)
+	if height < ValleyThreshold {
+		return TerrainValley
+	}
+
+	// Check for peaks (highest priority terrain)
 	if height >= PeakThreshold {
 		return TerrainPeak
 	}
@@ -170,6 +231,11 @@ func classifyTerrain(x, y, size int, height float64, elevationMap []float64) int
 	// Check for hills
 	if height >= HillThreshold {
 		return TerrainHill
+	}
+
+	// Check for forest (mid-elevation with high biome value)
+	if biome >= ForestNoiseThreshold && height >= ValleyThreshold && height < HillThreshold {
+		return TerrainForest
 	}
 
 	return TerrainFlat
@@ -264,6 +330,44 @@ func (c *Chunk) IsHill(localX, localY int) bool {
 	return t == TerrainHill || t == TerrainPeak
 }
 
+// IsWater returns true if the terrain at the given coordinates is water.
+func (c *Chunk) IsWater(localX, localY int) bool {
+	return c.GetTerrainType(localX, localY) == TerrainWater
+}
+
+// IsValley returns true if the terrain at the given coordinates is a valley.
+func (c *Chunk) IsValley(localX, localY int) bool {
+	return c.GetTerrainType(localX, localY) == TerrainValley
+}
+
+// IsForest returns true if the terrain at the given coordinates is forested.
+func (c *Chunk) IsForest(localX, localY int) bool {
+	return c.GetTerrainType(localX, localY) == TerrainForest
+}
+
+// IsRoad returns true if the terrain at the given coordinates is a road.
+func (c *Chunk) IsRoad(localX, localY int) bool {
+	return c.GetTerrainType(localX, localY) == TerrainRoad
+}
+
+// IsPassable returns true if the terrain can be walked on.
+func (c *Chunk) IsPassable(localX, localY int) bool {
+	t := c.GetTerrainType(localX, localY)
+	// Water and cliffs are impassable
+	return t != TerrainWater && t != TerrainCliff
+}
+
+// GetBiomeValue returns the biome noise value at the given local coordinates.
+func (c *Chunk) GetBiomeValue(localX, localY int) float64 {
+	if localX < 0 || localX >= c.Size || localY < 0 || localY >= c.Size {
+		return 0
+	}
+	if c.BiomeMap == nil {
+		return 0
+	}
+	return c.BiomeMap[localY*c.Size+localX]
+}
+
 // GetElevationDifference returns the elevation difference between two cells.
 func (c *Chunk) GetElevationDifference(x1, y1, x2, y2 int) float64 {
 	e1 := c.GetElevation(x1, y1)
@@ -334,6 +438,153 @@ func (cm *Manager) LoadedCount() int {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	return len(cm.loaded)
+}
+
+// ========== Biome Blending ==========
+
+// BiomeBlendWidth is the number of cells from chunk edge where blending occurs.
+const BiomeBlendWidth = 32
+
+// GetBlendedBiomeValue returns a biome value that blends with neighboring chunks.
+// This creates smooth biome transitions at chunk boundaries.
+func (cm *Manager) GetBlendedBiomeValue(chunkX, chunkY, localX, localY int) float64 {
+	chunk := cm.GetChunk(chunkX, chunkY)
+	if chunk == nil {
+		return 0.5
+	}
+
+	// Get the base biome value for this cell
+	baseBiome := chunk.GetBiomeValue(localX, localY)
+
+	// Check distance from each chunk edge
+	distFromLeft := localX
+	distFromRight := cm.ChunkSize - 1 - localX
+	distFromTop := localY
+	distFromBottom := cm.ChunkSize - 1 - localY
+
+	// If not in blend zone, return base value
+	if distFromLeft >= BiomeBlendWidth && distFromRight >= BiomeBlendWidth &&
+		distFromTop >= BiomeBlendWidth && distFromBottom >= BiomeBlendWidth {
+		return baseBiome
+	}
+
+	// Calculate blend factors for each direction
+	blendedBiome := baseBiome
+	totalWeight := 1.0
+
+	// Blend with left neighbor
+	if distFromLeft < BiomeBlendWidth {
+		weight := smoothstep(float64(BiomeBlendWidth-distFromLeft) / float64(BiomeBlendWidth))
+		neighborBiome := cm.getNeighborBiomeValue(chunkX-1, chunkY, cm.ChunkSize-1-distFromLeft, localY)
+		blendedBiome, totalWeight = blendValues(blendedBiome, neighborBiome, totalWeight, weight)
+	}
+
+	// Blend with right neighbor
+	if distFromRight < BiomeBlendWidth {
+		weight := smoothstep(float64(BiomeBlendWidth-distFromRight) / float64(BiomeBlendWidth))
+		neighborBiome := cm.getNeighborBiomeValue(chunkX+1, chunkY, BiomeBlendWidth-1-distFromRight, localY)
+		blendedBiome, totalWeight = blendValues(blendedBiome, neighborBiome, totalWeight, weight)
+	}
+
+	// Blend with top neighbor
+	if distFromTop < BiomeBlendWidth {
+		weight := smoothstep(float64(BiomeBlendWidth-distFromTop) / float64(BiomeBlendWidth))
+		neighborBiome := cm.getNeighborBiomeValue(chunkX, chunkY-1, localX, cm.ChunkSize-1-distFromTop)
+		blendedBiome, totalWeight = blendValues(blendedBiome, neighborBiome, totalWeight, weight)
+	}
+
+	// Blend with bottom neighbor
+	if distFromBottom < BiomeBlendWidth {
+		weight := smoothstep(float64(BiomeBlendWidth-distFromBottom) / float64(BiomeBlendWidth))
+		neighborBiome := cm.getNeighborBiomeValue(chunkX, chunkY+1, localX, BiomeBlendWidth-1-distFromBottom)
+		blendedBiome, totalWeight = blendValues(blendedBiome, neighborBiome, totalWeight, weight)
+	}
+
+	return blendedBiome / totalWeight
+}
+
+// getNeighborBiomeValue retrieves biome value from a neighboring chunk.
+func (cm *Manager) getNeighborBiomeValue(chunkX, chunkY, localX, localY int) float64 {
+	chunk := cm.GetChunk(chunkX, chunkY)
+	if chunk == nil {
+		return 0.5
+	}
+	return chunk.GetBiomeValue(localX, localY)
+}
+
+// blendValues adds a weighted contribution to the running blend.
+func blendValues(current, neighbor, totalWeight, weight float64) (float64, float64) {
+	return current + neighbor*weight, totalWeight + weight
+}
+
+// smoothstep provides smooth interpolation for blend factor (t in [0,1]).
+func smoothstep(t float64) float64 {
+	if t <= 0 {
+		return 0
+	}
+	if t >= 1 {
+		return 1
+	}
+	return t * t * (3 - 2*t)
+}
+
+// GetBlendedHeight returns a height value that blends with neighboring chunks.
+func (cm *Manager) GetBlendedHeight(chunkX, chunkY, localX, localY int) float64 {
+	chunk := cm.GetChunk(chunkX, chunkY)
+	if chunk == nil {
+		return 0
+	}
+
+	baseHeight := chunk.GetHeight(localX, localY)
+
+	// Same blend logic as biome
+	distFromLeft := localX
+	distFromRight := cm.ChunkSize - 1 - localX
+	distFromTop := localY
+	distFromBottom := cm.ChunkSize - 1 - localY
+
+	if distFromLeft >= BiomeBlendWidth && distFromRight >= BiomeBlendWidth &&
+		distFromTop >= BiomeBlendWidth && distFromBottom >= BiomeBlendWidth {
+		return baseHeight
+	}
+
+	blendedHeight := baseHeight
+	totalWeight := 1.0
+
+	if distFromLeft < BiomeBlendWidth {
+		weight := smoothstep(float64(BiomeBlendWidth-distFromLeft) / float64(BiomeBlendWidth))
+		neighborHeight := cm.getNeighborHeight(chunkX-1, chunkY, cm.ChunkSize-1-distFromLeft, localY)
+		blendedHeight, totalWeight = blendValues(blendedHeight, neighborHeight, totalWeight, weight)
+	}
+
+	if distFromRight < BiomeBlendWidth {
+		weight := smoothstep(float64(BiomeBlendWidth-distFromRight) / float64(BiomeBlendWidth))
+		neighborHeight := cm.getNeighborHeight(chunkX+1, chunkY, BiomeBlendWidth-1-distFromRight, localY)
+		blendedHeight, totalWeight = blendValues(blendedHeight, neighborHeight, totalWeight, weight)
+	}
+
+	if distFromTop < BiomeBlendWidth {
+		weight := smoothstep(float64(BiomeBlendWidth-distFromTop) / float64(BiomeBlendWidth))
+		neighborHeight := cm.getNeighborHeight(chunkX, chunkY-1, localX, cm.ChunkSize-1-distFromTop)
+		blendedHeight, totalWeight = blendValues(blendedHeight, neighborHeight, totalWeight, weight)
+	}
+
+	if distFromBottom < BiomeBlendWidth {
+		weight := smoothstep(float64(BiomeBlendWidth-distFromBottom) / float64(BiomeBlendWidth))
+		neighborHeight := cm.getNeighborHeight(chunkX, chunkY+1, localX, BiomeBlendWidth-1-distFromBottom)
+		blendedHeight, totalWeight = blendValues(blendedHeight, neighborHeight, totalWeight, weight)
+	}
+
+	return blendedHeight / totalWeight
+}
+
+// getNeighborHeight retrieves height value from a neighboring chunk.
+func (cm *Manager) getNeighborHeight(chunkX, chunkY, localX, localY int) float64 {
+	chunk := cm.GetChunk(chunkX, chunkY)
+	if chunk == nil {
+		return 0.5
+	}
+	return chunk.GetHeight(localX, localY)
 }
 
 // ========== Dynamic Terrain Modification ==========
@@ -541,7 +792,11 @@ func (mc *ModifiedChunk) recalculateTerrainType(x, y int) {
 	}
 	idx := y*mc.Size + x
 	height := mc.HeightMap[idx]
-	mc.TerrainTypes[idx] = classifyTerrain(x, y, mc.Size, height, mc.ElevationMap)
+	biome := 0.0
+	if mc.BiomeMap != nil && idx < len(mc.BiomeMap) {
+		biome = mc.BiomeMap[idx]
+	}
+	mc.TerrainTypes[idx] = classifyTerrain(x, y, mc.Size, height, biome, mc.ElevationMap)
 }
 
 // UndoLastModification reverts the most recent modification.
