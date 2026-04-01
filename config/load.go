@@ -116,6 +116,8 @@ type KeyBindingsConfig struct {
 	MoveBackward string `mapstructure:"move_backward"`
 	MoveLeft     string `mapstructure:"move_left"`
 	MoveRight    string `mapstructure:"move_right"`
+	StrafeLeft   string `mapstructure:"strafe_left"`
+	StrafeRight  string `mapstructure:"strafe_right"`
 	Jump         string `mapstructure:"jump"`
 	Crouch       string `mapstructure:"crouch"`
 	Sprint       string `mapstructure:"sprint"`
