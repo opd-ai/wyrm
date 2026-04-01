@@ -115,7 +115,7 @@ Wyrm is a **"100% procedurally generated first-person open-world RPG"** built in
 
 - [ ] **25 identifier stuttering violations** — `pkg/engine/components/types.go` — Types like `DialogMemoryEvent`, `VehiclePhysics` stutter package name. **Remediation:** Remove package prefix from type names within package. **Validation:** `go-stats-generator analyze . | grep "Identifier Violations"` returns 0.
 
-- [ ] **Federation gossip interval fixed at 10s** — `cmd/server/main.go:525` — May not scale for large federations. **Remediation:** Make configurable via `config.yaml`. **Validation:** Config option exists.
+- [x] **Federation gossip interval fixed at 10s** — `cmd/server/main.go:537` — Now uses `cfg.Federation.GossipInterval` with 5s minimum. **Remediation:** Make configurable via `config.yaml`. **Validation:** Config option exists.
 
 ---
 

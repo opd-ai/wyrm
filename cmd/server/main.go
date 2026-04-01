@@ -534,7 +534,11 @@ func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server, fe
 	chunkStreamTicker := time.NewTicker(500 * time.Millisecond)
 	defer chunkStreamTicker.Stop()
 
-	fedGossipTicker := time.NewTicker(10 * time.Second)
+	gossipInterval := time.Duration(cfg.Federation.GossipInterval) * time.Second
+	if gossipInterval < time.Second {
+		gossipInterval = 5 * time.Second // Minimum 5 seconds
+	}
+	fedGossipTicker := time.NewTicker(gossipInterval)
 	defer fedGossipTicker.Stop()
 
 	sigCh := make(chan os.Signal, 1)
@@ -546,7 +550,7 @@ func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server, fe
 
 	log.Printf("auto-save enabled (interval=5m0s)")
 	if fed != nil {
-		log.Printf("federation gossip enabled (interval=10s)")
+		log.Printf("federation gossip enabled (interval=%v)", gossipInterval)
 	}
 
 	for {
