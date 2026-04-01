@@ -93,7 +93,7 @@ Wyrm is a **"100% procedurally generated first-person open-world RPG"** built in
 
 - [x] **GenerateRoads has cyclomatic complexity 17** — `pkg/procgen/city/generator.go:111` — 111-line function with 17 branches creates maintenance risk. **Remediation:** Extract road segment generation into helper functions: `generateMainRoad()`, `generateDistrictConnector()`, `generatePOIAccess()`. **Validation:** `go-stats-generator analyze ./pkg/procgen/city/ | grep -i complexity`
 
-- [ ] **UI rendering uses 27 per-pixel Set() calls** — `cmd/client/main.go:1082,1091,1302,1311,1370-1381` — Speech bubbles, UI elements, and crosshair use `screen.Set()` instead of batch APIs, degrading frame time when UI is open. **Remediation:** Migrate to `WritePixels()` with pre-allocated UI framebuffer, or use `Fill()` + `DrawImage()` compositing. **Validation:** Profile with `go test -bench=BenchmarkDraw -cpuprofile=cpu.prof ./cmd/client/...`
+- [x] **UI rendering uses 27 per-pixel Set() calls** — `cmd/client/main.go:1082,1091,1302,1311,1370-1381` — Speech bubbles, UI elements, and crosshair use `screen.Set()` instead of batch APIs, degrading frame time when UI is open. **Remediation:** Migrate to `WritePixels()` with pre-allocated UI framebuffer, or use `Fill()` + `DrawImage()` compositing. **Validation:** Profile with `go test -bench=BenchmarkDraw -cpuprofile=cpu.prof ./cmd/client/...`
 
 ### MEDIUM
 
