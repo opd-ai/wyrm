@@ -165,7 +165,7 @@ Move sprite sort slice allocation into `Renderer` struct. Reuse with `slice[:0]`
 
 - [x] `go test -tags=noebiten ./...` passes
 - [ ] `go test -bench=. -benchmem pkg/rendering/...` shows ≥80% B/op reduction
-- [ ] No `make([]byte` or `image.NewRGBA()` in rendering hot paths (grep verification)
+- [x] No `make([]byte` or `image.NewRGBA()` in rendering hot paths (grep verification) — hot paths use pre-allocated buffers; allocating methods only exist for non-hot-path compatibility
 - [ ] Frame time stability improved (reduced GC pause spikes)
 
 ---

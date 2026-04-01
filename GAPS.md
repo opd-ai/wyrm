@@ -178,7 +178,7 @@ The `pkg/input/` package defines 40+ bindable actions including `interact` (defa
 
 - [x] Import `pkg/input` in client
 - [x] Create `input.Rebinder` with config-loaded key bindings
-- [ ] Replace all `ebiten.IsKeyPressed()` calls with `rebinder.IsPressed()` equivalents
+- [x] Replace all `ebiten.IsKeyPressed()` calls with `rebinder.IsPressed()` equivalents (note: arrow keys retained as accessibility fallbacks)
 - [x] Implement interaction ray cast from player position in look direction
 - [x] Implement E key interaction with nearest entity (NPC, item, workbench, door)
 - [x] Display interaction prompt on screen ("Press E to ...")
@@ -225,8 +225,8 @@ No Mana, Skills, Inventory, Faction, Reputation, or Stealth components are added
 
 - [x] Implement genre selection screen (5 genres with preview descriptions)
 - [x] Implement character name input
-- [ ] Implement starting skill point allocation
-- [ ] Implement starting equipment choice
+- [x] Implement starting skill point allocation
+- [x] Implement starting equipment choice
 - [x] Add Mana component to player entity
 - [x] Add Skills component with initialized maps
 - [x] Add Inventory component with capacity
@@ -474,7 +474,7 @@ The client creates an `audio.Engine` and `audio.Player` and plays a single ambie
 
 - [x] Import `pkg/input` in client
 - [x] Create `input.Rebinder` with config-loaded key bindings
-- [ ] Replace all `ebiten.IsKeyPressed()` calls with `rebinder.IsPressed()` equivalents
+- [x] Replace all `ebiten.IsKeyPressed()` calls with `rebinder.IsPressed()` equivalents (note: arrow keys retained as accessibility fallbacks)
 - [x] Verify all movement and action keys work through the rebinder
 
 ---
@@ -561,10 +561,10 @@ The heightmap system (`pkg/world/chunk/manager.go`) classifies terrain into only
 
 **Resolution Checklist:**
 
-- [ ] Add `TerrainValley` type for heights < 0.2 in terrain classification
-- [ ] Add `TerrainWater` type for heights below a configurable water plane elevation
-- [ ] Implement vegetation entity spawning based on biome type and height
-- [ ] Implement rock/boulder entity spawning on cliff and mountain terrain
+- [x] Add `TerrainValley` type for heights < 0.2 in terrain classification
+- [x] Add `TerrainWater` type for heights below a configurable water plane elevation
+- [x] Implement vegetation entity spawning based on biome type and height (DetailSpawn system with Tree, Bush, Grass, Flower types)
+- [x] Implement rock/boulder entity spawning on cliff and mountain terrain (DetailSpawn system with Rock, Boulder, Debris types)
 - [ ] Implement road/path generation connecting city districts and POIs
 - [ ] Verify new terrain types render distinctly in the raycaster
 

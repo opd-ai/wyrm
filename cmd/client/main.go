@@ -727,6 +727,14 @@ func (g *Game) isActionOrKeyPressed(action input.Action, fallbackKey ebiten.Key)
 	return ebiten.IsKeyPressed(fallbackKey)
 }
 
+// isActionOrMousePressed checks if an action is pressed via input manager or fallback mouse button.
+func (g *Game) isActionOrMousePressed(action input.Action, fallbackButton ebiten.MouseButton) bool {
+	if g.inputManager != nil {
+		return g.inputManager.IsActionPressed(action)
+	}
+	return ebiten.IsMouseButtonPressed(fallbackButton)
+}
+
 // sendPlayerInputToServer sends current player input state to the server.
 func (g *Game) sendPlayerInputToServer() {
 	if g.stateSync == nil {
@@ -760,11 +768,11 @@ func (g *Game) sendPlayerInputToServer() {
 	// Jump (Space)
 	jump := g.isActionOrKeyPressed(input.ActionJump, ebiten.KeySpace)
 
-	// Attack (Left mouse)
-	attack := ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
+	// Attack (Left mouse) - uses ActionAttack
+	attack := g.isActionOrMousePressed(input.ActionAttack, ebiten.MouseButtonLeft)
 
-	// Use/Interact (Right mouse or E)
-	use := ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight)
+	// Block/Use (Right mouse) - uses ActionBlock
+	use := g.isActionOrMousePressed(input.ActionBlock, ebiten.MouseButtonRight)
 
 	// Only send if there's actual input
 	if moveForward != 0 || moveRight != 0 || turn != 0 || jump || attack || use {
