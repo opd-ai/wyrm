@@ -199,7 +199,7 @@ All functions are at or below cyclomatic complexity 10.
 
 The codebase has comprehensive benchmarks but they don't run in CI or report against baselines.
 
-- [ ] Add benchmark job to `.github/workflows/ci.yml`:
+- [x] Add benchmark job to `.github/workflows/ci.yml`:
   ```yaml
   benchmark:
     name: Benchmarks
@@ -215,8 +215,8 @@ The codebase has comprehensive benchmarks but they don't run in CI or report aga
           tool: 'go'
           output-file-path: bench.txt
   ```
-- [ ] Add benchmark baseline comparison (fail CI if >10% regression)
-- [ ] **Validation**: CI shows benchmark results and alerts on significant regressions
+- [x] Add benchmark baseline comparison (fail CI if >10% regression)
+- [x] **Validation**: CI shows benchmark results and alerts on significant regressions
 
 ### Priority 2: Reduce Code Duplication Further (1.70% → <1.5%)
 

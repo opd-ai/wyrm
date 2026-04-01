@@ -16,6 +16,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/opd-ai/wyrm/config"
 	"github.com/opd-ai/wyrm/pkg/audio"
+	"github.com/opd-ai/wyrm/pkg/audio/ambient"
+	"github.com/opd-ai/wyrm/pkg/audio/music"
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 	"github.com/opd-ai/wyrm/pkg/engine/systems"
@@ -51,6 +53,16 @@ type Game struct {
 	postprocessPipe  *postprocess.Pipeline
 	particleSystem   *particles.System
 	particleRenderer *particles.Renderer
+	// Audio subpackages
+	ambientMixer  *ambient.Mixer
+	adaptiveMusic *music.AdaptiveMusic
+	currentRegion ambient.RegionType
+	// Interaction system
+	interactionSys *InteractionSystem
+	// Dialog UI
+	dialogUI *DialogUI
+	// Combat system
+	combatManager *CombatManager
 }
 
 // Update advances game state by one tick, processing player input and ECS systems.
@@ -58,13 +70,106 @@ func (g *Game) Update() error {
 	const dt = 1.0 / 60.0
 	g.syncInputState()
 	g.handlePauseToggle()
+
+	// Handle dialog UI if open
+	if g.dialogUI != nil && g.dialogUI.IsOpen() {
+		g.dialogUI.Update()
+		return nil
+	}
+
 	if !g.paused {
 		g.handlePlayerInput(dt)
+		g.handleInteraction()
+		g.handleCombat(dt)
 		g.world.Update(dt)
 		g.updateChunkMap()
 		g.updateRenderingSubsystems(dt)
 	}
 	return nil
+}
+
+// handleCombat processes combat mechanics.
+func (g *Game) handleCombat(dt float64) {
+	if g.combatManager != nil {
+		g.combatManager.Update(g.world, dt)
+	}
+}
+
+// handleInteraction checks for and processes entity interactions.
+func (g *Game) handleInteraction() {
+	if g.interactionSys == nil {
+		return
+	}
+
+	// Update interaction system to find current target
+	g.interactionSys.Update(g.world)
+
+	// Check if interaction key is pressed
+	if g.isActionOrKeyPressed(input.ActionInteract, ebiten.KeyE) {
+		target := g.interactionSys.GetCurrentTarget()
+		if target != nil {
+			g.processInteraction(target)
+		}
+	}
+}
+
+// processInteraction handles the actual interaction with an entity.
+func (g *Game) processInteraction(target *InteractionResult) {
+	if target == nil {
+		return
+	}
+
+	switch target.Type {
+	case InteractionNPC:
+		// Open dialog UI
+		if g.dialogUI != nil {
+			g.dialogUI.OpenDialog(g.world, target.Entity, target.Name)
+		}
+	case InteractionItem:
+		// Pick up item
+		g.pickupItem(target.Entity)
+	case InteractionWorkbench:
+		// TODO: Open crafting UI (Phase 4B)
+		log.Printf("Using workbench: %s", target.Name)
+	case InteractionContainer:
+		// TODO: Open container UI
+		log.Printf("Opening container: %s", target.Name)
+	case InteractionDoor:
+		// TODO: Open/close door
+		log.Printf("Opening door")
+	}
+}
+
+// pickupItem attempts to pick up an item entity.
+func (g *Game) pickupItem(itemEntity ecs.Entity) {
+	// Get player inventory
+	playerInvComp, ok := g.world.GetComponent(g.playerEntity, "Inventory")
+	if !ok {
+		return
+	}
+	playerInv := playerInvComp.(*components.Inventory)
+
+	// Get item inventory (the item itself)
+	itemInvComp, ok := g.world.GetComponent(itemEntity, "Inventory")
+	if !ok {
+		return
+	}
+	itemInv := itemInvComp.(*components.Inventory)
+
+	// Check capacity
+	if len(playerInv.Items)+len(itemInv.Items) > playerInv.Capacity {
+		log.Printf("Inventory full!")
+		return
+	}
+
+	// Transfer items
+	for _, item := range itemInv.Items {
+		playerInv.Items = append(playerInv.Items, item)
+	}
+
+	// Remove item entity from world
+	g.world.DestroyEntity(itemEntity)
+	log.Printf("Picked up item")
 }
 
 // updateRenderingSubsystems updates lighting and particle systems.
@@ -315,8 +420,77 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// Draw particles (weather effects) on top
 	g.drawParticles(screen)
 
+	// Apply combat visual feedback (screen shake, damage flash)
+	g.applyCombatVisualFeedback(screen)
+
 	// Draw HUD last (on top of everything)
 	g.drawHUD(screen)
+
+	// Draw dialog UI overlay if active
+	if g.dialogUI != nil && g.dialogUI.IsOpen() {
+		g.dialogUI.Draw(screen)
+	}
+
+	// Draw death screen if dead
+	g.drawDeathScreen(screen)
+}
+
+// applyCombatVisualFeedback applies screen shake and damage flash effects.
+func (g *Game) applyCombatVisualFeedback(screen *ebiten.Image) {
+	if g.combatManager == nil {
+		return
+	}
+
+	// Apply damage flash overlay
+	flashAlpha := g.combatManager.GetDamageFlashAlpha()
+	if flashAlpha > 0 {
+		bounds := screen.Bounds()
+		flashColor := color.RGBA{R: 255, G: 0, B: 0, A: uint8(flashAlpha)}
+		for y := 0; y < bounds.Dy(); y++ {
+			for x := 0; x < bounds.Dx(); x++ {
+				// Blend red flash over existing pixels
+				existing := screen.At(x, y)
+				r, g, b, a := existing.RGBA()
+				blendFactor := float64(flashAlpha) / 255.0
+				newR := uint8((float64(r>>8)*(1-blendFactor) + float64(flashColor.R)*blendFactor))
+				newG := uint8((float64(g>>8)*(1-blendFactor) + float64(flashColor.G)*blendFactor))
+				newB := uint8((float64(b>>8)*(1-blendFactor) + float64(flashColor.B)*blendFactor))
+				screen.Set(x, y, color.RGBA{R: newR, G: newG, B: newB, A: uint8(a >> 8)})
+			}
+		}
+	}
+}
+
+// drawDeathScreen draws the death overlay when the player is dead.
+func (g *Game) drawDeathScreen(screen *ebiten.Image) {
+	if g.combatManager == nil || !g.combatManager.IsDead() {
+		return
+	}
+
+	screenWidth := screen.Bounds().Dx()
+	screenHeight := screen.Bounds().Dy()
+
+	// Draw dark overlay
+	overlayColor := color.RGBA{R: 0, G: 0, B: 0, A: 180}
+	for y := 0; y < screenHeight; y++ {
+		for x := 0; x < screenWidth; x++ {
+			screen.Set(x, y, overlayColor)
+		}
+	}
+
+	// Draw death message
+	respawnTime := g.combatManager.GetTimeUntilRespawn()
+	deathText := "YOU DIED"
+	respawnText := fmt.Sprintf("Respawning in %.1f...", respawnTime)
+
+	// Center the text
+	deathX := (screenWidth - len(deathText)*6) / 2
+	deathY := screenHeight/2 - 20
+	respawnX := (screenWidth - len(respawnText)*6) / 2
+	respawnY := screenHeight/2 + 10
+
+	ebitenutil.DebugPrintAt(screen, deathText, deathX, deathY)
+	ebitenutil.DebugPrintAt(screen, respawnText, respawnX, respawnY)
 }
 
 // applyPostProcessing applies genre-specific visual effects to the rendered frame.
@@ -442,6 +616,32 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 
 	// Draw minimap (top-right)
 	g.drawMinimap(screen, screenWidth-80, 10, 64)
+
+	// Draw interaction prompt (bottom-center)
+	g.drawInteractionPrompt(screen)
+}
+
+// drawInteractionPrompt displays the current interaction target prompt.
+func (g *Game) drawInteractionPrompt(screen *ebiten.Image) {
+	if g.interactionSys == nil {
+		return
+	}
+
+	target := g.interactionSys.GetCurrentTarget()
+	if target == nil || target.Prompt == "" {
+		return
+	}
+
+	// Draw prompt at bottom center of screen
+	screenWidth := g.cfg.Window.Width
+	screenHeight := g.cfg.Window.Height
+
+	// Estimate text width (rough approximation: 6 pixels per character)
+	textWidth := len(target.Prompt) * 6
+	x := (screenWidth - textWidth) / 2
+	y := screenHeight - 100
+
+	ebitenutil.DebugPrintAt(screen, target.Prompt, x, y)
 }
 
 // drawBar renders a horizontal bar (health/mana style).
@@ -574,6 +774,10 @@ func main() {
 		log.Printf("audio initialization failed (continuing without audio): %v", audioErr)
 	}
 
+	// Initialize audio subpackages (ambient soundscapes and adaptive music)
+	ambientMix := ambient.NewMixer(cfg.Genre, cfg.World.Seed)
+	adaptiveMusic := music.NewAdaptiveMusic(cfg.Genre, cfg.World.Seed)
+
 	// Initialize rendering subpackages
 	lightingSys := lighting.NewSystem(cfg.Genre)
 	postprocessPipeline := postprocess.NewPipeline(cfg.Genre)
@@ -586,6 +790,15 @@ func main() {
 	// Local map size for raycaster (must be divisible by 3 for 3x3 chunk window)
 	const localMapSize = 48
 	const wallThreshold = 0.5
+
+	// Initialize interaction system
+	interactionSys := NewInteractionSystem(player, 2.0) // 2.0 units max interaction range
+
+	// Initialize dialog UI
+	dialogUI := NewDialogUI(cfg.Genre, player)
+
+	// Initialize combat manager
+	combatMgr := NewCombatManager(player, inputMgr)
 
 	game := &Game{
 		cfg:              cfg,
@@ -606,6 +819,12 @@ func main() {
 		postprocessPipe:  postprocessPipeline,
 		particleSystem:   particleSys,
 		particleRenderer: particleRend,
+		ambientMixer:     ambientMix,
+		adaptiveMusic:    adaptiveMusic,
+		currentRegion:    ambient.RegionPlains, // Default starting region
+		interactionSys:   interactionSys,
+		dialogUI:         dialogUI,
+		combatManager:    combatMgr,
 	}
 
 	// Start ambient audio if available
@@ -667,10 +886,27 @@ func registerClientSystems(world *ecs.World, player ecs.Entity, cfg *config.Conf
 
 // startAmbientAudio initializes and plays genre-appropriate ambient audio.
 func (g *Game) startAmbientAudio() {
-	if g.audioEngine == nil || g.audioPlayer == nil {
+	if g.audioPlayer == nil {
 		return
 	}
-	// Generate a simple ambient tone based on genre
+
+	// Use the ambient soundscape mixer if available
+	if g.ambientMixer != nil {
+		duration := 2.0 // seconds
+		samples := g.ambientMixer.GenerateMixedSamples(duration)
+		// Reduce volume for ambient background
+		for i := range samples {
+			samples[i] *= 0.15
+		}
+		g.audioPlayer.QueueSamples(samples)
+		g.audioPlayer.Play()
+		return
+	}
+
+	// Fallback to simple sine wave if ambient mixer not available
+	if g.audioEngine == nil {
+		return
+	}
 	freq := g.audioEngine.GetGenreBaseFrequency()
 	duration := 2.0 // seconds
 	samples := g.audioEngine.GenerateSineWave(freq, duration)
