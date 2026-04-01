@@ -97,7 +97,7 @@ Wyrm is a **"100% procedurally generated first-person open-world RPG"** built in
 
 ### MEDIUM
 
-- [ ] **Draw function has cyclomatic complexity 12** — `cmd/client/main.go:785` — 76-line function mixes rendering stages. **Remediation:** Split into `drawWorld()`, `drawUI()`, `drawEffects()`. **Validation:** `go-stats-generator analyze ./cmd/client/ | grep Draw`
+- [x] **Draw function has cyclomatic complexity 12** — `cmd/client/main.go:785` — 76-line function mixes rendering stages. **Remediation:** Split into `drawWorld()`, `drawUI()`, `drawEffects()`. **Validation:** `go-stats-generator analyze ./cmd/client/ | grep Draw`
 
 - [ ] **Server main has cyclomatic complexity 12** — `cmd/server/main.go:105` — 105-line function handles initialization and loop. **Remediation:** Extract system registration to `initSystems()`. **Validation:** Function line count <50.
 

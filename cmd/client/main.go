@@ -939,6 +939,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		return
 	}
 
+	// Render 3D world (walls, floor, ceiling, NPCs, effects)
+	g.drawWorld(screen)
+
+	// Render UI overlays on top of world
+	g.drawUIOverlays(screen)
+}
+
+// drawWorld renders the 3D world, NPCs, post-processing, and combat effects.
+func (g *Game) drawWorld(screen *ebiten.Image) {
 	// Sync player position to renderer
 	if g.playerEntity != 0 {
 		if comp, ok := g.world.GetComponent(g.playerEntity, "Position"); ok {
@@ -964,7 +973,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// Draw HUD last (on top of everything)
 	g.drawHUD(screen)
+}
 
+// drawUIOverlays renders all UI overlay elements.
+func (g *Game) drawUIOverlays(screen *ebiten.Image) {
 	// Draw inventory UI overlay if active
 	if g.inventoryUI != nil && g.inventoryUI.IsOpen() {
 		g.inventoryUI.Draw(screen, g.world)
