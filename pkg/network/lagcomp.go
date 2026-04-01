@@ -6,12 +6,40 @@ import (
 	"time"
 )
 
-// MaxRewindTime is the maximum time the server can rewind for hit detection.
-// Per ROADMAP Phase 5 item 23: server rewinds entity state up to 500 ms.
-const MaxRewindTime = 500 * time.Millisecond
+// Rewind time limits for different latency modes.
+// Per README: Supports 200-5000ms latency tolerance.
+const (
+	// MaxRewindTimeNormal is the maximum rewind for low-latency connections.
+	// Per ROADMAP Phase 5 item 23: server rewinds entity state up to 500 ms.
+	MaxRewindTimeNormal = 500 * time.Millisecond
 
-// HistoryBufferSize is the number of state snapshots to keep.
-const HistoryBufferSize = 64
+	// MaxRewindTimeTor for Tor-mode (800-3000ms RTT).
+	MaxRewindTimeTor = 1500 * time.Millisecond
+
+	// MaxRewindTimeHigh for high-latency (3000-5000ms RTT).
+	MaxRewindTimeHigh = 2500 * time.Millisecond
+
+	// MaxRewindTimeExtreme for extreme latency (5000ms+ RTT).
+	MaxRewindTimeExtreme = 3000 * time.Millisecond
+)
+
+// MaxRewindTime is the default maximum rewind time (backwards compatibility).
+const MaxRewindTime = MaxRewindTimeNormal
+
+// History buffer sizes for different latency modes.
+const (
+	// HistoryBufferSize is the default buffer size.
+	HistoryBufferSize = 64
+
+	// HistoryBufferSizeTor for Tor-mode connections.
+	HistoryBufferSizeTor = 128
+
+	// HistoryBufferSizeHigh for high-latency connections.
+	HistoryBufferSizeHigh = 192
+
+	// HistoryBufferSizeExtreme for extreme latency connections.
+	HistoryBufferSizeExtreme = 256
+)
 
 // EntitySnapshot stores an entity's state at a point in time.
 type EntitySnapshot struct {
@@ -51,15 +79,23 @@ func (sh *StateHistory) Record(snapshot EntitySnapshot) {
 }
 
 // GetAtTime returns the entity state closest to the given time.
+// Uses the default MaxRewindTime limit.
 func (sh *StateHistory) GetAtTime(entityID uint64, t time.Time) *EntitySnapshot {
+	return sh.GetAtTimeWithLimit(entityID, t, MaxRewindTime)
+}
+
+// GetAtTimeWithLimit returns the entity state closest to the given time,
+// with a custom maximum rewind limit. Used for latency-aware hit detection.
+func (sh *StateHistory) GetAtTimeWithLimit(entityID uint64, t time.Time, maxRewind time.Duration) *EntitySnapshot {
 	sh.mu.RLock()
 	defer sh.mu.RUnlock()
 
 	var best *EntitySnapshot
 	bestDiff := time.Duration(1<<63 - 1)
+	bufSize := len(sh.snapshots)
 
 	for i := 0; i < sh.count; i++ {
-		idx := (sh.writeIdx - 1 - i + HistoryBufferSize) % HistoryBufferSize
+		idx := (sh.writeIdx - 1 - i + bufSize) % bufSize
 		snap := &sh.snapshots[idx]
 
 		if snap.EntityID != entityID {
@@ -71,7 +107,7 @@ func (sh *StateHistory) GetAtTime(entityID uint64, t time.Time) *EntitySnapshot 
 			diff = -diff
 		}
 
-		if diff > MaxRewindTime {
+		if diff > maxRewind {
 			continue
 		}
 
@@ -88,19 +124,16 @@ func (sh *StateHistory) GetAtTime(entityID uint64, t time.Time) *EntitySnapshot 
 // LagCompensator handles server-side lag compensation for hit detection.
 // Per ROADMAP Phase 5 item 23:
 // AC: Hit registration correct at 500 ms simulated RTT in automated test harness.
+// Per README: Supports 200-5000ms latency tolerance.
 type LagCompensator struct {
 	mu       sync.RWMutex
 	entities map[uint64]*StateHistory
-
-	// Tor-mode threshold: activates at RTT > 800ms
-	torModeThreshold time.Duration
 }
 
 // NewLagCompensator creates a new lag compensator.
 func NewLagCompensator() *LagCompensator {
 	return &LagCompensator{
-		entities:         make(map[uint64]*StateHistory),
-		torModeThreshold: 800 * time.Millisecond,
+		entities: make(map[uint64]*StateHistory),
 	}
 }
 
@@ -142,6 +175,7 @@ type HitResult struct {
 }
 
 // HitTest performs a lag-compensated hit test.
+// Uses latency-aware max rewind time based on the connection's RTT.
 func (lc *LagCompensator) HitTest(shooterID, targetID uint64, shotOrigin, shotDirection Position3D, clientTime time.Time, rtt time.Duration) *HitResult {
 	lc.mu.RLock()
 	targetHistory := lc.entities[targetID]
@@ -151,14 +185,16 @@ func (lc *LagCompensator) HitTest(shooterID, targetID uint64, shotOrigin, shotDi
 		return &HitResult{Hit: false}
 	}
 
+	// Calculate latency-aware max rewind time
+	maxRewind := lc.getMaxRewindForRTT(rtt)
 	rewindTime := clientTime.Add(-rtt / 2)
 
 	now := time.Now()
-	if now.Sub(rewindTime) > MaxRewindTime {
-		rewindTime = now.Add(-MaxRewindTime)
+	if now.Sub(rewindTime) > maxRewind {
+		rewindTime = now.Add(-maxRewind)
 	}
 
-	targetState := targetHistory.GetAtTime(targetID, rewindTime)
+	targetState := targetHistory.GetAtTimeWithLimit(targetID, rewindTime, maxRewind)
 	if targetState == nil {
 		return &HitResult{Hit: false}
 	}
@@ -188,9 +224,38 @@ func (lc *LagCompensator) HitTest(shooterID, targetID uint64, shotOrigin, shotDi
 	return &HitResult{Hit: false}
 }
 
-// IsTorMode returns whether the given RTT indicates Tor-level latency.
+// getMaxRewindForRTT returns the appropriate max rewind time for the given RTT.
+// Per README: Supports 200-5000ms latency tolerance.
+func (lc *LagCompensator) getMaxRewindForRTT(rtt time.Duration) time.Duration {
+	switch {
+	case rtt >= ExtremeLatencyThreshold:
+		return MaxRewindTimeExtreme
+	case rtt >= HighLatencyThreshold:
+		return MaxRewindTimeHigh
+	case rtt >= TorModeThreshold:
+		return MaxRewindTimeTor
+	default:
+		return MaxRewindTimeNormal
+	}
+}
+
+// GetLatencyMode returns the latency mode classification for the given RTT.
+func (lc *LagCompensator) GetLatencyMode(rtt time.Duration) LatencyMode {
+	switch {
+	case rtt >= ExtremeLatencyThreshold:
+		return LatencyModeExtreme
+	case rtt >= HighLatencyThreshold:
+		return LatencyModeHigh
+	case rtt >= TorModeThreshold:
+		return LatencyModeTor
+	default:
+		return LatencyModeNormal
+	}
+}
+
+// IsTorMode returns whether the given RTT indicates elevated latency (>= 800ms).
 func (lc *LagCompensator) IsTorMode(rtt time.Duration) bool {
-	return rtt > lc.torModeThreshold
+	return rtt >= TorModeThreshold
 }
 
 // EntityCount returns the number of tracked entities.

@@ -6,30 +6,81 @@ import (
 	"time"
 )
 
-// TorModeThreshold is the RTT threshold above which Tor-mode activates.
-// Per ROADMAP: When RTT exceeds 800ms, adaptive prediction engages.
-const TorModeThreshold = 800 * time.Millisecond
+// Latency mode thresholds for adaptive network behavior.
+// Per README: "200-5000ms latency tolerance (designed for Tor-routed connections)"
+const (
+	// TorModeThreshold is the RTT threshold above which Tor-mode activates.
+	// Per ROADMAP: When RTT exceeds 800ms, adaptive prediction engages.
+	TorModeThreshold = 800 * time.Millisecond
 
-// TorModePredictionWindow is the increased prediction window in Tor-mode.
-// Per ROADMAP: Increase client prediction window to 1500ms.
-const TorModePredictionWindow = 1500 * time.Millisecond
+	// HighLatencyThreshold activates enhanced prediction for 3000ms+ RTT.
+	HighLatencyThreshold = 3000 * time.Millisecond
 
-// NormalPredictionWindow is the standard prediction window for low-latency connections.
-const NormalPredictionWindow = 500 * time.Millisecond
+	// ExtremeLatencyThreshold activates maximum prediction for 5000ms+ RTT.
+	ExtremeLatencyThreshold = 5000 * time.Millisecond
+)
 
-// TorModeInputRate is the reduced input send rate in Tor-mode (Hz).
-// Per ROADMAP: Reduce input send rate to 10 Hz.
-const TorModeInputRate = 10
+// Prediction windows for different latency modes.
+const (
+	// NormalPredictionWindow is the standard prediction window for low-latency connections.
+	NormalPredictionWindow = 500 * time.Millisecond
 
-// NormalInputRate is the standard input send rate (Hz).
-const NormalInputRate = 60
+	// TorModePredictionWindow is the increased prediction window in Tor-mode (800-3000ms RTT).
+	// Per ROADMAP: Increase client prediction window to 1500ms.
+	TorModePredictionWindow = 1500 * time.Millisecond
 
-// TorModeBlendTime is the interpolation blend time in Tor-mode.
-// Per ROADMAP: Enable aggressive visual interpolation with 300ms blend time.
-const TorModeBlendTime = 300 * time.Millisecond
+	// HighLatencyPredictionWindow for 3000-5000ms RTT connections.
+	HighLatencyPredictionWindow = 3500 * time.Millisecond
 
-// NormalBlendTime is the standard interpolation blend time.
-const NormalBlendTime = 100 * time.Millisecond
+	// ExtremeLatencyPredictionWindow for 5000ms+ RTT connections.
+	ExtremeLatencyPredictionWindow = 6000 * time.Millisecond
+)
+
+// Input rates for different latency modes (Hz).
+const (
+	// NormalInputRate is the standard input send rate (Hz).
+	NormalInputRate = 60
+
+	// TorModeInputRate is the reduced input send rate in Tor-mode (Hz).
+	// Per ROADMAP: Reduce input send rate to 10 Hz.
+	TorModeInputRate = 10
+
+	// HighLatencyInputRate for 3000-5000ms RTT (5 Hz).
+	HighLatencyInputRate = 5
+
+	// ExtremeLatencyInputRate for 5000ms+ RTT (2 Hz).
+	ExtremeLatencyInputRate = 2
+)
+
+// Interpolation blend times for different latency modes.
+const (
+	// NormalBlendTime is the standard interpolation blend time.
+	NormalBlendTime = 100 * time.Millisecond
+
+	// TorModeBlendTime is the interpolation blend time in Tor-mode.
+	// Per ROADMAP: Enable aggressive visual interpolation with 300ms blend time.
+	TorModeBlendTime = 300 * time.Millisecond
+
+	// HighLatencyBlendTime for 3000-5000ms RTT.
+	HighLatencyBlendTime = 600 * time.Millisecond
+
+	// ExtremeLatencyBlendTime for 5000ms+ RTT.
+	ExtremeLatencyBlendTime = 1000 * time.Millisecond
+)
+
+// LatencyMode represents the current latency classification.
+type LatencyMode int
+
+const (
+	// LatencyModeNormal for RTT < 800ms.
+	LatencyModeNormal LatencyMode = iota
+	// LatencyModeTor for 800ms <= RTT < 3000ms.
+	LatencyModeTor
+	// LatencyModeHigh for 3000ms <= RTT < 5000ms.
+	LatencyModeHigh
+	// LatencyModeExtreme for RTT >= 5000ms.
+	LatencyModeExtreme
+)
 
 // PredictedInput stores input and the predicted state resulting from it.
 type PredictedInput struct {
@@ -48,6 +99,7 @@ type Position3D struct {
 // ClientPredictor handles client-side prediction and server reconciliation.
 // Per ROADMAP Phase 5 item 19:
 // AC: Movement feels responsive at 200ms RTT; no visible rubber-banding at 500ms RTT.
+// Per README: Supports 200-5000ms latency tolerance for Tor-routed connections.
 type ClientPredictor struct {
 	mu sync.Mutex
 
@@ -68,26 +120,30 @@ type ClientPredictor struct {
 	moveSpeed float32
 	turnSpeed float32
 
-	// RTT tracking for Tor-mode adaptation
+	// RTT tracking for adaptive latency modes
 	smoothedRTT        time.Duration
 	rttAlpha           float64 // Smoothing factor
 	lastInputTime      time.Time
-	torModeActive      bool
+	latencyMode        LatencyMode
+	torModeActive      bool // Backwards compatibility: true if latencyMode >= LatencyModeTor
 	predictionWindow   time.Duration
 	interpolationBlend time.Duration
 	inputRateHz        int
+	maxPendingInputs   int // Dynamic buffer size based on latency mode
 }
 
 // NewClientPredictor creates a new client-side predictor.
 func NewClientPredictor() *ClientPredictor {
 	return &ClientPredictor{
-		pendingInputs:      make([]PredictedInput, 0, 64),
-		moveSpeed:          5.0,  // Units per second
-		turnSpeed:          90.0, // Degrees per second
+		pendingInputs:      make([]PredictedInput, 0, 256), // Increased for high-latency support
+		moveSpeed:          5.0,                            // Units per second
+		turnSpeed:          90.0,                           // Degrees per second
 		rttAlpha:           0.125,
+		latencyMode:        LatencyModeNormal,
 		predictionWindow:   NormalPredictionWindow,
 		interpolationBlend: NormalBlendTime,
 		inputRateHz:        NormalInputRate,
+		maxPendingInputs:   128, // Normal mode buffer size
 	}
 }
 
@@ -114,9 +170,9 @@ func (cp *ClientPredictor) RecordInput(input *PlayerInput, dt float32) uint32 {
 		Timestamp:   time.Now(),
 	})
 
-	// Limit buffer size (keep last 128 inputs)
-	if len(cp.pendingInputs) > 128 {
-		cp.pendingInputs = cp.pendingInputs[len(cp.pendingInputs)-128:]
+	// Limit buffer size based on latency mode (dynamic sizing)
+	if len(cp.pendingInputs) > cp.maxPendingInputs {
+		cp.pendingInputs = cp.pendingInputs[len(cp.pendingInputs)-cp.maxPendingInputs:]
 	}
 
 	return input.SequenceNum
@@ -237,32 +293,80 @@ func (cp *ClientPredictor) updateRTT(serverState *WorldState) {
 }
 
 // adaptToLatency adjusts prediction parameters based on current RTT.
-// Per ROADMAP: When RTT > 800ms, activate Tor-mode adaptations.
+// Supports 4 latency modes per README: 200-5000ms latency tolerance.
 func (cp *ClientPredictor) adaptToLatency() {
-	wasTorMode := cp.torModeActive
-	cp.torModeActive = cp.smoothedRTT > TorModeThreshold
+	prevMode := cp.latencyMode
+	cp.latencyMode = cp.classifyLatency(cp.smoothedRTT)
 
-	if cp.torModeActive {
+	switch cp.latencyMode {
+	case LatencyModeExtreme: // RTT >= 5000ms
+		cp.predictionWindow = ExtremeLatencyPredictionWindow
+		cp.interpolationBlend = ExtremeLatencyBlendTime
+		cp.inputRateHz = ExtremeLatencyInputRate
+		cp.maxPendingInputs = 512 // Large buffer for multi-second rewind
+
+	case LatencyModeHigh: // 3000ms <= RTT < 5000ms
+		cp.predictionWindow = HighLatencyPredictionWindow
+		cp.interpolationBlend = HighLatencyBlendTime
+		cp.inputRateHz = HighLatencyInputRate
+		cp.maxPendingInputs = 256
+
+	case LatencyModeTor: // 800ms <= RTT < 3000ms
 		cp.predictionWindow = TorModePredictionWindow
 		cp.interpolationBlend = TorModeBlendTime
 		cp.inputRateHz = TorModeInputRate
-	} else {
+		cp.maxPendingInputs = 192
+
+	default: // RTT < 800ms
 		cp.predictionWindow = NormalPredictionWindow
 		cp.interpolationBlend = NormalBlendTime
 		cp.inputRateHz = NormalInputRate
+		cp.maxPendingInputs = 128
 	}
 
+	// Backwards compatibility: torModeActive = true for any elevated latency
+	cp.torModeActive = cp.latencyMode >= LatencyModeTor
+
 	// Log mode changes (will be visible in debug output)
-	if wasTorMode != cp.torModeActive {
-		// Mode changed - client code can check IsTorMode() for UI feedback
+	if prevMode != cp.latencyMode {
+		// Mode changed - client code can check GetLatencyMode() for UI feedback
+	}
+}
+
+// classifyLatency determines the latency mode based on RTT.
+func (cp *ClientPredictor) classifyLatency(rtt time.Duration) LatencyMode {
+	switch {
+	case rtt >= ExtremeLatencyThreshold:
+		return LatencyModeExtreme
+	case rtt >= HighLatencyThreshold:
+		return LatencyModeHigh
+	case rtt >= TorModeThreshold:
+		return LatencyModeTor
+	default:
+		return LatencyModeNormal
 	}
 }
 
 // IsTorMode returns whether Tor-mode is currently active.
+// Tor-mode is active for any RTT >= 800ms (LatencyModeTor, LatencyModeHigh, or LatencyModeExtreme).
 func (cp *ClientPredictor) IsTorMode() bool {
 	cp.mu.Lock()
 	defer cp.mu.Unlock()
 	return cp.torModeActive
+}
+
+// GetLatencyMode returns the current latency mode classification.
+func (cp *ClientPredictor) GetLatencyMode() LatencyMode {
+	cp.mu.Lock()
+	defer cp.mu.Unlock()
+	return cp.latencyMode
+}
+
+// GetMaxPendingInputs returns the current maximum pending inputs buffer size.
+func (cp *ClientPredictor) GetMaxPendingInputs() int {
+	cp.mu.Lock()
+	defer cp.mu.Unlock()
+	return cp.maxPendingInputs
 }
 
 // ShouldSendInput returns true if enough time has passed to send another input.
