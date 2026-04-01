@@ -414,6 +414,295 @@ func DecodeEntityUpdate(r io.Reader) (*EntityUpdate, error) {
 	return m, nil
 }
 
+// ============================================================================
+// Delta Compression for EntityUpdate
+// ============================================================================
+
+// EntityFieldMask represents which fields have changed in a delta update.
+// Using a bitmask reduces bandwidth by only transmitting changed fields.
+type EntityFieldMask uint8
+
+// Field presence flags for delta compression.
+const (
+	FieldPosition EntityFieldMask = 1 << iota // X, Y, Z changed
+	FieldAngle                                // Angle changed
+	FieldHealth                               // Health changed
+	FieldVelocity                             // Velocity changed
+	FieldState                                // State flags changed
+)
+
+// DeltaEntityUpdate represents an optimized entity state change.
+// Only fields marked in FieldMask are transmitted, reducing bandwidth.
+type DeltaEntityUpdate struct {
+	ServerTimeMs uint32
+	EntityID     uint64 // Using variable-length encoding
+	FieldMask    EntityFieldMask
+	X, Y, Z      float32 // Only if FieldPosition set
+	Angle        float32 // Only if FieldAngle set
+	Health       float32 // Only if FieldHealth set
+	Velocity     float32 // Only if FieldVelocity set
+	State        uint8   // Only if FieldState set
+}
+
+// MsgTypeDeltaEntityUpdate is the message type for delta-compressed entity updates.
+const MsgTypeDeltaEntityUpdate uint8 = 11
+
+// Type returns the message type identifier.
+func (m *DeltaEntityUpdate) Type() uint8 { return MsgTypeDeltaEntityUpdate }
+
+// Encode writes the delta-compressed message to a writer.
+// Only fields marked in FieldMask are transmitted.
+func (m *DeltaEntityUpdate) Encode(w io.Writer) error {
+	if err := binary.Write(w, binary.LittleEndian, m.Type()); err != nil {
+		return fmt.Errorf("encode type: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.ServerTimeMs); err != nil {
+		return fmt.Errorf("encode ServerTimeMs: %w", err)
+	}
+	if err := encodeVarUint64(w, m.EntityID); err != nil {
+		return fmt.Errorf("encode EntityID: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.FieldMask); err != nil {
+		return fmt.Errorf("encode FieldMask: %w", err)
+	}
+	if m.FieldMask&FieldPosition != 0 {
+		if err := encodePosition(w, m.X, m.Y, m.Z); err != nil {
+			return err
+		}
+	}
+	if m.FieldMask&FieldAngle != 0 {
+		if err := encodeAngle(w, m.Angle); err != nil {
+			return err
+		}
+	}
+	if m.FieldMask&FieldHealth != 0 {
+		if err := binary.Write(w, binary.LittleEndian, m.Health); err != nil {
+			return fmt.Errorf("encode Health: %w", err)
+		}
+	}
+	if m.FieldMask&FieldVelocity != 0 {
+		if err := binary.Write(w, binary.LittleEndian, m.Velocity); err != nil {
+			return fmt.Errorf("encode Velocity: %w", err)
+		}
+	}
+	if m.FieldMask&FieldState != 0 {
+		if err := binary.Write(w, binary.LittleEndian, m.State); err != nil {
+			return fmt.Errorf("encode State: %w", err)
+		}
+	}
+	return nil
+}
+
+// DecodeDeltaEntityUpdate reads a DeltaEntityUpdate from a reader.
+func DecodeDeltaEntityUpdate(r io.Reader) (*DeltaEntityUpdate, error) {
+	m := &DeltaEntityUpdate{}
+	if err := binary.Read(r, binary.LittleEndian, &m.ServerTimeMs); err != nil {
+		return nil, fmt.Errorf("decode ServerTimeMs: %w", err)
+	}
+	entityID, err := decodeVarUint64(r)
+	if err != nil {
+		return nil, fmt.Errorf("decode EntityID: %w", err)
+	}
+	m.EntityID = entityID
+	if err := binary.Read(r, binary.LittleEndian, &m.FieldMask); err != nil {
+		return nil, fmt.Errorf("decode FieldMask: %w", err)
+	}
+	if m.FieldMask&FieldPosition != 0 {
+		x, y, z, err := decodePosition(r)
+		if err != nil {
+			return nil, err
+		}
+		m.X, m.Y, m.Z = x, y, z
+	}
+	if m.FieldMask&FieldAngle != 0 {
+		angle, err := decodeAngle(r)
+		if err != nil {
+			return nil, err
+		}
+		m.Angle = angle
+	}
+	if m.FieldMask&FieldHealth != 0 {
+		if err := binary.Read(r, binary.LittleEndian, &m.Health); err != nil {
+			return nil, fmt.Errorf("decode Health: %w", err)
+		}
+	}
+	if m.FieldMask&FieldVelocity != 0 {
+		if err := binary.Read(r, binary.LittleEndian, &m.Velocity); err != nil {
+			return nil, fmt.Errorf("decode Velocity: %w", err)
+		}
+	}
+	if m.FieldMask&FieldState != 0 {
+		if err := binary.Read(r, binary.LittleEndian, &m.State); err != nil {
+			return nil, fmt.Errorf("decode State: %w", err)
+		}
+	}
+	return m, nil
+}
+
+// encodeVarUint64 writes a uint64 using variable-length encoding.
+// Smaller values use fewer bytes (1-9 bytes).
+func encodeVarUint64(w io.Writer, v uint64) error {
+	buf := make([]byte, binary.MaxVarintLen64)
+	n := binary.PutUvarint(buf, v)
+	_, err := w.Write(buf[:n])
+	return err
+}
+
+// decodeVarUint64 reads a variable-length encoded uint64.
+func decodeVarUint64(r io.Reader) (uint64, error) {
+	buf := make([]byte, 1)
+	var result uint64
+	var shift uint
+	for i := 0; i < binary.MaxVarintLen64; i++ {
+		if _, err := io.ReadFull(r, buf); err != nil {
+			return 0, err
+		}
+		b := buf[0]
+		result |= uint64(b&0x7F) << shift
+		if b < 0x80 {
+			return result, nil
+		}
+		shift += 7
+	}
+	return 0, fmt.Errorf("varint overflow")
+}
+
+// encodePosition writes X, Y, Z coordinates.
+func encodePosition(w io.Writer, x, y, z float32) error {
+	if err := binary.Write(w, binary.LittleEndian, x); err != nil {
+		return fmt.Errorf("encode X: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, y); err != nil {
+		return fmt.Errorf("encode Y: %w", err)
+	}
+	if err := binary.Write(w, binary.LittleEndian, z); err != nil {
+		return fmt.Errorf("encode Z: %w", err)
+	}
+	return nil
+}
+
+// decodePosition reads X, Y, Z coordinates.
+func decodePosition(r io.Reader) (x, y, z float32, err error) {
+	if err = binary.Read(r, binary.LittleEndian, &x); err != nil {
+		return 0, 0, 0, fmt.Errorf("decode X: %w", err)
+	}
+	if err = binary.Read(r, binary.LittleEndian, &y); err != nil {
+		return 0, 0, 0, fmt.Errorf("decode Y: %w", err)
+	}
+	if err = binary.Read(r, binary.LittleEndian, &z); err != nil {
+		return 0, 0, 0, fmt.Errorf("decode Z: %w", err)
+	}
+	return x, y, z, nil
+}
+
+// encodeAngle writes an angle value.
+func encodeAngle(w io.Writer, angle float32) error {
+	if err := binary.Write(w, binary.LittleEndian, angle); err != nil {
+		return fmt.Errorf("encode Angle: %w", err)
+	}
+	return nil
+}
+
+// decodeAngle reads an angle value.
+func decodeAngle(r io.Reader) (float32, error) {
+	var angle float32
+	if err := binary.Read(r, binary.LittleEndian, &angle); err != nil {
+		return 0, fmt.Errorf("decode Angle: %w", err)
+	}
+	return angle, nil
+}
+
+// ComputeDelta creates a DeltaEntityUpdate from previous and current states.
+// Only changed fields are marked in the FieldMask.
+func ComputeDelta(prev, curr *EntityUpdate) *DeltaEntityUpdate {
+	delta := &DeltaEntityUpdate{
+		ServerTimeMs: curr.ServerTimeMs,
+		EntityID:     curr.EntityID,
+	}
+
+	// Compare positions with tolerance
+	const posTolerance = 0.001
+	if !floatNear(prev.X, curr.X, posTolerance) ||
+		!floatNear(prev.Y, curr.Y, posTolerance) ||
+		!floatNear(prev.Z, curr.Z, posTolerance) {
+		delta.FieldMask |= FieldPosition
+		delta.X, delta.Y, delta.Z = curr.X, curr.Y, curr.Z
+	}
+
+	const angleTolerance = 0.01
+	if !floatNear(prev.Angle, curr.Angle, angleTolerance) {
+		delta.FieldMask |= FieldAngle
+		delta.Angle = curr.Angle
+	}
+
+	const healthTolerance = 0.1
+	if !floatNear(prev.Health, curr.Health, healthTolerance) {
+		delta.FieldMask |= FieldHealth
+		delta.Health = curr.Health
+	}
+
+	const velTolerance = 0.01
+	if !floatNear(prev.Velocity, curr.Velocity, velTolerance) {
+		delta.FieldMask |= FieldVelocity
+		delta.Velocity = curr.Velocity
+	}
+
+	if prev.State != curr.State {
+		delta.FieldMask |= FieldState
+		delta.State = curr.State
+	}
+
+	return delta
+}
+
+// floatNear returns true if a and b are within tolerance of each other.
+func floatNear(a, b, tolerance float32) bool {
+	diff := a - b
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff <= tolerance
+}
+
+// ApplyDelta applies a DeltaEntityUpdate to an existing EntityUpdate.
+// Returns a new EntityUpdate with the delta applied.
+func ApplyDelta(prev *EntityUpdate, delta *DeltaEntityUpdate) *EntityUpdate {
+	result := &EntityUpdate{
+		ServerTimeMs: delta.ServerTimeMs,
+		EntityID:     delta.EntityID,
+		X:            prev.X,
+		Y:            prev.Y,
+		Z:            prev.Z,
+		Angle:        prev.Angle,
+		Health:       prev.Health,
+		Velocity:     prev.Velocity,
+		State:        prev.State,
+	}
+
+	if delta.FieldMask&FieldPosition != 0 {
+		result.X, result.Y, result.Z = delta.X, delta.Y, delta.Z
+	}
+	if delta.FieldMask&FieldAngle != 0 {
+		result.Angle = delta.Angle
+	}
+	if delta.FieldMask&FieldHealth != 0 {
+		result.Health = delta.Health
+	}
+	if delta.FieldMask&FieldVelocity != 0 {
+		result.Velocity = delta.Velocity
+	}
+	if delta.FieldMask&FieldState != 0 {
+		result.State = delta.State
+	}
+
+	return result
+}
+
+// HasChanges returns true if the delta has any field changes.
+func (m *DeltaEntityUpdate) HasChanges() bool {
+	return m.FieldMask != 0
+}
+
 // ChunkData represents terrain chunk data sent from server to client.
 // Used when client enters a new chunk area.
 type ChunkData struct {
