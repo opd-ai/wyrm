@@ -485,10 +485,10 @@ No circular dependencies detected.
 - [x] Register all 44 unregistered systems (see Section 1.5 checklist)
 - [ ] Add client-side systems for single-player mode or implement entity sync protocol
 - [ ] Implement client-server game state protocol (send/receive EntityUpdate, ChunkData, PlayerInput)
-- [ ] Integrate all 14 unused packages at runtime (see Section 2.5 checklist)
+- [x] Integrate all 14 unused packages at runtime (see Section 2.5 checklist — all packages now integrated)
 - [ ] Implement HUD overlay system (health, mana, compass, minimap)
 - [ ] Implement menu system (pause, settings, character creation, quit)
 - [ ] Implement dialog UI for NPC conversations
 - [ ] Add player collision detection against worldMap wall cells
-- [ ] Integrate `pkg/world/persist/` for save/load on server startup/shutdown
+- [x] Integrate `pkg/world/persist/` for save/load on server startup/shutdown — Persister now initialized in server_init.go
 - [ ] Implement game state synchronization between client and server ECS worlds
