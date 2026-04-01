@@ -304,7 +304,7 @@ Entities are billboard sprites rendered by the raycaster's existing billboard sy
 
 - [x] `go test -tags=noebiten ./pkg/world/...` passes
 - [x] `go test -tags=noebiten ./pkg/procgen/...` passes
-- [ ] Same seed produces identical terrain (determinism test)
+- [x] Same seed produces identical terrain (determinism test)
 - [ ] Visual inspection confirms: valleys, water, vegetation visible
 - [ ] Chunk boundary transitions are smooth (no hard edges)
 - [ ] No frame stutter when crossing chunk boundaries

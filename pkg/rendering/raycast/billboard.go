@@ -343,19 +343,19 @@ func (r *Renderer) DrawSprites(entities []*SpriteEntity, pixels []byte) {
 		return
 	}
 
-	// Transform all entities and filter invisible ones
-	visible := make([]*SpriteEntity, 0, len(entities))
+	// Reuse pre-allocated slice with [:0] pattern
+	r.visibleSprites = r.visibleSprites[:0]
 	for _, e := range entities {
 		if r.TransformEntityToScreen(e) {
-			visible = append(visible, e)
+			r.visibleSprites = append(r.visibleSprites, e)
 		}
 	}
 
 	// Sort back-to-front
-	SortSpritesByDistance(visible)
+	SortSpritesByDistance(r.visibleSprites)
 
 	// Draw each sprite
-	for _, e := range visible {
+	for _, e := range r.visibleSprites {
 		r.DrawSprite(e, pixels)
 	}
 }

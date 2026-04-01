@@ -51,6 +51,9 @@ type Renderer struct {
 	// Allocated once in constructor, reused each frame.
 	// Format: width * height * 4 bytes (RGBA)
 	Framebuffer []byte
+	// visibleSprites is a pre-allocated slice for sorting visible sprites.
+	// Reused each frame with [:0] to avoid allocations.
+	visibleSprites []*SpriteEntity
 }
 
 // NewRenderer creates a new raycasting renderer.
@@ -82,17 +85,18 @@ func NewRendererWithGenre(width, height int, genre string, seed int64) *Renderer
 	worldMap[9][8] = 3
 
 	r := &Renderer{
-		Width:       width,
-		Height:      height,
-		PlayerX:     DefaultPlayerX,
-		PlayerY:     DefaultPlayerY,
-		PlayerA:     0.0,
-		WorldMap:    worldMap,
-		FOV:         DefaultFOV,
-		Genre:       genre,
-		textureSeed: seed,
-		ZBuffer:     make([]float64, width),
-		Framebuffer: make([]byte, width*height*4),
+		Width:          width,
+		Height:         height,
+		PlayerX:        DefaultPlayerX,
+		PlayerY:        DefaultPlayerY,
+		PlayerA:        0.0,
+		WorldMap:       worldMap,
+		FOV:            DefaultFOV,
+		Genre:          genre,
+		textureSeed:    seed,
+		ZBuffer:        make([]float64, width),
+		Framebuffer:    make([]byte, width*height*4),
+		visibleSprites: make([]*SpriteEntity, 0, 256), // Pre-allocate for typical entity count
 	}
 	r.initTextures()
 	return r

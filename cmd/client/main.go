@@ -707,12 +707,12 @@ func (g *Game) processMovementInput(pos *components.Position, dt float64) {
 // processStrafeInput handles left/right strafe movement.
 func (g *Game) processStrafeInput(pos *components.Position, dt float64) {
 	const moveSpeed = 3.0
-	if ebiten.IsKeyPressed(ebiten.KeyQ) {
+	if g.isActionOrKeyPressed(input.ActionStrafeLeft, ebiten.KeyQ) {
 		dx := math.Cos(pos.Angle-math.Pi/2) * moveSpeed * dt
 		dy := math.Sin(pos.Angle-math.Pi/2) * moveSpeed * dt
 		g.tryMove(pos, dx, dy)
 	}
-	if ebiten.IsKeyPressed(ebiten.KeyE) {
+	if g.isActionOrKeyPressed(input.ActionStrafeRight, ebiten.KeyE) {
 		dx := math.Cos(pos.Angle+math.Pi/2) * moveSpeed * dt
 		dy := math.Sin(pos.Angle+math.Pi/2) * moveSpeed * dt
 		g.tryMove(pos, dx, dy)
@@ -744,9 +744,9 @@ func (g *Game) sendPlayerInputToServer() {
 	}
 
 	// Strafe left/right (Q/E)
-	if ebiten.IsKeyPressed(ebiten.KeyQ) {
+	if g.isActionOrKeyPressed(input.ActionStrafeLeft, ebiten.KeyQ) {
 		moveRight = -1.0
-	} else if ebiten.IsKeyPressed(ebiten.KeyE) {
+	} else if g.isActionOrKeyPressed(input.ActionStrafeRight, ebiten.KeyE) {
 		moveRight = 1.0
 	}
 
@@ -758,7 +758,7 @@ func (g *Game) sendPlayerInputToServer() {
 	}
 
 	// Jump (Space)
-	jump := ebiten.IsKeyPressed(ebiten.KeySpace)
+	jump := g.isActionOrKeyPressed(input.ActionJump, ebiten.KeySpace)
 
 	// Attack (Left mouse)
 	attack := ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft)
