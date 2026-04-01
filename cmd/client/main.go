@@ -1243,7 +1243,7 @@ func (g *Game) drawWantedStatus(screen *ebiten.Image, x, y int) {
 
 	// Bounty amount
 	if crime.BountyAmount > 0 {
-		bountyStr := fmt.Sprintf("Bounty: %dg", crime.BountyAmount)
+		bountyStr := fmt.Sprintf("Bounty: %.0fg", crime.BountyAmount)
 		ebitenutil.DebugPrintAt(screen, bountyStr, x+5, y+20)
 	}
 
