@@ -91,17 +91,17 @@ func getFactionDisplayName(factionID string) string {
 // getStandingLevel returns the standing level string for a reputation value.
 func getStandingLevel(reputation float64) string {
 	switch {
-	case reputation <= -1000:
-		return "Hostile"
-	case reputation <= -500:
-		return "Unfriendly"
-	case reputation <= 500:
-		return "Neutral"
-	case reputation <= 1000:
-		return "Friendly"
-	case reputation <= 2000:
-		return "Allied"
-	default:
+	case reputation >= 80:
 		return "Exalted"
+	case reputation >= 50:
+		return "Allied"
+	case reputation >= 20:
+		return "Friendly"
+	case reputation >= -20:
+		return "Neutral"
+	case reputation >= -50:
+		return "Unfriendly"
+	default:
+		return "Hostile"
 	}
 }

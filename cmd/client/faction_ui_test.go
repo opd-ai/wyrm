@@ -90,9 +90,6 @@ func TestFactionUI_GetFactionInfo(t *testing.T) {
 }
 
 func TestFactionUI_GetStandingLevel(t *testing.T) {
-	inputMgr := input.NewManager()
-	ui := NewFactionUI("fantasy", 1, inputMgr)
-
 	tests := []struct {
 		rep      float64
 		expected string
@@ -106,7 +103,7 @@ func TestFactionUI_GetStandingLevel(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		result := ui.getStandingLevel(tc.rep)
+		result := getStandingLevel(tc.rep)
 		if result != tc.expected {
 			t.Errorf("getStandingLevel(%.0f) = %s, expected %s", tc.rep, result, tc.expected)
 		}
