@@ -1191,17 +1191,17 @@ func (g *Game) getTerritoryColor(x, y float64, territories []*components.Faction
 }
 
 // factionToColor maps faction IDs to minimap colors.
-func (g *Game) factionToColor(factionID string) uint32 {
+func (gm *Game) factionToColor(factionID string) uint32 {
 	// Use a simple hash to get consistent colors per faction
 	hash := uint32(0)
 	for _, c := range factionID {
 		hash = hash*31 + uint32(c)
 	}
 	// Generate color with moderate saturation and alpha
-	r := uint8(80 + (hash % 80))
-	g := uint8(80 + ((hash / 256) % 80))
-	b := uint8(80 + ((hash / 65536) % 80))
-	return uint32(r)<<24 | uint32(g)<<16 | uint32(b)<<8 | 0xCC
+	rr := uint8(80 + (hash % 80))
+	gg := uint8(80 + ((hash / 256) % 80))
+	bb := uint8(80 + ((hash / 65536) % 80))
+	return uint32(rr)<<24 | uint32(gg)<<16 | uint32(bb)<<8 | 0xCC
 }
 
 // blendColors blends two RGBA colors by the given factor (0=first, 1=second).
