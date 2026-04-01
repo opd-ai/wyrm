@@ -84,12 +84,37 @@ func (p *Pipeline) ensureBuffers(bounds image.Rectangle) {
 }
 
 // Apply runs all effects in the pipeline on the image.
+// Uses pre-allocated buffers to minimize allocations.
 func (p *Pipeline) Apply(img *image.RGBA) *image.RGBA {
-	result := img
-	for _, effect := range p.effects {
-		result = effect.Apply(result)
+	if len(p.effects) == 0 {
+		return img
 	}
-	return result
+
+	p.ensureBuffers(img.Bounds())
+
+	// Copy input to work buffer A
+	copy(p.workBufferA.Pix, img.Pix)
+
+	// Process effects, alternating between buffers
+	src := p.workBufferA
+	dst := p.workBufferB
+
+	for _, effect := range p.effects {
+		// Check if effect implements InPlaceEffect for optimized path
+		if ipe, ok := effect.(InPlaceEffect); ok {
+			ipe.ApplyTo(src, dst)
+		} else {
+			// Fallback: use the allocating Apply method (less efficient)
+			result := effect.Apply(src)
+			copy(dst.Pix, result.Pix)
+		}
+		// Swap buffers for next effect
+		src, dst = dst, src
+	}
+
+	// Copy result back to input image (src now holds the final result)
+	copy(img.Pix, src.Pix)
+	return img
 }
 
 // Genre returns the genre this pipeline was configured for.
@@ -111,17 +136,23 @@ type WarmColorGrade struct {
 func (w *WarmColorGrade) Apply(img *image.RGBA) *image.RGBA {
 	bounds := img.Bounds()
 	result := image.NewRGBA(bounds)
+	w.ApplyTo(img, result)
+	return result
+}
 
+// ApplyTo applies warm color grading to the destination buffer.
+func (w *WarmColorGrade) ApplyTo(src, dst *image.RGBA) {
+	bounds := src.Bounds()
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			c := img.RGBAAt(x, y)
+			c := src.RGBAAt(x, y)
 
 			// Shift toward warm tones
 			r := float64(c.R) + (w.Intensity * 30)
 			g := float64(c.G) + (w.Intensity * 15)
 			b := float64(c.B) - (w.Intensity * 20)
 
-			result.SetRGBA(x, y, color.RGBA{
+			dst.SetRGBA(x, y, color.RGBA{
 				R: clampByte(r),
 				G: clampByte(g),
 				B: clampByte(b),
@@ -129,7 +160,6 @@ func (w *WarmColorGrade) Apply(img *image.RGBA) *image.RGBA {
 			})
 		}
 	}
-	return result
 }
 
 // Name returns the effect name.
@@ -145,14 +175,21 @@ type Scanlines struct {
 func (s *Scanlines) Apply(img *image.RGBA) *image.RGBA {
 	bounds := img.Bounds()
 	result := image.NewRGBA(bounds)
-	copy(result.Pix, img.Pix)
+	s.ApplyTo(img, result)
+	return result
+}
+
+// ApplyTo adds scanlines to the destination buffer.
+func (s *Scanlines) ApplyTo(src, dst *image.RGBA) {
+	bounds := src.Bounds()
+	copy(dst.Pix, src.Pix)
 
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		if y%s.Spacing == 0 {
 			for x := bounds.Min.X; x < bounds.Max.X; x++ {
-				c := result.RGBAAt(x, y)
+				c := dst.RGBAAt(x, y)
 				darkFactor := 1.0 - s.Intensity
-				result.SetRGBA(x, y, color.RGBA{
+				dst.SetRGBA(x, y, color.RGBA{
 					R: uint8(float64(c.R) * darkFactor),
 					G: uint8(float64(c.G) * darkFactor),
 					B: uint8(float64(c.B) * darkFactor),
@@ -161,7 +198,6 @@ func (s *Scanlines) Apply(img *image.RGBA) *image.RGBA {
 			}
 		}
 	}
-	return result
 }
 
 // Name returns the effect name.
@@ -176,10 +212,16 @@ type Desaturate struct {
 func (d *Desaturate) Apply(img *image.RGBA) *image.RGBA {
 	bounds := img.Bounds()
 	result := image.NewRGBA(bounds)
+	d.ApplyTo(img, result)
+	return result
+}
 
+// ApplyTo reduces saturation to the destination buffer.
+func (d *Desaturate) ApplyTo(src, dst *image.RGBA) {
+	bounds := src.Bounds()
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			c := img.RGBAAt(x, y)
+			c := src.RGBAAt(x, y)
 
 			// Calculate luminance
 			gray := 0.299*float64(c.R) + 0.587*float64(c.G) + 0.114*float64(c.B)
@@ -189,7 +231,7 @@ func (d *Desaturate) Apply(img *image.RGBA) *image.RGBA {
 			g := float64(c.G)*(1-d.Amount) + gray*d.Amount
 			b := float64(c.B)*(1-d.Amount) + gray*d.Amount
 
-			result.SetRGBA(x, y, color.RGBA{
+			dst.SetRGBA(x, y, color.RGBA{
 				R: clampByte(r),
 				G: clampByte(g),
 				B: clampByte(b),
@@ -197,7 +239,6 @@ func (d *Desaturate) Apply(img *image.RGBA) *image.RGBA {
 			})
 		}
 	}
-	return result
 }
 
 // Name returns the effect name.
@@ -213,6 +254,13 @@ type Vignette struct {
 func (v *Vignette) Apply(img *image.RGBA) *image.RGBA {
 	bounds := img.Bounds()
 	result := image.NewRGBA(bounds)
+	v.ApplyTo(img, result)
+	return result
+}
+
+// ApplyTo adds vignette effect to the destination buffer.
+func (v *Vignette) ApplyTo(src, dst *image.RGBA) {
+	bounds := src.Bounds()
 	width := float64(bounds.Dx())
 	height := float64(bounds.Dy())
 	centerX := width / 2
@@ -221,7 +269,7 @@ func (v *Vignette) Apply(img *image.RGBA) *image.RGBA {
 
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			c := img.RGBAAt(x, y)
+			c := src.RGBAAt(x, y)
 
 			// Calculate distance from center
 			dx := float64(x) - centerX
@@ -235,7 +283,7 @@ func (v *Vignette) Apply(img *image.RGBA) *image.RGBA {
 				vignetteFactor = 1.0 - math.Min(1.0, falloff)
 			}
 
-			result.SetRGBA(x, y, color.RGBA{
+			dst.SetRGBA(x, y, color.RGBA{
 				R: uint8(float64(c.R) * vignetteFactor),
 				G: uint8(float64(c.G) * vignetteFactor),
 				B: uint8(float64(c.B) * vignetteFactor),
@@ -243,7 +291,6 @@ func (v *Vignette) Apply(img *image.RGBA) *image.RGBA {
 			})
 		}
 	}
-	return result
 }
 
 // Name returns the effect name.
@@ -258,21 +305,27 @@ type ChromaticAberration struct {
 func (ca *ChromaticAberration) Apply(img *image.RGBA) *image.RGBA {
 	bounds := img.Bounds()
 	result := image.NewRGBA(bounds)
+	ca.ApplyTo(img, result)
+	return result
+}
 
+// ApplyTo adds chromatic aberration to the destination buffer.
+func (ca *ChromaticAberration) ApplyTo(src, dst *image.RGBA) {
+	bounds := src.Bounds()
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
 			// Get R channel from offset left
 			rx := clampInt(x-ca.Offset, bounds.Min.X, bounds.Max.X-1)
-			rColor := img.RGBAAt(rx, y)
+			rColor := src.RGBAAt(rx, y)
 
 			// Get G channel from center
-			gColor := img.RGBAAt(x, y)
+			gColor := src.RGBAAt(x, y)
 
 			// Get B channel from offset right
 			bx := clampInt(x+ca.Offset, bounds.Min.X, bounds.Max.X-1)
-			bColor := img.RGBAAt(bx, y)
+			bColor := src.RGBAAt(bx, y)
 
-			result.SetRGBA(x, y, color.RGBA{
+			dst.SetRGBA(x, y, color.RGBA{
 				R: rColor.R,
 				G: gColor.G,
 				B: bColor.B,
@@ -280,7 +333,6 @@ func (ca *ChromaticAberration) Apply(img *image.RGBA) *image.RGBA {
 			})
 		}
 	}
-	return result
 }
 
 // Name returns the effect name.
@@ -296,11 +348,16 @@ type Bloom struct {
 func (b *Bloom) Apply(img *image.RGBA) *image.RGBA {
 	bounds := img.Bounds()
 	result := image.NewRGBA(bounds)
-	copy(result.Pix, img.Pix)
-
-	blurRadius := 3
-	b.applyBloomToImage(img, result, bounds, blurRadius)
+	b.ApplyTo(img, result)
 	return result
+}
+
+// ApplyTo adds bloom effect to the destination buffer.
+func (b *Bloom) ApplyTo(src, dst *image.RGBA) {
+	bounds := src.Bounds()
+	copy(dst.Pix, src.Pix)
+	blurRadius := 3
+	b.applyBloomToImage(src, dst, bounds, blurRadius)
 }
 
 // applyBloomToImage processes all eligible pixels and applies bloom effect.
@@ -357,10 +414,16 @@ type Sepia struct {
 func (s *Sepia) Apply(img *image.RGBA) *image.RGBA {
 	bounds := img.Bounds()
 	result := image.NewRGBA(bounds)
+	s.ApplyTo(img, result)
+	return result
+}
 
+// ApplyTo adds sepia tone to the destination buffer.
+func (s *Sepia) ApplyTo(src, dst *image.RGBA) {
+	bounds := src.Bounds()
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			c := img.RGBAAt(x, y)
+			c := src.RGBAAt(x, y)
 
 			// Sepia transformation
 			sepiaR := 0.393*float64(c.R) + 0.769*float64(c.G) + 0.189*float64(c.B)
@@ -372,7 +435,7 @@ func (s *Sepia) Apply(img *image.RGBA) *image.RGBA {
 			g := float64(c.G)*(1-s.Intensity) + sepiaG*s.Intensity
 			b := float64(c.B)*(1-s.Intensity) + sepiaB*s.Intensity
 
-			result.SetRGBA(x, y, color.RGBA{
+			dst.SetRGBA(x, y, color.RGBA{
 				R: clampByte(r),
 				G: clampByte(g),
 				B: clampByte(b),
@@ -380,7 +443,6 @@ func (s *Sepia) Apply(img *image.RGBA) *image.RGBA {
 			})
 		}
 	}
-	return result
 }
 
 // Name returns the effect name.
@@ -396,6 +458,13 @@ type FilmGrain struct {
 func (f *FilmGrain) Apply(img *image.RGBA) *image.RGBA {
 	bounds := img.Bounds()
 	result := image.NewRGBA(bounds)
+	f.ApplyTo(img, result)
+	return result
+}
+
+// ApplyTo adds film grain to the destination buffer.
+func (f *FilmGrain) ApplyTo(src, dst *image.RGBA) {
+	bounds := src.Bounds()
 
 	// Use deterministic seed based on image dimensions for consistency
 	if f.rng == nil {
@@ -407,12 +476,12 @@ func (f *FilmGrain) Apply(img *image.RGBA) *image.RGBA {
 
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			c := img.RGBAAt(x, y)
+			c := src.RGBAAt(x, y)
 
 			// Add random noise
 			noise := (f.rng.Float64() - 0.5) * noiseRange
 
-			result.SetRGBA(x, y, color.RGBA{
+			dst.SetRGBA(x, y, color.RGBA{
 				R: clampByte(float64(c.R) + noise),
 				G: clampByte(float64(c.G) + noise),
 				B: clampByte(float64(c.B) + noise),
@@ -420,7 +489,6 @@ func (f *FilmGrain) Apply(img *image.RGBA) *image.RGBA {
 			})
 		}
 	}
-	return result
 }
 
 // Name returns the effect name.
@@ -435,17 +503,23 @@ type CoolColorGrade struct {
 func (c *CoolColorGrade) Apply(img *image.RGBA) *image.RGBA {
 	bounds := img.Bounds()
 	result := image.NewRGBA(bounds)
+	c.ApplyTo(img, result)
+	return result
+}
 
+// ApplyTo applies cool color grading to the destination buffer.
+func (c *CoolColorGrade) ApplyTo(src, dst *image.RGBA) {
+	bounds := src.Bounds()
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			pixel := img.RGBAAt(x, y)
+			pixel := src.RGBAAt(x, y)
 
 			// Shift toward cool tones
 			r := float64(pixel.R) - (c.Intensity * 25)
 			g := float64(pixel.G) + (c.Intensity * 10)
 			b := float64(pixel.B) + (c.Intensity * 35)
 
-			result.SetRGBA(x, y, color.RGBA{
+			dst.SetRGBA(x, y, color.RGBA{
 				R: clampByte(r),
 				G: clampByte(g),
 				B: clampByte(b),
@@ -453,7 +527,6 @@ func (c *CoolColorGrade) Apply(img *image.RGBA) *image.RGBA {
 			})
 		}
 	}
-	return result
 }
 
 // Name returns the effect name.
@@ -468,12 +541,19 @@ type DarkenOverall struct {
 func (d *DarkenOverall) Apply(img *image.RGBA) *image.RGBA {
 	bounds := img.Bounds()
 	result := image.NewRGBA(bounds)
+	d.ApplyTo(img, result)
+	return result
+}
+
+// ApplyTo darkens the image to the destination buffer.
+func (d *DarkenOverall) ApplyTo(src, dst *image.RGBA) {
+	bounds := src.Bounds()
 	factor := 1.0 - d.Amount
 
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			c := img.RGBAAt(x, y)
-			result.SetRGBA(x, y, color.RGBA{
+			c := src.RGBAAt(x, y)
+			dst.SetRGBA(x, y, color.RGBA{
 				R: uint8(float64(c.R) * factor),
 				G: uint8(float64(c.G) * factor),
 				B: uint8(float64(c.B) * factor),
@@ -481,7 +561,6 @@ func (d *DarkenOverall) Apply(img *image.RGBA) *image.RGBA {
 			})
 		}
 	}
-	return result
 }
 
 // Name returns the effect name.
@@ -496,10 +575,16 @@ type NeonGlow struct {
 func (n *NeonGlow) Apply(img *image.RGBA) *image.RGBA {
 	bounds := img.Bounds()
 	result := image.NewRGBA(bounds)
+	n.ApplyTo(img, result)
+	return result
+}
 
+// ApplyTo adds neon glow effect to the destination buffer.
+func (n *NeonGlow) ApplyTo(src, dst *image.RGBA) {
+	bounds := src.Bounds()
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			c := img.RGBAAt(x, y)
+			c := src.RGBAAt(x, y)
 
 			// Enhance pinks and cyans (cyberpunk palette)
 			brightness := (float64(c.R) + float64(c.G) + float64(c.B)) / 765.0
@@ -511,7 +596,7 @@ func (n *NeonGlow) Apply(img *image.RGBA) *image.RGBA {
 			// Add cyan tint
 			b := float64(c.B) + (n.Intensity * brightness * 30)
 
-			result.SetRGBA(x, y, color.RGBA{
+			dst.SetRGBA(x, y, color.RGBA{
 				R: clampByte(r),
 				G: clampByte(g),
 				B: clampByte(b),
@@ -519,7 +604,6 @@ func (n *NeonGlow) Apply(img *image.RGBA) *image.RGBA {
 			})
 		}
 	}
-	return result
 }
 
 // Name returns the effect name.

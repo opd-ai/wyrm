@@ -163,7 +163,7 @@ Move sprite sort slice allocation into `Renderer` struct. Reuse with `slice[:0]`
 
 ### Validation
 
-- [ ] `go test -tags=noebiten ./...` passes
+- [x] `go test -tags=noebiten ./...` passes
 - [ ] `go test -bench=. -benchmem pkg/rendering/...` shows ≥80% B/op reduction
 - [ ] No `make([]byte` or `image.NewRGBA()` in rendering hot paths (grep verification)
 - [ ] Frame time stability improved (reduced GC pause spikes)
@@ -218,11 +218,11 @@ Replace per-pixel `screen.Set()` in UI code with either:
 
 ### Validation
 
-- [ ] `go build ./cmd/client` succeeds
-- [ ] `go test -tags=noebiten ./...` passes
-- [ ] No `screen.Set()` calls remain in any hot path
-- [ ] No `screen.At()` calls remain
-- [ ] No `image.NewRGBA()` allocations in rendering pipeline
+- [x] `go build ./cmd/client` succeeds
+- [x] `go test -tags=noebiten ./...` passes
+- [x] No `screen.Set()` calls remain in any hot path
+- [x] No `screen.At()` calls remain
+- [x] No `image.NewRGBA()` allocations in rendering pipeline
 - [ ] Post-processing visual effects are preserved
 - [ ] Particle visual effects are preserved
 

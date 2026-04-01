@@ -76,6 +76,9 @@ type Game struct {
 	spriteCache      *sprite.SpriteCache
 	textureCache     map[string]*texture.Texture
 	subtitleSystem   *subtitles.SubtitleSystem
+	// Pre-allocated rendering buffers (Phase 2 optimization)
+	particleBuffer     []byte // Pre-allocated buffer for particle rendering
+	particleBufferSize int    // Current buffer size for reallocation check
 	// Audio subpackages
 	ambientMixer  *ambient.Mixer
 	adaptiveMusic *music.AdaptiveMusic
@@ -852,6 +855,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 // applyCombatVisualFeedback applies screen shake and damage flash effects.
+// Uses the renderer's framebuffer to avoid per-pixel GPU calls.
 func (g *Game) applyCombatVisualFeedback(screen *ebiten.Image) {
 	if g.combatManager == nil {
 		return
@@ -860,20 +864,29 @@ func (g *Game) applyCombatVisualFeedback(screen *ebiten.Image) {
 	// Apply damage flash overlay
 	flashAlpha := g.combatManager.GetDamageFlashAlpha()
 	if flashAlpha > 0 {
-		bounds := screen.Bounds()
-		flashColor := color.RGBA{R: 255, G: 0, B: 0, A: uint8(flashAlpha)}
-		for y := 0; y < bounds.Dy(); y++ {
-			for x := 0; x < bounds.Dx(); x++ {
-				// Blend red flash over existing pixels
-				existing := screen.At(x, y)
-				r, g, b, a := existing.RGBA()
-				blendFactor := float64(flashAlpha) / 255.0
-				newR := uint8((float64(r>>8)*(1-blendFactor) + float64(flashColor.R)*blendFactor))
-				newG := uint8((float64(g>>8)*(1-blendFactor) + float64(flashColor.G)*blendFactor))
-				newB := uint8((float64(b>>8)*(1-blendFactor) + float64(flashColor.B)*blendFactor))
-				screen.Set(x, y, color.RGBA{R: newR, G: newG, B: newB, A: uint8(a >> 8)})
-			}
+		framebuffer := g.renderer.GetFramebuffer()
+		if framebuffer == nil {
+			return
 		}
+
+		blendFactor := float64(flashAlpha) / 255.0
+		invBlend := 1.0 - blendFactor
+		flashR := 255.0 * blendFactor // Pre-compute flash color contribution
+
+		// Blend red flash directly into framebuffer
+		for i := 0; i < len(framebuffer); i += 4 {
+			r := float64(framebuffer[i])
+			gr := float64(framebuffer[i+1])
+			b := float64(framebuffer[i+2])
+
+			framebuffer[i] = uint8(r*invBlend + flashR)
+			framebuffer[i+1] = uint8(gr * invBlend)
+			framebuffer[i+2] = uint8(b * invBlend)
+			// Alpha stays at 255
+		}
+
+		// Upload modified framebuffer
+		screen.WritePixels(framebuffer)
 	}
 }
 
@@ -886,23 +899,34 @@ func (g *Game) drawCharacterCreation(screen *ebiten.Image) {
 }
 
 // drawDeathScreen draws the death overlay when the player is dead.
+// Uses the framebuffer for overlay, then falls back to ebitenutil for text.
 func (g *Game) drawDeathScreen(screen *ebiten.Image) {
 	if g.combatManager == nil || !g.combatManager.IsDead() {
 		return
 	}
 
+	framebuffer := g.renderer.GetFramebuffer()
+	if framebuffer != nil {
+		// Apply dark overlay directly to framebuffer
+		// alpha = 180/255 ≈ 0.706
+		blendFactor := 180.0 / 255.0
+		invBlend := 1.0 - blendFactor
+
+		for i := 0; i < len(framebuffer); i += 4 {
+			// Blend toward black (R=0, G=0, B=0)
+			framebuffer[i] = uint8(float64(framebuffer[i]) * invBlend)
+			framebuffer[i+1] = uint8(float64(framebuffer[i+1]) * invBlend)
+			framebuffer[i+2] = uint8(float64(framebuffer[i+2]) * invBlend)
+		}
+
+		// Upload modified framebuffer
+		screen.WritePixels(framebuffer)
+	}
+
 	screenWidth := screen.Bounds().Dx()
 	screenHeight := screen.Bounds().Dy()
 
-	// Draw dark overlay
-	overlayColor := color.RGBA{R: 0, G: 0, B: 0, A: 180}
-	for y := 0; y < screenHeight; y++ {
-		for x := 0; x < screenWidth; x++ {
-			screen.Set(x, y, overlayColor)
-		}
-	}
-
-	// Draw death message
+	// Draw death message (using ebitenutil which is GPU-accelerated)
 	respawnTime := g.combatManager.GetTimeUntilRespawn()
 	deathText := "YOU DIED"
 	respawnText := fmt.Sprintf("Respawning in %.1f...", respawnTime)
@@ -1063,72 +1087,52 @@ func (g *Game) drawSpeechBubble(screen *ebiten.Image, x, y int) {
 }
 
 // applyPostProcessing applies genre-specific visual effects to the rendered frame.
+// Uses pre-allocated buffers in the pipeline for efficiency.
 func (g *Game) applyPostProcessing(screen *ebiten.Image) {
 	if g.postprocessPipe == nil {
 		return
 	}
 
-	// Get screen as RGBA image
+	// Use the renderer's framebuffer directly
+	framebuffer := g.renderer.GetFramebuffer()
+	if framebuffer == nil {
+		return
+	}
+
+	// Create an RGBA image view over the framebuffer
 	bounds := screen.Bounds()
-	rgba := image.NewRGBA(bounds)
-
-	// Copy screen pixels to RGBA
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			rgba.Set(x, y, screen.At(x, y))
-		}
+	rgba := &image.RGBA{
+		Pix:    framebuffer,
+		Stride: bounds.Dx() * 4,
+		Rect:   bounds,
 	}
 
-	// Apply post-processing pipeline
-	processed := g.postprocessPipe.Apply(rgba)
+	// Apply post-processing pipeline (uses pre-allocated buffers internally)
+	g.postprocessPipe.Apply(rgba)
 
-	// Copy processed image back to screen
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			screen.Set(x, y, processed.At(x, y))
-		}
-	}
+	// Upload the modified framebuffer back to screen
+	screen.WritePixels(framebuffer)
 }
 
 // drawParticles renders weather particles to the screen.
+// Uses pre-allocated buffer to minimize allocations.
 func (g *Game) drawParticles(screen *ebiten.Image) {
 	if g.particleSystem == nil || g.particleRenderer == nil {
 		return
 	}
 
-	// Get screen pixels for particle rendering
-	bounds := screen.Bounds()
-	width := bounds.Dx()
-	height := bounds.Dy()
-	pixels := make([]byte, width*height*4)
-
-	// Copy current screen to pixel buffer for blending
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			r, gr, b, a := screen.At(x, y).RGBA()
-			idx := (y*width + x) * 4
-			pixels[idx] = uint8(r >> 8)
-			pixels[idx+1] = uint8(gr >> 8)
-			pixels[idx+2] = uint8(b >> 8)
-			pixels[idx+3] = uint8(a >> 8)
-		}
+	// Use the renderer's framebuffer directly for particle rendering
+	// The framebuffer already contains the rendered scene
+	framebuffer := g.renderer.GetFramebuffer()
+	if framebuffer == nil {
+		return
 	}
 
-	// Render particles
-	g.particleRenderer.Draw(g.particleSystem, pixels)
+	// Render particles directly to the framebuffer
+	g.particleRenderer.Draw(g.particleSystem, framebuffer)
 
-	// Copy back to screen
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			idx := (y*width + x) * 4
-			screen.Set(x, y, color.RGBA{
-				R: pixels[idx],
-				G: pixels[idx+1],
-				B: pixels[idx+2],
-				A: pixels[idx+3],
-			})
-		}
-	}
+	// Upload the modified framebuffer back to screen
+	screen.WritePixels(framebuffer)
 }
 
 // drawHUD renders the heads-up display elements.
