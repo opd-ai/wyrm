@@ -33,6 +33,7 @@ func main() {
 	fps := initializeFactions(world, cfg)
 	initializeCity(world, cfg, fps)
 	initializeWorldClock(world)
+	initializeDungeons(world, cfg)
 	registerServerSystems(world, cm, cfg, fps)
 
 	// Initialize federation if enabled

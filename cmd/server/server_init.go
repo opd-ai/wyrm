@@ -14,6 +14,7 @@ import (
 	"github.com/opd-ai/wyrm/pkg/network/federation"
 	"github.com/opd-ai/wyrm/pkg/procgen/adapters"
 	"github.com/opd-ai/wyrm/pkg/procgen/city"
+	"github.com/opd-ai/wyrm/pkg/procgen/dungeon"
 )
 
 // initializeFactions generates factions using V-Series generators.
@@ -105,4 +106,54 @@ func runFederationCleanup(fed *federation.Federation, stopCh <-chan struct{}) {
 			return
 		}
 	}
+}
+
+// initializeDungeons generates instanced dungeon content for quests.
+// Dungeons are generated with varying depths based on world seed and genre.
+func initializeDungeons(world *ecs.World, cfg *config.Config) {
+	dungeonGen := dungeon.NewGenerator(cfg.World.Seed, cfg.Genre)
+
+	// Generate dungeons at varying depths (1-5) for quest content
+	dungeonCount := 5
+	for i := 0; i < dungeonCount; i++ {
+		depth := (i % 5) + 1
+		width := 50 + (depth * 10)
+		height := 50 + (depth * 10)
+
+		d := dungeonGen.Generate(width, height, depth)
+		if d == nil {
+			log.Printf("warning: dungeon generation failed for depth %d", depth)
+			continue
+		}
+
+		// Create dungeon entrance entity in the world
+		entranceEntity := world.CreateEntity()
+		entranceX := float64(i*200) + 100 // Spread dungeons apart
+		entranceY := float64(i*200) + 100
+
+		if err := world.AddComponent(entranceEntity, &components.Position{
+			X: entranceX,
+			Y: entranceY,
+			Z: 0,
+		}); err != nil {
+			log.Printf("warning: failed to add dungeon entrance position: %v", err)
+			continue
+		}
+
+		// Store dungeon metadata in Interior component
+		if err := world.AddComponent(entranceEntity, &components.Interior{
+			ParentBuilding: uint64(entranceEntity),
+			Width:          d.Width,
+			Height:         d.Height,
+			FloorType:      fmt.Sprintf("dungeon_%s_depth%d", cfg.Genre, depth),
+		}); err != nil {
+			log.Printf("warning: failed to add dungeon interior: %v", err)
+			continue
+		}
+
+		log.Printf("  generated dungeon depth=%d with %d rooms at (%.0f, %.0f)",
+			depth, len(d.Rooms), entranceX, entranceY)
+	}
+
+	log.Printf("generated %d dungeons for genre %s", dungeonCount, cfg.Genre)
 }

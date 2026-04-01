@@ -91,65 +91,65 @@ These systems exist in `pkg/engine/systems/` with full implementations but are n
 Track progress toward registering all 44 unregistered systems:
 
 **NPC Behavior Systems:**
-- [ ] Register NPCPathfindingSystem in `cmd/server/main.go`
-- [ ] Register NPCNeedsSystem in `cmd/server/main.go`
-- [ ] Register NPCOccupationSystem in `cmd/server/main.go`
-- [ ] Register EmotionalStateSystem in `cmd/server/main.go`
-- [ ] Register NPCMemorySystem in `cmd/server/main.go`
-- [ ] Register GossipSystem in `cmd/server/main.go`
+- [x] Register NPCPathfindingSystem in `cmd/server/main.go`
+- [x] Register NPCNeedsSystem in `cmd/server/main.go`
+- [x] Register NPCOccupationSystem in `cmd/server/main.go`
+- [x] Register EmotionalStateSystem in `cmd/server/main.go`
+- [x] Register NPCMemorySystem in `cmd/server/main.go`
+- [x] Register GossipSystem in `cmd/server/main.go`
 
 **Faction Depth Systems:**
-- [ ] Register FactionRankSystem in `cmd/server/main.go`
-- [ ] Register FactionCoupSystem in `cmd/server/main.go`
-- [ ] Register FactionExclusiveContentSystem in `cmd/server/main.go`
-- [ ] Register DynamicFactionWarSystem in `cmd/server/main.go`
+- [x] Register FactionRankSystem in `cmd/server/main.go`
+- [x] Register FactionCoupSystem in `cmd/server/main.go`
+- [x] Register FactionExclusiveContentSystem in `cmd/server/main.go`
+- [x] Register DynamicFactionWarSystem in `cmd/server/main.go`
 
 **Crime Depth Systems:**
-- [ ] Register GuardPursuitSystem in `cmd/server/main.go`
-- [ ] Register BriberySystem in `cmd/server/main.go`
-- [ ] Register CrimeEvidenceSystem in `cmd/server/main.go`
-- [ ] Register PardonSystem in `cmd/server/main.go`
-- [ ] Register CriminalFactionQuestSystem in `cmd/server/main.go`
+- [x] Register GuardPursuitSystem in `cmd/server/main.go`
+- [x] Register BriberySystem in `cmd/server/main.go`
+- [x] Register CrimeEvidenceSystem in `cmd/server/main.go`
+- [x] Register PardonSystem in `cmd/server/main.go`
+- [x] Register CriminalFactionQuestSystem in `cmd/server/main.go`
 
 **Economy Depth Systems:**
-- [ ] Register EconomicEventSystem in `cmd/server/main.go`
-- [ ] Register MarketManipulationSystem in `cmd/server/main.go`
-- [ ] Register TradeRouteSystem in `cmd/server/main.go`
-- [ ] Register InvestmentSystem in `cmd/server/main.go`
-- [ ] Register PlayerShopSystem in `cmd/server/main.go`
-- [ ] Register CityBuildingSystem in `cmd/server/main.go`
-- [ ] Register CityEventSystem in `cmd/server/main.go`
-- [ ] Register TradingSystem in `cmd/server/main.go`
+- [x] Register EconomicEventSystem in `cmd/server/main.go`
+- [x] Register MarketManipulationSystem in `cmd/server/main.go`
+- [x] Register TradeRouteSystem in `cmd/server/main.go`
+- [x] Register InvestmentSystem in `cmd/server/main.go`
+- [x] Register PlayerShopSystem in `cmd/server/main.go`
+- [x] Register CityBuildingSystem in `cmd/server/main.go`
+- [x] Register CityEventSystem in `cmd/server/main.go`
+- [x] Register TradingSystem in `cmd/server/main.go`
 
 **Combat Depth Systems:**
-- [ ] Register MagicSystem in `cmd/server/main.go`
-- [ ] Register ProjectileSystem in `cmd/server/main.go`
-- [ ] Register StealthSystem in `cmd/server/main.go`
-- [ ] Register DistractionSystem in `cmd/server/main.go`
-- [ ] Register HidingSpotSystem in `cmd/server/main.go`
-- [ ] Register VehiclePhysicsSystem in `cmd/server/main.go`
-- [ ] Register VehicleCombatSystem in `cmd/server/main.go`
-- [ ] Register FlyingVehicleSystem in `cmd/server/main.go`
-- [ ] Register NavalVehicleSystem in `cmd/server/main.go`
-- [ ] Register MountSystem in `cmd/server/main.go`
+- [x] Register MagicSystem in `cmd/server/main.go`
+- [x] Register ProjectileSystem in `cmd/server/main.go`
+- [x] Register StealthSystem in `cmd/server/main.go`
+- [x] Register DistractionSystem in `cmd/server/main.go`
+- [x] Register HidingSpotSystem in `cmd/server/main.go`
+- [x] Register VehiclePhysicsSystem in `cmd/server/main.go`
+- [x] Register VehicleCombatSystem in `cmd/server/main.go`
+- [x] Register FlyingVehicleSystem in `cmd/server/main.go`
+- [x] Register NavalVehicleSystem in `cmd/server/main.go`
+- [x] Register MountSystem in `cmd/server/main.go`
 
 **Skills/Crafting Systems:**
-- [ ] Register SkillProgressionSystem in `cmd/server/main.go`
-- [ ] Register SkillBookSystem in `cmd/server/main.go`
-- [ ] Register SkillSynergySystem in `cmd/server/main.go`
-- [ ] Register ActionUnlockSystem in `cmd/server/main.go`
-- [ ] Register NPCTrainingSystem in `cmd/server/main.go`
-- [ ] Register CraftingSystem in `cmd/server/main.go`
+- [x] Register SkillProgressionSystem in `cmd/server/main.go`
+- [x] Register SkillBookSystem in `cmd/server/main.go`
+- [x] Register SkillSynergySystem in `cmd/server/main.go`
+- [x] Register ActionUnlockSystem in `cmd/server/main.go`
+- [x] Register NPCTrainingSystem in `cmd/server/main.go`
+- [x] Register CraftingSystem in `cmd/server/main.go`
 
 **Dialog/Social Systems:**
-- [ ] Register DialogConsequenceSystem in `cmd/server/main.go`
-- [ ] Register MultiNPCConversationSystem in `cmd/server/main.go`
-- [ ] Register PartySystem in `cmd/server/main.go`
-- [ ] Register VehicleCustomizationSystem in `cmd/server/main.go`
+- [x] Register DialogConsequenceSystem in `cmd/server/main.go`
+- [x] Register MultiNPCConversationSystem in `cmd/server/main.go`
+- [x] Register PartySystem in `cmd/server/main.go`
+- [x] Register VehicleCustomizationSystem in `cmd/server/main.go`
 
 **Environment Systems:**
-- [ ] Register IndoorOutdoorSystem in `cmd/server/main.go`
-- [ ] Register HazardSystem in `cmd/server/main.go`
+- [x] Register IndoorOutdoorSystem in `cmd/server/main.go`
+- [x] Register HazardSystem in `cmd/server/main.go`
 
 ### 1.4 Support Types (Not Systems)
 
@@ -482,7 +482,7 @@ No circular dependencies detected.
 
 ### 6.3 Architecture Gap Resolution Checklist
 
-- [ ] Register all 44 unregistered systems (see Section 1.5 checklist)
+- [x] Register all 44 unregistered systems (see Section 1.5 checklist)
 - [ ] Add client-side systems for single-player mode or implement entity sync protocol
 - [ ] Implement client-server game state protocol (send/receive EntityUpdate, ChunkData, PlayerInput)
 - [ ] Integrate all 14 unused packages at runtime (see Section 2.5 checklist)
