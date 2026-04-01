@@ -89,7 +89,7 @@ Wyrm is a **"100% procedurally generated first-person open-world RPG"** built in
 
 ### HIGH
 
-- [ ] **Delta compression is structural only, not optimized** — `pkg/network/protocol.go:335-344` — EntityUpdate fields always fully transmitted (no field masks, bit-packing, or variable-length encoding). Each update is ~40 bytes minimum. **Remediation:** Implement field presence bitmask, delta-from-baseline encoding for positions, and variable-length integer encoding for IDs. **Validation:** Benchmark message size: `go test -bench=BenchmarkEncode -benchmem ./pkg/network/...`
+- [x] **Delta compression is structural only, not optimized** — `pkg/network/protocol.go:335-344` — EntityUpdate fields always fully transmitted (no field masks, bit-packing, or variable-length encoding). Each update is ~40 bytes minimum. **Remediation:** Implement field presence bitmask, delta-from-baseline encoding for positions, and variable-length integer encoding for IDs. **Validation:** Benchmark message size: `go test -bench=BenchmarkEncode -benchmem ./pkg/network/...`
 
 - [ ] **GenerateRoads has cyclomatic complexity 17** — `pkg/procgen/city/generator.go:111` — 111-line function with 17 branches creates maintenance risk. **Remediation:** Extract road segment generation into helper functions: `generateMainRoad()`, `generateDistrictConnector()`, `generatePOIAccess()`. **Validation:** `go-stats-generator analyze ./pkg/procgen/city/ | grep -i complexity`
 
