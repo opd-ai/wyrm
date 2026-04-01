@@ -229,15 +229,15 @@ Track progress toward calling all generators at runtime:
 - [x] Dialog Adapter — called in `cmd/server/main.go:initializeCity()` to generate NPC dialog trees
 - [x] Item Adapter — called in `cmd/server/main.go:initializeCity()` to populate shop inventories
 - [x] Furniture Adapter — called in `cmd/server/main.go:initializeCity()` to furnish building interiors
-- [ ] Narrative Adapter — call to generate story arcs
-- [ ] Quest Adapter — call to generate quest templates for NPCs
-- [ ] Recipe Adapter — call to generate crafting recipes
-- [ ] Terrain Adapter — call to generate terrain features
-- [ ] Vehicle Adapter — call to spawn vehicles in districts
-- [ ] Puzzle Adapter — call to generate dungeon puzzles
-- [ ] Magic Adapter — implement beyond stub and call at runtime
-- [ ] Skills Adapter — implement beyond stub and call at runtime
-- [ ] Environment Adapter — implement beyond stub and call at runtime
+- [x] Narrative Adapter — called in `cmd/server/server_init.go:initializeNarratives()`
+- [x] Quest Adapter — called in `cmd/server/server_init.go:initializeQuests()`
+- [x] Recipe Adapter — called in `cmd/server/server_init.go:initializeRecipes()`
+- [x] Terrain Adapter — called in `cmd/server/server_init.go:initializeTerrain()`
+- [x] Vehicle Adapter — called in `cmd/server/server_init.go:initializeVehicles()`
+- [x] Puzzle Adapter — called in `cmd/server/server_init.go:initializePuzzles()`
+- [x] Magic Adapter — called in `cmd/server/server_init.go:initializeMagic()`
+- [x] Skills Adapter — called in `cmd/server/server_init.go:initializeSkills()`
+- [x] Environment Adapter — called in `cmd/server/server_init.go:initializeEnvironment()`
 
 ### 2.3 Networking Infrastructure
 
@@ -307,19 +307,19 @@ Track progress toward integrating all packages at runtime:
 - [x] `config` — used by client and server
 - [ ] `pkg/rendering/sprite` — integrate for NPC/entity billboard rendering
 - [ ] `pkg/rendering/texture` — integrate for procedural wall/floor textures
-- [ ] `pkg/rendering/lighting` — integrate for time-of-day lighting
-- [ ] `pkg/rendering/particles` — integrate for weather particle effects
-- [ ] `pkg/rendering/postprocess` — integrate for genre-specific post-processing
+- [x] `pkg/rendering/lighting` — integrated in `cmd/client/main.go` for time-of-day lighting
+- [x] `pkg/rendering/particles` — integrated in `cmd/client/main.go` for weather particle effects
+- [x] `pkg/rendering/postprocess` — integrated in `cmd/client/main.go` for genre-specific post-processing
 - [ ] `pkg/rendering/subtitles` — integrate for dialog subtitle rendering
-- [ ] `pkg/audio/ambient` — integrate for biome-aware ambient soundscapes
-- [ ] `pkg/audio/music` — integrate for adaptive genre-specific music
+- [x] `pkg/audio/ambient` — integrated in `cmd/client/main.go` for biome-aware ambient soundscapes
+- [x] `pkg/audio/music` — integrated in `cmd/client/main.go` for adaptive genre-specific music
 - [ ] `pkg/world/housing` — integrate for player housing and guild territory
 - [ ] `pkg/world/persist` — integrate for world state persistence
 - [ ] `pkg/world/pvp` — integrate for PvP zone management
-- [ ] `pkg/procgen/dungeon` — integrate for instanced dungeon content
+- [x] `pkg/procgen/dungeon` — integrated in `cmd/server/server_init.go` for dungeon content
 - [ ] `pkg/dialog` — integrate for NPC conversation UI
 - [ ] `pkg/companion` — integrate for companion NPC spawning
-- [ ] `pkg/input` — integrate for key rebinding
+- [x] `pkg/input` — integrated in `cmd/client/main.go` for key rebinding
 
 ---
 

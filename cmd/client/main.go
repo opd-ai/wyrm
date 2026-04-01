@@ -27,6 +27,9 @@ import (
 	"github.com/opd-ai/wyrm/pkg/rendering/particles"
 	"github.com/opd-ai/wyrm/pkg/rendering/postprocess"
 	"github.com/opd-ai/wyrm/pkg/rendering/raycast"
+	"github.com/opd-ai/wyrm/pkg/rendering/sprite"
+	"github.com/opd-ai/wyrm/pkg/rendering/subtitles"
+	"github.com/opd-ai/wyrm/pkg/rendering/texture"
 	"github.com/opd-ai/wyrm/pkg/world/chunk"
 )
 
@@ -53,6 +56,10 @@ type Game struct {
 	postprocessPipe  *postprocess.Pipeline
 	particleSystem   *particles.System
 	particleRenderer *particles.Renderer
+	spriteGenerator  *sprite.Generator
+	spriteCache      *sprite.SpriteCache
+	textureCache     map[string]*texture.Texture
+	subtitleSystem   *subtitles.SubtitleSystem
 	// Audio subpackages
 	ambientMixer  *ambient.Mixer
 	adaptiveMusic *music.AdaptiveMusic
@@ -84,6 +91,7 @@ func (g *Game) Update() error {
 		g.world.Update(dt)
 		g.updateChunkMap()
 		g.updateRenderingSubsystems(dt)
+		g.updateSubtitles(dt)
 	}
 	return nil
 }
@@ -783,6 +791,15 @@ func main() {
 	postprocessPipeline := postprocess.NewPipeline(cfg.Genre)
 	particleSys := particles.NewSystem(cfg.World.Seed)
 	particleRend := particles.NewRenderer(cfg.Window.Width, cfg.Window.Height)
+	spriteGen := sprite.NewGenerator(cfg.Genre, cfg.World.Seed)
+	spriteCache := sprite.NewSpriteCache(100, 64*1024*1024) // 100 sheets, 64MB max
+	textureCache := make(map[string]*texture.Texture)
+	subtitleSys := subtitles.NewSubtitleSystem(true)
+
+	// Pre-generate some common textures for the genre
+	textureCache["wall"] = texture.GenerateWithSeed(64, 64, cfg.World.Seed, cfg.Genre)
+	textureCache["floor"] = texture.GenerateWithSeed(64, 64, cfg.World.Seed+1, cfg.Genre)
+	textureCache["ceiling"] = texture.GenerateWithSeed(64, 64, cfg.World.Seed+2, cfg.Genre)
 
 	// Set up weather particles based on genre
 	setupWeatherParticles(particleSys, cfg.Genre, cfg.World.Seed)
@@ -819,6 +836,10 @@ func main() {
 		postprocessPipe:  postprocessPipeline,
 		particleSystem:   particleSys,
 		particleRenderer: particleRend,
+		spriteGenerator:  spriteGen,
+		spriteCache:      spriteCache,
+		textureCache:     textureCache,
+		subtitleSystem:   subtitleSys,
 		ambientMixer:     ambientMix,
 		adaptiveMusic:    adaptiveMusic,
 		currentRegion:    ambient.RegionPlains, // Default starting region
