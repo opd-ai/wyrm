@@ -86,6 +86,71 @@ These systems exist in `pkg/engine/systems/` with full implementations but are n
 - **Client registered:** 3 / 57 systems (5.3%)
 - **Unregistered:** 44 systems with full implementations (77.2%)
 
+### 1.5 System Registration Completion Checklist
+
+Track progress toward registering all 44 unregistered systems:
+
+**NPC Behavior Systems:**
+- [ ] Register NPCPathfindingSystem in `cmd/server/main.go`
+- [ ] Register NPCNeedsSystem in `cmd/server/main.go`
+- [ ] Register NPCOccupationSystem in `cmd/server/main.go`
+- [ ] Register EmotionalStateSystem in `cmd/server/main.go`
+- [ ] Register NPCMemorySystem in `cmd/server/main.go`
+- [ ] Register GossipSystem in `cmd/server/main.go`
+
+**Faction Depth Systems:**
+- [ ] Register FactionRankSystem in `cmd/server/main.go`
+- [ ] Register FactionCoupSystem in `cmd/server/main.go`
+- [ ] Register FactionExclusiveContentSystem in `cmd/server/main.go`
+- [ ] Register DynamicFactionWarSystem in `cmd/server/main.go`
+
+**Crime Depth Systems:**
+- [ ] Register GuardPursuitSystem in `cmd/server/main.go`
+- [ ] Register BriberySystem in `cmd/server/main.go`
+- [ ] Register CrimeEvidenceSystem in `cmd/server/main.go`
+- [ ] Register PardonSystem in `cmd/server/main.go`
+- [ ] Register CriminalFactionQuestSystem in `cmd/server/main.go`
+
+**Economy Depth Systems:**
+- [ ] Register EconomicEventSystem in `cmd/server/main.go`
+- [ ] Register MarketManipulationSystem in `cmd/server/main.go`
+- [ ] Register TradeRouteSystem in `cmd/server/main.go`
+- [ ] Register InvestmentSystem in `cmd/server/main.go`
+- [ ] Register PlayerShopSystem in `cmd/server/main.go`
+- [ ] Register CityBuildingSystem in `cmd/server/main.go`
+- [ ] Register CityEventSystem in `cmd/server/main.go`
+- [ ] Register TradingSystem in `cmd/server/main.go`
+
+**Combat Depth Systems:**
+- [ ] Register MagicSystem in `cmd/server/main.go`
+- [ ] Register ProjectileSystem in `cmd/server/main.go`
+- [ ] Register StealthSystem in `cmd/server/main.go`
+- [ ] Register DistractionSystem in `cmd/server/main.go`
+- [ ] Register HidingSpotSystem in `cmd/server/main.go`
+- [ ] Register VehiclePhysicsSystem in `cmd/server/main.go`
+- [ ] Register VehicleCombatSystem in `cmd/server/main.go`
+- [ ] Register FlyingVehicleSystem in `cmd/server/main.go`
+- [ ] Register NavalVehicleSystem in `cmd/server/main.go`
+- [ ] Register MountSystem in `cmd/server/main.go`
+
+**Skills/Crafting Systems:**
+- [ ] Register SkillProgressionSystem in `cmd/server/main.go`
+- [ ] Register SkillBookSystem in `cmd/server/main.go`
+- [ ] Register SkillSynergySystem in `cmd/server/main.go`
+- [ ] Register ActionUnlockSystem in `cmd/server/main.go`
+- [ ] Register NPCTrainingSystem in `cmd/server/main.go`
+- [ ] Register CraftingSystem in `cmd/server/main.go`
+
+**Dialog/Social Systems:**
+- [ ] Register DialogConsequenceSystem in `cmd/server/main.go`
+- [ ] Register MultiNPCConversationSystem in `cmd/server/main.go`
+- [ ] Register PartySystem in `cmd/server/main.go`
+- [ ] Register VehicleCustomizationSystem in `cmd/server/main.go`
+
+**Environment Systems:**
+- [ ] Register IndoorOutdoorSystem in `cmd/server/main.go`
+- [ ] Register HazardSystem in `cmd/server/main.go`
+
 ### 1.4 Support Types (Not Systems)
 
 | Type | File | Purpose |
@@ -151,6 +216,29 @@ These systems exist in `pkg/engine/systems/` with full implementations but are n
 **Generators called at runtime:** 3 out of 18 (16.7%)
 **Generators with stub-only implementations:** 3
 
+### 2.3 Generator Integration Completion Checklist
+
+Track progress toward calling all generators at runtime:
+
+- [x] City Generator — called in `cmd/server/main.go:60`
+- [x] Entity/NPC Generator — called in `cmd/server/main.go:92`
+- [x] Faction Generator — called in `cmd/server/server_init.go:22`
+- [x] Noise Functions — called by `pkg/world/chunk/`
+- [ ] Dungeon Generator — call during world init for instanced quest content
+- [ ] Building Adapter — call to generate building interiors for city districts
+- [ ] Dialog Adapter — call to generate NPC dialog trees
+- [ ] Item Adapter — call to populate building inventories with items
+- [ ] Furniture Adapter — call to furnish building interiors
+- [ ] Narrative Adapter — call to generate story arcs
+- [ ] Quest Adapter — call to generate quest templates for NPCs
+- [ ] Recipe Adapter — call to generate crafting recipes
+- [ ] Terrain Adapter — call to generate terrain features
+- [ ] Vehicle Adapter — call to spawn vehicles in districts
+- [ ] Puzzle Adapter — call to generate dungeon puzzles
+- [ ] Magic Adapter — implement beyond stub and call at runtime
+- [ ] Skills Adapter — implement beyond stub and call at runtime
+- [ ] Environment Adapter — implement beyond stub and call at runtime
+
 ### 2.3 Networking Infrastructure
 
 | Aspect | Status | Location | Details |
@@ -199,6 +287,39 @@ These systems exist in `pkg/engine/systems/` with full implementations but are n
 | `config` | ✅ | ✅ | ❌ | — |
 
 **Packages unused at runtime:** 14 out of 28 (50%)
+
+### 2.5 Package Integration Completion Checklist
+
+Track progress toward integrating all packages at runtime:
+
+- [x] `pkg/engine/ecs` — used by client and server
+- [x] `pkg/engine/components` — used by client and server
+- [x] `pkg/engine/systems` — used by client and server
+- [x] `pkg/rendering/raycast` — used by client
+- [x] `pkg/audio` — used by client
+- [x] `pkg/network` — used by client and server
+- [x] `pkg/network/federation` — used by server
+- [x] `pkg/world/chunk` — used by client and server
+- [x] `pkg/procgen/city` — used by server
+- [x] `pkg/procgen/adapters` — used by server
+- [x] `pkg/procgen/noise` — used by chunk system
+- [x] `pkg/util` — used by systems
+- [x] `config` — used by client and server
+- [ ] `pkg/rendering/sprite` — integrate for NPC/entity billboard rendering
+- [ ] `pkg/rendering/texture` — integrate for procedural wall/floor textures
+- [ ] `pkg/rendering/lighting` — integrate for time-of-day lighting
+- [ ] `pkg/rendering/particles` — integrate for weather particle effects
+- [ ] `pkg/rendering/postprocess` — integrate for genre-specific post-processing
+- [ ] `pkg/rendering/subtitles` — integrate for dialog subtitle rendering
+- [ ] `pkg/audio/ambient` — integrate for biome-aware ambient soundscapes
+- [ ] `pkg/audio/music` — integrate for adaptive genre-specific music
+- [ ] `pkg/world/housing` — integrate for player housing and guild territory
+- [ ] `pkg/world/persist` — integrate for world state persistence
+- [ ] `pkg/world/pvp` — integrate for PvP zone management
+- [ ] `pkg/procgen/dungeon` — integrate for instanced dungeon content
+- [ ] `pkg/dialog` — integrate for NPC conversation UI
+- [ ] `pkg/companion` — integrate for companion NPC spawning
+- [ ] `pkg/input` — integrate for key rebinding
 
 ---
 
@@ -358,3 +479,16 @@ No circular dependencies detected.
 6. **No collision detection** — Player walks through terrain walls
 7. **No save/load integration** — `pkg/world/persist` exists but is never called
 8. **No game state synchronization** — Client and server maintain independent worlds
+
+### 6.3 Architecture Gap Resolution Checklist
+
+- [ ] Register all 44 unregistered systems (see Section 1.5 checklist)
+- [ ] Add client-side systems for single-player mode or implement entity sync protocol
+- [ ] Implement client-server game state protocol (send/receive EntityUpdate, ChunkData, PlayerInput)
+- [ ] Integrate all 14 unused packages at runtime (see Section 2.5 checklist)
+- [ ] Implement HUD overlay system (health, mana, compass, minimap)
+- [ ] Implement menu system (pause, settings, character creation, quit)
+- [ ] Implement dialog UI for NPC conversations
+- [ ] Add player collision detection against worldMap wall cells
+- [ ] Integrate `pkg/world/persist/` for save/load on server startup/shutdown
+- [ ] Implement game state synchronization between client and server ECS worlds

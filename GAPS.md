@@ -47,6 +47,18 @@ All 44 unregistered systems have constructors, full `Update()` implementations w
 **Location:** `cmd/client/main.go:242-246`, `cmd/server/main.go:102-113`
 **Fix:** Add `world.RegisterSystem()` calls with proper initialization for all 44 systems.
 
+**Resolution Checklist:**
+
+- [ ] Register NPC behavior systems (6 systems: NPCPathfindingSystem, NPCNeedsSystem, NPCOccupationSystem, EmotionalStateSystem, NPCMemorySystem, GossipSystem)
+- [ ] Register faction depth systems (4 systems: FactionRankSystem, FactionCoupSystem, FactionExclusiveContentSystem, DynamicFactionWarSystem)
+- [ ] Register crime depth systems (5 systems: GuardPursuitSystem, BriberySystem, CrimeEvidenceSystem, PardonSystem, CriminalFactionQuestSystem)
+- [ ] Register economy depth systems (8 systems: EconomicEventSystem, MarketManipulationSystem, TradeRouteSystem, InvestmentSystem, PlayerShopSystem, CityBuildingSystem, CityEventSystem, TradingSystem)
+- [ ] Register combat depth systems (10 systems: MagicSystem, ProjectileSystem, StealthSystem, DistractionSystem, HidingSpotSystem, VehiclePhysicsSystem, VehicleCombatSystem, FlyingVehicleSystem, NavalVehicleSystem, MountSystem)
+- [ ] Register skills/crafting systems (6 systems: SkillProgressionSystem, SkillBookSystem, SkillSynergySystem, ActionUnlockSystem, NPCTrainingSystem, CraftingSystem)
+- [ ] Register dialog/social systems (4 systems: DialogConsequenceSystem, MultiNPCConversationSystem, PartySystem, VehicleCustomizationSystem)
+- [ ] Register environment systems (2 systems: IndoorOutdoorSystem, HazardSystem)
+- [ ] Verify `grep -c 'RegisterSystem' cmd/server/main.go` shows 57 registrations
+
 ---
 
 ### Gap 1.2: Client Has Almost No Game Logic
@@ -62,6 +74,13 @@ The client relies entirely on the server for game logic, but there is no protoco
 
 **Location:** `cmd/client/main.go:242-246`
 **Fix:** Either register client-side systems for single-player mode, or implement the entity synchronization protocol.
+
+**Resolution Checklist:**
+
+- [ ] Decide approach: client-side systems for offline mode OR entity sync protocol
+- [ ] If offline mode: register necessary client-side game logic systems (Combat, Quest, NPC, etc.)
+- [ ] If entity sync: implement server → client EntityUpdate message pipeline
+- [ ] Verify client game loop executes meaningful gameplay logic beyond rendering
 
 ---
 
@@ -79,6 +98,12 @@ But `WeatherSystem` requires genre and duration parameters via `NewWeatherSystem
 **Location:** `cmd/client/main.go:245`
 **Fix:** `world.RegisterSystem(systems.NewWeatherSystem(cfg.Genre, 300.0))`
 
+**Resolution Checklist:**
+
+- [ ] Replace `&systems.WeatherSystem{}` with `systems.NewWeatherSystem(cfg.Genre, 300.0)` in `cmd/client/main.go`
+- [ ] Verify client builds: `go build ./cmd/client`
+- [ ] Verify weather cycling uses correct genre and transition duration
+
 ---
 
 ## Category 2: Missing Core Gameplay Features
@@ -91,6 +116,15 @@ Player movement in `cmd/client/main.go:123-153` directly modifies Position X/Y w
 
 **Location:** `cmd/client/main.go:123-153` (`processMovementInput`, `processStrafeInput`)
 **Fix:** Before applying movement, check `worldMap[newY][newX]` for wall cells. Reject movement into cells where `heightToWallType() > 0`.
+
+**Resolution Checklist:**
+
+- [ ] Store `worldMap` reference on the Game struct
+- [ ] Add bounds-checking for worldMap indices in `processMovementInput()`
+- [ ] Add bounds-checking for worldMap indices in `processStrafeInput()`
+- [ ] Reject movement into wall cells (value > 0)
+- [ ] Implement player radius (0.3 units) for wall sliding
+- [ ] Test that player cannot walk through rendered walls
 
 ---
 
@@ -116,6 +150,19 @@ Missing UI elements:
 **Location:** `cmd/client/main.go:157-171` (`Draw` method)
 **Fix:** Implement an overlay UI system rendered after the raycaster in `Draw()`.
 
+**Resolution Checklist:**
+
+- [ ] Implement health bar (red bar, bottom-left, reads Health component)
+- [ ] Implement mana bar (blue bar, below health bar, reads Mana component)
+- [ ] Implement minimap (top-right, terrain from worldMap)
+- [ ] Implement compass (cardinal direction from player angle)
+- [ ] Implement inventory screen (I key toggle)
+- [ ] Implement quest log screen (J key toggle)
+- [ ] Implement dialog interface for NPC conversations
+- [ ] Implement pause/settings menu (Escape key)
+- [ ] Implement genre selection screen
+- [ ] Implement character creation screen
+
 ---
 
 ### Gap 2.3: No Interaction System (E Key)
@@ -127,6 +174,15 @@ The `pkg/input/` package defines 40+ bindable actions including `interact` (defa
 **Location:** `cmd/client/main.go:108-153` (input handling)
 **Fix:** Import `pkg/input`, use `Rebinder` for all key checks, implement interaction raycasting to find the entity the player is looking at.
 
+**Resolution Checklist:**
+
+- [ ] Import `pkg/input` in client
+- [ ] Create `input.Rebinder` with config-loaded key bindings
+- [ ] Replace all `ebiten.IsKeyPressed()` calls with `rebinder.IsPressed()` equivalents
+- [ ] Implement interaction ray cast from player position in look direction
+- [ ] Implement E key interaction with nearest entity (NPC, item, workbench, door)
+- [ ] Display interaction prompt on screen ("Press E to ...")
+
 ---
 
 ### Gap 2.4: No Save/Load Integration
@@ -137,6 +193,15 @@ The `pkg/input/` package defines 40+ bindable actions including `interact` (defa
 
 **Location:** `pkg/world/persist/`
 **Fix:** Call `PersistenceManager.Save()` on server shutdown and `PersistenceManager.Load()` on startup.
+
+**Resolution Checklist:**
+
+- [ ] Import `pkg/world/persist/` in server
+- [ ] Call `PersistenceManager.Load()` on server startup (check for existing save file)
+- [ ] Call `PersistenceManager.Save()` on server shutdown (SIGINT/SIGTERM handler)
+- [ ] Implement periodic auto-save at configurable interval
+- [ ] Verify save includes entities, components, chunk modifications, and quest states
+- [ ] Test save/load round-trip preserves world state
 
 ---
 
@@ -156,6 +221,18 @@ No Mana, Skills, Inventory, Faction, Reputation, or Stealth components are added
 **Location:** `cmd/client/main.go:230-239` (`createPlayerEntity`)
 **Fix:** Add a genre selection screen before game start. Create player with full component set (Mana, Skills, Inventory, etc.).
 
+**Resolution Checklist:**
+
+- [ ] Implement genre selection screen (5 genres with preview descriptions)
+- [ ] Implement character name input
+- [ ] Implement starting skill point allocation
+- [ ] Implement starting equipment choice
+- [ ] Add Mana component to player entity
+- [ ] Add Skills component with initialized maps
+- [ ] Add Inventory component with capacity
+- [ ] Add Faction, Reputation, Stealth, CombatState, AudioListener, and Weapon components
+- [ ] Create player entity with user-chosen attributes
+
 ---
 
 ### Gap 2.6: No Menu System (Pause, Settings, Quit)
@@ -170,6 +247,15 @@ The only exit mechanism is OS window close (Ebiten default). There is no:
 
 **Location:** `cmd/client/main.go` (missing entirely)
 **Fix:** Implement game state machine (Playing → Paused → Settings → Quit).
+
+**Resolution Checklist:**
+
+- [ ] Implement game state machine (Playing, Paused, Settings, CharacterCreation, Quit)
+- [ ] Implement Escape key → pause state toggle and menu overlay
+- [ ] Implement Resume menu option
+- [ ] Implement Settings screen (keybinds, audio, graphics)
+- [ ] Implement settings persistence via config file update
+- [ ] Implement Quit option with confirmation dialog
 
 ---
 
@@ -204,6 +290,23 @@ Never called at runtime (15 generators):
 **Location:** `cmd/server/main.go`, `cmd/server/server_init.go`
 **Fix:** Call generators during server world initialization to populate buildings, items, quests, vehicles, etc.
 
+**Resolution Checklist:**
+
+- [ ] Call `adapters.BuildingAdapter` to generate building interiors for city districts
+- [ ] Call `adapters.DialogAdapter` to generate NPC dialog trees
+- [ ] Call `adapters.ItemAdapter` to populate building inventories with items
+- [ ] Call `adapters.FurnitureAdapter` to furnish building interiors
+- [ ] Call `adapters.NarrativeAdapter` to generate story arcs
+- [ ] Call `adapters.QuestAdapter` to generate quest templates for NPCs
+- [ ] Call `adapters.RecipeAdapter` to generate crafting recipes
+- [ ] Call `adapters.TerrainAdapter` to generate terrain features
+- [ ] Call `adapters.VehicleAdapter` to spawn vehicles in districts
+- [ ] Call `adapters.PuzzleAdapter` to generate dungeon puzzles
+- [ ] Implement `adapters.MagicAdapter` beyond stub
+- [ ] Implement `adapters.SkillsAdapter` beyond stub
+- [ ] Implement `adapters.EnvironmentAdapter` beyond stub
+- [ ] Verify all generators produce output consumed by game systems
+
 ---
 
 ### Gap 3.2: Dungeon Generator Orphaned
@@ -214,6 +317,13 @@ Never called at runtime (15 generators):
 
 **Location:** `pkg/procgen/dungeon/`
 **Fix:** Call dungeon generator for instanced content (quest dungeons, building basements) during world initialization.
+
+**Resolution Checklist:**
+
+- [ ] Import `pkg/procgen/dungeon/` in server initialization code
+- [ ] Call `dungeon.Generate()` for quest-related instanced dungeon content
+- [ ] Wire generated dungeon layouts into quest objective locations
+- [ ] Verify dungeon rooms are reachable and correctly connected
 
 ---
 
@@ -237,6 +347,16 @@ The client imports only `pkg/rendering/raycast/`. These rendering packages are f
 **Location:** `cmd/client/main.go` (only imports raycast)
 **Fix:** Integrate texture generator into raycast wall colors, enable particles for weather, apply post-processing in Draw().
 
+**Resolution Checklist:**
+
+- [ ] Import and integrate `pkg/rendering/sprite/` for NPC/entity billboard rendering
+- [ ] Import and integrate `pkg/rendering/texture/` for procedural wall/floor textures
+- [ ] Import and integrate `pkg/rendering/lighting/` with time-of-day cycle
+- [ ] Import and integrate `pkg/rendering/particles/` for weather-driven particles
+- [ ] Import and integrate `pkg/rendering/postprocess/` for genre-specific effects
+- [ ] Import and integrate `pkg/rendering/subtitles/` for dialog text rendering
+- [ ] Verify all rendering subpackages produce visible output in the client
+
 ---
 
 ### Gap 4.2: No Entity Rendering
@@ -250,6 +370,14 @@ The raycast renderer supports billboard rendering (`pkg/rendering/raycast/billbo
 
 **Location:** `pkg/rendering/raycast/billboard.go`, `pkg/rendering/sprite/`
 **Fix:** Create entity Appearance components, sync entity positions from server, feed billboard list to renderer each frame.
+
+**Resolution Checklist:**
+
+- [ ] Create `Appearance` components for all entity types (NPCs, items, vehicles)
+- [ ] Integrate `pkg/rendering/sprite/Generator` to produce entity sprites
+- [ ] Sync entity positions from server to client (or generate locally for offline)
+- [ ] Feed billboard list (position + sprite) to raycast renderer each frame
+- [ ] Verify entities are visible in the first-person view
 
 ---
 
@@ -270,6 +398,17 @@ The protocol messages (`PlayerInput`, `WorldState`, `EntityUpdate`, `ChunkData`)
 **Location:** `cmd/server/main.go:116-138` (server loop), `cmd/client/main.go:42-48` (client loop)
 **Fix:** Implement message send/receive in both server tick loop and client update loop.
 
+**Resolution Checklist:**
+
+- [ ] Server: broadcast `EntityUpdate` messages to connected clients each tick
+- [ ] Server: stream `ChunkData` messages when client enters new chunk
+- [ ] Server: receive and process `PlayerInput` messages from clients
+- [ ] Client: receive and decode `WorldState` and `EntityUpdate` messages
+- [ ] Client: apply server state to local ECS world entities
+- [ ] Client: send `PlayerInput` messages to server each frame
+- [ ] Implement client-side prediction using `pkg/network/prediction.go`
+- [ ] Verify two clients can connect and observe shared world state
+
 ---
 
 ### Gap 5.2: Federation Protocol Initialized But Unused in Game Loop
@@ -284,6 +423,13 @@ Federation is initialized in `cmd/server/main.go:39-42` and cleanup runs in a go
 
 **Location:** `cmd/server/main.go:39-42`, `cmd/server/server_init.go:70-91`
 **Fix:** Integrate federation messaging into the server tick loop.
+
+**Resolution Checklist:**
+
+- [ ] Integrate player transfer messaging into server tick loop
+- [ ] Integrate economy gossip exchange into server tick loop
+- [ ] Integrate global event broadcast into server tick loop
+- [ ] Verify federation features function beyond just cleanup
 
 ---
 
@@ -302,6 +448,15 @@ The client creates an `audio.Engine` and `audio.Player` and plays a single ambie
 **Location:** `cmd/client/main.go:191-215`, `pkg/engine/systems/audio.go`
 **Fix:** Add AudioListener component to player entity. Import ambient/music packages. Create AudioSource entities for world sounds.
 
+**Resolution Checklist:**
+
+- [ ] Add `AudioListener` component to player entity (in `createPlayerEntity`)
+- [ ] Import `pkg/audio/ambient/` and generate biome-aware ambient soundscapes
+- [ ] Import `pkg/audio/music/` and generate adaptive genre-specific music
+- [ ] Create `AudioSource` entities for world environmental sounds
+- [ ] Replace single sine wave with ambient soundscape and music output
+- [ ] Verify `AudioSystem.findListenerPosition()` finds the player's AudioListener
+
 ---
 
 ## Category 7: Package Integration Gaps
@@ -315,6 +470,13 @@ The client creates an `audio.Engine` and `audio.Player` and plays a single ambie
 **Location:** `cmd/client/main.go:127-153`
 **Fix:** Replace direct Ebiten key checks with `input.Rebinder.IsPressed()` calls.
 
+**Resolution Checklist:**
+
+- [ ] Import `pkg/input` in client
+- [ ] Create `input.Rebinder` with config-loaded key bindings
+- [ ] Replace all `ebiten.IsKeyPressed()` calls with `rebinder.IsPressed()` equivalents
+- [ ] Verify all movement and action keys work through the rebinder
+
 ---
 
 ### Gap 7.2: Dialog Package Not Integrated
@@ -326,6 +488,14 @@ The client creates an `audio.Engine` and `audio.Player` and plays a single ambie
 **Location:** `pkg/dialog/`
 **Fix:** Create a dialog UI in the client and use the dialog system for NPC conversations.
 
+**Resolution Checklist:**
+
+- [ ] Import `pkg/dialog/` in client
+- [ ] Create dialog overlay UI (NPC name, emotional state, dialog text, response options)
+- [ ] Wire dialog choice selection into `DialogConsequenceSystem`
+- [ ] Integrate `pkg/rendering/subtitles/` for accessible text rendering
+- [ ] Verify branching conversation flow with multiple responses
+
 ---
 
 ### Gap 7.3: Companion Package Not Integrated
@@ -336,6 +506,13 @@ The client creates an `audio.Engine` and `audio.Player` and plays a single ambie
 
 **Location:** `pkg/companion/`
 **Fix:** Integrate companion spawning during character creation or quest progression.
+
+**Resolution Checklist:**
+
+- [ ] Import `pkg/companion/` in server initialization
+- [ ] Spawn companion NPCs during character creation or quest progression
+- [ ] Wire companion AI (follow/fight/wait commands)
+- [ ] Verify companion follows player and participates in combat
 
 ---
 
@@ -350,6 +527,13 @@ Three `pkg/world/` subpackages with full implementations and test coverage are u
 
 **Location:** `pkg/world/housing/`, `pkg/world/pvp/`, `pkg/world/persist/`
 **Fix:** Import into server initialization for housing registration, PvP zone creation, and state persistence.
+
+**Resolution Checklist:**
+
+- [ ] Import `pkg/world/housing/` and register player houses during server initialization
+- [ ] Import `pkg/world/pvp/` and create PvP zone entities during server initialization
+- [ ] Import `pkg/world/persist/` and integrate save/load on server startup/shutdown
+- [ ] Verify housing, PvP, and persistence features are functional at runtime
 
 ---
 
