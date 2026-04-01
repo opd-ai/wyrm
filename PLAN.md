@@ -616,12 +616,12 @@ world.AddComponent(player, &components.Weapon{Name: "Fists", Damage: 5, Range: 1
 
 **Completion Checklist:**
 
-- [ ] Verify NPCPathfindingSystem moves NPCs between activity locations
-- [ ] Verify NPCNeedsSystem drives NPC eat, sleep, and socialize behaviors
-- [ ] Verify NPCOccupationSystem makes NPCs perform their jobs
-- [ ] Verify GossipSystem propagates information between NPCs
-- [ ] Verify NPCMemorySystem tracks player interactions per NPC
-- [ ] Verify EmotionalStateSystem produces visible emotional reactions
+- [x] Verify NPCPathfindingSystem moves NPCs between activity locations
+- [x] Verify NPCNeedsSystem drives NPC eat, sleep, and socialize behaviors
+- [x] Verify NPCOccupationSystem makes NPCs perform their jobs
+- [x] Verify GossipSystem propagates information between NPCs
+- [x] Verify NPCMemorySystem tracks player interactions per NPC
+- [x] Verify EmotionalStateSystem produces visible emotional reactions
 - [ ] Implement visible multi-NPC conversations in city areas
 - [ ] Verify NPCs follow daily schedule cycle (work → eat → socialize → sleep)
 
