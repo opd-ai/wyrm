@@ -472,6 +472,58 @@ func initializePersistence(cfg *config.Config) *persist.Persister {
 	return pm
 }
 
+// initializeAudioSources creates environmental AudioSource entities at key locations.
+func initializeAudioSources(world *ecs.World, cfg *config.Config) {
+	// Get genre-appropriate ambient sound types
+	soundTypes := getGenreAmbientSounds(cfg.Genre)
+
+	count := 0
+	// Create ambient audio sources at distributed positions across the starting area
+	for i, soundType := range soundTypes {
+		// Distribute sources in a grid pattern around spawn
+		xOffset := float64((i%5)-2) * 20.0 // -40 to +40 range
+		yOffset := float64((i/5)-2) * 20.0 // -40 to +40 range
+		x := 8.5 + xOffset
+		y := 8.5 + yOffset
+
+		e := world.CreateEntity()
+		if err := world.AddComponent(e, &components.Position{X: x, Y: y, Z: 0}); err != nil {
+			log.Printf("failed to add Position to audio source: %v", err)
+			continue
+		}
+		if err := world.AddComponent(e, &components.AudioSource{
+			SoundType: soundType,
+			Volume:    0.5,
+			Range:     25.0,
+			Looping:   true,
+			Playing:   true,
+		}); err != nil {
+			log.Printf("failed to add AudioSource: %v", err)
+			continue
+		}
+		count++
+	}
+	log.Printf("initialized %d environmental audio sources for genre %s", count, cfg.Genre)
+}
+
+// getGenreAmbientSounds returns appropriate ambient sound types for the genre.
+func getGenreAmbientSounds(genre string) []string {
+	switch genre {
+	case "fantasy":
+		return []string{"forest_birds", "wind_leaves", "stream_water", "crickets", "campfire"}
+	case "sci-fi":
+		return []string{"ship_hum", "computer_beep", "air_recycler", "distant_machinery", "electric_buzz"}
+	case "horror":
+		return []string{"wind_howl", "creaking_wood", "distant_thunder", "dripping_water", "whispers"}
+	case "cyberpunk":
+		return []string{"neon_buzz", "traffic_distant", "rain_metal", "electronic_pulse", "crowd_murmur"}
+	case "post-apocalyptic":
+		return []string{"wind_dust", "metal_creak", "radiation_click", "distant_howl", "fire_crackle"}
+	default:
+		return []string{"ambient_general", "wind_light", "nature_distant"}
+	}
+}
+
 // createWorldSnapshot creates a snapshot of the current world state for persistence.
 func createWorldSnapshot(world *ecs.World, cfg *config.Config) *persist.WorldSnapshot {
 	snapshot := persist.NewWorldSnapshot(cfg.World.Seed, cfg.Genre)

@@ -123,7 +123,7 @@ Player movement in `cmd/client/main.go:123-153` directly modifies Position X/Y w
 - [x] Add bounds-checking for worldMap indices in `processMovementInput()`
 - [x] Add bounds-checking for worldMap indices in `processStrafeInput()`
 - [x] Reject movement into wall cells (value > 0)
-- [ ] Implement player radius (0.3 units) for wall sliding
+- [x] Implement player radius (0.3 units) for wall sliding
 - [x] Test that player cannot walk through rendered walls
 
 ---
@@ -200,8 +200,8 @@ The `pkg/input/` package defines 40+ bindable actions including `interact` (defa
 - [x] Call `PersistenceManager.Load()` on server startup (check for existing save file)
 - [x] Call `PersistenceManager.Save()` on server shutdown (SIGINT/SIGTERM handler)
 - [x] Implement periodic auto-save at configurable interval
-- [ ] Verify save includes entities, components, chunk modifications, and quest states
-- [ ] Test save/load round-trip preserves world state
+- [x] Verify save includes entities, components, chunk modifications, and quest states
+- [x] Test save/load round-trip preserves world state
 
 ---
 
@@ -302,9 +302,9 @@ Never called at runtime (15 generators):
 - [x] Call `adapters.TerrainAdapter` to generate terrain features
 - [x] Call `adapters.VehicleAdapter` to spawn vehicles in districts
 - [x] Call `adapters.PuzzleAdapter` to generate dungeon puzzles
-- [ ] Implement `adapters.MagicAdapter` beyond stub
-- [ ] Implement `adapters.SkillsAdapter` beyond stub
-- [ ] Implement `adapters.EnvironmentAdapter` beyond stub
+- [x] Implement `adapters.MagicAdapter` beyond stub
+- [x] Implement `adapters.SkillsAdapter` beyond stub
+- [x] Implement `adapters.EnvironmentAdapter` beyond stub
 - [x] Verify all generators produce output consumed by game systems
 
 ---
@@ -453,7 +453,7 @@ The client creates an `audio.Engine` and `audio.Player` and plays a single ambie
 - [x] Add `AudioListener` component to player entity (in `createPlayerEntity`)
 - [x] Import `pkg/audio/ambient/` and generate biome-aware ambient soundscapes
 - [x] Import `pkg/audio/music/` and generate adaptive genre-specific music
-- [ ] Create `AudioSource` entities for world environmental sounds
+- [x] Create `AudioSource` entities for world environmental sounds
 - [x] Replace single sine wave with ambient soundscape and music output
 - [x] Verify `AudioSystem.findListenerPosition()` finds the player's AudioListener
 

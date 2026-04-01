@@ -61,6 +61,7 @@ func main() {
 		initializeMagic(world, cfg)
 		initializeSkills(world, cfg)
 		initializeEnvironment(world, cfg)
+		initializeAudioSources(world, cfg)
 	}
 	initializeWorldClock(world)
 
