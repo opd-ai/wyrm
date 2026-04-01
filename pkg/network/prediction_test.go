@@ -303,6 +303,136 @@ func TestTorModeThresholds(t *testing.T) {
 	}
 }
 
+// TestHighLatencyModeThresholds verifies the high-latency mode constants.
+// Per README: Supports 200-5000ms latency tolerance.
+func TestHighLatencyModeThresholds(t *testing.T) {
+	// Verify high-latency threshold constants
+	if HighLatencyThreshold != 3000*time.Millisecond {
+		t.Errorf("HighLatencyThreshold should be 3000ms, got %v", HighLatencyThreshold)
+	}
+	if ExtremeLatencyThreshold != 5000*time.Millisecond {
+		t.Errorf("ExtremeLatencyThreshold should be 5000ms, got %v", ExtremeLatencyThreshold)
+	}
+
+	// Verify prediction windows scale appropriately
+	if HighLatencyPredictionWindow != 3500*time.Millisecond {
+		t.Errorf("HighLatencyPredictionWindow should be 3500ms, got %v", HighLatencyPredictionWindow)
+	}
+	if ExtremeLatencyPredictionWindow != 6000*time.Millisecond {
+		t.Errorf("ExtremeLatencyPredictionWindow should be 6000ms, got %v", ExtremeLatencyPredictionWindow)
+	}
+
+	// Verify input rates decrease at higher latencies
+	if HighLatencyInputRate != 5 {
+		t.Errorf("HighLatencyInputRate should be 5 Hz, got %d", HighLatencyInputRate)
+	}
+	if ExtremeLatencyInputRate != 2 {
+		t.Errorf("ExtremeLatencyInputRate should be 2 Hz, got %d", ExtremeLatencyInputRate)
+	}
+}
+
+// TestLatencyModeClassification tests the latency mode classification logic.
+func TestLatencyModeClassification(t *testing.T) {
+	cp := NewClientPredictor()
+
+	tests := []struct {
+		rtt      time.Duration
+		expected LatencyMode
+	}{
+		{200 * time.Millisecond, LatencyModeNormal},
+		{500 * time.Millisecond, LatencyModeNormal},
+		{799 * time.Millisecond, LatencyModeNormal},
+		{800 * time.Millisecond, LatencyModeTor},
+		{1500 * time.Millisecond, LatencyModeTor},
+		{2999 * time.Millisecond, LatencyModeTor},
+		{3000 * time.Millisecond, LatencyModeHigh},
+		{4000 * time.Millisecond, LatencyModeHigh},
+		{4999 * time.Millisecond, LatencyModeHigh},
+		{5000 * time.Millisecond, LatencyModeExtreme},
+		{7000 * time.Millisecond, LatencyModeExtreme},
+		{10000 * time.Millisecond, LatencyModeExtreme},
+	}
+
+	for _, tt := range tests {
+		mode := cp.classifyLatency(tt.rtt)
+		if mode != tt.expected {
+			t.Errorf("classifyLatency(%v) = %d, want %d", tt.rtt, mode, tt.expected)
+		}
+	}
+}
+
+// TestHighLatencyAdaptation tests that prediction parameters adapt at 5000ms RTT.
+func TestHighLatencyAdaptation(t *testing.T) {
+	cp := NewClientPredictor()
+
+	// Verify initial state is normal mode
+	if cp.GetLatencyMode() != LatencyModeNormal {
+		t.Errorf("initial mode should be Normal, got %d", cp.GetLatencyMode())
+	}
+
+	// Simulate extreme latency by setting smoothedRTT directly
+	cp.mu.Lock()
+	cp.smoothedRTT = 5500 * time.Millisecond
+	cp.adaptToLatency()
+	cp.mu.Unlock()
+
+	// Verify extreme latency mode is active
+	if cp.GetLatencyMode() != LatencyModeExtreme {
+		t.Errorf("mode should be Extreme at 5500ms RTT, got %d", cp.GetLatencyMode())
+	}
+
+	// Verify prediction window is set for extreme latency
+	if cp.GetPredictionWindow() != ExtremeLatencyPredictionWindow {
+		t.Errorf("prediction window should be %v, got %v",
+			ExtremeLatencyPredictionWindow, cp.GetPredictionWindow())
+	}
+
+	// Verify input rate is reduced
+	if cp.GetInputRateHz() != ExtremeLatencyInputRate {
+		t.Errorf("input rate should be %d Hz, got %d Hz",
+			ExtremeLatencyInputRate, cp.GetInputRateHz())
+	}
+
+	// Verify buffer size is increased
+	if cp.GetMaxPendingInputs() != 512 {
+		t.Errorf("max pending inputs should be 512 in extreme mode, got %d",
+			cp.GetMaxPendingInputs())
+	}
+
+	// Verify IsTorMode returns true (backwards compatibility)
+	if !cp.IsTorMode() {
+		t.Error("IsTorMode should return true for extreme latency mode")
+	}
+}
+
+// TestLagCompensatorHighLatencyRewind tests rewind time increases with RTT.
+func TestLagCompensatorHighLatencyRewind(t *testing.T) {
+	lc := NewLagCompensator()
+
+	tests := []struct {
+		rtt        time.Duration
+		maxRewind  time.Duration
+		latencyMod LatencyMode
+	}{
+		{200 * time.Millisecond, MaxRewindTimeNormal, LatencyModeNormal},
+		{1000 * time.Millisecond, MaxRewindTimeTor, LatencyModeTor},
+		{3500 * time.Millisecond, MaxRewindTimeHigh, LatencyModeHigh},
+		{6000 * time.Millisecond, MaxRewindTimeExtreme, LatencyModeExtreme},
+	}
+
+	for _, tt := range tests {
+		maxRewind := lc.getMaxRewindForRTT(tt.rtt)
+		if maxRewind != tt.maxRewind {
+			t.Errorf("getMaxRewindForRTT(%v) = %v, want %v", tt.rtt, maxRewind, tt.maxRewind)
+		}
+
+		mode := lc.GetLatencyMode(tt.rtt)
+		if mode != tt.latencyMod {
+			t.Errorf("GetLatencyMode(%v) = %d, want %d", tt.rtt, mode, tt.latencyMod)
+		}
+	}
+}
+
 func TestShouldSendInput(t *testing.T) {
 	cp := NewClientPredictor()
 

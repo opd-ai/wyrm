@@ -85,7 +85,7 @@ Wyrm is a **"100% procedurally generated first-person open-world RPG"** built in
 
 ### CRITICAL
 
-- [ ] **Claimed "200-5000ms latency tolerance" not achieved** — `pkg/network/prediction.go:9-32` — Tor-mode activates at 800ms threshold with 1500ms prediction window. No explicit support for 3000-5000ms RTT. **Remediation:** Add higher RTT thresholds (3000ms, 5000ms) with proportionally larger prediction windows. Increase `HistoryBufferSize` from 64 to 256 for multi-second rewind. Extend `MaxRewindTime` beyond 500ms. **Validation:** `go test -race ./pkg/network/... -run TestHighLatency`
+- [x] **Claimed "200-5000ms latency tolerance" not achieved** — `pkg/network/prediction.go:9-32` — Tor-mode activates at 800ms threshold with 1500ms prediction window. No explicit support for 3000-5000ms RTT. **Remediation:** Add higher RTT thresholds (3000ms, 5000ms) with proportionally larger prediction windows. Increase `HistoryBufferSize` from 64 to 256 for multi-second rewind. Extend `MaxRewindTime` beyond 500ms. **Validation:** `go test -race ./pkg/network/... -run TestHighLatency`
 
 ### HIGH
 
