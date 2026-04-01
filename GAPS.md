@@ -426,9 +426,9 @@ Federation is initialized in `cmd/server/main.go:39-42` and cleanup runs in a go
 
 **Resolution Checklist:**
 
-- [ ] Integrate player transfer messaging into server tick loop
-- [ ] Integrate economy gossip exchange into server tick loop
-- [ ] Integrate global event broadcast into server tick loop
+- [x] Integrate player transfer messaging into server tick loop
+- [x] Integrate economy gossip exchange into server tick loop
+- [x] Integrate global event broadcast into server tick loop
 - [ ] Verify federation features function beyond just cleanup
 
 ---

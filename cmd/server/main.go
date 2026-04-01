@@ -674,21 +674,21 @@ func processFederationGossip(world *ecs.World, fed *federation.Federation, cfg *
 
 // applyRemotePriceSignal updates local economy based on remote server price data.
 func applyRemotePriceSignal(world *ecs.World, price *federation.PriceSignal) {
-	// Find merchant entities and adjust prices based on remote market data
-	entities := world.Entities("Inventory", "Faction")
+	// Find shop entities and adjust prices based on remote market data
+	entities := world.Entities("ShopInventory")
 	for _, entity := range entities {
-		invComp, invOK := world.GetComponent(entity, "Inventory")
-		if !invOK {
+		shopComp, shopOK := world.GetComponent(entity, "ShopInventory")
+		if !shopOK {
 			continue
 		}
-		inv := invComp.(*components.Inventory)
+		shop := shopComp.(*components.ShopInventory)
 
 		// Adjust prices for matching items toward remote market average
-		for i := range inv.Items {
-			if inv.Items[i].Type == price.ItemType {
+		for itemType, remotePrice := range price.PriceTable {
+			if currentPrice, exists := shop.Prices[itemType]; exists {
 				// Blend local price toward remote price (10% adjustment per tick)
-				priceDiff := price.Price - inv.Items[i].Value
-				inv.Items[i].Value += priceDiff * 0.1
+				priceDiff := remotePrice - currentPrice
+				shop.Prices[itemType] = currentPrice + priceDiff*0.1
 			}
 		}
 	}
@@ -697,45 +697,46 @@ func applyRemotePriceSignal(world *ecs.World, price *federation.PriceSignal) {
 // applyGlobalEvent processes a federation-wide event in the local world.
 func applyGlobalEvent(world *ecs.World, event *federation.GlobalEvent) {
 	// Apply event effects based on type
-	switch event.Type {
+	switch event.EventType {
 	case "faction_war":
 		// Update faction relationships
-		log.Printf("federation event: faction war between %v", event.Data)
+		log.Printf("federation event: faction war - %s", event.Description)
 	case "market_crash":
 		// Reduce all item values temporarily
-		log.Printf("federation event: market crash affecting items")
+		log.Printf("federation event: market crash - %s", event.Description)
 	case "plague":
 		// Apply health debuffs to NPCs
-		log.Printf("federation event: plague outbreak")
+		log.Printf("federation event: plague outbreak - %s", event.Description)
 	case "dragon_attack":
 		// Spawn emergency event entities
-		log.Printf("federation event: dragon attack")
+		log.Printf("federation event: dragon attack - %s", event.Description)
 	default:
-		log.Printf("federation event: %s (unhandled type)", event.Type)
+		log.Printf("federation event: %s (unhandled type) - %s", event.EventType, event.Description)
 	}
 }
 
-// collectLocalPriceSignals gathers current market prices from local merchants.
+// collectLocalPriceSignals gathers current market prices from local shops.
 func collectLocalPriceSignals(world *ecs.World, nodeID string) []*federation.PriceSignal {
 	var signals []*federation.PriceSignal
 
-	// Sample prices from merchant inventories
-	entities := world.Entities("Inventory", "Faction")
+	// Sample prices from shop inventories
+	entities := world.Entities("ShopInventory")
 	itemPrices := make(map[string][]float64)
 
 	for _, entity := range entities {
-		invComp, invOK := world.GetComponent(entity, "Inventory")
-		if !invOK {
+		shopComp, shopOK := world.GetComponent(entity, "ShopInventory")
+		if !shopOK {
 			continue
 		}
-		inv := invComp.(*components.Inventory)
+		shop := shopComp.(*components.ShopInventory)
 
-		for _, item := range inv.Items {
-			itemPrices[item.Type] = append(itemPrices[item.Type], item.Value)
+		for itemType, price := range shop.Prices {
+			itemPrices[itemType] = append(itemPrices[itemType], price)
 		}
 	}
 
-	// Calculate average prices and create signals
+	// Calculate average prices and create a single price signal
+	priceTable := make(map[string]float64)
 	for itemType, prices := range itemPrices {
 		if len(prices) == 0 {
 			continue
@@ -744,13 +745,15 @@ func collectLocalPriceSignals(world *ecs.World, nodeID string) []*federation.Pri
 		for _, p := range prices {
 			sum += p
 		}
-		avgPrice := sum / float64(len(prices))
+		priceTable[itemType] = sum / float64(len(prices))
+	}
 
+	if len(priceTable) > 0 {
 		signals = append(signals, &federation.PriceSignal{
-			ServerID:  nodeID,
-			ItemType:  itemType,
-			Price:     avgPrice,
-			Timestamp: time.Now(),
+			ServerID:   nodeID,
+			CityID:     "main",
+			PriceTable: priceTable,
+			Timestamp:  time.Now(),
 		})
 	}
 
