@@ -537,7 +537,284 @@ Three `pkg/world/` subpackages with full implementations and test coverage are u
 
 ---
 
-## Category 8: Previously Resolved Code Quality Gaps
+## Category 8: Terrain Generation Quality Gaps
+
+### Gap 8.1: Limited Geometric Variety — Only 4 Terrain Types
+
+**Severity: HIGH** · **Impact: Terrain feels repetitive; no valleys, water, vegetation, or caves**
+
+The heightmap system (`pkg/world/chunk/manager.go`) classifies terrain into only 4 types (Flat, Hill, Cliff, Peak) using simple height thresholds. The single-valued heightmap fundamentally prevents caves, overhangs, and complex 3D geometry.
+
+**Missing terrain features:**
+
+| Feature | Impact on Visual Quality | Complexity |
+|---------|-------------------------|------------|
+| Valleys/depressions (height < 0.2) | High — adds concavity | Low |
+| Water bodies (lakes, rivers) | High — breaks monotony | Medium |
+| Rock formations | Medium — adds detail objects | Medium |
+| Vegetation placement | High — fills empty terrain | Medium |
+| Roads between POIs | High — guides exploration | Medium |
+| Caves/overhangs | Medium — adds depth | High (requires 3D data) |
+
+**Location:** `pkg/world/chunk/manager.go` (lines 142-176, terrain classification)
+**Fix:** Add valley detection (height < 0.2 threshold), water plane at configurable elevation, and vegetation/rock entity spawning based on biome + height.
+
+**Resolution Checklist:**
+
+- [ ] Add `TerrainValley` type for heights < 0.2 in terrain classification
+- [ ] Add `TerrainWater` type for heights below a configurable water plane elevation
+- [ ] Implement vegetation entity spawning based on biome type and height
+- [ ] Implement rock/boulder entity spawning on cliff and mountain terrain
+- [ ] Implement road/path generation connecting city districts and POIs
+- [ ] Verify new terrain types render distinctly in the raycaster
+
+---
+
+### Gap 8.2: No Biome Blending at Chunk Boundaries
+
+**Severity: HIGH** · **Impact: Abrupt visual transitions at chunk edges break immersion**
+
+Each chunk independently selects its biome from genre-weighted distribution (`pkg/procgen/adapters/terrain.go`). Adjacent chunks may have completely different biomes (e.g., Forest→Desert) with zero transition.
+
+**Location:** `pkg/procgen/adapters/terrain.go` (biome selection), `pkg/world/chunk/manager.go` (chunk generation)
+**Fix:** Sample adjacent chunk biomes within a configurable border width (e.g., 32 cells) and interpolate terrain parameters (heightmap amplitude, texture palette, vegetation density).
+
+**Resolution Checklist:**
+
+- [ ] Implement biome query for neighboring chunks during generation
+- [ ] Add interpolation zone (32-cell border) that blends between adjacent biomes
+- [ ] Blend heightmap parameters (amplitude, frequency) in transition zones
+- [ ] Blend texture/color palettes in transition zones
+- [ ] Verify smooth visual transitions at all chunk boundaries
+
+---
+
+### Gap 8.3: LOD System Defined But Not Integrated
+
+**Severity: MODERATE** · **Impact: Distant terrain rendered at full resolution unnecessarily**
+
+Four LOD levels are defined in `pkg/world/chunk/manager.go` (`LODFull`, `LODHalf`, `LODQuarter`, `LODEighth`) with a `ChunkLODCache` struct, but no rendering code selects LOD levels based on distance.
+
+**Location:** `pkg/world/chunk/manager.go` (lines ~220-240)
+**Fix:** Wire LOD selection into chunk streaming based on distance from player. Use lower LOD levels for chunks farther from the player.
+
+**Resolution Checklist:**
+
+- [ ] Implement distance-based LOD level selection in chunk streaming
+- [ ] Feed LOD-appropriate chunk data to raycaster for distant terrain
+- [ ] Verify visual quality at LOD boundaries
+- [ ] Benchmark memory savings from LOD usage
+
+---
+
+### Gap 8.4: Value Noise Instead of Gradient Noise
+
+**Severity: MODERATE** · **Impact: Terrain has blocky quality compared to Perlin/simplex noise**
+
+The noise generator (`pkg/procgen/noise/generator.go`, 56 lines) uses hash-based value noise with smoothstep interpolation. Value noise interpolates between random values at grid points, producing less natural-looking terrain than gradient noise (Perlin/simplex).
+
+**Location:** `pkg/procgen/noise/generator.go`
+**Fix:** Implement gradient noise (Perlin or simplex) as an alternative/replacement noise function.
+
+**Resolution Checklist:**
+
+- [ ] Implement 2D gradient (Perlin) noise function
+- [ ] Add noise function selection parameter to terrain generator
+- [ ] Verify deterministic output with gradient noise
+- [ ] Benchmark gradient noise vs current value noise performance
+- [ ] Compare terrain visual quality between noise algorithms
+
+---
+
+### Gap 8.5: Synchronous Chunk Generation Causes Frame Stutter
+
+**Severity: MODERATE** · **Impact: Frame drops when crossing chunk boundaries for first time**
+
+`GetChunk()` in `pkg/world/chunk/manager.go` generates chunks synchronously on the calling thread. First access triggers full heightmap + elevation + terrain type generation, blocking the game loop.
+
+**Location:** `pkg/world/chunk/manager.go` (lines 291-312, `GetChunk`)
+**Fix:** Implement async chunk generation with a worker goroutine. Return a placeholder/flat chunk while generation completes in background.
+
+**Resolution Checklist:**
+
+- [ ] Implement background chunk generation goroutine with work queue
+- [ ] Return placeholder chunk for not-yet-generated chunks
+- [ ] Swap placeholder with real chunk when generation completes
+- [ ] Verify no frame stutter when crossing chunk boundaries
+- [ ] Add benchmark for chunk generation latency
+
+---
+
+## Category 9: Ebitengine Performance & Rendering Bottlenecks
+
+### Gap 9.1: Per-Pixel `screen.Set()` Rendering — Fundamental Performance Bottleneck
+
+**Severity: CRITICAL** · **Impact: Prevents 60 FPS at any resolution; ~78M GPU sync points/sec**
+
+All rendering (walls, floors, ceilings, sprites, UI, particles) uses `ebiten.Image.Set()` per-pixel calls instead of Ebitengine's batch rendering APIs. At 1280×720, the raycaster makes ~1.3M `Set()` calls per frame. Each call triggers GPU pipeline synchronization.
+
+**36 `screen.Set()` call sites across 5 files:**
+
+| File | Set() calls | Hot path? |
+|------|-------------|-----------|
+| `pkg/rendering/raycast/draw.go` | 5 | ✅ Every frame |
+| `cmd/client/main.go` | 14 | ✅ Every frame |
+| `cmd/client/quest_ui.go` | 10 | When UI open |
+| `cmd/client/inventory_ui.go` | 6 | When UI open |
+| `cmd/client/dialog_ui.go` | 1 | When dialog open |
+
+**Location:** See AUDIT.md §4.1 for full analysis
+**Fix:** Render to a `[]byte` software framebuffer, then upload once per frame via `ebiten.Image.WritePixels()`. This reduces GPU sync from ~1.3M to 1 call per frame.
+
+**Resolution Checklist:**
+
+- [ ] Create persistent `[]byte` software framebuffer (width×height×4) in Renderer
+- [ ] Replace all `screen.Set(x, y, color)` in `draw.go` with framebuffer writes
+- [ ] Replace all `screen.Set()` in `main.go` combat/particle/minimap code with framebuffer writes
+- [ ] Upload framebuffer to screen via single `screen.WritePixels()` call in `Draw()`
+- [ ] Replace UI `screen.Set()` calls with framebuffer writes or `DrawImage()` overlays
+- [ ] Benchmark before/after: target ≥10× frame time improvement
+- [ ] Verify visual output is identical
+
+---
+
+### Gap 9.2: Per-Frame Buffer Allocations — ~40 MB/Frame GC Pressure
+
+**Severity: CRITICAL** · **Impact: GC stalls cause frame drops; 432 MB–1.08 GB/sec allocation rate**
+
+Every frame allocates fresh buffers that are immediately discarded:
+
+| Source | File | Allocation | Size (1280×720) |
+|--------|------|-----------|-----------------|
+| Particle buffer | `cmd/client/main.go:1103` | `make([]byte, w×h×4)` | 3.6 MB |
+| Post-process input | `cmd/client/main.go:1074` | `image.NewRGBA()` | 3.6 MB |
+| Post-process effects | `pkg/rendering/postprocess/effects.go` × 11 sites | `image.NewRGBA()` | 3.6 MB each |
+| Z-Buffer | `pkg/rendering/raycast/draw.go:209` | `make([]float64, width)` | 10 KB |
+
+**Total per frame:** 7.2 MB baseline, up to 18 MB with 3 post-processing effects active.
+**At 60 FPS:** 432 MB/sec–1.08 GB/sec allocation pressure with zero `sync.Pool` usage anywhere.
+
+**Location:** See AUDIT.md §8.2 for full breakdown
+**Fix:** Pre-allocate all buffers once. Reuse across frames. Clear instead of reallocate.
+
+**Resolution Checklist:**
+
+- [ ] Pre-allocate persistent particle pixel buffer in particle renderer struct
+- [ ] Pre-allocate persistent `image.RGBA` buffers for post-processing pipeline
+- [ ] Move Z-buffer to Renderer struct field (allocate once in constructor)
+- [ ] Move sprite sort slice to Renderer struct field
+- [ ] Implement `sync.Pool` for any remaining dynamic buffer needs
+- [ ] Benchmark allocation rate before/after: target ≥80% reduction
+- [ ] Verify no visual regression
+
+---
+
+### Gap 9.3: Zero Batch Rendering API Usage
+
+**Severity: HIGH** · **Impact: All GPU rendering capabilities unused**
+
+The codebase uses virtually none of Ebitengine's batch rendering APIs:
+
+| API | Current Usage | Optimal Usage |
+|-----|---------------|---------------|
+| `DrawImage()` | 1 (menu overlay) | UI overlays, sprite rendering |
+| `DrawTriangles()` | 0 | Textured geometry |
+| `WritePixels()` | 0 | Framebuffer upload (replaces all Set()) |
+| `Fill()` | 0 | Background clearing |
+| `ColorM` | 0 | Hardware color transforms |
+| `GeoM` | 0 | Hardware geometry transforms |
+
+**Location:** See AUDIT.md §4.2, §4.4
+**Fix:** Use `WritePixels()` for raycaster output. Use `DrawImage()` with `ColorM`/`GeoM` for UI overlays and post-processing effects that can be expressed as color transforms (vignette, color grade, screen tint).
+
+**Resolution Checklist:**
+
+- [ ] Replace per-pixel raycaster output with `WritePixels()` framebuffer upload
+- [ ] Use `DrawImage()` with `ColorM` for vignette, color grading, and tint effects
+- [ ] Use `DrawImage()` with `GeoM` for UI element positioning
+- [ ] Use `Fill()` for screen clearing
+- [ ] Benchmark GPU utilization improvement
+
+---
+
+### Gap 9.4: Post-Processing Double Copy Loop
+
+**Severity: HIGH** · **Impact: 2× full-screen pixel traversals per frame for format conversion**
+
+Post-processing requires converting between `ebiten.Image` and `image.RGBA` (`cmd/client/main.go` lines 1074-1089):
+1. Copy screen → `image.RGBA` (921,600 reads via `screen.At()`)
+2. Apply N effects (921,600 ops each)
+3. Copy `image.RGBA` → screen (921,600 writes via `screen.Set()`)
+
+**Location:** `cmd/client/main.go` (lines 1074-1089), `pkg/rendering/postprocess/effects.go`
+**Fix:** Operate post-processing directly on the software framebuffer before uploading to GPU. Eliminate the screen→RGBA→screen copy loop entirely.
+
+**Resolution Checklist:**
+
+- [ ] Apply post-processing to software framebuffer `[]byte` before `WritePixels()` upload
+- [ ] Eliminate `screen.At()` → `image.RGBA` copy loop
+- [ ] Eliminate `image.RGBA` → `screen.Set()` copy loop
+- [ ] Verify post-processing visual effects are preserved
+- [ ] Benchmark: target elimination of ~1.8M pixel operations per frame
+
+---
+
+### Gap 9.5: Sprite Alpha Blending via GPU Read-Modify-Write
+
+**Severity: HIGH** · **Impact: Slowest possible per-pixel pattern for sprite rendering**
+
+Sprite alpha blending (`pkg/rendering/raycast/draw.go` lines 120-129) uses `screen.At()` + CPU blend + `screen.Set()` per pixel — a GPU read + CPU compute + GPU write per pixel.
+
+**Location:** `pkg/rendering/raycast/draw.go` (lines 120-129)
+**Fix:** Perform alpha blending on the software framebuffer where it's a simple memory read-modify-write operation.
+
+**Resolution Checklist:**
+
+- [ ] Blend sprites directly into software framebuffer `[]byte`
+- [ ] Eliminate `screen.At()` reads for alpha blending
+- [ ] Verify sprite visual quality is preserved
+- [ ] Benchmark sprite rendering improvement
+
+---
+
+### Gap 9.6: Particle System Full-Screen Copy Loops
+
+**Severity: MODERATE** · **Impact: 1.8M extra pixel operations per frame for particle compositing**
+
+Particle rendering (`cmd/client/main.go` lines 1099-1133) copies the entire screen to a `[]byte` buffer, renders particles, then copies back. This adds two full-screen traversals on top of particle rendering.
+
+**Location:** `cmd/client/main.go` (lines 1099-1133)
+**Fix:** Render particles directly into the shared software framebuffer before `WritePixels()` upload.
+
+**Resolution Checklist:**
+
+- [ ] Integrate particle rendering into main software framebuffer
+- [ ] Eliminate screen → pixel buffer copy loop
+- [ ] Eliminate pixel buffer → screen copy loop
+- [ ] Verify particle visual effects preserved
+- [ ] Benchmark: target elimination of 1.8M pixel operations per frame
+
+---
+
+### Gap 9.7: No Runtime Profiling Infrastructure
+
+**Severity: LOW** · **Impact: Cannot diagnose performance issues in production builds**
+
+No `net/http/pprof` import, no `runtime.MemStats` monitoring, no frame time tracking or debug overlay beyond a single `ebitenutil.DebugPrint` line.
+
+**Location:** `cmd/client/main.go` (Draw method)
+**Fix:** Add optional pprof HTTP endpoint (behind config flag) and frame time histogram to debug overlay.
+
+**Resolution Checklist:**
+
+- [ ] Add `debug.profiling` config option (default: false)
+- [ ] When enabled, start `net/http/pprof` endpoint on configurable port
+- [ ] Add frame time tracking (Update + Draw durations) to debug overlay
+- [ ] Add memory stats (HeapAlloc, NumGC, GCPauseNs) to debug overlay
+
+---
+
+## Category 10: Previously Resolved Code Quality Gaps
 
 The following gaps from the original GAPS.md (2026-03-31) are resolved and retained for reference:
 
@@ -556,6 +833,25 @@ The following gaps from the original GAPS.md (2026-03-31) are resolved and retai
 ---
 
 ## Summary: Gap Priority Matrix
+
+### Performance & Rendering Gaps (NEW — from AUDIT.md terrain/Ebitengine analysis)
+
+| Priority | Gap | Player Impact | Effort | Category |
+|----------|-----|---------------|--------|----------|
+| **P0** | 9.1 — Per-pixel Set() rendering | Cannot reach 60 FPS; ~78M GPU syncs/sec | High | Performance |
+| **P0** | 9.2 — Per-frame buffer allocations | GC stalls cause frame drops; ~1 GB/sec alloc | Medium | Memory |
+| **P1** | 9.3 — Zero batch rendering API usage | All GPU capabilities unused | High | Performance |
+| **P1** | 9.4 — Post-process double copy loop | 1.8M extra pixel ops per frame | Medium | Performance |
+| **P1** | 9.5 — Sprite read-modify-write | Slowest sprite rendering pattern | Medium | Performance |
+| **P1** | 8.1 — Only 4 terrain types | Repetitive terrain; no water/vegetation | Medium | Terrain |
+| **P1** | 8.2 — No biome blending | Abrupt chunk boundary transitions | Medium | Terrain |
+| **P2** | 9.6 — Particle full-screen copy | 1.8M extra pixel ops per frame | Low | Performance |
+| **P2** | 8.3 — LOD system not integrated | Distant terrain at full resolution | Low | Terrain |
+| **P2** | 8.4 — Value noise only | Blocky terrain quality | Medium | Terrain |
+| **P2** | 8.5 — Synchronous chunk generation | Frame stutter on chunk crossing | Medium | Terrain |
+| **P3** | 9.7 — No profiling infrastructure | Cannot diagnose production perf | Low | Tooling |
+
+### Playability & Integration Gaps (existing)
 
 | Priority | Gap | Player Impact | Effort | Category |
 |----------|-----|---------------|--------|----------|
@@ -580,8 +876,8 @@ The following gaps from the original GAPS.md (2026-03-31) are resolved and retai
 | **P4** | 7.4 — Housing/PvP/Persist unused | No housing or PvP zones | Low | Features |
 | **P4** | 5.2 — Federation unused in loop | Cross-server non-functional | Low | Networking |
 
-**Total: 20 active gaps** (9 code quality gaps resolved, 20 playability gaps identified)
+**Total: 32 active gaps** (9 code quality gaps resolved, 20 playability gaps + 12 terrain/performance gaps identified)
 
 ---
 
-*Generated 2026-03-31 from comprehensive codebase audit. See AUDIT.md for full system status matrix.*
+*Updated 2026-04-01. Terrain quality and Ebitengine performance gaps added from AUDIT.md analysis. See AUDIT.md for full technical assessment and PLAN.md for implementation roadmap.*
