@@ -224,8 +224,8 @@ Track progress toward calling all generators at runtime:
 - [x] Entity/NPC Generator — called in `cmd/server/main.go:92`
 - [x] Faction Generator — called in `cmd/server/server_init.go:22`
 - [x] Noise Functions — called by `pkg/world/chunk/`
-- [ ] Dungeon Generator — call during world init for instanced quest content
-- [ ] Building Adapter — call to generate building interiors for city districts
+- [x] Dungeon Generator — called in `cmd/server/server_init.go:initializeDungeons()`
+- [x] Building Adapter — called in `cmd/server/main.go:initializeCity()` for district buildings
 - [ ] Dialog Adapter — call to generate NPC dialog trees
 - [ ] Item Adapter — call to populate building inventories with items
 - [ ] Furniture Adapter — call to furnish building interiors

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/opd-ai/wyrm/config"
+	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 	"github.com/opd-ai/wyrm/pkg/engine/systems"
 	"github.com/opd-ai/wyrm/pkg/network"
@@ -64,10 +65,64 @@ func initializeCity(world *ecs.World, cfg *config.Config, fps *systems.FactionPo
 	// Generate NPCs using V-Series entity generator
 	entityAdapter := adapters.NewEntityAdapter()
 	factionAdapter := adapters.NewFactionAdapter()
+	buildingAdapter := adapters.NewBuildingAdapter()
 	factions, _ := factionAdapter.GenerateFactions(cfg.World.Seed, cfg.Genre, 20)
 
 	for i, district := range generatedCity.Districts {
 		createDistrictEntity(world, district)
+
+		// Generate building interiors for this district
+		districtSeed := cfg.World.Seed + int64(i)*10000
+		buildingsInDistrict := district.Buildings
+		if buildingsInDistrict > 10 {
+			buildingsInDistrict = 10 // Cap buildings per district for performance
+		}
+
+		for b := 0; b < buildingsInDistrict; b++ {
+			buildingSeed := districtSeed + int64(b)*100
+			buildingType := b % 5 // Cycle through building types
+			floors := 1 + (b % 3)
+
+			bldg, err := buildingAdapter.GenerateBuilding(buildingSeed, cfg.Genre, buildingType, floors)
+			if err != nil {
+				log.Printf("warning: building generation failed in district %s: %v", district.Name, err)
+				continue
+			}
+
+			// Create building entity in the world
+			buildingEntity := world.CreateEntity()
+			buildingX := district.CenterX + float64((b%3)-1)*30
+			buildingY := district.CenterY + float64((b/3)-1)*30
+
+			if err := world.AddComponent(buildingEntity, &components.Position{
+				X: buildingX,
+				Y: buildingY,
+				Z: 0,
+			}); err != nil {
+				continue
+			}
+
+			if err := world.AddComponent(buildingEntity, &components.Building{
+				BuildingType: bldg.Type,
+				Width:        float64(bldg.Width),
+				Height:       float64(bldg.Height),
+				Floors:       bldg.Floors,
+				IsOpen:       true,
+			}); err != nil {
+				continue
+			}
+
+			// Create interior for the building
+			if err := world.AddComponent(buildingEntity, &components.Interior{
+				ParentBuilding: uint64(buildingEntity),
+				Width:          bldg.Width,
+				Height:         bldg.Height,
+				FloorType:      bldg.Style,
+			}); err != nil {
+				continue
+			}
+		}
+		log.Printf("  generated %d buildings in district %s", buildingsInDistrict, district.Name)
 
 		// Spawn NPCs in each district using V-Series generator
 		factionID := "neutral"
@@ -75,7 +130,6 @@ func initializeCity(world *ecs.World, cfg *config.Config, fps *systems.FactionPo
 			factionID = factions[i%len(factions)].ID
 		}
 
-		districtSeed := cfg.World.Seed + int64(i)*10000
 		npcsPerDistrict := 5 + (district.Buildings / 10)
 		if npcsPerDistrict > 20 {
 			npcsPerDistrict = 20
