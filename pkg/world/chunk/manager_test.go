@@ -1166,3 +1166,45 @@ func BenchmarkBiomeMapWorldSpace(b *testing.B) {
 		_ = generateBiomeMapWorldSpace(i%10, i/10, 64, 12345)
 	}
 }
+
+// ========== Chunk Generation Latency Benchmarks ==========
+
+func BenchmarkChunkGenerationLatency64(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = NewChunk(i%100, i/100, 64, int64(i))
+	}
+}
+
+func BenchmarkChunkGenerationLatency128(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = NewChunk(i%100, i/100, 128, int64(i))
+	}
+}
+
+func BenchmarkChunkGenerationLatency256(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = NewChunk(i%100, i/100, 256, int64(i))
+	}
+}
+
+func BenchmarkAsyncChunkGeneration(b *testing.B) {
+	cm := NewManager(64, 12345)
+	cm.EnableAsyncGeneration(4) // 4 workers
+	defer cm.DisableAsyncGeneration()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cm.RequestChunkAsync(i%100, i/100)
+	}
+}
+
+func BenchmarkGetChunkOrPlaceholder(b *testing.B) {
+	cm := NewManager(64, 12345)
+	cm.EnableAsyncGeneration(2)
+	defer cm.DisableAsyncGeneration()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = cm.GetChunkOrPlaceholder(i%100, i/100)
+	}
+}
