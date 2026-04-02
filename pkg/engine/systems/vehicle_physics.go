@@ -53,9 +53,18 @@ func (s *VehiclePhysicsSystem) Update(w *ecs.World, dt float64) {
 
 // updateVehicle processes physics for a single vehicle.
 func (s *VehiclePhysicsSystem) updateVehicle(w *ecs.World, entity ecs.Entity, dt float64) {
-	vehicleComp, _ := w.GetComponent(entity, "Vehicle")
-	physicsComp, _ := w.GetComponent(entity, "VehiclePhysics")
-	posComp, _ := w.GetComponent(entity, "Position")
+	vehicleComp, ok := w.GetComponent(entity, "Vehicle")
+	if !ok {
+		return
+	}
+	physicsComp, ok := w.GetComponent(entity, "VehiclePhysics")
+	if !ok {
+		return
+	}
+	posComp, ok := w.GetComponent(entity, "Position")
+	if !ok {
+		return
+	}
 
 	vehicle := vehicleComp.(*components.Vehicle)
 	physics := physicsComp.(*components.VehiclePhysics)
@@ -340,8 +349,8 @@ func (s *VehiclePhysicsSystem) ExitVehicle(w *ecs.World, vehicle ecs.Entity) ecs
 	state.InCockpitView = false
 
 	// Stop the vehicle when exiting
-	physicsComp, _ := w.GetComponent(vehicle, "VehiclePhysics")
-	if physicsComp != nil {
+	physicsComp, ok := w.GetComponent(vehicle, "VehiclePhysics")
+	if ok {
 		physics := physicsComp.(*components.VehiclePhysics)
 		physics.Throttle = 0
 		physics.Steering = 0

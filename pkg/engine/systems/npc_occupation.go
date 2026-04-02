@@ -186,9 +186,8 @@ func getTaskDurationMultiplier(occupationType, task string) float64 {
 
 // completeTask handles task completion effects.
 func (s *NPCOccupationSystem) completeTask(w *ecs.World, e ecs.Entity, occ *components.NPCOccupation) {
-	// Gold earned is tracked but not stored in a simple inventory
-	// This could be expanded to use a more detailed currency component
-	_ = occ.GoldPerHour * (occ.TaskDuration / 3600.0) * (0.5 + occ.SkillLevel*0.5)
+	// TODO: Track gold earned in a currency component
+	// Formula: occ.GoldPerHour * (occ.TaskDuration / 3600.0) * (0.5 + occ.SkillLevel*0.5)
 
 	// Crafting occupations may produce items
 	if occ.CanCraft && (occ.CurrentTask == "forging" ||
@@ -292,17 +291,14 @@ func (s *NPCOccupationSystem) processCustomerQueue(w *ecs.World, e ecs.Entity, o
 		return
 	}
 
-	// Service time based on efficiency
-	serviceTime := OccupationServiceTimeBase / occ.WorkEfficiency
-
-	// For now, just remove customers after service time
-	// In a full implementation, this would trigger trade UI or auto-trade
+	// For now, just remove customers after task completion
+	// TODO: In a full implementation, use service time (OccupationServiceTimeBase / occ.WorkEfficiency)
+	// to control task duration and trigger trade UI or auto-trade
 	if occ.TaskProgress >= 1.0 && occ.CurrentTask == "serving_customer" {
 		if len(occ.CustomerQueue) > 0 {
 			occ.CustomerQueue = occ.CustomerQueue[1:]
 		}
 	}
-	_ = serviceTime
 }
 
 // GetOccupationTasks returns tasks for an occupation type.

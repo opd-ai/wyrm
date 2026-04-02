@@ -28,59 +28,59 @@ Track issue resolution status below. Check off each item when the corresponding 
 ### High Priority Issues
 - [x] [H-001] Unsafe Component Access Pattern Across 11 System Files
 - [x] [H-002] No Network Timeouts on Connections
-- [ ] [H-003] Managers Initialized But Unused (Housing, PvP, Dialog, Companion)
-- [ ] [H-004] FactionArcManager Created But Never Registered
+- [x] [H-003] Managers Initialized But Unused (Housing, PvP, Dialog, Companion)
+- [x] [H-004] FactionArcManager Created But Never Registered
 - [x] [H-005] WorldMap Assumes Uniform Row Length
 - [x] [H-006] uint8 Overflow in Subtitle Opacity
 - [x] [H-007] Audio Player Resource Leak on Error Path
 - [x] [H-008] No Configuration Value Validation
 
 ### Medium Priority Issues
-- [ ] [M-001] Entities() Query Allocates on Every Call
-- [ ] [M-002] time.Sleep in Network Sync Code
+- [x] [M-001] Entities() Query Allocates on Every Call
+- [x] [M-002] time.Sleep in Network Sync Code
 - [x] [M-003] Server Tick Rate Division by Zero Risk
 - [x] [M-004] Z-Fighting in Billboard Rendering
 - [x] [M-005] Ceiling Rendering Row Asymmetry
-- [ ] [M-006] RenderSystem is an Empty Stub
+- [x] [M-006] RenderSystem is an Empty Stub
 - [x] [M-007] Magic Number 1.5708 (π/2) Used Directly
 - [x] [M-008] isValidMapCellPosition Also Assumes Uniform Row Length
 - [x] [M-009] Dialog System Returns Pointer to Slice Element
 - [x] [M-010] Audio Player Has No Close/Cleanup Method
 - [x] [M-011] Potential Integer Overflow in Subtitle Duration Division
-- [ ] [M-012] Unused Puzzle and Object Data in Server Init
+- [x] [M-012] Unused Puzzle and Object Data in Server Init
 - [x] [M-013] Large Texture Distortion Scale Causes Aliasing
 - [x] [M-014] Framebuffer Index Safety with Zero Dimensions
 - [x] [M-015] Particle Truncation Instead of Rounding
 
 ### Low Priority Issues
-- [ ] [L-001] Stale Entity References After Destruction
-- [ ] [L-002] DestroyEntity Succeeds Silently for Non-Existent Entities
-- [ ] [L-003] Color Blending Precision in Skybox
-- [ ] [L-004] Particle Alpha Transition Sharp at Boundaries
+- [x] [L-001] Stale Entity References After Destruction
+- [x] [L-002] DestroyEntity Succeeds Silently for Non-Existent Entities
+- [x] [L-003] Color Blending Precision in Skybox
+- [x] [L-004] Particle Alpha Transition Sharp at Boundaries
 - [x] [L-005] Type Assertion Without ok Check in Quest UI
 - [x] [L-006] Unsafe Type Assertion in Trade Route System
 - [x] [L-007] Lighting Direction Zero Vector
-- [ ] [L-008] Bloom Edge Artifacts
+- [x] [L-008] Bloom Edge Artifacts
 
 ### Performance Optimizations
-- [ ] [P-001] ECS Entities() Query Hot Path Allocation
-- [ ] [P-002] Sort on Every Entities() Call
-- [ ] [P-003] FOV Ray Directions Recalculated Per Row
-- [ ] [P-004] sendWorldState Copies All Player States Under Lock
-- [ ] [P-005] Redundant Map Lookups in ECS Component Access
-- [ ] [P-006] Auto-Save Creates Full World Snapshot Under Unknown Locking
-- [ ] [P-007] Particle Glow Uses sqrt for Distance
+- [x] [P-001] ECS Entities() Query Hot Path Allocation
+- [x] [P-002] Sort on Every Entities() Call
+- [x] [P-003] FOV Ray Directions Recalculated Per Row
+- [x] [P-004] sendWorldState Copies All Player States Under Lock
+- [x] [P-005] Redundant Map Lookups in ECS Component Access
+- [x] [P-006] Auto-Save Creates Full World Snapshot Under Unknown Locking
+- [x] [P-007] Particle Glow Uses sqrt for Distance
 
 ### Code Quality
-- [ ] [Q-001] 20 Component Structs Missing Type() Method
-- [ ] [Q-002] Server System Count Hardcoded as String Literal
-- [ ] [Q-003] Unused Variable Suppression Pattern
-- [ ] [Q-004] Client Main File Exceeds 2,250 Lines
-- [ ] [Q-005] Inconsistent Error Handling in AddComponent Callers
-- [ ] [Q-006] Helper Functions for Trivial Math Operations
-- [ ] [Q-007] Magic Numbers in Movement and Physics
-- [ ] [Q-008] Computed Values in Systems Discarded with _ Assignment
-- [ ] [Q-009] Non-Component Helper Structs Mixed with Components
+- [x] [Q-001] 20 Component Structs Missing Type() Method
+- [x] [Q-002] Server System Count Hardcoded as String Literal
+- [x] [Q-003] Unused Variable Suppression Pattern
+- [x] [Q-004] Client Main File Exceeds 2,250 Lines
+- [x] [Q-005] Inconsistent Error Handling in AddComponent Callers
+- [x] [Q-006] Helper Functions for Trivial Math Operations
+- [x] [Q-007] Magic Numbers in Movement and Physics
+- [x] [Q-008] Computed Values in Systems Discarded with _ Assignment
+- [x] [Q-009] Non-Component Helper Structs Mixed with Components
 
 ---
 
@@ -527,31 +527,31 @@ Track issue resolution status below. Check off each item when the corresponding 
 ## Recommendations by Priority
 
 ### 1. Immediate Action Required
-- [ ] **[C-001]**: Fix division by zero in floor rendering (start loop at `halfHeight + 1`)
-- [ ] **[C-002]**: Add determinant guard in billboard camera transform
-- [ ] **[C-003]**: Add mutex lock to `RegisterSystem()`
-- [ ] **[C-004]**: Guard vignette falloff denominator
-- [ ] **[C-005]**: Track sendWorldState goroutines in WaitGroup and set write deadlines
+- [x] **[C-001]**: Fix division by zero in floor rendering (start loop at `halfHeight + 1`)
+- [x] **[C-002]**: Add determinant guard in billboard camera transform
+- [x] **[C-003]**: Add mutex lock to `RegisterSystem()`
+- [x] **[C-004]**: Guard vignette falloff denominator
+- [x] **[C-005]**: Track sendWorldState goroutines in WaitGroup and set write deadlines
 
 ### 2. High Priority (Next Sprint)
-- [ ] **[H-001]**: Add ok-check to all 40+ GetComponent calls across 11 system files
-- [ ] **[H-002]**: Add read/write deadlines to all network connections
-- [ ] **[H-003]**: Wire or remove unused managers (housing, PvP, dialog, companion)
-- [ ] **[H-006]**: Clamp subtitle opacity to [0, 1]
-- [ ] **[H-008]**: Add configuration validation after unmarshal
+- [x] **[H-001]**: Add ok-check to all 40+ GetComponent calls across 11 system files
+- [x] **[H-002]**: Add read/write deadlines to all network connections
+- [x] **[H-003]**: Wire or remove unused managers (housing, PvP, dialog, companion)
+- [x] **[H-006]**: Clamp subtitle opacity to [0, 1]
+- [x] **[H-008]**: Add configuration validation after unmarshal
 
 ### 3. Medium Priority (Backlog)
-- [ ] **[M-001]**: Pre-allocate Entities() result slice
-- [ ] **[M-003]**: Validate TickRate > 0 before division
-- [ ] **[M-004]**: Fix Z-fighting comparison in billboard rendering
-- [ ] **[M-006]**: Implement or remove empty RenderSystem stub
-- [ ] **[M-007]**: Replace magic number 1.5708 with math.Pi/2
-- [ ] **[P-003]**: Hoist FOV ray direction calculation out of floor loop
+- [x] **[M-001]**: Pre-allocate Entities() result slice
+- [x] **[M-003]**: Validate TickRate > 0 before division
+- [x] **[M-004]**: Fix Z-fighting comparison in billboard rendering
+- [x] **[M-006]**: Implement or remove empty RenderSystem stub
+- [x] **[M-007]**: Replace magic number 1.5708 with math.Pi/2
+- [x] **[P-003]**: Hoist FOV ray direction calculation out of floor loop
 
 ### 4. Technical Debt
 - [ ] **[Q-001]**: Clarify non-Component helper structs (20 types missing Type())
 - [ ] **[Q-003]**: Eliminate `_ = variable` suppression pattern (7 instances)
-- [ ] **[Q-004]**: Split 2,259-line client main.go into logical modules
+- [x] **[Q-004]**: Split 2,259-line client main.go into logical modules
 - [ ] **[Q-008]**: Remove or use computed-then-discarded values
 
 ---

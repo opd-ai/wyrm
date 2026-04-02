@@ -36,7 +36,9 @@ func main() {
 	// Initialize all game systems
 	fps := initializeFactions(world, cfg)
 	initializeWorldContent(world, cfg, fps, loadedFromSave)
-	initializeManagers(world, cfg)
+	// NOTE: Housing, PvP, Dialog, and Companion managers are not yet integrated.
+	// Their initialization is deferred until systems that use them are implemented.
+	// See ROADMAP.md Phase 5 (Multiplayer & Persistence) for integration plans.
 	registerServerSystems(world, cm, cfg, fps)
 	initializeQuestContent(world, cfg, loadedFromSave)
 
@@ -91,18 +93,17 @@ func initializeWorldContent(world *ecs.World, cfg *config.Config, fps *systems.F
 	initializeWorldClock(world)
 }
 
-// initializeManagers creates all game managers.
-func initializeManagers(world *ecs.World, cfg *config.Config) {
-	hm := initializeHousing(cfg)
-	zm := initializePvP(cfg)
-	dm := initializeDialogManager(cfg)
-	compMgr := initializeCompanionManager(world, cfg)
-
-	// Managers available for server loop operations
-	_ = hm      // Housing manager
-	_ = zm      // PvP zone manager
-	_ = dm      // Dialog manager
-	_ = compMgr // Companion manager
+// initializeManagers is a placeholder for future manager initialization.
+// Housing, PvP, Dialog, and Companion managers are not yet integrated with ECS systems.
+// This function will be implemented when their corresponding systems are ready.
+// See ROADMAP.md Phase 5 (Multiplayer & Persistence) for the integration plan.
+//
+//nolint:unused // Intentionally unused until Phase 5 integration
+func initializeManagers(_ *ecs.World, _ *config.Config) {
+	// Deferred: initializeHousing(cfg)
+	// Deferred: initializePvP(cfg)
+	// Deferred: initializeDialogManager(cfg)
+	// Deferred: initializeCompanionManager(world, cfg)
 }
 
 // initializeQuestContent initializes quests and recipes after systems are registered.
@@ -452,8 +453,9 @@ func registerServerSystems(world *ecs.World, cm *chunk.Manager, cfg *config.Conf
 	world.RegisterSystem(systems.NewDynamicFactionWarSystem(fps))
 
 	// Faction quest arcs (Phase 4C)
-	factionArcManager := systems.NewFactionArcManager(genre)
-	_ = factionArcManager // Available for quest system integration
+	// NOTE: FactionArcManager initialization is deferred until quest system integration.
+	// The quest system needs to be updated to accept and use the arc manager.
+	// See ROADMAP.md Phase 3 (Quests & Narrative) for integration plans.
 
 	// Crime depth systems (Phase 4)
 	guardPursuitSystem := systems.NewGuardPursuitSystem(crimeSystem)
@@ -519,33 +521,51 @@ func registerServerSystems(world *ecs.World, cm *chunk.Manager, cfg *config.Conf
 	}
 	world.RegisterSystem(systems.NewDeathPenaltySystem(deathPenaltyConfig))
 
-	log.Printf("registered %d server systems", 60)
+	log.Printf("registered %d server systems", world.SystemCount())
+}
+
+// serverLoopTickers holds all tickers used by the server loop.
+type serverLoopTickers struct {
+	tick        *time.Ticker
+	autoSave    *time.Ticker
+	chunkStream *time.Ticker
+	fedGossip   *time.Ticker
+}
+
+// newServerLoopTickers creates tickers for the server loop.
+func newServerLoopTickers(cfg *config.Config) (*serverLoopTickers, time.Duration) {
+	tickRate := cfg.Server.TickRate
+	if tickRate <= 0 {
+		tickRate = 20
+		log.Printf("warning: invalid tick rate %d, defaulting to %d", cfg.Server.TickRate, tickRate)
+	}
+	tickInterval := time.Second / time.Duration(tickRate)
+
+	gossipInterval := time.Duration(cfg.Federation.GossipInterval) * time.Second
+	if gossipInterval < time.Second {
+		gossipInterval = 5 * time.Second
+	}
+
+	return &serverLoopTickers{
+		tick:        time.NewTicker(tickInterval),
+		autoSave:    time.NewTicker(5 * time.Minute),
+		chunkStream: time.NewTicker(500 * time.Millisecond),
+		fedGossip:   time.NewTicker(gossipInterval),
+	}, tickInterval
+}
+
+// stop stops all tickers.
+func (t *serverLoopTickers) stop() {
+	t.tick.Stop()
+	t.autoSave.Stop()
+	t.chunkStream.Stop()
+	t.fedGossip.Stop()
 }
 
 // runServerLoop runs the main server tick loop until shutdown.
 func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server, fed *federation.Federation, pm *persist.Persister, cm *chunk.Manager) {
-	// Guard against division by zero (should be caught by config validation, but be defensive)
-	tickRate := cfg.Server.TickRate
-	if tickRate <= 0 {
-		tickRate = 20 // Default to 20 Hz
-		log.Printf("warning: invalid tick rate %d, defaulting to %d", cfg.Server.TickRate, tickRate)
-	}
-	tickInterval := time.Second / time.Duration(tickRate)
-	ticker := time.NewTicker(tickInterval)
-	defer ticker.Stop()
-
-	autoSaveTicker := time.NewTicker(5 * time.Minute)
-	defer autoSaveTicker.Stop()
-
-	chunkStreamTicker := time.NewTicker(500 * time.Millisecond)
-	defer chunkStreamTicker.Stop()
-
-	gossipInterval := time.Duration(cfg.Federation.GossipInterval) * time.Second
-	if gossipInterval < time.Second {
-		gossipInterval = 5 * time.Second // Minimum 5 seconds
-	}
-	fedGossipTicker := time.NewTicker(gossipInterval)
-	defer fedGossipTicker.Stop()
+	tickers, tickInterval := newServerLoopTickers(cfg)
+	defer tickers.stop()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -556,19 +576,19 @@ func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server, fe
 
 	log.Printf("auto-save enabled (interval=5m0s)")
 	if fed != nil {
-		log.Printf("federation gossip enabled (interval=%v)", gossipInterval)
+		log.Printf("federation gossip enabled (interval=%v)", time.Duration(cfg.Federation.GossipInterval)*time.Second)
 	}
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-tickers.tick.C:
 			world.Update(tickInterval.Seconds())
 			broadcastEntityUpdates(world, srv)
-		case <-chunkStreamTicker.C:
+		case <-tickers.chunkStream.C:
 			checkAndStreamChunks(world, srv, cm, cfg.World.ChunkSize)
-		case <-fedGossipTicker.C:
+		case <-tickers.fedGossip.C:
 			processFederationGossip(world, fed, cfg)
-		case <-autoSaveTicker.C:
+		case <-tickers.autoSave.C:
 			performAutoSave(world, cfg, pm)
 		case <-sigCh:
 			performShutdownSave(world, cfg, pm)
@@ -577,15 +597,18 @@ func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server, fe
 	}
 }
 
-// performAutoSave saves the world state periodically.
+// performAutoSave saves the world state periodically in a background goroutine.
+// This prevents auto-save from blocking the game tick loop.
 func performAutoSave(world *ecs.World, cfg *config.Config, pm *persist.Persister) {
-	log.Println("auto-saving world state...")
-	snapshot := createWorldSnapshot(world, cfg)
-	if err := pm.Save(snapshot); err != nil {
-		log.Printf("auto-save failed: %v", err)
-	} else {
-		log.Printf("auto-save complete (%d entities)", len(snapshot.Entities))
-	}
+	go func() {
+		log.Println("auto-saving world state...")
+		snapshot := createWorldSnapshot(world, cfg)
+		if err := pm.Save(snapshot); err != nil {
+			log.Printf("auto-save failed: %v", err)
+		} else {
+			log.Printf("auto-save complete (%d entities)", len(snapshot.Entities))
+		}
+	}()
 }
 
 // performShutdownSave saves the world state before shutdown.

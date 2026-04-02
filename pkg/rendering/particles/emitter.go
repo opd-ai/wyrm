@@ -402,6 +402,7 @@ func (s *System) SpawnBurst(particleType string, x, y float64, count int) {
 }
 
 // GetAlpha returns the alpha value for a particle based on its remaining life.
+// Uses smoothstep interpolation for smooth C1-continuous transitions at boundaries.
 func GetAlpha(p *Particle) uint8 {
 	if p == nil || p.MaxLife <= 0 {
 		return 0
@@ -410,12 +411,17 @@ func GetAlpha(p *Particle) uint8 {
 	// Fade in for first 10%, fade out for last 30%
 	if lifeRatio > 0.9 {
 		// Fade in: at 1.0 -> 0.0, at 0.9 -> 1.0
-		fadeIn := (1.0 - lifeRatio) / 0.1 // 0 to 1
+		t := (1.0 - lifeRatio) / 0.1 // 0 to 1
+		// Smoothstep: 3t² - 2t³ for C1 continuous transition
+		fadeIn := t * t * (3 - 2*t)
 		return uint8(float64(p.Color.A) * fadeIn)
 	}
 	if lifeRatio < 0.3 {
 		// Fade out: at 0.3 -> 1.0, at 0.0 -> 0.0
-		return uint8(float64(p.Color.A) * lifeRatio / 0.3)
+		t := lifeRatio / 0.3 // 0 to 1
+		// Smoothstep for smooth fade-out
+		fadeOut := t * t * (3 - 2*t)
+		return uint8(float64(p.Color.A) * fadeOut)
 	}
 	return p.Color.A
 }

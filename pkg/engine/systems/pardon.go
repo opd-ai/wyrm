@@ -311,7 +311,10 @@ func (s *PardonSystem) GrantPardon(w *ecs.World, entity ecs.Entity, pardonType P
 	if !canObtain {
 		return nil, &pardonError{reason}
 	}
-	comp, _ := w.GetComponent(entity, "Crime")
+	comp, ok := w.GetComponent(entity, "Crime")
+	if !ok {
+		return nil, &pardonError{"Entity no longer has criminal record"}
+	}
 	crime := comp.(*components.Crime)
 	// Create pardon record
 	s.nextPardonID++

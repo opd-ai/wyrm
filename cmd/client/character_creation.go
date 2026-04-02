@@ -354,6 +354,15 @@ func (cc *CharacterCreation) drawGenreSelection(screen *ebiten.Image, centerX, h
 	ebitenutil.DebugPrintAt(screen, subtitle, centerX-len(subtitle)*3, 70)
 
 	startY := 120
+	cc.drawGenreList(screen, centerX, startY)
+	cc.drawGenreDescription(screen, centerX, startY+len(cc.genres)*30+40)
+
+	hints := "UP/DOWN: Select | ENTER: Confirm"
+	ebitenutil.DebugPrintAt(screen, hints, centerX-len(hints)*3, h-30)
+}
+
+// drawGenreList renders the list of genre options.
+func (cc *CharacterCreation) drawGenreList(screen *ebiten.Image, centerX, startY int) {
 	for i, genre := range cc.genres {
 		label := genre.Name
 		if i == cc.selectedIndex {
@@ -362,36 +371,42 @@ func (cc *CharacterCreation) drawGenreSelection(screen *ebiten.Image, centerX, h
 		x := centerX - len(label)*3
 		ebitenutil.DebugPrintAt(screen, label, x, startY+i*30)
 	}
+}
 
-	// Draw selected genre description
-	if cc.selectedIndex < len(cc.genres) {
-		desc := cc.genres[cc.selectedIndex].Description
-		// Word wrap description
-		maxWidth := 60
-		y := startY + len(cc.genres)*30 + 40
-		for len(desc) > 0 {
-			line := desc
-			if len(line) > maxWidth {
-				line = line[:maxWidth]
-				// Find last space for clean break
-				for i := len(line) - 1; i > 0; i-- {
-					if line[i] == ' ' {
-						line = line[:i]
-						break
-					}
+// drawGenreDescription renders the word-wrapped description for the selected genre.
+func (cc *CharacterCreation) drawGenreDescription(screen *ebiten.Image, centerX, startY int) {
+	if cc.selectedIndex >= len(cc.genres) {
+		return
+	}
+	desc := cc.genres[cc.selectedIndex].Description
+	y := startY
+	for _, line := range wrapTextToWidth(desc, 60) {
+		ebitenutil.DebugPrintAt(screen, line, centerX-len(line)*3, y)
+		y += 15
+	}
+}
+
+// wrapTextToWidth wraps text to the given maximum width.
+func wrapTextToWidth(text string, maxWidth int) []string {
+	var lines []string
+	for len(text) > 0 {
+		line := text
+		if len(line) > maxWidth {
+			line = line[:maxWidth]
+			for i := len(line) - 1; i > 0; i-- {
+				if line[i] == ' ' {
+					line = line[:i]
+					break
 				}
 			}
-			ebitenutil.DebugPrintAt(screen, line, centerX-len(line)*3, y)
-			desc = desc[len(line):]
-			if len(desc) > 0 && desc[0] == ' ' {
-				desc = desc[1:]
-			}
-			y += 15
+		}
+		lines = append(lines, line)
+		text = text[len(line):]
+		if len(text) > 0 && text[0] == ' ' {
+			text = text[1:]
 		}
 	}
-
-	hints := "UP/DOWN: Select | ENTER: Confirm"
-	ebitenutil.DebugPrintAt(screen, hints, centerX-len(hints)*3, h-30)
+	return lines
 }
 
 // drawNameInput renders the name input screen.

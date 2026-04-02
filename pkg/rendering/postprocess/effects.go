@@ -366,13 +366,14 @@ func (b *Bloom) ApplyTo(src, dst *image.RGBA) {
 }
 
 // applyBloomToImage processes all eligible pixels and applies bloom effect.
+// Processes the entire image including edges by clamping the blur kernel.
 func (b *Bloom) applyBloomToImage(img, result *image.RGBA, bounds image.Rectangle, blurRadius int) {
-	for y := bounds.Min.Y + blurRadius; y < bounds.Max.Y-blurRadius; y++ {
-		for x := bounds.Min.X + blurRadius; x < bounds.Max.X-blurRadius; x++ {
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
 			c := img.RGBAAt(x, y)
 			brightness := b.calculateBrightness(c)
 			if brightness > b.Threshold {
-				b.applyBloomToSurrounding(result, x, y, blurRadius, brightness)
+				b.applyBloomToSurrounding(result, x, y, blurRadius, brightness, bounds)
 			}
 		}
 	}
@@ -384,10 +385,17 @@ func (b *Bloom) calculateBrightness(c color.RGBA) float64 {
 }
 
 // applyBloomToSurrounding adds bloom effect to pixels surrounding a bright pixel.
-func (b *Bloom) applyBloomToSurrounding(result *image.RGBA, centerX, centerY, blurRadius int, brightness float64) {
+// Clamps to image bounds to handle edge pixels correctly.
+func (b *Bloom) applyBloomToSurrounding(result *image.RGBA, centerX, centerY, blurRadius int, brightness float64, bounds image.Rectangle) {
 	for dy := -blurRadius; dy <= blurRadius; dy++ {
 		for dx := -blurRadius; dx <= blurRadius; dx++ {
-			b.addBloomToPixel(result, centerX+dx, centerY+dy, dx, dy, blurRadius, brightness)
+			nx := centerX + dx
+			ny := centerY + dy
+			// Clamp to bounds to handle edge pixels
+			if nx < bounds.Min.X || nx >= bounds.Max.X || ny < bounds.Min.Y || ny >= bounds.Max.Y {
+				continue
+			}
+			b.addBloomToPixel(result, nx, ny, dx, dy, blurRadius, brightness)
 		}
 	}
 }

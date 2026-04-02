@@ -318,6 +318,9 @@ func initializeTerrain(world *ecs.World, cfg *config.Config) {
 }
 
 // initializePuzzles generates dungeon puzzles using V-Series puzzle generator.
+// NOTE: Puzzle generation is currently a placeholder. Puzzle data is logged
+// for visibility but not wired to components until PuzzleSystem is implemented.
+// See ROADMAP.md Phase 3 for puzzle system integration plans.
 func initializePuzzles(world *ecs.World, cfg *config.Config) {
 	puzzleAdapter := adapters.NewPuzzleAdapter()
 
@@ -341,7 +344,8 @@ func initializePuzzles(world *ecs.World, cfg *config.Config) {
 			continue
 		}
 
-		_ = puzzle // Puzzle data available for future use
+		// Log puzzle info for debug visibility (data wiring deferred to Phase 3)
+		log.Printf("created puzzle entity %d: type=%s difficulty=%d", puzzleEntity, puzzle.Type, puzzle.Difficulty)
 	}
 
 	log.Printf("generated %d puzzles for genre %s", puzzleCount, cfg.Genre)
@@ -378,6 +382,9 @@ func initializeSkills(world *ecs.World, cfg *config.Config) {
 }
 
 // initializeEnvironment initializes environment features using V-Series generator.
+// NOTE: Environment generation is currently a placeholder. Object data is logged
+// for visibility but not wired to components until EnvironmentSystem is implemented.
+// See ROADMAP.md Phase 2 for environment system integration plans.
 func initializeEnvironment(world *ecs.World, cfg *config.Config) {
 	envAdapter := adapters.NewEnvironmentAdapter()
 
@@ -398,7 +405,8 @@ func initializeEnvironment(world *ecs.World, cfg *config.Config) {
 		}); err != nil {
 			continue
 		}
-		_ = obj // Object data available for future use (name, size, etc.)
+		// Log object info for debug visibility (data wiring deferred to Phase 2)
+		log.Printf("created env object entity %d: name=%s", objectEntity, obj.Name)
 	}
 
 	log.Printf("generated %d environment objects for genre %s", len(objects), cfg.Genre)
@@ -412,12 +420,11 @@ func initializeHousing(cfg *config.Config) *housing.HouseManager {
 }
 
 // initializePvP initializes PvP zones for the world.
+// NOTE: Zone boundaries are currently hardcoded. Procedural zone generation
+// using the world seed is deferred until PvP system is fully implemented.
+// See ROADMAP.md Phase 5 for PvP integration plans.
 func initializePvP(cfg *config.Config) *pvp.ZoneManager {
 	zm := pvp.NewZoneManager()
-
-	// Create default zones based on genre
-	seed := cfg.World.Seed
-	_ = seed // Available for procedural zone generation
 
 	// Safe zone around spawn
 	zm.AddZone(&pvp.Zone{
@@ -445,7 +452,7 @@ func initializePvP(cfg *config.Config) *pvp.ZoneManager {
 		LootDropRate: 0.1,
 	})
 
-	log.Printf("initialized PvP zones")
+	log.Printf("initialized PvP zones (seed=%d available for procedural zones)", cfg.World.Seed)
 	return zm
 }
 

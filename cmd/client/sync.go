@@ -61,28 +61,33 @@ func (s *StateSynchronizer) Stop() {
 
 // receiveLoop continuously reads messages from the server.
 func (s *StateSynchronizer) receiveLoop() {
+	// Use ticker for consistent polling interval instead of sleep
+	reconnectTicker := time.NewTicker(100 * time.Millisecond)
+	defer reconnectTicker.Stop()
+
 	for {
 		select {
 		case <-s.stopCh:
 			return
-		default:
+		case <-reconnectTicker.C:
 			if s.client == nil || !s.client.IsConnected() {
-				time.Sleep(100 * time.Millisecond)
+				// Wait for reconnection on next tick
 				continue
 			}
+		}
 
-			msgType, msg, err := s.client.ReceiveMessage()
-			if err != nil {
-				log.Printf("receive error: %v", err)
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
+		// Try to receive a message
+		msgType, msg, err := s.client.ReceiveMessage()
+		if err != nil {
+			log.Printf("receive error: %v", err)
+			// Error recovery handled by next ticker tick
+			continue
+		}
 
-			select {
-			case s.msgChan <- serverMessage{msgType: msgType, msg: msg}:
-			default:
-				log.Printf("message channel full, dropping message")
-			}
+		select {
+		case s.msgChan <- serverMessage{msgType: msgType, msg: msg}:
+		default:
+			log.Printf("message channel full, dropping message")
 		}
 	}
 }
@@ -161,16 +166,20 @@ func (s *StateSynchronizer) updateEntityState(es network.EntityState) {
 		s.remoteEntites[es.EntityID] = localEntity
 
 		// Add basic components
-		_ = s.world.AddComponent(localEntity, &components.Position{
+		if err := s.world.AddComponent(localEntity, &components.Position{
 			X:     float64(es.X),
 			Y:     float64(es.Y),
 			Z:     float64(es.Z),
 			Angle: float64(es.Angle),
-		})
-		_ = s.world.AddComponent(localEntity, &components.Health{
+		}); err != nil {
+			log.Printf("failed to add Position to entity %d: %v", es.EntityID, err)
+		}
+		if err := s.world.AddComponent(localEntity, &components.Health{
 			Current: float64(es.Health),
 			Max:     100.0,
-		})
+		}); err != nil {
+			log.Printf("failed to add Health to entity %d: %v", es.EntityID, err)
+		}
 		return
 	}
 

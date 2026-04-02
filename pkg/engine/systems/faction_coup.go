@@ -407,34 +407,37 @@ func (s *FactionCoupSystem) getActiveCoupWithMembership(w *ecs.World, playerEnti
 
 // SupportCoup allows a player to support an active coup.
 func (s *FactionCoupSystem) SupportCoup(w *ecs.World, playerEntity ecs.Entity, factionID string) bool {
-	coup, rank := s.getActiveCoupWithMembership(w, playerEntity, factionID)
-	if coup == nil {
-		return false
-	}
-
-	supportBonus := 0.02 + float64(rank)*0.01
-	coup.SupportLevel += supportBonus
-	if coup.SupportLevel > 1.0 {
-		coup.SupportLevel = 1.0
-	}
-
-	return true
+	return s.adjustCoupLevel(w, playerEntity, factionID, true)
 }
 
 // OpposeCoup allows a player to oppose an active coup.
 func (s *FactionCoupSystem) OpposeCoup(w *ecs.World, playerEntity ecs.Entity, factionID string) bool {
+	return s.adjustCoupLevel(w, playerEntity, factionID, false)
+}
+
+// adjustCoupLevel modifies either the support or resistance level of a coup based on the
+// player's faction rank. The isSupport parameter determines which level to adjust.
+func (s *FactionCoupSystem) adjustCoupLevel(w *ecs.World, playerEntity ecs.Entity, factionID string, isSupport bool) bool {
 	coup, rank := s.getActiveCoupWithMembership(w, playerEntity, factionID)
 	if coup == nil {
 		return false
 	}
 
-	resistanceBonus := 0.02 + float64(rank)*0.01
-	coup.ResistanceLevel += resistanceBonus
-	if coup.ResistanceLevel > 1.0 {
-		coup.ResistanceLevel = 1.0
+	bonus := 0.02 + float64(rank)*0.01
+	if isSupport {
+		coup.SupportLevel = clampToOne(coup.SupportLevel + bonus)
+	} else {
+		coup.ResistanceLevel = clampToOne(coup.ResistanceLevel + bonus)
 	}
-
 	return true
+}
+
+// clampToOne clamps a value to a maximum of 1.0.
+func clampToOne(v float64) float64 {
+	if v > 1.0 {
+		return 1.0
+	}
+	return v
 }
 
 // GetCoup returns the active coup for a faction, or nil if none.

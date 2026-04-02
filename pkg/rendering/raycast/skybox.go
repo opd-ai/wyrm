@@ -263,12 +263,13 @@ func (s *Skybox) updateCelestialPositions() {
 }
 
 // blendColors linearly interpolates between two colors.
+// Uses math.Round for accurate uint8 conversion to prevent ±1 LSB color errors.
 func (s *Skybox) blendColors(a, b color.RGBA, t float64) color.RGBA {
 	t = math.Max(0, math.Min(1, t))
 	return color.RGBA{
-		R: uint8(float64(a.R)*(1-t) + float64(b.R)*t),
-		G: uint8(float64(a.G)*(1-t) + float64(b.G)*t),
-		B: uint8(float64(a.B)*(1-t) + float64(b.B)*t),
+		R: uint8(math.Round(float64(a.R)*(1-t) + float64(b.R)*t)),
+		G: uint8(math.Round(float64(a.G)*(1-t) + float64(b.G)*t)),
+		B: uint8(math.Round(float64(a.B)*(1-t) + float64(b.B)*t)),
 		A: 255,
 	}
 }

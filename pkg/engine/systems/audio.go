@@ -176,7 +176,9 @@ func (s *AudioSystem) processSpatialAudio(w *ecs.World, listenerPos [2]float64) 
 
 		// Linear falloff for now (could be improved to inverse-square)
 		attenuation := LinearFalloffBase - (dist / source.Range)
-		_ = source.Volume * attenuation // Calculated volume for playback
+		// TODO: Apply attenuated volume (source.Volume * attenuation) to audio engine
+		// when actual audio playback is implemented
+		source.EffectiveVolume = source.Volume * attenuation
 	}
 }
 

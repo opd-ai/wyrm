@@ -366,49 +366,40 @@ func (s *GuildHallSystem) GetMemberRank(guildID string, memberID uint64) GuildRa
 
 // PromoteMember promotes a member to a higher rank.
 func (s *GuildHallSystem) PromoteMember(guildID string, promoterID, targetID uint64) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if !s.hasPermissionLocked(guildID, promoterID, "manage_ranks") {
-		return fmt.Errorf("insufficient rank to promote members")
-	}
-
-	promoterRank := s.MemberRanks[guildID][promoterID]
-	currentRank := s.MemberRanks[guildID][targetID]
-
-	if currentRank >= promoterRank {
-		return fmt.Errorf("cannot promote to equal or higher rank")
-	}
-
-	if currentRank >= GuildRankCouncil {
-		return fmt.Errorf("cannot promote beyond council")
-	}
-
-	s.MemberRanks[guildID][targetID] = currentRank + 1
-	return nil
+	return s.changeRank(guildID, promoterID, targetID, 1, "promote")
 }
 
 // DemoteMember demotes a member to a lower rank.
 func (s *GuildHallSystem) DemoteMember(guildID string, demoterID, targetID uint64) error {
+	return s.changeRank(guildID, demoterID, targetID, -1, "demote")
+}
+
+// changeRank adjusts a member's rank by the given delta (+1 for promote, -1 for demote).
+// It validates permissions and rank boundaries before applying the change.
+func (s *GuildHallSystem) changeRank(guildID string, actorID, targetID uint64, delta int, action string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if !s.hasPermissionLocked(guildID, demoterID, "manage_ranks") {
-		return fmt.Errorf("insufficient rank to demote members")
+	if !s.hasPermissionLocked(guildID, actorID, "manage_ranks") {
+		return fmt.Errorf("insufficient rank to %s members", action)
 	}
 
-	demoterRank := s.MemberRanks[guildID][demoterID]
+	actorRank := s.MemberRanks[guildID][actorID]
 	currentRank := s.MemberRanks[guildID][targetID]
 
-	if currentRank >= demoterRank {
-		return fmt.Errorf("cannot demote equal or higher rank")
+	if currentRank >= actorRank {
+		return fmt.Errorf("cannot %s equal or higher rank", action)
 	}
 
-	if currentRank <= GuildRankMember {
+	// Check boundaries
+	if delta > 0 && currentRank >= GuildRankCouncil {
+		return fmt.Errorf("cannot promote beyond council")
+	}
+	if delta < 0 && currentRank <= GuildRankMember {
 		return fmt.Errorf("cannot demote below member")
 	}
 
-	s.MemberRanks[guildID][targetID] = currentRank - 1
+	s.MemberRanks[guildID][targetID] = currentRank + GuildRank(delta)
 	return nil
 }
 

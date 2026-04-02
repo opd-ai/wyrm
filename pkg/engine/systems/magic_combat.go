@@ -192,8 +192,8 @@ func (s *MagicSystem) consumeSpellResources(mana *components.Mana, spell *compon
 func (s *MagicSystem) spawnAoEProjectile(w *ecs.World, caster ecs.Entity, targetX, targetY, targetZ float64, spell *components.Spell, projectileSystem *ProjectileSystem) {
 	proj := projectileSystem.SpawnProjectile(w, caster, targetX, targetY, targetZ, spell.Magnitude, spell.ProjectileSpeed, "spell")
 	if proj != 0 && spell.AreaOfEffect > 0 {
-		projComp, _ := w.GetComponent(proj, "Projectile")
-		if projComp != nil {
+		projComp, ok := w.GetComponent(proj, "Projectile")
+		if ok {
 			projectile := projComp.(*components.Projectile)
 			projectile.HitRadius = spell.AreaOfEffect
 			projectile.PierceCount = 0 // AoE hits all in radius
@@ -238,8 +238,8 @@ func (s *MagicSystem) castProjectileSpell(w *ecs.World, caster, target ecs.Entit
 
 	proj := projectileSystem.SpawnProjectile(w, caster, targetPos.X, targetPos.Y, targetPos.Z, spell.Magnitude, spell.ProjectileSpeed, "spell")
 	if proj != 0 && spell.AreaOfEffect > 0 {
-		projComp, _ := w.GetComponent(proj, "Projectile")
-		if projComp != nil {
+		projComp, ok := w.GetComponent(proj, "Projectile")
+		if ok {
 			projectile := projComp.(*components.Projectile)
 			projectile.HitRadius = spell.AreaOfEffect
 			projectile.PierceCount = 0

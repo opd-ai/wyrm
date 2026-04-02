@@ -142,55 +142,44 @@ func Lerp(a, b, t float64) float64 {
 	return a + t*(b-a)
 }
 
-// FBM generates fractal Brownian motion using value noise.
-func FBM(x, y float64, octaves int, persistence, lacunarity float64, seed int64) float64 {
+// NoiseFunc2D is a function type for 2D noise generators.
+type NoiseFunc2D func(x, y float64, seed int64) float64
+
+// fbmCore is the shared fractal Brownian motion implementation. It accumulates
+// noise samples across octaves using the provided noise function, applying
+// persistence (amplitude decay) and lacunarity (frequency growth) per octave.
+func fbmCore(x, y float64, octaves int, persistence, lacunarity float64, seed int64, noiseFn NoiseFunc2D) float64 {
 	total := 0.0
 	amplitude := 1.0
 	frequency := 1.0
 	maxValue := 0.0
 
 	for i := 0; i < octaves; i++ {
-		total += Noise2DSigned(x*frequency, y*frequency, seed+int64(i)) * amplitude
+		total += noiseFn(x*frequency, y*frequency, seed+int64(i)) * amplitude
 		maxValue += amplitude
 		amplitude *= persistence
 		frequency *= lacunarity
 	}
 
 	return total / maxValue
+}
+
+// FBM generates fractal Brownian motion using value noise.
+func FBM(x, y float64, octaves int, persistence, lacunarity float64, seed int64) float64 {
+	return fbmCore(x, y, octaves, persistence, lacunarity, seed, Noise2DSigned)
 }
 
 // GradientFBM generates fractal Brownian motion using gradient noise.
 func GradientFBM(x, y float64, octaves int, persistence, lacunarity float64, seed int64) float64 {
-	total := 0.0
-	amplitude := 1.0
-	frequency := 1.0
-	maxValue := 0.0
-
-	for i := 0; i < octaves; i++ {
-		total += GradientNoise2D(x*frequency, y*frequency, seed+int64(i)) * amplitude
-		maxValue += amplitude
-		amplitude *= persistence
-		frequency *= lacunarity
-	}
-
-	return total / maxValue
+	return fbmCore(x, y, octaves, persistence, lacunarity, seed, GradientNoise2D)
 }
 
 // Turbulence generates turbulent noise (absolute value FBM).
 func Turbulence(x, y float64, octaves int, persistence, lacunarity float64, seed int64) float64 {
-	total := 0.0
-	amplitude := 1.0
-	frequency := 1.0
-	maxValue := 0.0
-
-	for i := 0; i < octaves; i++ {
-		total += math.Abs(Noise2DSigned(x*frequency, y*frequency, seed+int64(i))) * amplitude
-		maxValue += amplitude
-		amplitude *= persistence
-		frequency *= lacunarity
+	absNoise := func(x, y float64, seed int64) float64 {
+		return math.Abs(Noise2DSigned(x, y, seed))
 	}
-
-	return total / maxValue
+	return fbmCore(x, y, octaves, persistence, lacunarity, seed, absNoise)
 }
 
 // Ridged generates ridged multifractal noise.

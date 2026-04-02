@@ -1,5 +1,6 @@
-//go:build !noebiten
+//go:build noebiten
 
+// Test file for UIFramebuffer logic (noebiten build tag for CI).
 package main
 
 import (

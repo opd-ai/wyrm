@@ -34,6 +34,7 @@ type FactionMembership struct {
 }
 
 // FactionMemberInfo represents a player's membership in a single faction.
+// NOTE: This is a helper struct used within FactionMembership, not an ECS component.
 type FactionMemberInfo struct {
 	FactionID       string
 	Rank            int             // 0 = not a member, 1-10 = member ranks
@@ -88,6 +89,7 @@ type FactionTerritory struct {
 func (f *FactionTerritory) Type() string { return "FactionTerritory" }
 
 // Point2D represents a 2D point for territory polygons.
+// NOTE: This is a helper struct used within components, not an ECS component.
 type Point2D struct {
 	X, Y float64
 }
@@ -148,12 +150,14 @@ type NPCPathfinding struct {
 func (n *NPCPathfinding) Type() string { return "NPCPathfinding" }
 
 // ActivityLocation represents a position for a scheduled activity.
+// NOTE: This is a helper struct used within NPCPathfinding, not an ECS component.
 type ActivityLocation struct {
 	X, Y       float64
 	LocationID string // Building or POI identifier
 }
 
 // Waypoint represents a point along a path.
+// NOTE: This is a helper struct used within NPCPathfinding, not an ECS component.
 type Waypoint struct {
 	X, Y float64
 }
@@ -271,6 +275,7 @@ type MountInfo struct {
 func (mi *MountInfo) Type() string { return "MountInfo" }
 
 // VehicleArchetype defines a vehicle template with genre-specific properties.
+// NOTE: This is a helper struct used for vehicle configuration, not an ECS component.
 type VehicleArchetype struct {
 	ID          string
 	Name        string
@@ -443,6 +448,7 @@ type Skills struct {
 func (s *Skills) Type() string { return "Skills" }
 
 // SkillSchool defines a category of related skills.
+// NOTE: This is a helper struct used for skill configuration, not an ECS component.
 type SkillSchool struct {
 	ID          string
 	Name        string   // Genre-specific display name
@@ -551,6 +557,8 @@ type AudioSource struct {
 	Looping bool
 	// Playing indicates whether the sound is currently active.
 	Playing bool
+	// EffectiveVolume is the computed volume after spatial attenuation.
+	EffectiveVolume float64
 }
 
 // Type returns the component type identifier for AudioSource.
@@ -747,6 +755,7 @@ type Equipment struct {
 }
 
 // EquipmentSlot represents a single equipment slot.
+// NOTE: This is a helper struct used within Equipment, not an ECS component.
 type EquipmentSlot struct {
 	ItemID        string
 	Name          string
@@ -909,6 +918,7 @@ type Spellbook struct {
 func (sb *Spellbook) Type() string { return "Spellbook" }
 
 // MemoryEvent represents a single interaction event in NPC memory.
+// NOTE: This is a helper struct used within NPCMemory, not an ECS component.
 type MemoryEvent struct {
 	// EventType categorizes the interaction ("gift", "attack", "dialog", "quest_complete", "theft").
 	EventType string
@@ -938,6 +948,7 @@ type NPCMemory struct {
 func (m *NPCMemory) Type() string { return "NPCMemory" }
 
 // Relationship tracks a social bond between two entities.
+// NOTE: This is a helper struct used within NPCRelationships, not an ECS component.
 type Relationship struct {
 	// TargetEntity is the entity this relationship is with.
 	TargetEntity uint64
@@ -992,6 +1003,7 @@ type Interior struct {
 }
 
 // Room defines a single room within an interior.
+// NOTE: This is a helper struct used within Interior, not an ECS component.
 type Room struct {
 	// ID uniquely identifies this room within the interior.
 	ID string
@@ -1089,6 +1101,7 @@ type GovernmentBuilding struct {
 func (g *GovernmentBuilding) Type() string { return "GovernmentBuilding" }
 
 // GossipItem represents a piece of gossip that can spread through the NPC network.
+// NOTE: This is a helper struct used within GossipNetwork, not an ECS component.
 type GossipItem struct {
 	// ID uniquely identifies this gossip.
 	ID string
@@ -1353,6 +1366,7 @@ type CityEvent struct {
 func (c *CityEvent) Type() string { return "CityEvent" }
 
 // CityEventEffects contains gameplay modifiers during an event.
+// NOTE: This is a helper struct used within CityEvent, not an ECS component.
 type CityEventEffects struct {
 	// ShopPriceMultiplier affects shop prices (1.0 = normal).
 	ShopPriceMultiplier float64
@@ -1369,6 +1383,7 @@ type CityEventEffects struct {
 }
 
 // CityEventRequirements specifies participation requirements.
+// NOTE: This is a helper struct used within CityEvent, not an ECS component.
 type CityEventRequirements struct {
 	// MinFactionReputation required to participate.
 	MinFactionReputation float64
@@ -1424,6 +1439,7 @@ type NPCOccupation struct {
 func (o *NPCOccupation) Type() string { return "NPCOccupation" }
 
 // OccupationItem represents an item in an NPC's work inventory.
+// NOTE: This is a helper struct used within NPCOccupation, not an ECS component.
 type OccupationItem struct {
 	// ItemID is the item type identifier.
 	ItemID string
@@ -1455,6 +1471,7 @@ type DialogState struct {
 func (d *DialogState) Type() string { return "DialogState" }
 
 // DialogOption represents a single dialog choice.
+// NOTE: This is a helper struct used within DialogState, not an ECS component.
 type DialogOption struct {
 	// ID uniquely identifies this option.
 	ID string
@@ -1473,6 +1490,7 @@ type DialogOption struct {
 }
 
 // DialogRequirements specifies conditions for a dialog option.
+// NOTE: This is a helper struct used within DialogOption, not an ECS component.
 type DialogRequirements struct {
 	// MinReputation is minimum faction reputation needed.
 	MinReputation float64
@@ -1489,6 +1507,7 @@ type DialogRequirements struct {
 }
 
 // DialogConsequences defines effects of selecting a dialog option.
+// NOTE: This is a helper struct used within DialogOption, not an ECS component.
 type DialogConsequences struct {
 	// ReputationChange adjusts faction reputation.
 	ReputationChange float64
@@ -1523,6 +1542,7 @@ type DialogConsequences struct {
 }
 
 // DialogExchange records a single exchange in dialog history.
+// NOTE: This is a helper struct used within DialogState, not an ECS component.
 type DialogExchange struct {
 	// Speaker is the entity ID who spoke.
 	Speaker uint64
@@ -1558,6 +1578,7 @@ type DialogMemory struct {
 func (m *DialogMemory) Type() string { return "DialogMemory" }
 
 // DialogMemoryEvent records a significant dialog outcome.
+// NOTE: This is a helper struct used within DialogMemory, not an ECS component.
 type DialogMemoryEvent struct {
 	// EventType categorizes the event (quest_given, insulted, helped, etc).
 	EventType string
@@ -1570,6 +1591,7 @@ type DialogMemoryEvent struct {
 }
 
 // DialogPromise tracks a promise made during conversation.
+// NOTE: This is a helper struct used within DialogMemory, not an ECS component.
 type DialogPromise struct {
 	// PromiseID uniquely identifies this promise.
 	PromiseID string

@@ -135,45 +135,52 @@ func (is *InteractionSystem) findInteractableInRay(world *ecs.World, playerPos *
 
 // getEntityInteractionType determines what kind of interaction an entity supports.
 func (is *InteractionSystem) getEntityInteractionType(world *ecs.World, entity ecs.Entity) InteractionType {
-	// Check for NPC (has Schedule or DialogState)
-	if _, ok := world.GetComponent(entity, "Schedule"); ok {
+	if is.isNPCEntity(world, entity) {
 		return InteractionNPC
 	}
-	if _, ok := world.GetComponent(entity, "DialogState"); ok {
-		return InteractionNPC
+	if is.isVehicleEntity(world, entity) {
+		return InteractionVehicle
 	}
-
-	// Check for vehicle (has Vehicle and VehicleState components)
-	if _, ok := world.GetComponent(entity, "Vehicle"); ok {
-		if _, ok := world.GetComponent(entity, "VehicleState"); ok {
-			return InteractionVehicle
-		}
-	}
-
-	// Check for mount (has mountable marker - Position + no Vehicle but entity is mount type)
-	// Mounts are managed by MountSystem, check for presence
 	if _, ok := world.GetComponent(entity, "MountInfo"); ok {
 		return InteractionMount
 	}
-
-	// Check for workbench
 	if _, ok := world.GetComponent(entity, "Workbench"); ok {
 		return InteractionWorkbench
 	}
+	return is.getInventoryInteractionType(world, entity)
+}
 
-	// Check for inventory (items that can be picked up)
-	if inv, ok := world.GetComponent(entity, "Inventory"); ok {
-		inventory := inv.(*components.Inventory)
-		// Loose items have items but low/no capacity (containers have capacity)
-		if len(inventory.Items) > 0 && inventory.Capacity <= len(inventory.Items) {
-			return InteractionItem
-		}
-		// Containers have capacity
-		if inventory.Capacity > len(inventory.Items) {
-			return InteractionContainer
-		}
+// isNPCEntity checks if the entity is an NPC.
+func (is *InteractionSystem) isNPCEntity(world *ecs.World, entity ecs.Entity) bool {
+	if _, ok := world.GetComponent(entity, "Schedule"); ok {
+		return true
 	}
+	_, ok := world.GetComponent(entity, "DialogState")
+	return ok
+}
 
+// isVehicleEntity checks if the entity is a vehicle.
+func (is *InteractionSystem) isVehicleEntity(world *ecs.World, entity ecs.Entity) bool {
+	if _, ok := world.GetComponent(entity, "Vehicle"); ok {
+		_, ok := world.GetComponent(entity, "VehicleState")
+		return ok
+	}
+	return false
+}
+
+// getInventoryInteractionType determines interaction type based on inventory.
+func (is *InteractionSystem) getInventoryInteractionType(world *ecs.World, entity ecs.Entity) InteractionType {
+	inv, ok := world.GetComponent(entity, "Inventory")
+	if !ok {
+		return InteractionNone
+	}
+	inventory := inv.(*components.Inventory)
+	if len(inventory.Items) > 0 && inventory.Capacity <= len(inventory.Items) {
+		return InteractionItem
+	}
+	if inventory.Capacity > len(inventory.Items) {
+		return InteractionContainer
+	}
 	return InteractionNone
 }
 

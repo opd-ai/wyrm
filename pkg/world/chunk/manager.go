@@ -1109,18 +1109,13 @@ func (cm *Manager) LoadedCount() int {
 // BiomeBlendWidth is the number of cells from chunk edge where blending occurs.
 const BiomeBlendWidth = 32
 
-// GetBlendedBiomeValue returns a biome value that blends with neighboring chunks.
-// This creates smooth biome transitions at chunk boundaries.
-func (cm *Manager) GetBlendedBiomeValue(chunkX, chunkY, localX, localY int) float64 {
-	chunk := cm.GetChunk(chunkX, chunkY)
-	if chunk == nil {
-		return 0.5
-	}
+// neighborValueFunc retrieves a value from a neighboring chunk at given coordinates.
+type neighborValueFunc func(chunkX, chunkY, localX, localY int) float64
 
-	// Get the base biome value for this cell
-	baseBiome := chunk.GetBiomeValue(localX, localY)
-
-	// Check distance from each chunk edge
+// blendValueAtEdges performs edge-blending for any chunk value type using the provided
+// neighbor lookup function. This consolidates the common blending algorithm used by
+// biome, height, and similar per-cell values that need smooth chunk transitions.
+func (cm *Manager) blendValueAtEdges(chunkX, chunkY, localX, localY int, baseValue, defaultValue float64, getNeighbor neighborValueFunc) float64 {
 	distFromLeft := localX
 	distFromRight := cm.ChunkSize - 1 - localX
 	distFromTop := localY
@@ -1129,42 +1124,52 @@ func (cm *Manager) GetBlendedBiomeValue(chunkX, chunkY, localX, localY int) floa
 	// If not in blend zone, return base value
 	if distFromLeft >= BiomeBlendWidth && distFromRight >= BiomeBlendWidth &&
 		distFromTop >= BiomeBlendWidth && distFromBottom >= BiomeBlendWidth {
-		return baseBiome
+		return baseValue
 	}
 
-	// Calculate blend factors for each direction
-	blendedBiome := baseBiome
+	blendedValue := baseValue
 	totalWeight := 1.0
 
 	// Blend with left neighbor
 	if distFromLeft < BiomeBlendWidth {
 		weight := smoothstep(float64(BiomeBlendWidth-distFromLeft) / float64(BiomeBlendWidth))
-		neighborBiome := cm.getNeighborBiomeValue(chunkX-1, chunkY, cm.ChunkSize-1-distFromLeft, localY)
-		blendedBiome, totalWeight = blendValues(blendedBiome, neighborBiome, totalWeight, weight)
+		neighborValue := getNeighbor(chunkX-1, chunkY, cm.ChunkSize-1-distFromLeft, localY)
+		blendedValue, totalWeight = blendValues(blendedValue, neighborValue, totalWeight, weight)
 	}
 
 	// Blend with right neighbor
 	if distFromRight < BiomeBlendWidth {
 		weight := smoothstep(float64(BiomeBlendWidth-distFromRight) / float64(BiomeBlendWidth))
-		neighborBiome := cm.getNeighborBiomeValue(chunkX+1, chunkY, BiomeBlendWidth-1-distFromRight, localY)
-		blendedBiome, totalWeight = blendValues(blendedBiome, neighborBiome, totalWeight, weight)
+		neighborValue := getNeighbor(chunkX+1, chunkY, BiomeBlendWidth-1-distFromRight, localY)
+		blendedValue, totalWeight = blendValues(blendedValue, neighborValue, totalWeight, weight)
 	}
 
 	// Blend with top neighbor
 	if distFromTop < BiomeBlendWidth {
 		weight := smoothstep(float64(BiomeBlendWidth-distFromTop) / float64(BiomeBlendWidth))
-		neighborBiome := cm.getNeighborBiomeValue(chunkX, chunkY-1, localX, cm.ChunkSize-1-distFromTop)
-		blendedBiome, totalWeight = blendValues(blendedBiome, neighborBiome, totalWeight, weight)
+		neighborValue := getNeighbor(chunkX, chunkY-1, localX, cm.ChunkSize-1-distFromTop)
+		blendedValue, totalWeight = blendValues(blendedValue, neighborValue, totalWeight, weight)
 	}
 
 	// Blend with bottom neighbor
 	if distFromBottom < BiomeBlendWidth {
 		weight := smoothstep(float64(BiomeBlendWidth-distFromBottom) / float64(BiomeBlendWidth))
-		neighborBiome := cm.getNeighborBiomeValue(chunkX, chunkY+1, localX, BiomeBlendWidth-1-distFromBottom)
-		blendedBiome, totalWeight = blendValues(blendedBiome, neighborBiome, totalWeight, weight)
+		neighborValue := getNeighbor(chunkX, chunkY+1, localX, BiomeBlendWidth-1-distFromBottom)
+		blendedValue, totalWeight = blendValues(blendedValue, neighborValue, totalWeight, weight)
 	}
 
-	return blendedBiome / totalWeight
+	return blendedValue / totalWeight
+}
+
+// GetBlendedBiomeValue returns a biome value that blends with neighboring chunks.
+// This creates smooth biome transitions at chunk boundaries.
+func (cm *Manager) GetBlendedBiomeValue(chunkX, chunkY, localX, localY int) float64 {
+	chunk := cm.GetChunk(chunkX, chunkY)
+	if chunk == nil {
+		return 0.5
+	}
+	baseBiome := chunk.GetBiomeValue(localX, localY)
+	return cm.blendValueAtEdges(chunkX, chunkY, localX, localY, baseBiome, 0.5, cm.getNeighborBiomeValue)
 }
 
 // getNeighborBiomeValue retrieves biome value from a neighboring chunk.
@@ -1198,48 +1203,8 @@ func (cm *Manager) GetBlendedHeight(chunkX, chunkY, localX, localY int) float64 
 	if chunk == nil {
 		return 0
 	}
-
 	baseHeight := chunk.GetHeight(localX, localY)
-
-	// Same blend logic as biome
-	distFromLeft := localX
-	distFromRight := cm.ChunkSize - 1 - localX
-	distFromTop := localY
-	distFromBottom := cm.ChunkSize - 1 - localY
-
-	if distFromLeft >= BiomeBlendWidth && distFromRight >= BiomeBlendWidth &&
-		distFromTop >= BiomeBlendWidth && distFromBottom >= BiomeBlendWidth {
-		return baseHeight
-	}
-
-	blendedHeight := baseHeight
-	totalWeight := 1.0
-
-	if distFromLeft < BiomeBlendWidth {
-		weight := smoothstep(float64(BiomeBlendWidth-distFromLeft) / float64(BiomeBlendWidth))
-		neighborHeight := cm.getNeighborHeight(chunkX-1, chunkY, cm.ChunkSize-1-distFromLeft, localY)
-		blendedHeight, totalWeight = blendValues(blendedHeight, neighborHeight, totalWeight, weight)
-	}
-
-	if distFromRight < BiomeBlendWidth {
-		weight := smoothstep(float64(BiomeBlendWidth-distFromRight) / float64(BiomeBlendWidth))
-		neighborHeight := cm.getNeighborHeight(chunkX+1, chunkY, BiomeBlendWidth-1-distFromRight, localY)
-		blendedHeight, totalWeight = blendValues(blendedHeight, neighborHeight, totalWeight, weight)
-	}
-
-	if distFromTop < BiomeBlendWidth {
-		weight := smoothstep(float64(BiomeBlendWidth-distFromTop) / float64(BiomeBlendWidth))
-		neighborHeight := cm.getNeighborHeight(chunkX, chunkY-1, localX, cm.ChunkSize-1-distFromTop)
-		blendedHeight, totalWeight = blendValues(blendedHeight, neighborHeight, totalWeight, weight)
-	}
-
-	if distFromBottom < BiomeBlendWidth {
-		weight := smoothstep(float64(BiomeBlendWidth-distFromBottom) / float64(BiomeBlendWidth))
-		neighborHeight := cm.getNeighborHeight(chunkX, chunkY+1, localX, BiomeBlendWidth-1-distFromBottom)
-		blendedHeight, totalWeight = blendValues(blendedHeight, neighborHeight, totalWeight, weight)
-	}
-
-	return blendedHeight / totalWeight
+	return cm.blendValueAtEdges(chunkX, chunkY, localX, localY, baseHeight, 0.5, cm.getNeighborHeight)
 }
 
 // getNeighborHeight retrieves height value from a neighboring chunk.

@@ -796,8 +796,8 @@ func (s *BriberySystem) BribeWitnessesNearby(w *ecs.World, criminal ecs.Entity, 
 		if result == BribeResultSuccess {
 			successes++
 			// Mark witness as bribed (would set CanReport = false temporarily)
-			witnessComp, _ := w.GetComponent(e, "Witness")
-			if witnessComp != nil {
+			witnessComp, ok := w.GetComponent(e, "Witness")
+			if ok {
 				witness := witnessComp.(*components.Witness)
 				witness.CanReport = false
 			}

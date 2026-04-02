@@ -7,6 +7,7 @@ import (
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/opd-ai/wyrm/pkg/rendering/sprite"
 )
 
 // Draw renders the current view to the framebuffer using DDA raycasting.
@@ -101,55 +102,62 @@ func (r *Renderer) drawSpriteToFramebuffer(entity *SpriteEntity) {
 
 // drawSpriteColumnToFramebuffer draws a single sprite column to the framebuffer.
 func (r *Renderer) drawSpriteColumnToFramebuffer(screenX int, ctx *SpriteDrawContext) {
-	// Bounds check
-	if screenX < 0 || screenX >= r.Width {
+	if !r.isValidSpriteColumn(screenX, ctx) {
 		return
 	}
 
-	// Z-buffer test: skip if this column is behind a wall
-	// Use > (not >=) to avoid z-fighting when sprites are exactly at wall distance
-	if ctx.Distance > r.GetZBufferAt(screenX) {
-		return
-	}
-
-	// Calculate texture X coordinate
-	texX := (screenX - ctx.StartX) * ctx.SpriteWidth / ctx.ScreenSpriteWidth
+	texX := r.calculateSpriteTexX(screenX, ctx)
 	if texX < 0 || texX >= ctx.SpriteWidth {
 		return
 	}
 
-	// Draw each pixel in the column
+	r.drawSpriteColumnPixels(screenX, texX, ctx)
+}
+
+// isValidSpriteColumn checks if the column should be drawn.
+func (r *Renderer) isValidSpriteColumn(screenX int, ctx *SpriteDrawContext) bool {
+	if screenX < 0 || screenX >= r.Width {
+		return false
+	}
+	return ctx.Distance <= r.GetZBufferAt(screenX)
+}
+
+// calculateSpriteTexX computes the texture X coordinate for a screen column.
+func (r *Renderer) calculateSpriteTexX(screenX int, ctx *SpriteDrawContext) int {
+	return (screenX - ctx.StartX) * ctx.SpriteWidth / ctx.ScreenSpriteWidth
+}
+
+// drawSpriteColumnPixels renders all pixels in a sprite column.
+func (r *Renderer) drawSpriteColumnPixels(screenX, texX int, ctx *SpriteDrawContext) {
 	for screenY := ctx.StartY; screenY < ctx.EndY; screenY++ {
 		if screenY < 0 || screenY >= r.Height {
 			continue
 		}
 
-		// Calculate texture Y coordinate
 		texY := (screenY - ctx.StartY) * ctx.SpriteHeight / ctx.ScreenSpriteHeight
 		if texY < 0 || texY >= ctx.SpriteHeight {
 			continue
 		}
 
-		// Get pixel from sprite
 		pixel := GetSpritePixel(ctx.CurrentFrame, texX, texY, ctx.FlipH)
 		if pixel.A == 0 {
 			continue
 		}
 
-		// Apply fog and opacity
-		pixel = r.ApplyFogToColor(pixel, ctx.Distance)
-		if ctx.Opacity < 1.0 {
-			pixel = ApplyOpacity(pixel, ctx.Opacity)
+		pixel = r.applyPixelEffects(pixel, ctx)
+		if pixel.A > 0 {
+			r.BlendPixel(screenX, screenY, pixel.R, pixel.G, pixel.B, pixel.A)
 		}
-
-		// Skip if completely transparent
-		if pixel.A == 0 {
-			continue
-		}
-
-		// Draw to framebuffer with alpha blending
-		r.BlendPixel(screenX, screenY, pixel.R, pixel.G, pixel.B, pixel.A)
 	}
+}
+
+// applyPixelEffects applies fog and opacity to a pixel.
+func (r *Renderer) applyPixelEffects(pixel sprite.PixelRGBA, ctx *SpriteDrawContext) sprite.PixelRGBA {
+	pixel = r.ApplyFogToColor(pixel, ctx.Distance)
+	if ctx.Opacity < 1.0 {
+		pixel = ApplyOpacity(pixel, ctx.Opacity)
+	}
+	return pixel
 }
 
 // drawFloorCeiling renders textured floor and ceiling using raycasting.
@@ -167,8 +175,11 @@ func (r *Renderer) drawFloorCeiling() {
 		return
 	}
 
+	// Hoist FOV ray direction calculation out of loop - depends only on PlayerA and FOV
+	// which are constant for the frame. Avoids ~360 redundant trig calls per frame.
+	rayDirX0, rayDirY0, rayDirX1, rayDirY1 := r.calculateFOVRayDirections()
+
 	for y := startY; y < r.Height; y++ {
-		rayDirX0, rayDirY0, rayDirX1, rayDirY1 := r.calculateFOVRayDirections()
 		rowDistance := r.calculateRowDistance(y, halfHeight)
 		floorStepX, floorStepY := r.calculateFloorStep(rowDistance, rayDirX0, rayDirY0, rayDirX1, rayDirY1)
 		floorX, floorY := r.calculateFloorStart(rowDistance, rayDirX0, rayDirY0)

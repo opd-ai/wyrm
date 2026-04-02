@@ -322,36 +322,36 @@ func (im *Manager) RemoveListener(listener Listener) {
 
 // OnKeyPressed should be called when a key is pressed.
 func (im *Manager) OnKeyPressed(key string) {
-	im.mu.Lock()
-	key = strings.ToUpper(key)
-	if im.pressedKeys[key] {
-		im.mu.Unlock()
-		return // Already pressed, ignore repeat
-	}
-	im.pressedKeys[key] = true
-	actions := make([]Action, len(im.keyToActions[key]))
-	copy(actions, im.keyToActions[key])
-	listeners := make([]Listener, len(im.listeners))
-	copy(listeners, im.listeners)
-	im.mu.Unlock()
-
-	// Notify listeners outside the lock
-	for _, action := range actions {
-		for _, listener := range listeners {
-			listener.OnActionPressed(action)
-		}
-	}
+	im.handleKeyEvent(key, true)
 }
 
 // OnKeyReleased should be called when a key is released.
 func (im *Manager) OnKeyReleased(key string) {
+	im.handleKeyEvent(key, false)
+}
+
+// handleKeyEvent processes key press and release events, updating state and notifying listeners.
+// The isPressed parameter indicates whether the key was pressed (true) or released (false).
+func (im *Manager) handleKeyEvent(key string, isPressed bool) {
 	im.mu.Lock()
 	key = strings.ToUpper(key)
-	if !im.pressedKeys[key] {
-		im.mu.Unlock()
-		return // Wasn't pressed
+
+	// Check current state and update
+	if isPressed {
+		if im.pressedKeys[key] {
+			im.mu.Unlock()
+			return // Already pressed, ignore repeat
+		}
+		im.pressedKeys[key] = true
+	} else {
+		if !im.pressedKeys[key] {
+			im.mu.Unlock()
+			return // Wasn't pressed
+		}
+		delete(im.pressedKeys, key)
 	}
-	delete(im.pressedKeys, key)
+
+	// Copy data before releasing lock
 	actions := make([]Action, len(im.keyToActions[key]))
 	copy(actions, im.keyToActions[key])
 	listeners := make([]Listener, len(im.listeners))
@@ -361,7 +361,11 @@ func (im *Manager) OnKeyReleased(key string) {
 	// Notify listeners outside the lock
 	for _, action := range actions {
 		for _, listener := range listeners {
-			listener.OnActionReleased(action)
+			if isPressed {
+				listener.OnActionPressed(action)
+			} else {
+				listener.OnActionReleased(action)
+			}
 		}
 	}
 }

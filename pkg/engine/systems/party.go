@@ -380,20 +380,16 @@ func (s *PartySystem) GetPendingInvites(playerID ecs.Entity) []*PartyInvite {
 
 // SetLootSharing enables or disables loot sharing for a party.
 func (s *PartySystem) SetLootSharing(leaderID ecs.Entity, share bool) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	party, err := s.getPartyAsLeader(leaderID)
-	if err != nil {
-		return err
-	}
-
-	party.ShareLoot = share
-	return nil
+	return s.setPartySharing(leaderID, func(p *Party) { p.ShareLoot = share })
 }
 
 // SetXPSharing enables or disables XP sharing for a party.
 func (s *PartySystem) SetXPSharing(leaderID ecs.Entity, share bool) error {
+	return s.setPartySharing(leaderID, func(p *Party) { p.ShareXP = share })
+}
+
+// setPartySharing applies a sharing setting to a party after verifying leadership.
+func (s *PartySystem) setPartySharing(leaderID ecs.Entity, applySetting func(*Party)) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -402,7 +398,7 @@ func (s *PartySystem) SetXPSharing(leaderID ecs.Entity, share bool) error {
 		return err
 	}
 
-	party.ShareXP = share
+	applySetting(party)
 	return nil
 }
 

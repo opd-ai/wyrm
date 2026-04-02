@@ -14,7 +14,7 @@ import (
 // Server handles incoming client connections and authoritative game state.
 type Server struct {
 	Address       string
-	mu            sync.Mutex
+	mu            sync.RWMutex // RWMutex for better read concurrency on world state
 	listener      net.Listener
 	clients       []net.Conn
 	clientPlayers map[net.Conn]uint64 // Connection to player entity ID
@@ -345,10 +345,10 @@ func (s *Server) handlePlayerInput(conn net.Conn, input *PlayerInput) {
 	const turnSpeed = 1.0
 
 	state.Angle += input.Turn * turnSpeed
-	state.X += input.MoveForward * moveSpeed * float32(cos64(float64(state.Angle)))
-	state.Y += input.MoveForward * moveSpeed * float32(sin64(float64(state.Angle)))
-	state.X += input.MoveRight * moveSpeed * float32(cos64(float64(state.Angle)+math.Pi/2))
-	state.Y += input.MoveRight * moveSpeed * float32(sin64(float64(state.Angle)+math.Pi/2))
+	state.X += input.MoveForward * moveSpeed * float32(math.Cos(float64(state.Angle)))
+	state.Y += input.MoveForward * moveSpeed * float32(math.Sin(float64(state.Angle)))
+	state.X += input.MoveRight * moveSpeed * float32(math.Cos(float64(state.Angle)+math.Pi/2))
+	state.Y += input.MoveRight * moveSpeed * float32(math.Sin(float64(state.Angle)+math.Pi/2))
 
 	// Update last acknowledged sequence
 	s.lastAck[conn] = input.SequenceNum
@@ -371,21 +371,12 @@ func clampFloat32(v, min, max float32) float32 {
 	return v
 }
 
-// cos64 is a helper for math.Cos with float64.
-func cos64(x float64) float64 {
-	return math.Cos(x)
-}
-
-// sin64 is a helper for math.Sin with float64.
-func sin64(x float64) float64 {
-	return math.Sin(x)
-}
-
 // sendWorldState sends the current world state to a client.
+// Uses RLock for read-only access to player states, reducing lock contention.
 func (s *Server) sendWorldState(conn net.Conn, playerID uint64, ackSeq uint32) {
 	defer s.wg.Done()
 
-	s.mu.Lock()
+	s.mu.RLock()
 	entities := make([]EntityState, 0, len(s.playerStates))
 	for _, ps := range s.playerStates {
 		entities = append(entities, EntityState{
@@ -397,7 +388,7 @@ func (s *Server) sendWorldState(conn net.Conn, playerID uint64, ackSeq uint32) {
 			Health:   ps.Health,
 		})
 	}
-	s.mu.Unlock()
+	s.mu.RUnlock()
 
 	state := &WorldState{
 		ServerTimeMs: uint32(serverTimeMs()),
@@ -591,7 +582,7 @@ func NewClient(serverAddress string) *Client {
 
 // Connect establishes a connection to the server.
 func (c *Client) Connect() error {
-	conn, err := net.Dial("tcp", c.ServerAddress)
+	conn, err := net.DialTimeout("tcp", c.ServerAddress, 10*time.Second)
 	if err != nil {
 		return err
 	}
@@ -631,6 +622,9 @@ func (c *Client) Send(data []byte) error {
 	if conn == nil {
 		return net.ErrClosed
 	}
+	if err := conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return err
+	}
 	_, err := conn.Write(data)
 	return err
 }
@@ -643,6 +637,9 @@ func (c *Client) SendPlayerInput(input *PlayerInput) error {
 	if conn == nil {
 		return net.ErrClosed
 	}
+	if err := conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return err
+	}
 	return input.Encode(conn)
 }
 
@@ -654,6 +651,11 @@ func (c *Client) ReceiveMessage() (uint8, Message, error) {
 	c.mu.Unlock()
 	if conn == nil {
 		return 0, nil, net.ErrClosed
+	}
+
+	// Set read deadline for network timeout protection
+	if err := conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return 0, nil, err
 	}
 
 	msgType, err := ReadMessageType(conn)

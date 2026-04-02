@@ -26,30 +26,64 @@ type Config struct {
 // Validate checks that all configuration values are within valid ranges.
 // Returns an error describing the first invalid value found.
 func (c *Config) Validate() error {
-	// Window validation
+	if err := c.validateWindow(); err != nil {
+		return err
+	}
+	if err := c.validateServer(); err != nil {
+		return err
+	}
+	if err := c.validateWorld(); err != nil {
+		return err
+	}
+	if err := c.validateAudio(); err != nil {
+		return err
+	}
+	if err := c.validateDifficulty(); err != nil {
+		return err
+	}
+	if err := c.validateDebug(); err != nil {
+		return err
+	}
+	return c.validateMouse()
+}
+
+// validateWindow checks window configuration values.
+func (c *Config) validateWindow() error {
 	if c.Window.Width <= 0 {
 		return fmt.Errorf("config: window.width must be positive, got %d", c.Window.Width)
 	}
 	if c.Window.Height <= 0 {
 		return fmt.Errorf("config: window.height must be positive, got %d", c.Window.Height)
 	}
+	return nil
+}
 
-	// Server validation
+// validateServer checks server configuration values.
+func (c *Config) validateServer() error {
 	if c.Server.TickRate <= 0 {
 		return fmt.Errorf("config: server.tick_rate must be positive, got %d", c.Server.TickRate)
 	}
+	return nil
+}
 
-	// World validation
+// validateWorld checks world configuration values.
+func (c *Config) validateWorld() error {
 	if c.World.ChunkSize <= 0 {
 		return fmt.Errorf("config: world.chunk_size must be positive, got %d", c.World.ChunkSize)
 	}
+	return nil
+}
 
-	// Audio validation
+// validateAudio checks audio configuration values.
+func (c *Config) validateAudio() error {
 	if c.Audio.MasterVolume < 0 || c.Audio.MasterVolume > 10 {
 		return fmt.Errorf("config: audio.master_volume must be 0-10, got %d", c.Audio.MasterVolume)
 	}
+	return nil
+}
 
-	// Difficulty validation - multipliers should be non-negative
+// validateDifficulty checks difficulty multiplier values.
+func (c *Config) validateDifficulty() error {
 	if c.Difficulty.EnemyDamageMultiplier < 0 {
 		return fmt.Errorf("config: difficulty.enemy_damage_multiplier cannot be negative, got %f", c.Difficulty.EnemyDamageMultiplier)
 	}
@@ -59,20 +93,25 @@ func (c *Config) Validate() error {
 	if c.Difficulty.PlayerDamageMultiplier < 0 {
 		return fmt.Errorf("config: difficulty.player_damage_multiplier cannot be negative, got %f", c.Difficulty.PlayerDamageMultiplier)
 	}
+	return nil
+}
 
-	// Debug port validation
+// validateDebug checks debug configuration values.
+func (c *Config) validateDebug() error {
 	if c.Debug.ProfilingEnabled && (c.Debug.ProfilingPort < 1 || c.Debug.ProfilingPort > 65535) {
 		return fmt.Errorf("config: debug.profiling_port must be 1-65535, got %d", c.Debug.ProfilingPort)
 	}
+	return nil
+}
 
-	// Mouse validation
+// validateMouse checks mouse configuration values.
+func (c *Config) validateMouse() error {
 	if c.Mouse.Sensitivity < 0 {
 		return fmt.Errorf("config: mouse.sensitivity cannot be negative, got %f", c.Mouse.Sensitivity)
 	}
 	if c.Mouse.SmoothingFactor < 0 || c.Mouse.SmoothingFactor > 1 {
 		return fmt.Errorf("config: mouse.smoothing_factor must be 0-1, got %f", c.Mouse.SmoothingFactor)
 	}
-
 	return nil
 }
 
