@@ -843,7 +843,7 @@ func (g *Game) sampleChunkIntoMap(worldMap [][]int, c *chunk.Chunk, dx, dy, chun
 	}
 }
 
-// handlePlayerInput processes keyboard input for player movement.
+// handlePlayerInput processes keyboard and mouse input for player movement.
 func (g *Game) handlePlayerInput(dt float64) {
 	if g.playerEntity == 0 {
 		return
@@ -855,6 +855,7 @@ func (g *Game) handlePlayerInput(dt float64) {
 	pos := comp.(*components.Position)
 	g.processMovementInput(pos, dt)
 	g.processStrafeInput(pos, dt)
+	g.handleMouseLook(pos)
 }
 
 // canMoveTo checks if a position is valid (not inside a wall).
@@ -1010,6 +1011,113 @@ func (g *Game) sendPlayerInputToServer() {
 	if moveForward != 0 || moveRight != 0 || turn != 0 || jump || attack || use {
 		if err := g.stateSync.SendPlayerInput(moveForward, moveRight, turn, jump, attack, use); err != nil {
 			log.Printf("failed to send player input: %v", err)
+		}
+	}
+}
+
+// toggleMouseCapture toggles the mouse capture state.
+// When captured, the cursor is hidden and mouse movement controls camera.
+func (g *Game) toggleMouseCapture() {
+	g.mouseCaptured = !g.mouseCaptured
+	if g.mouseCaptured {
+		ebiten.SetCursorMode(ebiten.CursorModeCaptured)
+		// Reset mouse tracking on capture to prevent jumps
+		g.mouseInitialized = false
+	} else {
+		ebiten.SetCursorMode(ebiten.CursorModeVisible)
+	}
+}
+
+// setMouseCaptured explicitly sets the mouse capture state.
+func (g *Game) setMouseCaptured(captured bool) {
+	if g.mouseCaptured == captured {
+		return
+	}
+	g.mouseCaptured = captured
+	if captured {
+		ebiten.SetCursorMode(ebiten.CursorModeCaptured)
+		g.mouseInitialized = false
+	} else {
+		ebiten.SetCursorMode(ebiten.CursorModeVisible)
+	}
+}
+
+// handleMouseLook processes mouse movement for FPS-style camera control.
+// Updates player yaw (horizontal) and renderer pitch (vertical).
+func (g *Game) handleMouseLook(pos *components.Position) {
+	if !g.mouseCaptured || g.cfg == nil {
+		return
+	}
+
+	// Get current mouse position
+	cursorX, cursorY := ebiten.CursorPosition()
+
+	// Initialize on first frame to prevent jump
+	if !g.mouseInitialized {
+		g.lastMouseX = cursorX
+		g.lastMouseY = cursorY
+		g.mouseInitialized = true
+		return
+	}
+
+	// Calculate raw mouse delta
+	deltaX := float64(cursorX - g.lastMouseX)
+	deltaY := float64(cursorY - g.lastMouseY)
+	g.lastMouseX = cursorX
+	g.lastMouseY = cursorY
+
+	// Skip if no movement
+	if deltaX == 0 && deltaY == 0 {
+		return
+	}
+
+	// Apply mouse acceleration if enabled
+	if g.cfg.Mouse.AccelerationOn {
+		magnitude := math.Sqrt(deltaX*deltaX + deltaY*deltaY)
+		accelerationFactor := 1.0 + (magnitude * g.cfg.Mouse.Acceleration * 0.01)
+		deltaX *= accelerationFactor
+		deltaY *= accelerationFactor
+	}
+
+	// Apply sensitivity
+	sensitivity := g.cfg.Mouse.Sensitivity * 0.005 // Scale to reasonable range
+	deltaX *= sensitivity
+	deltaY *= sensitivity
+
+	// Apply smoothing if enabled
+	if g.cfg.Mouse.SmoothingOn {
+		factor := g.cfg.Mouse.SmoothingFactor
+		g.smoothedDeltaX = g.smoothedDeltaX*(1-factor) + deltaX*factor
+		g.smoothedDeltaY = g.smoothedDeltaY*(1-factor) + deltaY*factor
+		deltaX = g.smoothedDeltaX
+		deltaY = g.smoothedDeltaY
+	}
+
+	// Invert Y if configured
+	if g.cfg.Mouse.InvertY {
+		deltaY = -deltaY
+	}
+
+	// Update player yaw (horizontal rotation)
+	pos.Angle += deltaX
+
+	// Normalize angle to [-π, π]
+	for pos.Angle > math.Pi {
+		pos.Angle -= 2 * math.Pi
+	}
+	for pos.Angle < -math.Pi {
+		pos.Angle += 2 * math.Pi
+	}
+
+	// Update renderer pitch (vertical look)
+	if g.renderer != nil {
+		g.renderer.PlayerPitch -= deltaY // Subtract because screen Y is inverted
+		// Clamp pitch to prevent over-rotation
+		if g.renderer.PlayerPitch > raycast.MaxPitchAngle {
+			g.renderer.PlayerPitch = raycast.MaxPitchAngle
+		}
+		if g.renderer.PlayerPitch < -raycast.MaxPitchAngle {
+			g.renderer.PlayerPitch = -raycast.MaxPitchAngle
 		}
 	}
 }
