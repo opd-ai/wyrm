@@ -258,7 +258,9 @@ func (s *Server) handleSaveRequestMessage(conn net.Conn) error {
 		}
 	}
 
-	_ = resp.Encode(conn)
+	if err := resp.Encode(conn); err != nil {
+		s.disconnectOnError(conn, err, "handleSaveRequest")
+	}
 	return nil
 }
 
@@ -294,7 +296,9 @@ func (s *Server) handleLoadRequestMessage(conn net.Conn) error {
 		}
 	}
 
-	_ = resp.Encode(conn)
+	if err := resp.Encode(conn); err != nil {
+		s.disconnectOnError(conn, err, "handleLoadRequest")
+	}
 	return nil
 }
 

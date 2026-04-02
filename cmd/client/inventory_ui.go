@@ -46,6 +46,10 @@ type InventoryUI struct {
 	bgImageHeight int
 	barBgImage    *ebiten.Image // Capacity bar background
 	barFillImage  *ebiten.Image // Capacity bar fill
+	// Grid background image cache
+	gridBgImage       *ebiten.Image
+	gridBgImageWidth  int
+	gridBgImageHeight int
 }
 
 // NewInventoryUI creates a new inventory UI.
@@ -466,12 +470,18 @@ func (ui *InventoryUI) drawGridBackground(screen *ebiten.Image, startX, startY, 
 	gridBgColor := color.RGBA{R: 40, G: 40, B: 50, A: 255}
 	w := gridWidth + 10
 	h := gridHeight + 10
-	gridBgImage := ebiten.NewImage(w, h)
-	gridBgImage.Fill(gridBgColor)
+
+	// Pre-allocate grid background image once, or reallocate if size changed
+	if ui.gridBgImage == nil || ui.gridBgImageWidth != w || ui.gridBgImageHeight != h {
+		ui.gridBgImage = ebiten.NewImage(w, h)
+		ui.gridBgImageWidth = w
+		ui.gridBgImageHeight = h
+	}
+	ui.gridBgImage.Fill(gridBgColor)
 
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Translate(float64(startX-5), float64(startY-5))
-	screen.DrawImage(gridBgImage, op)
+	screen.DrawImage(ui.gridBgImage, op)
 }
 
 // drawSlot draws a single inventory slot using Fill.
