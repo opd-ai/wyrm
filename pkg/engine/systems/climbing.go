@@ -21,15 +21,16 @@ type ClimbableSystem struct {
 
 // ClimbState tracks the progress of a climb animation.
 type ClimbState struct {
-	StartZ       float64 // Starting Z position
-	PeakZ        float64 // Peak Z position (top of barrier)
-	EndZ         float64 // Ending Z position (ground level on other side)
-	Progress     float64 // 0.0 to 1.0 animation progress
-	Phase        int     // 0=ascending, 1=descending
-	BarrierX     float64 // X position of barrier center
-	BarrierY     float64 // Y position of barrier center
-	ApproachDirX float64 // Direction player was moving when climb started
-	ApproachDirY float64
+	StartZ        float64 // Starting Z position
+	PeakZ         float64 // Peak Z position (top of barrier)
+	EndZ          float64 // Ending Z position (ground level on other side)
+	Progress      float64 // 0.0 to 1.0 animation progress
+	Phase         int     // 0=ascending, 1=descending
+	BarrierX      float64 // X position of barrier center
+	BarrierY      float64 // Y position of barrier center
+	ApproachDirX  float64 // Direction player was moving when climb started
+	ApproachDirY  float64
+	BarrierEntity ecs.Entity // The barrier being climbed
 }
 
 // DefaultPlayerStepHeight is the default height a player can step up.
