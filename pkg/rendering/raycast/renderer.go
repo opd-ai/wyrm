@@ -200,6 +200,264 @@ func applySideDarkening(c color.RGBA, factor float64) color.RGBA {
 	}
 }
 
+// ============================================================
+// Specular Lighting System
+// ============================================================
+
+// LightSource represents a light in the scene.
+type LightSource struct {
+	X, Y, Z   float64    // World position
+	Color     color.RGBA // Light color
+	Intensity float64    // Light brightness (0.0-1.0+)
+	Range     float64    // Maximum effective range
+	Specular  float64    // Specular intensity multiplier
+}
+
+// LightingConfig configures the lighting calculations.
+type LightingConfig struct {
+	AmbientColor     color.RGBA // Base ambient light color
+	AmbientIntensity float64    // Ambient light level (0.0-1.0)
+	SpecularPower    float64    // Specular shininess exponent (higher = sharper highlights)
+	FresnelStrength  float64    // Rim lighting intensity (0.0-1.0)
+}
+
+// DefaultLightingConfig returns sensible default lighting settings.
+func DefaultLightingConfig() LightingConfig {
+	return LightingConfig{
+		AmbientColor:     color.RGBA{R: 30, G: 30, B: 40, A: 255},
+		AmbientIntensity: 0.3,
+		SpecularPower:    32.0,
+		FresnelStrength:  0.2,
+	}
+}
+
+// SurfaceProperties describes the material properties for lighting.
+type SurfaceProperties struct {
+	Roughness float64    // 0.0=mirror, 1.0=matte
+	Metalness float64    // 0.0=dielectric, 1.0=metal
+	Normal    [3]float64 // Surface normal (X, Y, Z)
+}
+
+// CalculateSpecular computes the specular highlight intensity.
+// viewDir: direction from surface to viewer (normalized)
+// lightDir: direction from surface to light (normalized)
+// normal: surface normal (normalized)
+// roughness: surface roughness (0.0-1.0)
+// power: specular exponent
+func CalculateSpecular(viewDir, lightDir, normal [3]float64, roughness, power float64) float64 {
+	// Calculate half vector (Blinn-Phong)
+	halfX := viewDir[0] + lightDir[0]
+	halfY := viewDir[1] + lightDir[1]
+	halfZ := viewDir[2] + lightDir[2]
+
+	// Normalize half vector
+	halfLen := vecLength(halfX, halfY, halfZ)
+	if halfLen < 0.0001 {
+		return 0.0
+	}
+	halfX /= halfLen
+	halfY /= halfLen
+	halfZ /= halfLen
+
+	// N dot H
+	nDotH := normal[0]*halfX + normal[1]*halfY + normal[2]*halfZ
+	if nDotH < 0 {
+		return 0.0
+	}
+
+	// Adjust power based on roughness (rougher = lower power = wider highlight)
+	effectivePower := power * (1.0 - roughness*0.9)
+	if effectivePower < 1 {
+		effectivePower = 1
+	}
+
+	// Blinn-Phong specular
+	specular := mathPow(nDotH, effectivePower)
+
+	// Scale by inverse roughness (rougher surfaces have weaker specular)
+	specular *= (1.0 - roughness*0.8)
+
+	return specular
+}
+
+// CalculateFresnelRim computes fresnel rim lighting.
+// viewDir: direction from surface to viewer (normalized)
+// normal: surface normal (normalized)
+// strength: rim effect intensity
+func CalculateFresnelRim(viewDir, normal [3]float64, strength float64) float64 {
+	// N dot V
+	nDotV := normal[0]*viewDir[0] + normal[1]*viewDir[1] + normal[2]*viewDir[2]
+	if nDotV < 0 {
+		nDotV = 0
+	}
+
+	// Fresnel: stronger at grazing angles
+	fresnel := 1.0 - nDotV
+	fresnel = fresnel * fresnel * fresnel // Schlick-like approximation
+
+	return fresnel * strength
+}
+
+// ApplySpecularToColor adds specular highlight to a surface color.
+func ApplySpecularToColor(baseColor color.RGBA, specularIntensity float64, lightColor color.RGBA) color.RGBA {
+	if specularIntensity <= 0 {
+		return baseColor
+	}
+
+	// Specular is added on top (additive blending)
+	r := float64(baseColor.R) + specularIntensity*float64(lightColor.R)
+	g := float64(baseColor.G) + specularIntensity*float64(lightColor.G)
+	b := float64(baseColor.B) + specularIntensity*float64(lightColor.B)
+
+	// Clamp to 255
+	return color.RGBA{
+		R: clampColorFloat(r),
+		G: clampColorFloat(g),
+		B: clampColorFloat(b),
+		A: baseColor.A,
+	}
+}
+
+// clampColorFloat clamps a float to [0, 255] and converts to uint8.
+func clampColorFloat(v float64) uint8 {
+	if v < 0 {
+		return 0
+	}
+	if v > 255 {
+		return 255
+	}
+	return uint8(v)
+}
+
+// vecLength calculates the length of a 3D vector.
+func vecLength(x, y, z float64) float64 {
+	return math.Sqrt(x*x + y*y + z*z)
+}
+
+// mathPow is a simple power function for specular exponents.
+func mathPow(base, exp float64) float64 {
+	return math.Pow(base, exp)
+}
+
+// CalculateDiffuse computes basic diffuse lighting (Lambert).
+// lightDir: direction from surface to light (normalized)
+// normal: surface normal (normalized)
+func CalculateDiffuse(lightDir, normal [3]float64) float64 {
+	// N dot L
+	nDotL := normal[0]*lightDir[0] + normal[1]*lightDir[1] + normal[2]*lightDir[2]
+	if nDotL < 0 {
+		nDotL = 0
+	}
+	return nDotL
+}
+
+// CalculateLightAttenuation computes how light falls off with distance.
+// distance: distance from surface to light
+// lightRange: maximum effective range of the light
+func CalculateLightAttenuation(distance, lightRange float64) float64 {
+	if distance >= lightRange || lightRange <= 0 {
+		return 0.0
+	}
+	// Inverse square falloff with range cutoff
+	normalized := distance / lightRange
+	// Smooth falloff curve
+	attenuation := 1.0 - normalized*normalized
+	if attenuation < 0 {
+		attenuation = 0
+	}
+	return attenuation
+}
+
+// CalculateSurfaceLighting computes the full lighting for a surface point.
+// Returns a multiplier to apply to the base surface color (diffuse) and specular additive.
+func CalculateSurfaceLighting(
+	worldPos [3]float64,
+	viewerPos [3]float64,
+	surface SurfaceProperties,
+	light LightSource,
+	config LightingConfig,
+) (diffuseFactor float64, specularColor color.RGBA) {
+	// Direction from surface to viewer
+	viewDir := [3]float64{
+		viewerPos[0] - worldPos[0],
+		viewerPos[1] - worldPos[1],
+		viewerPos[2] - worldPos[2],
+	}
+	viewLen := vecLength(viewDir[0], viewDir[1], viewDir[2])
+	if viewLen > 0 {
+		viewDir[0] /= viewLen
+		viewDir[1] /= viewLen
+		viewDir[2] /= viewLen
+	}
+
+	// Direction from surface to light
+	lightDir := [3]float64{
+		light.X - worldPos[0],
+		light.Y - worldPos[1],
+		light.Z - worldPos[2],
+	}
+	lightDist := vecLength(lightDir[0], lightDir[1], lightDir[2])
+	if lightDist > 0 {
+		lightDir[0] /= lightDist
+		lightDir[1] /= lightDist
+		lightDir[2] /= lightDist
+	}
+
+	// Light attenuation
+	attenuation := CalculateLightAttenuation(lightDist, light.Range) * light.Intensity
+	if attenuation <= 0 {
+		return config.AmbientIntensity, color.RGBA{A: 255}
+	}
+
+	// Diffuse lighting
+	diffuse := CalculateDiffuse(lightDir, surface.Normal)
+
+	// Specular lighting
+	specular := CalculateSpecular(viewDir, lightDir, surface.Normal, surface.Roughness, config.SpecularPower)
+	specular *= light.Specular * attenuation
+
+	// Apply metalness - metals tint specular with their base color
+	specR := float64(light.Color.R)*(1.0-surface.Metalness) + float64(light.Color.R)*surface.Metalness
+	specG := float64(light.Color.G)*(1.0-surface.Metalness) + float64(light.Color.G)*surface.Metalness
+	specB := float64(light.Color.B)*(1.0-surface.Metalness) + float64(light.Color.B)*surface.Metalness
+
+	specularColor = color.RGBA{
+		R: clampColorFloat(specR * specular),
+		G: clampColorFloat(specG * specular),
+		B: clampColorFloat(specB * specular),
+		A: 255,
+	}
+
+	// Fresnel rim
+	rim := CalculateFresnelRim(viewDir, surface.Normal, config.FresnelStrength)
+	specularColor.R = clampColorFloat(float64(specularColor.R) + rim*50)
+	specularColor.G = clampColorFloat(float64(specularColor.G) + rim*50)
+	specularColor.B = clampColorFloat(float64(specularColor.B) + rim*50)
+
+	// Total diffuse factor
+	diffuseFactor = config.AmbientIntensity + diffuse*attenuation
+	if diffuseFactor > 1.0 {
+		diffuseFactor = 1.0
+	}
+
+	return diffuseFactor, specularColor
+}
+
+// ApplyLighting applies lighting calculations to a base color.
+func ApplyLighting(baseColor color.RGBA, diffuseFactor float64, specularColor color.RGBA) color.RGBA {
+	// Apply diffuse factor to base color
+	r := float64(baseColor.R)*diffuseFactor + float64(specularColor.R)
+	g := float64(baseColor.G)*diffuseFactor + float64(specularColor.G)
+	b := float64(baseColor.B)*diffuseFactor + float64(specularColor.B)
+
+	return color.RGBA{
+		R: clampColorFloat(r),
+		G: clampColorFloat(g),
+		B: clampColorFloat(b),
+		A: baseColor.A,
+	}
+}
+
 // Renderer handles first-person raycasting and draws to an Ebitengine image.
 type Renderer struct {
 	Width       int

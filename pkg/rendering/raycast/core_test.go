@@ -1214,3 +1214,310 @@ func TestGetSideDarkenFactor(t *testing.T) {
 		t.Errorf("side 1 should have factor 0.8, got %f", factor1)
 	}
 }
+
+// ============================================================
+// Specular Lighting System Tests
+// ============================================================
+
+func TestDefaultLightingConfig(t *testing.T) {
+	config := DefaultLightingConfig()
+	if config.AmbientIntensity <= 0 || config.AmbientIntensity > 1 {
+		t.Errorf("ambient intensity should be in (0,1], got %f", config.AmbientIntensity)
+	}
+	if config.SpecularPower <= 0 {
+		t.Errorf("specular power should be positive, got %f", config.SpecularPower)
+	}
+}
+
+func TestCalculateSpecular(t *testing.T) {
+	// Looking straight down at surface, light from above
+	viewDir := [3]float64{0, 0, 1}  // Looking down into surface
+	lightDir := [3]float64{0, 0, 1} // Light from above
+	normal := [3]float64{0, 0, 1}   // Surface facing up
+
+	// Mirror-smooth surface should have max specular
+	spec := CalculateSpecular(viewDir, lightDir, normal, 0.0, 32.0)
+	if spec < 0.9 {
+		t.Errorf("perfect alignment with smooth surface should have high specular, got %f", spec)
+	}
+
+	// Rough surface should have reduced specular
+	specRough := CalculateSpecular(viewDir, lightDir, normal, 0.9, 32.0)
+	if specRough >= spec {
+		t.Error("rough surface should have lower specular than smooth surface")
+	}
+
+	// Light from behind should have no specular
+	lightBehind := [3]float64{0, 0, -1}
+	specBehind := CalculateSpecular(viewDir, lightBehind, normal, 0.0, 32.0)
+	if specBehind > 0 {
+		t.Errorf("light from behind surface should have no specular, got %f", specBehind)
+	}
+}
+
+func TestCalculateFresnelRim(t *testing.T) {
+	normal := [3]float64{0, 0, 1}
+
+	// Looking straight at surface - no rim
+	viewDirect := [3]float64{0, 0, 1}
+	rimDirect := CalculateFresnelRim(viewDirect, normal, 1.0)
+	if rimDirect > 0.1 {
+		t.Errorf("direct view should have minimal rim, got %f", rimDirect)
+	}
+
+	// Looking at grazing angle - strong rim
+	viewGrazing := [3]float64{1, 0, 0.1}
+	// Normalize
+	len := math.Sqrt(viewGrazing[0]*viewGrazing[0] + viewGrazing[2]*viewGrazing[2])
+	viewGrazing[0] /= len
+	viewGrazing[2] /= len
+
+	rimGrazing := CalculateFresnelRim(viewGrazing, normal, 1.0)
+	if rimGrazing < 0.5 {
+		t.Errorf("grazing angle should have strong rim, got %f", rimGrazing)
+	}
+}
+
+func TestApplySpecularToColor(t *testing.T) {
+	baseColor := color.RGBA{R: 100, G: 100, B: 100, A: 255}
+	lightColor := color.RGBA{R: 255, G: 255, B: 255, A: 255}
+
+	// No specular
+	result := ApplySpecularToColor(baseColor, 0, lightColor)
+	if result.R != baseColor.R {
+		t.Error("zero specular should not change color")
+	}
+
+	// Some specular
+	result = ApplySpecularToColor(baseColor, 0.5, lightColor)
+	if result.R <= baseColor.R {
+		t.Error("specular should brighten the color")
+	}
+
+	// High specular should clamp
+	result = ApplySpecularToColor(baseColor, 1.0, lightColor)
+	if result.R != 255 {
+		t.Errorf("expected clamped to 255, got %d", result.R)
+	}
+
+	// Alpha preserved
+	if result.A != baseColor.A {
+		t.Error("alpha should be preserved")
+	}
+}
+
+func TestCalculateDiffuse(t *testing.T) {
+	normal := [3]float64{0, 0, 1}
+
+	// Light directly above
+	lightAbove := [3]float64{0, 0, 1}
+	diffuse := CalculateDiffuse(lightAbove, normal)
+	if math.Abs(diffuse-1.0) > 0.01 {
+		t.Errorf("direct light should have diffuse=1, got %f", diffuse)
+	}
+
+	// Light at 45 degrees
+	light45 := [3]float64{0.707, 0, 0.707}
+	diffuse45 := CalculateDiffuse(light45, normal)
+	if math.Abs(diffuse45-0.707) > 0.01 {
+		t.Errorf("45 degree light should have diffuse~0.707, got %f", diffuse45)
+	}
+
+	// Light from behind
+	lightBehind := [3]float64{0, 0, -1}
+	diffuseBehind := CalculateDiffuse(lightBehind, normal)
+	if diffuseBehind != 0 {
+		t.Errorf("light from behind should have diffuse=0, got %f", diffuseBehind)
+	}
+}
+
+func TestCalculateLightAttenuation(t *testing.T) {
+	// At light position
+	atten := CalculateLightAttenuation(0, 10.0)
+	if atten != 1.0 {
+		t.Errorf("at light position should have atten=1, got %f", atten)
+	}
+
+	// At edge of range
+	attenEdge := CalculateLightAttenuation(10.0, 10.0)
+	if attenEdge != 0.0 {
+		t.Errorf("at edge of range should have atten=0, got %f", attenEdge)
+	}
+
+	// Beyond range
+	attenBeyond := CalculateLightAttenuation(15.0, 10.0)
+	if attenBeyond != 0.0 {
+		t.Errorf("beyond range should have atten=0, got %f", attenBeyond)
+	}
+
+	// Mid-range should be between 0 and 1
+	attenMid := CalculateLightAttenuation(5.0, 10.0)
+	if attenMid <= 0 || attenMid >= 1 {
+		t.Errorf("mid-range should be in (0,1), got %f", attenMid)
+	}
+
+	// Zero range
+	attenZero := CalculateLightAttenuation(1.0, 0.0)
+	if attenZero != 0.0 {
+		t.Errorf("zero range should have atten=0, got %f", attenZero)
+	}
+}
+
+func TestVecLength(t *testing.T) {
+	// Unit vectors
+	if math.Abs(vecLength(1, 0, 0)-1.0) > 0.001 {
+		t.Error("unit X should have length 1")
+	}
+	if math.Abs(vecLength(0, 1, 0)-1.0) > 0.001 {
+		t.Error("unit Y should have length 1")
+	}
+	if math.Abs(vecLength(0, 0, 1)-1.0) > 0.001 {
+		t.Error("unit Z should have length 1")
+	}
+
+	// 3-4-5 triangle
+	if math.Abs(vecLength(3, 4, 0)-5.0) > 0.001 {
+		t.Error("3-4-5 triangle should have length 5")
+	}
+
+	// Zero vector
+	if vecLength(0, 0, 0) != 0 {
+		t.Error("zero vector should have length 0")
+	}
+}
+
+func TestClampColorFloat(t *testing.T) {
+	if clampColorFloat(-10) != 0 {
+		t.Error("negative should clamp to 0")
+	}
+	if clampColorFloat(300) != 255 {
+		t.Error("over 255 should clamp to 255")
+	}
+	if clampColorFloat(128.5) != 128 {
+		t.Error("128.5 should become 128")
+	}
+}
+
+func TestCalculateSurfaceLighting(t *testing.T) {
+	worldPos := [3]float64{5, 5, 0}
+	viewerPos := [3]float64{5, 5, 1}
+
+	surface := SurfaceProperties{
+		Roughness: 0.3,
+		Metalness: 0.0,
+		Normal:    [3]float64{0, 0, 1},
+	}
+
+	light := LightSource{
+		X:         5,
+		Y:         5,
+		Z:         5,
+		Color:     color.RGBA{R: 255, G: 255, B: 255, A: 255},
+		Intensity: 1.0,
+		Range:     10.0,
+		Specular:  1.0,
+	}
+
+	config := DefaultLightingConfig()
+
+	diffuse, specular := CalculateSurfaceLighting(worldPos, viewerPos, surface, light, config)
+
+	// Should have some diffuse
+	if diffuse <= config.AmbientIntensity {
+		t.Errorf("should have diffuse lighting, got %f", diffuse)
+	}
+
+	// Should have specular (light is above, viewer is above)
+	if specular.R == 0 && specular.G == 0 && specular.B == 0 {
+		t.Error("should have some specular highlight")
+	}
+}
+
+func TestApplyLighting(t *testing.T) {
+	baseColor := color.RGBA{R: 100, G: 100, B: 100, A: 255}
+	specularColor := color.RGBA{R: 50, G: 50, B: 50, A: 255}
+
+	// Full brightness diffuse
+	result := ApplyLighting(baseColor, 1.0, specularColor)
+	if result.R != 150 {
+		t.Errorf("expected R=150, got %d", result.R)
+	}
+
+	// Half brightness diffuse
+	result = ApplyLighting(baseColor, 0.5, specularColor)
+	if result.R != 100 { // 50 + 50
+		t.Errorf("expected R=100, got %d", result.R)
+	}
+
+	// Alpha preserved
+	if result.A != baseColor.A {
+		t.Error("alpha should be preserved")
+	}
+}
+
+func TestLightSource(t *testing.T) {
+	light := LightSource{
+		X:         10,
+		Y:         10,
+		Z:         5,
+		Color:     color.RGBA{R: 255, G: 200, B: 100, A: 255},
+		Intensity: 0.8,
+		Range:     20.0,
+		Specular:  0.5,
+	}
+
+	if light.X != 10 {
+		t.Error("light position incorrect")
+	}
+	if light.Intensity != 0.8 {
+		t.Error("light intensity incorrect")
+	}
+}
+
+func TestSurfaceProperties(t *testing.T) {
+	// Metal surface
+	metal := SurfaceProperties{
+		Roughness: 0.2,
+		Metalness: 1.0,
+		Normal:    [3]float64{0, 0, 1},
+	}
+
+	if metal.Metalness != 1.0 {
+		t.Error("metal should have metalness=1")
+	}
+
+	// Rough surface
+	rough := SurfaceProperties{
+		Roughness: 0.9,
+		Metalness: 0.0,
+		Normal:    [3]float64{0, 0, 1},
+	}
+
+	if rough.Roughness != 0.9 {
+		t.Error("rough surface should have roughness=0.9")
+	}
+}
+
+func BenchmarkCalculateSpecular(b *testing.B) {
+	viewDir := [3]float64{0, 0, 1}
+	lightDir := [3]float64{0.5, 0.5, 0.707}
+	normal := [3]float64{0, 0, 1}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = CalculateSpecular(viewDir, lightDir, normal, 0.3, 32.0)
+	}
+}
+
+func BenchmarkCalculateSurfaceLighting(b *testing.B) {
+	worldPos := [3]float64{5, 5, 0}
+	viewerPos := [3]float64{5, 5, 1}
+	surface := SurfaceProperties{Roughness: 0.3, Metalness: 0.0, Normal: [3]float64{0, 0, 1}}
+	light := LightSource{X: 5, Y: 5, Z: 5, Color: color.RGBA{255, 255, 255, 255}, Intensity: 1.0, Range: 10.0, Specular: 1.0}
+	config := DefaultLightingConfig()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = CalculateSurfaceLighting(worldPos, viewerPos, surface, light, config)
+	}
+}

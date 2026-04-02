@@ -152,7 +152,7 @@
 - [x] Define `MaterialRegistry` with physical properties per material type
 - [x] Implement per-material texture generation with appropriate visual properties
 - [x] Add normal map generation to `texture.GenerateWithSeed()`
-- [ ] Implement specular highlight calculation in wall/floor rendering
+- [x] Implement specular highlight calculation in wall/floor rendering
 - [ ] Add surface wear/aging based on world age parameter
 - [ ] Genre-specific material palettes (rusty metal, polished chrome, weathered stone)
 - [ ] Unit tests: transparency rendering, material property lookups, normal sampling
