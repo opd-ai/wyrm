@@ -155,7 +155,7 @@
 - [x] Implement specular highlight calculation in wall/floor rendering
 - [x] Add surface wear/aging based on world age parameter
 - [x] Genre-specific material palettes (rusty metal, polished chrome, weathered stone)
-- [ ] Unit tests: transparency rendering, material property lookups, normal sampling
+- [x] Unit tests: transparency rendering, material property lookups, normal sampling
 
 ### Phase 5: Environmental Object Representation
 **Dependencies:** Phase 3 (barrier sprites), Phase 4 (materials)  

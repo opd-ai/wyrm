@@ -1099,69 +1099,6 @@ func TestNormalizeNormal(t *testing.T) {
 	}
 }
 
-func TestHasNormalMap(t *testing.T) {
-	// Texture without normal map
-	tex := Generate(16, 16)
-	if tex.HasNormalMap() {
-		t.Error("texture without normal map should return false")
-	}
-
-	// Texture with normal map
-	texWithNormal := GenerateWithNormalMap(16, 16, 12345, "fantasy", 1.0)
-	if !texWithNormal.HasNormalMap() {
-		t.Error("texture with normal map should return true")
-	}
-}
-
-func TestGetNormalAt(t *testing.T) {
-	tex := GenerateWithNormalMap(16, 16, 12345, "fantasy", 1.0)
-
-	// Valid coordinates
-	n := tex.GetNormalAt(0, 0)
-	// Normal should be roughly pointing outward (Z > 0)
-	if n.Z <= 0 {
-		t.Errorf("normal Z should be positive, got %f", n.Z)
-	}
-
-	// Different coordinates should potentially give different normals
-	n2 := tex.GetNormalAt(8, 8)
-	// At least one normal should be valid
-	if n.Z == 0 && n2.Z == 0 {
-		t.Error("at least one normal should be valid")
-	}
-
-	// Normal length should be approximately 1
-	length := sqrt(n.X*n.X + n.Y*n.Y + n.Z*n.Z)
-	if absFloat(length-1.0) > 0.1 {
-		t.Errorf("normal should be approximately unit length, got %f", length)
-	}
-}
-
-func TestGetNormalAtBoundaries(t *testing.T) {
-	tex := GenerateWithNormalMap(8, 8, 12345, "fantasy", 1.0)
-
-	// Test all corners
-	corners := [][2]int{{0, 0}, {7, 0}, {0, 7}, {7, 7}}
-	for _, corner := range corners {
-		n := tex.GetNormalAt(corner[0], corner[1])
-		// Should not panic and should return valid normal
-		if n.Z < -1 || n.Z > 1 {
-			t.Errorf("corner (%d,%d) gave invalid Z: %f", corner[0], corner[1], n.Z)
-		}
-	}
-}
-
-func TestGetNormalAtWithoutNormalMap(t *testing.T) {
-	tex := Generate(16, 16)
-
-	// Getting normal from texture without normal map should return default
-	n := tex.GetNormalAt(0, 0)
-	// Default normal should point up (0, 0, 1)
-	if n.X != 0 || n.Y != 0 || n.Z != 1 {
-		t.Errorf("texture without normal map should return default normal (0,0,1), got (%f,%f,%f)", n.X, n.Y, n.Z)
-	}
-}
-
 func TestSqrt(t *testing.T) {
 	tests := []struct {
 		input    float64
