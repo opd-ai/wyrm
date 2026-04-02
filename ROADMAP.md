@@ -248,11 +248,11 @@ Per GAPS.md §9.2, several allocations occur each frame:
 
 No `net/http/pprof` import, no `runtime.MemStats` monitoring, no frame time tracking.
 
-- [ ] Add `debug.profiling` config option (default: false)
-- [ ] When enabled, start `net/http/pprof` endpoint on configurable port
-- [ ] Add frame time tracking to debug overlay
-- [ ] Add memory stats (HeapAlloc, NumGC) to debug overlay
-- [ ] **Validation**: pprof endpoint accessible when config enabled
+- [x] Add `debug.profiling` config option (default: false)
+- [x] When enabled, start `net/http/pprof` endpoint on configurable port
+- [x] Add frame time tracking to debug overlay
+- [x] Add memory stats (HeapAlloc, NumGC) to debug overlay
+- [x] **Validation**: pprof endpoint accessible when config enabled
 
 ### Priority 5 (LOW): Wire LOD System to Renderer
 
@@ -262,9 +262,9 @@ No `net/http/pprof` import, no `runtime.MemStats` monitoring, no frame time trac
 
 Four LOD levels (`LODFull`, `LODHalf`, `LODQuarter`, `LODEighth`) are defined in `pkg/world/chunk/manager.go` with a `ChunkLODCache` struct, but no rendering code selects LOD based on distance.
 
-- [ ] Wire distance-based LOD selection into chunk rendering
-- [ ] Feed lower LOD data to raycaster for distant terrain
-- [ ] **Validation**: Memory profiling shows reduced heap usage with LOD active
+- [x] Wire distance-based LOD selection into chunk rendering
+- [x] Feed lower LOD data to raycaster for distant terrain
+- [x] **Validation**: Memory profiling shows reduced heap usage with LOD active
 
 ### Priority 6 (LOW): Verify Async Chunk Generation
 

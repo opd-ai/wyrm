@@ -53,6 +53,7 @@ type Game struct {
 	connected     bool
 	playerEntity  ecs.Entity
 	chunkManager  *chunk.Manager
+	lodManager    *chunk.LODManager // LOD management for distant terrain optimization
 	lastChunkX    int
 	lastChunkY    int
 	mapSize       int // Size of the local map grid
@@ -126,6 +127,7 @@ type Game struct {
 // Update advances game state by one tick, processing player input and ECS systems.
 func (g *Game) Update() error {
 	const dt = 1.0 / 60.0
+	g.recordFrameTime(dt)
 	g.syncInputState()
 
 	if g.gameState == GameStateCharacterCreation {
@@ -725,21 +727,60 @@ func (g *Game) updateChunkMap() {
 }
 
 // rebuildWorldMap constructs the local world map from surrounding chunks.
+// Uses LOD system for distant chunks to reduce memory usage.
 func (g *Game) rebuildWorldMap(centerChunkX, centerChunkY int) {
 	worldMap := make([][]int, g.mapSize)
 	for i := range worldMap {
 		worldMap[i] = make([]int, g.mapSize)
 	}
 	chunkSize := g.cfg.World.ChunkSize
-	// Load 3x3 chunk window and sample into local map
+
+	// Update LOD viewpoint to player position (center of center chunk in world coords)
+	viewX := float64(centerChunkX*chunkSize) + float64(chunkSize)/2
+	viewY := float64(centerChunkY*chunkSize) + float64(chunkSize)/2
+	g.lodManager.SetViewpoint(viewX, viewY)
+
+	// Load 3x3 chunk window using LOD-based selection
 	for dy := -1; dy <= 1; dy++ {
 		for dx := -1; dx <= 1; dx++ {
-			c := g.chunkManager.GetChunk(centerChunkX+dx, centerChunkY+dy)
-			g.sampleChunkIntoMap(worldMap, c, dx, dy, chunkSize)
+			chunkX := centerChunkX + dx
+			chunkY := centerChunkY + dy
+			// LODManager automatically selects appropriate LOD based on distance
+			lodChunk := g.lodManager.GetChunkLOD(chunkX, chunkY)
+			g.sampleLODChunkIntoMap(worldMap, lodChunk, dx, dy, chunkSize)
 		}
 	}
 	g.worldMap = worldMap // Store for collision detection
 	g.renderer.SetWorldMapDirect(worldMap)
+}
+
+// sampleLODChunkIntoMap samples an LOD chunk's heightmap into the local world map.
+// Uses the LOD-appropriate heightmap which may be downsampled for distant chunks.
+func (g *Game) sampleLODChunkIntoMap(worldMap [][]int, lod *chunk.LODChunk, dx, dy, chunkSize int) {
+	sectionSize := g.mapSize / 3
+	startX := (dx + 1) * sectionSize
+	startY := (dy + 1) * sectionSize
+
+	lodSize := lod.LODSize
+	heightMap := lod.HeightMap
+
+	for ly := 0; ly < sectionSize; ly++ {
+		for lx := 0; lx < sectionSize; lx++ {
+			// Map local coords to LOD chunk coords
+			cx := lx * lodSize / sectionSize
+			cy := ly * lodSize / sectionSize
+			if cx >= lodSize {
+				cx = lodSize - 1
+			}
+			if cy >= lodSize {
+				cy = lodSize - 1
+			}
+			idx := cy*lodSize + cx
+			if idx < len(heightMap) {
+				worldMap[startY+ly][startX+lx] = heightToWallType(heightMap[idx], g.wallThreshold)
+			}
+		}
+	}
 }
 
 // sampleChunkIntoMap samples a chunk's heightmap into the local world map.
@@ -1360,6 +1401,64 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 
 	// Draw interaction prompt (bottom-center)
 	g.drawInteractionPrompt(screen)
+
+	// Draw debug info if enabled
+	g.drawDebugInfo(screen)
+}
+
+// drawDebugInfo renders frame time, memory stats, and entity count when debug options are enabled.
+func (g *Game) drawDebugInfo(screen *ebiten.Image) {
+	if g.cfg == nil {
+		return
+	}
+	cfg := g.cfg.Debug
+	if !cfg.ShowFrameTime && !cfg.ShowMemStats && !cfg.ShowEntityCount {
+		return
+	}
+
+	y := 100 // Start below the position info
+	if cfg.ShowFrameTime {
+		avgFrameTime := g.getAverageFrameTime()
+		fps := 1.0 / avgFrameTime
+		debugText := fmt.Sprintf("Frame: %.2fms (%.0f FPS)", avgFrameTime*1000, fps)
+		ebitenutil.DebugPrintAt(screen, debugText, 10, y)
+		y += 16
+	}
+	if cfg.ShowMemStats {
+		runtime.ReadMemStats(&g.lastMemStats)
+		heapMB := float64(g.lastMemStats.HeapAlloc) / 1024.0 / 1024.0
+		numGC := g.lastMemStats.NumGC
+		debugText := fmt.Sprintf("Heap: %.1f MB | GC: %d", heapMB, numGC)
+		ebitenutil.DebugPrintAt(screen, debugText, 10, y)
+		y += 16
+	}
+	if cfg.ShowEntityCount {
+		entityCount := len(g.world.AllEntities())
+		debugText := fmt.Sprintf("Entities: %d", entityCount)
+		ebitenutil.DebugPrintAt(screen, debugText, 10, y)
+	}
+}
+
+// getAverageFrameTime calculates the average frame time from the history buffer.
+func (g *Game) getAverageFrameTime() float64 {
+	var sum float64
+	var count int
+	for _, ft := range g.frameTimeHistory {
+		if ft > 0 {
+			sum += ft
+			count++
+		}
+	}
+	if count == 0 {
+		return 1.0 / 60.0 // Default to 60 FPS
+	}
+	return sum / float64(count)
+}
+
+// recordFrameTime records a frame time measurement.
+func (g *Game) recordFrameTime(dt float64) {
+	g.frameTimeHistory[g.frameTimeIndex] = dt
+	g.frameTimeIndex = (g.frameTimeIndex + 1) % len(g.frameTimeHistory)
 }
 
 // drawInteractionPrompt displays the current interaction target prompt.
@@ -1729,6 +1828,7 @@ func main() {
 	// Register client systems; in offline mode (!connected), also register game logic systems
 	registerClientSystems(world, player, cfg, !connected)
 	chunkMgr := chunk.NewManager(cfg.World.ChunkSize, cfg.World.Seed)
+	lodMgr := chunk.NewLODManager(chunkMgr)
 
 	// Initialize input manager with config bindings
 	inputMgr := input.NewManager()
@@ -1819,6 +1919,7 @@ func main() {
 		connected:         connected,
 		playerEntity:      player,
 		chunkManager:      chunkMgr,
+		lodManager:        lodMgr,
 		lastChunkX:        -999, // Force initial map build
 		lastChunkY:        -999,
 		mapSize:           localMapSize,
@@ -1850,6 +1951,7 @@ func main() {
 		housingUI:         housingUI,
 		pvpUI:             pvpUI,
 		npcRenderer:       npcRend,
+		frameTimeHistory:  make([]float64, 60), // Track last 60 frame times
 	}
 
 	// Initialize state synchronization if connected to server
