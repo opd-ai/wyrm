@@ -713,7 +713,7 @@ This does NOT move the camera — only the interaction target selection is assis
 - [x] Add `PlayerZ` field (new field — player eye height for variable-height rendering)
 - [x] Modify `SetWorldMap()` (edit — accept height data alongside heightmap, populate `MapCell` grid)
 - [x] Add `SetWorldMapCells()` (new method — direct setter for `MapCell` grid)
-- [ ] Add `castRayEnhanced()` (new method — returns `MapCell` data instead of just wall type)
+- [x] Add `castRayEnhanced()` (new method — returns `MapCell` data instead of just wall type)
 - [x] Add `MaterialRegistry` integration (new field — pointer to shared `MaterialRegistry`)
 
 #### `pkg/rendering/raycast/draw.go`
@@ -723,8 +723,8 @@ This does NOT move the camera — only the interaction target selection is assis
 - [x] Modify `drawWalls()` (edit — use `MapCell` height for per-column wall height calculation)
 - [x] Modify `drawWallColumn()` (edit — variable height + normal map + specular calculation)
 - [x] Modify `renderWallStrip()` (edit — material-aware shading, alpha blending for partial barriers)
-- [ ] Add `drawPartialBarriers()` (new method — second pass for transparent/semi-opaque walls)
-- [ ] Add `drawEnvironmentObjects()` (new method — render barrier sprites, items, interactive objects)
+- [x] Add `drawPartialBarriers()` (new method — second pass for transparent/semi-opaque walls; implemented as inline transparency handling in drawWallColumn)
+- [x] Add `drawEnvironmentObjects()` (new method — render barrier sprites, items, interactive objects; integrated into DrawSpritesToScreen via SpriteEntity)
 - [x] Add `drawInteractionHighlight()` (new method — glow outline for targeted interactive object)
 
 #### `pkg/rendering/raycast/skybox.go`
@@ -856,19 +856,19 @@ This does NOT move the camera — only the interaction target selection is assis
 ### Completion Checklist
 
 #### New Components
-- [ ] `Barrier` component (`"Barrier"` — Shape, Genre, Destructible, HitPoints, MaxHP)
+- [x] `Barrier` component (`"Barrier"` — Shape, Genre, Destructible, HitPoints, MaxHP)
 - [ ] `Interactable` component (`"Interactable"` — InteractionType, Range, Prompt, Cooldown, Locked)
 - [ ] `WorldItem` component (`"WorldItem"` — ItemID, Quantity, SpawnTime, Respawnable)
-- [ ] `PhysicsBody` component (`"PhysicsBody"` — Mass, Velocity, Pushable, Friction)
+- [x] `PhysicsBody` component (`"PhysicsBody"` — Mass, Velocity, Pushable, Friction)
 
 #### New Systems
-- [ ] `BarrierCollisionSystem` (consumes Position + Barrier → produces clamped Position)
+- [x] `BarrierCollisionSystem` (consumes Position + Barrier → produces clamped Position)
 - [ ] `InteractionTargetSystem` (consumes Position + Interactable + WorldItem → produces InteractionTarget)
 - [ ] `BarrierDestructionSystem` (consumes Barrier + Health → produces particle spawn + entity removal)
 - [ ] `ObjectPhysicsSystem` (consumes PhysicsBody + Position + Barrier → produces updated Position)
 
 #### System Registration
-- [ ] Register `BarrierCollisionSystem` in `cmd/server/main.go` and `cmd/client/main.go`
+- [x] Register `BarrierCollisionSystem` in `cmd/server/main.go` and `cmd/client/main.go`
 - [ ] Register `BarrierDestructionSystem` in `cmd/server/main.go` and `cmd/client/main.go`
 - [ ] Register `ObjectPhysicsSystem` in `cmd/server/main.go` and `cmd/client/main.go`
 - [ ] Register `InteractionTargetSystem` in `cmd/client/main.go` (client only)
