@@ -646,41 +646,38 @@ func (g *Game) handleQuestToggle() {
 
 // handleFactionToggle checks for faction action and toggles the faction UI.
 func (g *Game) handleFactionToggle() {
-	// Don't toggle if menu, dialog, inventory, or quest is open
-	if g.menu != nil && g.menu.IsOpen() {
-		return
-	}
-	if g.dialogUI != nil && g.dialogUI.IsOpen() {
-		return
-	}
-	if g.inventoryUI != nil && g.inventoryUI.IsOpen() {
-		return
-	}
-	if g.questUI != nil && g.questUI.IsOpen() {
-		return
-	}
-	if g.craftingUI != nil && g.craftingUI.IsOpen() {
+	// Don't toggle if any overlay is open
+	if g.isAnyOverlayOpen() {
 		return
 	}
 
 	// Check for F key press (for Factions)
-	if inpututil.IsKeyJustPressed(ebiten.KeyF) {
-		if g.factionUI != nil {
-			g.factionUI.Toggle()
-		}
+	if inpututil.IsKeyJustPressed(ebiten.KeyF) && g.factionUI != nil {
+		g.factionUI.Toggle()
 	}
 
 	// Check for H key press (for Housing)
-	if inpututil.IsKeyJustPressed(ebiten.KeyH) {
-		if g.housingUI != nil {
-			if g.housingUI.IsActive() {
-				g.housingUI.Close()
-			} else {
-				// Update player state before opening
-				g.housingUI.SetPlayerState(uint64(g.playerEntity), getPlayerGold(g), 1)
-				g.housingUI.Open()
-			}
-		}
+	if inpututil.IsKeyJustPressed(ebiten.KeyH) && g.housingUI != nil {
+		g.toggleHousingUI()
+	}
+}
+
+// isAnyOverlayOpen returns true if any UI overlay is currently open.
+func (g *Game) isAnyOverlayOpen() bool {
+	return (g.menu != nil && g.menu.IsOpen()) ||
+		(g.dialogUI != nil && g.dialogUI.IsOpen()) ||
+		(g.inventoryUI != nil && g.inventoryUI.IsOpen()) ||
+		(g.questUI != nil && g.questUI.IsOpen()) ||
+		(g.craftingUI != nil && g.craftingUI.IsOpen())
+}
+
+// toggleHousingUI opens or closes the housing UI.
+func (g *Game) toggleHousingUI() {
+	if g.housingUI.IsActive() {
+		g.housingUI.Close()
+	} else {
+		g.housingUI.SetPlayerState(uint64(g.playerEntity), getPlayerGold(g), 1)
+		g.housingUI.Open()
 	}
 }
 

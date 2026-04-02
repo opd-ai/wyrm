@@ -457,19 +457,20 @@ func (d *DialogUI) Draw(screen *ebiten.Image) {
 	d.drawSubtitle(screen, screenWidth, screenHeight)
 }
 
-// drawOverlay draws the semi-transparent dialog background.
+// drawOverlay draws the semi-transparent dialog background using Fill.
 func (d *DialogUI) drawOverlay(screen *ebiten.Image, width, height int) {
 	// Draw dialog box at bottom of screen
 	boxHeight := height / 3
 	boxY := height - boxHeight
 
-	// Draw semi-transparent background
+	// Draw semi-transparent background using Fill
 	bgColor := color.RGBA{R: 0, G: 0, B: 0, A: 180}
-	for y := boxY; y < height; y++ {
-		for x := 0; x < width; x++ {
-			screen.Set(x, y, bgColor)
-		}
-	}
+	overlayImage := ebiten.NewImage(width, boxHeight)
+	overlayImage.Fill(bgColor)
+
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(0, float64(boxY))
+	screen.DrawImage(overlayImage, op)
 }
 
 // drawNPCHeader draws the NPC name and emotional state.

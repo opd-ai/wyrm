@@ -35,6 +35,10 @@ type InventoryUI struct {
 	containerInv    *components.Inventory
 	playerInv       *components.Inventory
 	viewingMode     int // 0 = player, 1 = container, 2 = transfer
+
+	// Pre-allocated rendering images for batch GPU uploads
+	slotImage   *ebiten.Image // Reusable slot background
+	dialogImage *ebiten.Image // Confirmation dialog background
 }
 
 // NewInventoryUI creates a new inventory UI.
@@ -386,14 +390,12 @@ func (ui *InventoryUI) Draw(screen *ebiten.Image, world *ecs.World) {
 	ui.drawControlsHelp(screen, screenHeight)
 }
 
-// drawBackground draws the semi-transparent overlay background.
+// drawBackground draws the semi-transparent overlay background using Fill.
 func (ui *InventoryUI) drawBackground(screen *ebiten.Image, width, height int) {
 	bgColor := color.RGBA{R: 20, G: 20, B: 30, A: 220}
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			screen.Set(x, y, bgColor)
-		}
-	}
+	bgImage := ebiten.NewImage(width, height)
+	bgImage.Fill(bgColor)
+	screen.DrawImage(bgImage, nil)
 }
 
 // drawTitle draws the inventory title.
@@ -447,24 +449,32 @@ func (ui *InventoryUI) drawInventoryGrid(screen *ebiten.Image, screenWidth, scre
 	ui.drawSelectedItemName(screen, screenWidth, startY+gridHeight+15, inv, itemCount)
 }
 
-// drawGridBackground draws the inventory grid background.
+// drawGridBackground draws the inventory grid background using Fill.
 func (ui *InventoryUI) drawGridBackground(screen *ebiten.Image, startX, startY, gridWidth, gridHeight int) {
 	gridBgColor := color.RGBA{R: 40, G: 40, B: 50, A: 255}
-	for y := startY - 5; y < startY+gridHeight+5; y++ {
-		for x := startX - 5; x < startX+gridWidth+5; x++ {
-			screen.Set(x, y, gridBgColor)
-		}
-	}
+	w := gridWidth + 10
+	h := gridHeight + 10
+	gridBgImage := ebiten.NewImage(w, h)
+	gridBgImage.Fill(gridBgColor)
+
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(float64(startX-5), float64(startY-5))
+	screen.DrawImage(gridBgImage, op)
 }
 
-// drawSlot draws a single inventory slot.
+// drawSlot draws a single inventory slot using Fill.
 func (ui *InventoryUI) drawSlot(screen *ebiten.Image, slotX, slotY, slotIndex int, inv *components.Inventory, itemCount int) {
 	slotColor := ui.getSlotColor(slotIndex)
-	for y := slotY; y < slotY+ui.slotSize; y++ {
-		for x := slotX; x < slotX+ui.slotSize; x++ {
-			screen.Set(x, y, slotColor)
-		}
+
+	// Initialize slot image if needed
+	if ui.slotImage == nil || ui.slotImage.Bounds().Dx() != ui.slotSize {
+		ui.slotImage = ebiten.NewImage(ui.slotSize, ui.slotSize)
 	}
+
+	ui.slotImage.Fill(slotColor)
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(float64(slotX), float64(slotY))
+	screen.DrawImage(ui.slotImage, op)
 
 	if inv != nil && slotIndex < itemCount {
 		itemName := inv.Items[slotIndex]
@@ -493,7 +503,7 @@ func (ui *InventoryUI) drawSelectedItemName(screen *ebiten.Image, screenWidth, y
 	ebitenutil.DebugPrintAt(screen, itemName, nameX, y)
 }
 
-// drawCapacityIndicator draws the weight/capacity indicator.
+// drawCapacityIndicator draws the weight/capacity indicator using Fill.
 func (ui *InventoryUI) drawCapacityIndicator(screen *ebiten.Image, screenWidth, screenHeight int, inv *components.Inventory) {
 	itemCount := 0
 	capacity := 30 // default
@@ -514,33 +524,35 @@ func (ui *InventoryUI) drawCapacityIndicator(screen *ebiten.Image, screenWidth, 
 	barX := screenWidth - barWidth - 20
 	barY := screenHeight - 25
 
-	// Background
-	for y := barY; y < barY+barHeight; y++ {
-		for x := barX; x < barX+barWidth; x++ {
-			screen.Set(x, y, color.RGBA{R: 50, G: 50, B: 50, A: 255})
-		}
-	}
+	// Background using Fill
+	barBgImage := ebiten.NewImage(barWidth, barHeight)
+	barBgImage.Fill(color.RGBA{R: 50, G: 50, B: 50, A: 255})
+	opBg := &ebiten.DrawImageOptions{}
+	opBg.GeoM.Translate(float64(barX), float64(barY))
+	screen.DrawImage(barBgImage, opBg)
 
 	// Fill
 	fillWidth := barWidth * itemCount / capacity
 	if fillWidth > barWidth {
 		fillWidth = barWidth
 	}
-	fillColor := color.RGBA{R: 100, G: 200, B: 100, A: 255}
-	if itemCount > capacity*80/100 {
-		fillColor = color.RGBA{R: 200, G: 200, B: 100, A: 255}
-	}
-	if itemCount >= capacity {
-		fillColor = color.RGBA{R: 200, G: 100, B: 100, A: 255}
-	}
-	for y := barY; y < barY+barHeight; y++ {
-		for x := barX; x < barX+fillWidth; x++ {
-			screen.Set(x, y, fillColor)
+	if fillWidth > 0 {
+		fillColor := color.RGBA{R: 100, G: 200, B: 100, A: 255}
+		if itemCount > capacity*80/100 {
+			fillColor = color.RGBA{R: 200, G: 200, B: 100, A: 255}
 		}
+		if itemCount >= capacity {
+			fillColor = color.RGBA{R: 200, G: 100, B: 100, A: 255}
+		}
+		fillImage := ebiten.NewImage(fillWidth, barHeight)
+		fillImage.Fill(fillColor)
+		opFill := &ebiten.DrawImageOptions{}
+		opFill.GeoM.Translate(float64(barX), float64(barY))
+		screen.DrawImage(fillImage, opFill)
 	}
 }
 
-// drawConfirmDialog draws a confirmation dialog for use/drop actions.
+// drawConfirmDialog draws a confirmation dialog using Fill.
 func (ui *InventoryUI) drawConfirmDialog(screen *ebiten.Image, screenWidth, screenHeight int, inv *components.Inventory) {
 	if inv == nil || ui.selectedSlot >= len(inv.Items) {
 		return
@@ -552,12 +564,15 @@ func (ui *InventoryUI) drawConfirmDialog(screen *ebiten.Image, screenWidth, scre
 	dialogX := (screenWidth - dialogWidth) / 2
 	dialogY := (screenHeight - dialogHeight) / 2
 
-	// Dialog background
-	for y := dialogY; y < dialogY+dialogHeight; y++ {
-		for x := dialogX; x < dialogX+dialogWidth; x++ {
-			screen.Set(x, y, color.RGBA{R: 30, G: 30, B: 40, A: 250})
-		}
+	// Dialog background using Fill
+	if ui.dialogImage == nil || ui.dialogImage.Bounds().Dx() != dialogWidth || ui.dialogImage.Bounds().Dy() != dialogHeight {
+		ui.dialogImage = ebiten.NewImage(dialogWidth, dialogHeight)
 	}
+	ui.dialogImage.Fill(color.RGBA{R: 30, G: 30, B: 40, A: 250})
+
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(float64(dialogX), float64(dialogY))
+	screen.DrawImage(ui.dialogImage, op)
 
 	// Dialog text
 	actionText := ui.confirmAction

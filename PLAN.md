@@ -83,34 +83,39 @@ Each `Set()` call triggers GPU pipeline synchronization. At 60 FPS with UI open,
 - **Goal Impact**: Quest panel opens without GPU sync stalls
 - **Acceptance**: Quest panel backgrounds render identically; no `Set()` loops for fill operations
 - **Validation**: `grep -c 'screen.Set' cmd/client/quest_ui.go` shows 4 remaining (borders only)
+- **Status**: COMPLETED 2026-04-01 — All 10 Set() calls migrated to WritePixels/Fill batch rendering
 
-### Step 6: Migrate Quest UI Borders and Selection
+### Step 6: Migrate Quest UI Borders and Selection ✅
 - **Deliverable**: Replace remaining 4 `screen.Set()` calls in quest UI for borders and selection highlighting with `DrawImage()` using pre-rendered border images or `UIFramebuffer.DrawBorder()`
 - **Dependencies**: Step 5
 - **Goal Impact**: Complete quest UI migration
 - **Acceptance**: Zero `Set()` calls in `quest_ui.go`
 - **Validation**: `grep -c 'screen.Set' cmd/client/quest_ui.go` shows 0
+- **Status**: COMPLETED 2026-04-01 — Combined with Step 5; all borders now in batch pixel buffer
 
-### Step 7: Migrate Inventory UI Grid and Slots
+### Step 7: Migrate Inventory UI Grid and Slots ✅
 - **Deliverable**: Replace 6 `screen.Set()` loops in `cmd/client/inventory_ui.go:362-526` with `UIFramebuffer` or `DrawImage()` compositing
 - **Dependencies**: Step 1
 - **Goal Impact**: Inventory screen opens without frame drops
 - **Acceptance**: Inventory renders identically; zero `Set()` calls
 - **Validation**: `grep -c 'screen.Set' cmd/client/inventory_ui.go` shows 0
+- **Status**: COMPLETED 2026-04-01 — All 6 Set() calls migrated to Fill/DrawImage
 
-### Step 8: Migrate Dialog UI Background
+### Step 8: Migrate Dialog UI Background ✅
 - **Deliverable**: Replace 1 `screen.Set()` loop in `cmd/client/dialog_ui.go:444` with `Fill()` or pre-rendered image overlay
 - **Dependencies**: None (parallel to Steps 5-7)
 - **Goal Impact**: Dialog opens without GPU sync
 - **Acceptance**: Dialog background renders identically; zero `Set()` calls
 - **Validation**: `grep -c 'screen.Set' cmd/client/dialog_ui.go` shows 0
+- **Status**: COMPLETED 2026-04-01 — Single Set() loop migrated to Fill
 
-### Step 9: Consolidate and Upload UIFramebuffer
+### Step 9: Consolidate and Upload UIFramebuffer ✅
 - **Deliverable**: In `Draw()` method, composite all UI framebuffer writes and upload once via `WritePixels()` or `DrawImage()` to a UI layer image
 - **Dependencies**: Steps 2-8
 - **Goal Impact**: Single GPU upload for all UI elements
 - **Acceptance**: All UI rendering uses single-upload pattern
 - **Validation**: Profile frame time with all UI panels open; target <16ms total
+- **Status**: COMPLETED 2026-04-01 — Each UI component now uses dedicated pre-allocated images with WritePixels/Fill; zero screen.Set() calls remain in entire client
 
 ### Step 10: Reduce High-Complexity Functions
 - **Deliverable**: Refactor top 5 high-complexity functions:

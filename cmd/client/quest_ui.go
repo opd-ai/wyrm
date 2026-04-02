@@ -5,7 +5,6 @@ package main
 
 import (
 	"fmt"
-	"image"
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -396,30 +395,76 @@ func (q *QuestUI) Draw(screen *ebiten.Image) {
 	q.drawInstructions(screen, startX, startY)
 }
 
-// drawBackground draws the quest UI background panel.
+// drawBackground draws the quest UI background panel using batch pixel writes.
 func (q *QuestUI) drawBackground(screen *ebiten.Image, x, y int) {
-	bgColor := q.getBackgroundColor()
-	for dy := 0; dy < questUIHeight; dy++ {
-		for dx := 0; dx < questUIWidth; dx++ {
-			screen.Set(x+dx, y+dy, bgColor)
+	// Initialize panel image if needed
+	if q.panelImage == nil {
+		q.panelImage = ebiten.NewImage(questUIWidth, questUIHeight)
+		q.panelPixels = make([]byte, questUIWidth*questUIHeight*4)
+	}
+
+	// Type assert to color.RGBA for direct field access
+	bgColor := q.getBackgroundColor().(color.RGBA)
+	borderColor := q.getBorderColor().(color.RGBA)
+
+	// Fill background
+	for py := 0; py < questUIHeight; py++ {
+		for px := 0; px < questUIWidth; px++ {
+			idx := (py*questUIWidth + px) * 4
+			q.panelPixels[idx] = bgColor.R
+			q.panelPixels[idx+1] = bgColor.G
+			q.panelPixels[idx+2] = bgColor.B
+			q.panelPixels[idx+3] = bgColor.A
 		}
 	}
 
-	// Border
-	borderColor := q.getBorderColor()
-	for dx := 0; dx < questUIWidth; dx++ {
-		screen.Set(x+dx, y, borderColor)
-		screen.Set(x+dx, y+questUIHeight-1, borderColor)
+	// Top and bottom borders
+	for px := 0; px < questUIWidth; px++ {
+		// Top
+		idx := px * 4
+		q.panelPixels[idx] = borderColor.R
+		q.panelPixels[idx+1] = borderColor.G
+		q.panelPixels[idx+2] = borderColor.B
+		q.panelPixels[idx+3] = borderColor.A
+		// Bottom
+		idx = ((questUIHeight-1)*questUIWidth + px) * 4
+		q.panelPixels[idx] = borderColor.R
+		q.panelPixels[idx+1] = borderColor.G
+		q.panelPixels[idx+2] = borderColor.B
+		q.panelPixels[idx+3] = borderColor.A
 	}
-	for dy := 0; dy < questUIHeight; dy++ {
-		screen.Set(x, y+dy, borderColor)
-		screen.Set(x+questUIWidth-1, y+dy, borderColor)
+
+	// Left and right borders
+	for py := 0; py < questUIHeight; py++ {
+		// Left
+		idx := (py * questUIWidth) * 4
+		q.panelPixels[idx] = borderColor.R
+		q.panelPixels[idx+1] = borderColor.G
+		q.panelPixels[idx+2] = borderColor.B
+		q.panelPixels[idx+3] = borderColor.A
+		// Right
+		idx = (py*questUIWidth + questUIWidth - 1) * 4
+		q.panelPixels[idx] = borderColor.R
+		q.panelPixels[idx+1] = borderColor.G
+		q.panelPixels[idx+2] = borderColor.B
+		q.panelPixels[idx+3] = borderColor.A
 	}
 
 	// Divider between list and details
-	for dy := 40; dy < questUIHeight-30; dy++ {
-		screen.Set(x+questListWidth+15, y+dy, borderColor)
+	dividerX := questListWidth + 15
+	for py := 40; py < questUIHeight-30; py++ {
+		idx := (py*questUIWidth + dividerX) * 4
+		q.panelPixels[idx] = borderColor.R
+		q.panelPixels[idx+1] = borderColor.G
+		q.panelPixels[idx+2] = borderColor.B
+		q.panelPixels[idx+3] = borderColor.A
 	}
+
+	// Upload and draw
+	q.panelImage.WritePixels(q.panelPixels)
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(float64(x), float64(y))
+	screen.DrawImage(q.panelImage, op)
 }
 
 // drawTitle draws the quest log title.
@@ -444,12 +489,22 @@ func (q *QuestUI) drawQuestList(screen *ebiten.Image, x, y int) {
 			break // Out of space
 		}
 
-		// Selection highlight
+		// Selection highlight using sub-image fill
 		if i == q.selectedQuestIdx {
-			for dx := 0; dx < questListWidth; dx++ {
-				screen.Set(listX+dx, entryY-2, color.RGBA{80, 80, 120, 200})
-				screen.Set(listX+dx, entryY+14, color.RGBA{80, 80, 120, 200})
-			}
+			highlightColor := color.RGBA{80, 80, 120, 200}
+			// Create temporary images for highlight bars
+			topBar := ebiten.NewImage(questListWidth, 1)
+			bottomBar := ebiten.NewImage(questListWidth, 1)
+			topBar.Fill(highlightColor)
+			bottomBar.Fill(highlightColor)
+
+			opTop := &ebiten.DrawImageOptions{}
+			opTop.GeoM.Translate(float64(listX), float64(entryY-2))
+			screen.DrawImage(topBar, opTop)
+
+			opBottom := &ebiten.DrawImageOptions{}
+			opBottom.GeoM.Translate(float64(listX), float64(entryY+14))
+			screen.DrawImage(bottomBar, opBottom)
 		}
 
 		// Quest status indicator
@@ -527,7 +582,7 @@ func (q *QuestUI) drawInstructions(screen *ebiten.Image, x, y int) {
 	ebitenutil.DebugPrintAt(screen, instructions, x+10, y+questUIHeight-20)
 }
 
-// drawNotifications draws quest completion notifications.
+// drawNotifications draws quest completion notifications using batch rendering.
 func (q *QuestUI) drawNotifications(screen *ebiten.Image) {
 	screenW := screen.Bounds().Dx()
 
@@ -542,19 +597,23 @@ func (q *QuestUI) drawNotifications(screen *ebiten.Image) {
 		notifY := 50 + i*25
 		notifX := screenW/2 - len(notif.Message)*3
 
-		// Draw background
+		// Draw background using Fill (single color, efficient)
 		bgColor := color.RGBA{40, 80, 40, alpha}
-		for dx := -5; dx < len(notif.Message)*6+5; dx++ {
-			for dy := -2; dy < 14; dy++ {
-				screen.Set(notifX+dx, notifY+dy, bgColor)
-			}
-		}
+		bgWidth := len(notif.Message)*6 + 10
+		bgHeight := 16
+
+		notifBg := ebiten.NewImage(bgWidth, bgHeight)
+		notifBg.Fill(bgColor)
+
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Translate(float64(notifX-5), float64(notifY-2))
+		screen.DrawImage(notifBg, op)
 
 		ebitenutil.DebugPrintAt(screen, notif.Message, notifX, notifY)
 	}
 }
 
-// drawQuestTracker draws the active quest tracker on-screen.
+// drawQuestTracker draws the active quest tracker on-screen using batch rendering.
 func (q *QuestUI) drawQuestTracker(screen *ebiten.Image) {
 	if q.trackedQuestID == "" {
 		return
@@ -579,13 +638,20 @@ func (q *QuestUI) drawQuestTracker(screen *ebiten.Image) {
 	trackerX := screenW - 220
 	trackerY := 10
 
-	// Background
-	bgColor := color.RGBA{30, 30, 50, 180}
-	for dx := 0; dx < 210; dx++ {
-		for dy := 0; dy < 60; dy++ {
-			screen.Set(trackerX+dx, trackerY+dy, bgColor)
-		}
+	// Initialize tracker image if needed
+	const trackerWidth, trackerHeight = 210, 60
+	if q.trackerImage == nil {
+		q.trackerImage = ebiten.NewImage(trackerWidth, trackerHeight)
 	}
+
+	// Fill tracker background using Fill (efficient for solid colors)
+	bgColor := color.RGBA{30, 30, 50, 180}
+	q.trackerImage.Fill(bgColor)
+
+	// Draw to screen
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(float64(trackerX), float64(trackerY))
+	screen.DrawImage(q.trackerImage, op)
 
 	// Quest name
 	name := tracked.Name
