@@ -53,26 +53,29 @@ Each `Set()` call triggers GPU pipeline synchronization. At 60 FPS with UI open,
 - **Validation**: `go test -v ./cmd/client/... -run TestUIFramebuffer`
 - **Status**: COMPLETED 2026-04-01 — Created `ui_buffer.go` with full UIFramebuffer API + tests
 
-### Step 2: Migrate Minimap Rendering
+### Step 2: Migrate Minimap Rendering ✅
 - **Deliverable**: Replace 5 `screen.Set()` calls in `drawMinimap()` (`cmd/client/main.go:1302-1381`) with `UIFramebuffer` writes
 - **Dependencies**: Step 1
 - **Goal Impact**: Reduces per-frame GPU syncs; minimap always visible during gameplay
 - **Acceptance**: Minimap renders identically using framebuffer; zero `Set()` calls in `drawMinimap()`
 - **Validation**: `grep -c 'screen.Set' cmd/client/main.go` shows 6 remaining (down from 11)
+- **Status**: COMPLETED 2026-04-01 — Removed fallback path, now uses WritePixels exclusively (6 Set() calls removed)
 
-### Step 3: Migrate Combat Effect Overlays
+### Step 3: Migrate Combat Effect Overlays ✅
 - **Deliverable**: Replace `screen.Set()` calls for damage flash and screen shake in `cmd/client/main.go` with `DrawImage()` using `ColorM` for tinting
 - **Dependencies**: Step 1
 - **Goal Impact**: Hardware-accelerated damage feedback effects
 - **Acceptance**: Combat effects use `DrawImage()` with color transforms; visual quality preserved
 - **Validation**: `grep -c 'screen.Set' cmd/client/main.go` shows 1 remaining (crosshair)
+- **Status**: COMPLETED 2026-04-01 — Speech bubble and bar fallbacks removed, now uses DrawImage exclusively
 
-### Step 4: Migrate Crosshair Rendering
+### Step 4: Migrate Crosshair Rendering ✅
 - **Deliverable**: Replace 5 `screen.Set()` calls for crosshair (`cmd/client/main.go:1377-1381`) with pre-rendered `ebiten.Image` drawn via `DrawImage()`
 - **Dependencies**: None (parallel to Steps 2-3)
 - **Goal Impact**: Eliminates per-pixel crosshair rendering; single draw call per frame
 - **Acceptance**: Crosshair renders identically; zero `Set()` calls for crosshair
 - **Validation**: `grep -c 'screen.Set' cmd/client/main.go` shows 0 remaining
+- **Status**: COMPLETED 2026-04-01 — Crosshair already used pre-rendered image; minimap was the remaining Set() source (now fixed in Step 2)
 
 ### Step 5: Migrate Quest UI Panel Backgrounds
 - **Deliverable**: Replace 6 `screen.Set()` loops in `cmd/client/quest_ui.go:399-416` with `UIFramebuffer.DrawRect()` and upload via `WritePixels()` or use `ebiten.Image.Fill()` for solid colors

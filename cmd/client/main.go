@@ -1230,35 +1230,19 @@ func normalizeAngle(angle float64) float64 {
 }
 
 // drawSpeechBubble draws a simple "..." speech indicator at the given position.
+// Uses pre-allocated speech bubble image for GPU-efficient rendering.
 func (g *Game) drawSpeechBubble(screen *ebiten.Image, x, y int) {
-	// Use pre-allocated speech bubble image for efficiency
-	if g.speechBubbleImg != nil {
-		op := &ebiten.DrawImageOptions{}
-		// Center the bubble at (x, y)
-		op.GeoM.Translate(float64(x-21), float64(y-9))
-		screen.DrawImage(g.speechBubbleImg, op)
-		return
+	// Ensure speech bubble image is initialized (lazy init)
+	if g.speechBubbleImg == nil {
+		const w, h = 42, 18
+		g.speechBubbleImg = ebiten.NewImage(w, h)
+		g.initSpeechBubbleImage(w, h)
 	}
 
-	// Fallback to direct drawing if image not initialized
-	bubbleColor := color.RGBA{255, 255, 255, 200}
-	textColor := color.RGBA{50, 50, 50, 255}
-
-	for dy := -8; dy <= 8; dy++ {
-		for dx := -20; dx <= 20; dx++ {
-			if float64(dx*dx)/400+float64(dy*dy)/64 <= 1 {
-				screen.Set(x+dx, y+dy, bubbleColor)
-			}
-		}
-	}
-
-	for i := -8; i <= 8; i += 8 {
-		for ddx := 0; ddx < 3; ddx++ {
-			for ddy := 0; ddy < 3; ddy++ {
-				screen.Set(x+i+ddx-1, y+ddy-1, textColor)
-			}
-		}
-	}
+	op := &ebiten.DrawImageOptions{}
+	// Center the bubble at (x, y)
+	op.GeoM.Translate(float64(x-21), float64(y-9))
+	screen.DrawImage(g.speechBubbleImg, op)
 }
 
 // applyPostProcessing applies genre-specific visual effects to the rendered frame.
@@ -1461,67 +1445,58 @@ func (g *Game) drawWantedStatus(screen *ebiten.Image, x, y int) {
 }
 
 // drawBar renders a horizontal bar (health/mana style) using batch pixel writes.
+// Uses WritePixels() for GPU-efficient rendering with zero per-pixel Set() calls.
 func (g *Game) drawBar(screen *ebiten.Image, x, y, width, height int, percent float64, fillColor, bgColor uint32) {
-	// Use pre-allocated bar image for efficiency
-	if g.barImage != nil && width <= 150 && height <= 16 {
-		// Clear and redraw into pre-allocated image
-		g.barImage.Clear()
-		pixels := make([]byte, width*height*4)
-
-		// Background color bytes
-		bgR, bgG, bgB, bgA := uint8(bgColor>>24), uint8(bgColor>>16), uint8(bgColor>>8), uint8(bgColor)
-		fillR, fillG, fillB, fillA := uint8(fillColor>>24), uint8(fillColor>>16), uint8(fillColor>>8), uint8(fillColor)
-
-		// Fill background
-		for py := 0; py < height; py++ {
-			for px := 0; px < width; px++ {
-				idx := (py*width + px) * 4
-				pixels[idx] = bgR
-				pixels[idx+1] = bgG
-				pixels[idx+2] = bgB
-				pixels[idx+3] = bgA
-			}
-		}
-
-		// Fill progress (with 1px border)
-		fillWidth := int(float64(width) * percent)
-		for py := 1; py < height-1; py++ {
-			for px := 1; px < fillWidth-1 && px < width-1; px++ {
-				idx := (py*width + px) * 4
-				pixels[idx] = fillR
-				pixels[idx+1] = fillG
-				pixels[idx+2] = fillB
-				pixels[idx+3] = fillA
-			}
-		}
-
-		// Create a sub-image of the correct size and write pixels
-		subImg := g.barImage.SubImage(image.Rect(0, 0, width, height)).(*ebiten.Image)
-		subImg.WritePixels(pixels)
-
-		// Draw to screen
-		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Translate(float64(x), float64(y))
-		screen.DrawImage(subImg, op)
-		return
+	// Ensure bar image is initialized (lazy init)
+	if g.barImage == nil {
+		g.barImage = ebiten.NewImage(200, 32) // Max size to accommodate various bars
 	}
 
-	// Fallback to direct drawing
-	for py := y; py < y+height; py++ {
-		for px := x; px < x+width; px++ {
-			if px >= 0 && px < g.cfg.Window.Width && py >= 0 && py < g.cfg.Window.Height {
-				screen.Set(px, py, uint32ToColor(bgColor))
-			}
+	// Resize if bar image is too small
+	bounds := g.barImage.Bounds()
+	if bounds.Dx() < width || bounds.Dy() < height {
+		g.barImage = ebiten.NewImage(width, height)
+	}
+
+	// Clear and redraw into pre-allocated image
+	g.barImage.Clear()
+	pixels := make([]byte, width*height*4)
+
+	// Background color bytes
+	bgR, bgG, bgB, bgA := uint8(bgColor>>24), uint8(bgColor>>16), uint8(bgColor>>8), uint8(bgColor)
+	fillR, fillG, fillB, fillA := uint8(fillColor>>24), uint8(fillColor>>16), uint8(fillColor>>8), uint8(fillColor)
+
+	// Fill background
+	for py := 0; py < height; py++ {
+		for px := 0; px < width; px++ {
+			idx := (py*width + px) * 4
+			pixels[idx] = bgR
+			pixels[idx+1] = bgG
+			pixels[idx+2] = bgB
+			pixels[idx+3] = bgA
 		}
 	}
+
+	// Fill progress (with 1px border)
 	fillWidth := int(float64(width) * percent)
-	for py := y + 1; py < y+height-1; py++ {
-		for px := x + 1; px < x+fillWidth-1; px++ {
-			if px >= 0 && px < g.cfg.Window.Width && py >= 0 && py < g.cfg.Window.Height {
-				screen.Set(px, py, uint32ToColor(fillColor))
-			}
+	for py := 1; py < height-1; py++ {
+		for px := 1; px < fillWidth-1 && px < width-1; px++ {
+			idx := (py*width + px) * 4
+			pixels[idx] = fillR
+			pixels[idx+1] = fillG
+			pixels[idx+2] = fillB
+			pixels[idx+3] = fillA
 		}
 	}
+
+	// Create a sub-image of the correct size and write pixels
+	subImg := g.barImage.SubImage(image.Rect(0, 0, width, height)).(*ebiten.Image)
+	subImg.WritePixels(pixels)
+
+	// Draw to screen
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(float64(x), float64(y))
+	screen.DrawImage(subImg, op)
 }
 
 // drawMinimap renders a small top-down view of the nearby area using batch pixel writes.

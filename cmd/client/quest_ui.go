@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -27,6 +28,10 @@ type QuestUI struct {
 	notifications     []questNotification
 	notificationTimer float64
 	trackedQuestID    string
+	// Pre-allocated rendering buffers for batch GPU uploads
+	panelImage   *ebiten.Image // Main quest panel background
+	panelPixels  []byte        // Pixel buffer for panel
+	trackerImage *ebiten.Image // Quest tracker background
 }
 
 // questDisplayInfo holds display information for a quest.
