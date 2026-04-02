@@ -120,10 +120,10 @@
 - [x] Integrate existing `Skybox` into `Draw()` — render sky pixels above horizon line
 - [x] Add `PlayerPitch` field to `Renderer`; offset horizon line by pitch
 - [x] Adjust `drawFloorCeiling()` and `drawWalls()` for pitch-shifted horizon
-- [ ] Add mouse input capture in `Game.Update()` using Ebiten's `CursorPosition()`
-- [ ] Implement `CursorModeCaptured` for FPS-style mouse capture
-- [ ] Add sensitivity/acceleration config to `config.Config`
-- [ ] Implement contextual cursor visibility (captured during gameplay, visible for UI)
+- [x] Add mouse input capture in `Game.Update()` using Ebiten's `CursorPosition()`
+- [x] Implement `CursorModeCaptured` for FPS-style mouse capture
+- [x] Add sensitivity/acceleration config to `config.Config`
+- [x] Implement contextual cursor visibility (captured during gameplay, visible for UI)
 - [x] Unit tests: pitch clamping, sky gradient, mouse sensitivity
 
 ### Phase 3: Environmental Barriers (Variable Shape)
