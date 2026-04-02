@@ -960,7 +960,7 @@ world.RegisterSystem(&systems.InteractionTargetSystem{})
 - [x] `skybox_integration_test.go` — Sky renders above horizon, indoor fallback, star field (in skybox_test.go: 25+ tests including StarField)
 - [x] `barrier_collision_test.go` — Polygon SAT collision, cylinder collision, AABB collision (19 tests including SAT, cylinder, AABB)
 - [x] `material_test.go` — Material registry, normal map generation, specular calculation (in generator_test.go: 10+ MaterialRegistry tests)
-- [ ] `partial_barrier_test.go` — Alpha blending, gap patterns, transparency rendering
+- [x] `partial_barrier_test.go` — Alpha blending, gap patterns, transparency rendering
 - [x] `interaction_ray_test.go` — Center-screen ray, object targeting, range checking (in interaction_test.go: 17 tests)
 - [x] `highlight_test.go` — Edge detection, glow rendering (16 tests)
 - [ ] `mouse_input_test.go` — Sensitivity, acceleration, smoothing, pitch clamping
