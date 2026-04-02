@@ -351,12 +351,25 @@ func (m *EntityUpdate) Encode(w io.Writer) error {
 	if err := binary.Write(w, binary.LittleEndian, m.Type()); err != nil {
 		return fmt.Errorf("encode type: %w", err)
 	}
+	if err := m.encodeHeader(w); err != nil {
+		return err
+	}
+	return m.encodeFields(w)
+}
+
+// encodeHeader writes ServerTimeMs and EntityID.
+func (m *EntityUpdate) encodeHeader(w io.Writer) error {
 	if err := binary.Write(w, binary.LittleEndian, m.ServerTimeMs); err != nil {
 		return fmt.Errorf("encode ServerTimeMs: %w", err)
 	}
 	if err := binary.Write(w, binary.LittleEndian, m.EntityID); err != nil {
 		return fmt.Errorf("encode EntityID: %w", err)
 	}
+	return nil
+}
+
+// encodeFields writes position, angle, health, velocity, and state.
+func (m *EntityUpdate) encodeFields(w io.Writer) error {
 	if err := binary.Write(w, binary.LittleEndian, m.X); err != nil {
 		return fmt.Errorf("encode X: %w", err)
 	}
@@ -465,6 +478,11 @@ func (m *DeltaEntityUpdate) Encode(w io.Writer) error {
 	if err := binary.Write(w, binary.LittleEndian, m.FieldMask); err != nil {
 		return fmt.Errorf("encode FieldMask: %w", err)
 	}
+	return m.encodeConditionalFields(w)
+}
+
+// encodeConditionalFields writes only the fields that have changed based on FieldMask.
+func (m *DeltaEntityUpdate) encodeConditionalFields(w io.Writer) error {
 	if m.FieldMask&FieldPosition != 0 {
 		if err := encodePosition(w, m.X, m.Y, m.Z); err != nil {
 			return err
@@ -507,36 +525,44 @@ func DecodeDeltaEntityUpdate(r io.Reader) (*DeltaEntityUpdate, error) {
 	if err := binary.Read(r, binary.LittleEndian, &m.FieldMask); err != nil {
 		return nil, fmt.Errorf("decode FieldMask: %w", err)
 	}
+	if err := m.decodeConditionalFields(r); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// decodeConditionalFields reads only the fields present based on FieldMask.
+func (m *DeltaEntityUpdate) decodeConditionalFields(r io.Reader) error {
 	if m.FieldMask&FieldPosition != 0 {
 		x, y, z, err := decodePosition(r)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		m.X, m.Y, m.Z = x, y, z
 	}
 	if m.FieldMask&FieldAngle != 0 {
 		angle, err := decodeAngle(r)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		m.Angle = angle
 	}
 	if m.FieldMask&FieldHealth != 0 {
 		if err := binary.Read(r, binary.LittleEndian, &m.Health); err != nil {
-			return nil, fmt.Errorf("decode Health: %w", err)
+			return fmt.Errorf("decode Health: %w", err)
 		}
 	}
 	if m.FieldMask&FieldVelocity != 0 {
 		if err := binary.Read(r, binary.LittleEndian, &m.Velocity); err != nil {
-			return nil, fmt.Errorf("decode Velocity: %w", err)
+			return fmt.Errorf("decode Velocity: %w", err)
 		}
 	}
 	if m.FieldMask&FieldState != 0 {
 		if err := binary.Read(r, binary.LittleEndian, &m.State); err != nil {
-			return nil, fmt.Errorf("decode State: %w", err)
+			return fmt.Errorf("decode State: %w", err)
 		}
 	}
-	return m, nil
+	return nil
 }
 
 // encodeVarUint64 writes a uint64 using variable-length encoding.

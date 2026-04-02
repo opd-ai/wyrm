@@ -1503,59 +1503,64 @@ func (g *Game) drawMinimap(screen *ebiten.Image, x, y, size int) {
 		return
 	}
 
-	// Ensure minimap buffers are initialized (lazy init for sizes > 64)
+	g.ensureMinimapBuffers(size)
+
+	playerMapX, playerMapY := g.getMinimapPlayerPosition()
+	territories := g.getFactionTerritories()
+
+	pixels := g.minimapPixels[:size*size*4]
+	g.fillMinimapPixels(pixels, size, playerMapX, playerMapY, territories)
+	g.drawMinimapPlayerMarker(pixels, size)
+
+	// Write pixels and draw to screen
+	subImg := g.minimapImage.SubImage(image.Rect(0, 0, size, size)).(*ebiten.Image)
+	subImg.WritePixels(pixels)
+
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(float64(x), float64(y))
+	screen.DrawImage(subImg, op)
+}
+
+// ensureMinimapBuffers initializes or resizes minimap pixel buffers.
+func (g *Game) ensureMinimapBuffers(size int) {
 	if g.minimapImage == nil || g.minimapPixels == nil {
 		g.minimapImage = ebiten.NewImage(size, size)
 		g.minimapPixels = make([]byte, size*size*4)
+		return
 	}
-
-	// Resize if needed for larger minimap requests
 	bounds := g.minimapImage.Bounds()
 	if bounds.Dx() < size || bounds.Dy() < size {
 		g.minimapImage = ebiten.NewImage(size, size)
 		g.minimapPixels = make([]byte, size*size*4)
+	} else if len(g.minimapPixels) < size*size*4 {
+		g.minimapPixels = make([]byte, size*size*4)
 	}
+}
 
-	// Get player position
-	var playerMapX, playerMapY int
-	if g.playerEntity != 0 {
-		if comp, ok := g.world.GetComponent(g.playerEntity, "Position"); ok {
-			pos := comp.(*components.Position)
-			playerMapX = int(pos.X)
-			playerMapY = int(pos.Y)
-		}
+// getMinimapPlayerPosition returns the player's position for minimap centering.
+func (g *Game) getMinimapPlayerPosition() (int, int) {
+	if g.playerEntity == 0 {
+		return 0, 0
 	}
-
-	// Get faction territories
-	territories := g.getFactionTerritories()
-
-	// Ensure pixel buffer is large enough
-	bufSize := size * size * 4
-	if len(g.minimapPixels) < bufSize {
-		g.minimapPixels = make([]byte, bufSize)
+	comp, ok := g.world.GetComponent(g.playerEntity, "Position")
+	if !ok {
+		return 0, 0
 	}
-	pixels := g.minimapPixels[:bufSize]
+	pos := comp.(*components.Position)
+	return int(pos.X), int(pos.Y)
+}
 
+// fillMinimapPixels renders terrain and territory colors to the pixel buffer.
+func (g *Game) fillMinimapPixels(pixels []byte, size, playerX, playerY int, territories []*components.FactionTerritory) {
 	mapRadius := 16
 	for my := 0; my < size; my++ {
 		for mx := 0; mx < size; mx++ {
-			worldX := playerMapX - mapRadius + (mx * mapRadius * 2 / size)
-			worldY := playerMapY - mapRadius + (my * mapRadius * 2 / size)
+			worldX := playerX - mapRadius + (mx * mapRadius * 2 / size)
+			worldY := playerY - mapRadius + (my * mapRadius * 2 / size)
 
-			var baseColor uint32
-			if worldY >= 0 && worldY < len(g.worldMap) && worldX >= 0 && worldX < len(g.worldMap[0]) {
-				if g.worldMap[worldY][worldX] > 0 {
-					baseColor = 0x666666FF
-				} else {
-					baseColor = 0x333333FF
-				}
-			} else {
-				baseColor = 0x111111FF
-			}
-
-			territoryColor := g.getTerritoryColor(float64(worldX), float64(worldY), territories)
-			if territoryColor != 0 {
-				baseColor = blendColors(baseColor, territoryColor, 0.4)
+			baseColor := g.getMinimapTileColor(worldX, worldY)
+			if tc := g.getTerritoryColor(float64(worldX), float64(worldY), territories); tc != 0 {
+				baseColor = blendColors(baseColor, tc, 0.4)
 			}
 
 			idx := (my*size + mx) * 4
@@ -1565,26 +1570,31 @@ func (g *Game) drawMinimap(screen *ebiten.Image, x, y, size int) {
 			pixels[idx+3] = uint8(baseColor)
 		}
 	}
+}
 
-	// Draw player dot in center (green cross)
+// getMinimapTileColor returns the base color for a minimap tile.
+func (g *Game) getMinimapTileColor(worldX, worldY int) uint32 {
+	if worldY < 0 || worldY >= len(g.worldMap) || worldX < 0 || worldX >= len(g.worldMap[0]) {
+		return 0x111111FF
+	}
+	if g.worldMap[worldY][worldX] > 0 {
+		return 0x666666FF
+	}
+	return 0x333333FF
+}
+
+// drawMinimapPlayerMarker draws the green player marker in the center of the minimap.
+func (g *Game) drawMinimapPlayerMarker(pixels []byte, size int) {
 	center := size / 2
 	green := []byte{0, 255, 0, 255}
-	for _, off := range [][2]int{{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}} {
+	offsets := [][2]int{{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}}
+	for _, off := range offsets {
 		px, py := center+off[0], center+off[1]
 		if px >= 0 && px < size && py >= 0 && py < size {
 			idx := (py*size + px) * 4
 			copy(pixels[idx:idx+4], green)
 		}
 	}
-
-	// Write pixels to the pre-allocated image
-	subImg := g.minimapImage.SubImage(image.Rect(0, 0, size, size)).(*ebiten.Image)
-	subImg.WritePixels(pixels)
-
-	// Draw to screen
-	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Translate(float64(x), float64(y))
-	screen.DrawImage(subImg, op)
 }
 
 // getFactionTerritories retrieves all faction territory entities.
