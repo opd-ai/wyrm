@@ -103,13 +103,13 @@
 
 **Milestone:** Walls render at variable heights; multi-story buildings visible.
 
-1. Define `MapCell` struct replacing `int` in `WorldMap`
-2. Extend `Chunk` with per-cell wall height data
-3. Modify `castRayWithTexCoord()` to return wall height
-4. Modify `drawWallColumn()` to use per-cell height for `drawStart`/`drawEnd`
-5. Render floor/ceiling between adjacent height-mismatched walls
-6. Add chunk-to-renderer height data bridging in `SetWorldMap()`
-7. Unit tests: variable height rendering, height transitions
+- [ ] Define `MapCell` struct replacing `int` in `WorldMap`
+- [ ] Extend `Chunk` with per-cell wall height data
+- [ ] Modify `castRayWithTexCoord()` to return wall height
+- [ ] Modify `drawWallColumn()` to use per-cell height for `drawStart`/`drawEnd`
+- [ ] Render floor/ceiling between adjacent height-mismatched walls
+- [ ] Add chunk-to-renderer height data bridging in `SetWorldMap()`
+- [ ] Unit tests: variable height rendering, height transitions
 
 ### Phase 2: Sky Rendering & Mouse Viewport Control
 **Dependencies:** None (parallel with Phase 1)  
@@ -117,14 +117,14 @@
 
 **Milestone:** Skybox renders above horizon; mouse controls camera yaw/pitch.
 
-1. Integrate existing `Skybox` into `Draw()` — render sky pixels above horizon line
-2. Add `PlayerPitch` field to `Renderer`; offset horizon line by pitch
-3. Adjust `drawFloorCeiling()` and `drawWalls()` for pitch-shifted horizon
-4. Add mouse input capture in `Game.Update()` using Ebiten's `CursorPosition()`
-5. Implement `CursorModeCaptured` for FPS-style mouse capture
-6. Add sensitivity/acceleration config to `config.Config`
-7. Implement contextual cursor visibility (captured during gameplay, visible for UI)
-8. Unit tests: pitch clamping, sky gradient, mouse sensitivity
+- [ ] Integrate existing `Skybox` into `Draw()` — render sky pixels above horizon line
+- [ ] Add `PlayerPitch` field to `Renderer`; offset horizon line by pitch
+- [ ] Adjust `drawFloorCeiling()` and `drawWalls()` for pitch-shifted horizon
+- [ ] Add mouse input capture in `Game.Update()` using Ebiten's `CursorPosition()`
+- [ ] Implement `CursorModeCaptured` for FPS-style mouse capture
+- [ ] Add sensitivity/acceleration config to `config.Config`
+- [ ] Implement contextual cursor visibility (captured during gameplay, visible for UI)
+- [ ] Unit tests: pitch clamping, sky gradient, mouse sensitivity
 
 ### Phase 3: Environmental Barriers (Variable Shape)
 **Dependencies:** Phase 1 (MapCell, variable heights)  
@@ -132,14 +132,14 @@
 
 **Milestone:** Natural/constructed barriers render as shaped sprites with collision.
 
-1. Define `BarrierComponent` ECS component with shape, material, genre data
-2. Define barrier archetypes per genre (boulders, pillars, hedgerows, wreckage)
-3. Implement shaped billboard rendering (non-rectangular silhouettes via alpha masks)
-4. Implement polygon-based collision for irregular barrier shapes
-5. Add barrier spawn data to chunk `DetailSpawn` system
-6. Procedural barrier sprite generation in `pkg/rendering/sprite/`
-7. Integration with existing `WorldChunkSystem`
-8. Unit tests: collision detection, barrier sprite generation, genre variations
+- [ ] Define `BarrierComponent` ECS component with shape, material, genre data
+- [ ] Define barrier archetypes per genre (boulders, pillars, hedgerows, wreckage)
+- [ ] Implement shaped billboard rendering (non-rectangular silhouettes via alpha masks)
+- [ ] Implement polygon-based collision for irregular barrier shapes
+- [ ] Add barrier spawn data to chunk `DetailSpawn` system
+- [ ] Procedural barrier sprite generation in `pkg/rendering/sprite/`
+- [ ] Integration with existing `WorldChunkSystem`
+- [ ] Unit tests: collision detection, barrier sprite generation, genre variations
 
 ### Phase 4: Partial Barriers & Enhanced Materials
 **Dependencies:** Phase 3 (barrier system), Phase 1 (MapCell)  
@@ -147,15 +147,15 @@
 
 **Milestone:** Semi-transparent barriers render with density; materials have physical properties.
 
-1. Add barrier permeability flags to `MapCell` (transparency, climbable, destructible)
-2. Implement alpha-blended wall rendering for partial barriers
-3. Define `MaterialRegistry` with physical properties per material type
-4. Implement per-material texture generation with appropriate visual properties
-5. Add normal map generation to `texture.GenerateWithSeed()`
-6. Implement specular highlight calculation in wall/floor rendering
-7. Add surface wear/aging based on world age parameter
-8. Genre-specific material palettes (rusty metal, polished chrome, weathered stone)
-9. Unit tests: transparency rendering, material property lookups, normal sampling
+- [ ] Add barrier permeability flags to `MapCell` (transparency, climbable, destructible)
+- [ ] Implement alpha-blended wall rendering for partial barriers
+- [ ] Define `MaterialRegistry` with physical properties per material type
+- [ ] Implement per-material texture generation with appropriate visual properties
+- [ ] Add normal map generation to `texture.GenerateWithSeed()`
+- [ ] Implement specular highlight calculation in wall/floor rendering
+- [ ] Add surface wear/aging based on world age parameter
+- [ ] Genre-specific material palettes (rusty metal, polished chrome, weathered stone)
+- [ ] Unit tests: transparency rendering, material property lookups, normal sampling
 
 ### Phase 5: Environmental Object Representation
 **Dependencies:** Phase 3 (barrier sprites), Phase 4 (materials)  
@@ -163,15 +163,15 @@
 
 **Milestone:** Items, chests, doors render in world; interaction highlight visible.
 
-1. Categorize environment objects: inventoriable, interactive, decorative
-2. Extend `SpriteEntity` with interaction metadata (type, range, highlight state)
-3. Implement scale-correct item rendering (items appear correctly sized)
-4. Implement interaction highlight effect (glow outline for objects in range)
-5. Implement interaction targeting system (raycast from crosshair to determine target)
-6. Add `InteractionSystem` ECS system for proximity detection and feedback
-7. Procedural item sprite generation matching inventory icons
-8. Physics integration for pushable/swinging objects
-9. Unit tests: item identification, highlight rendering, interaction raycasting
+- [ ] Categorize environment objects: inventoriable, interactive, decorative
+- [ ] Extend `SpriteEntity` with interaction metadata (type, range, highlight state)
+- [ ] Implement scale-correct item rendering (items appear correctly sized)
+- [ ] Implement interaction highlight effect (glow outline for objects in range)
+- [ ] Implement interaction targeting system (raycast from crosshair to determine target)
+- [ ] Add `InteractionSystem` ECS system for proximity detection and feedback
+- [ ] Procedural item sprite generation matching inventory icons
+- [ ] Physics integration for pushable/swinging objects
+- [ ] Unit tests: item identification, highlight rendering, interaction raycasting
 
 ### Phase 6: Integration, Performance & Polish
 **Dependencies:** All previous phases  
@@ -179,14 +179,14 @@
 
 **Milestone:** 60 FPS maintained; all features integrated end-to-end.
 
-1. Performance profiling and optimization pass
-2. LOD system for barrier/object detail reduction at distance
-3. Frustum culling for environment objects
-4. Spatial hash for efficient object/barrier queries
-5. Fallback rendering for low-end hardware (disable normal maps, reduce barrier detail)
-6. Accessibility: high-contrast interaction highlights, colorblind-friendly item indicators
-7. Full integration test suite
-8. Benchmark suite for rendering hot paths
+- [ ] Performance profiling and optimization pass
+- [ ] LOD system for barrier/object detail reduction at distance
+- [ ] Frustum culling for environment objects
+- [ ] Spatial hash for efficient object/barrier queries
+- [ ] Fallback rendering for low-end hardware (disable normal maps, reduce barrier detail)
+- [ ] Accessibility: high-contrast interaction highlights, colorblind-friendly item indicators
+- [ ] Full integration test suite
+- [ ] Benchmark suite for rendering hot paths
 
 ### Phase Dependency Graph
 
@@ -255,9 +255,9 @@ For multi-story buildings: the `FloorH` and `CeilH` fields allow stacking (floor
 - **Wall rendering:** Additional multiplication per column for height scaling — negligible.
 
 #### Integration Points
-- `pkg/world/chunk/manager.go`: `Chunk.HeightMap` already stores per-cell float64. Extend chunk generation to produce `WallHeight` values from terrain type + noise.
-- `pkg/world/chunk/chunk.go`: Add `WallHeights []float64` field (parallel to `HeightMap`).
-- `pkg/rendering/raycast/renderer.go`: `SetWorldMap()` must convert chunk data to `MapCell` grid.
+- [ ] `pkg/world/chunk/manager.go`: Extend chunk generation to produce `WallHeight` values from terrain type + noise
+- [ ] `pkg/world/chunk/chunk.go`: Add `WallHeights []float64` field (parallel to `HeightMap`)
+- [ ] `pkg/rendering/raycast/renderer.go`: `SetWorldMap()` converts chunk data to `MapCell` grid
 
 #### Genre Variations
 | Genre | Height Characteristics |
@@ -311,29 +311,29 @@ type Barrier struct {
 
 Barriers use **shaped billboards** — sprites with alpha-mask silhouettes that are wider than a single grid cell. Unlike NPC billboards (always face camera), barrier billboards are rendered with perspective-correct width based on their `BarrierShape`.
 
-1. During the entity sprite pass, barriers are sorted alongside NPCs by distance.
-2. For each barrier, compute screen bounds using `GetSpriteScreenBounds()` with the barrier's width/height.
-3. Sample the barrier's sprite with its alpha mask to produce the silhouette.
-4. The alpha mask is generated procedurally from the `ShapeType` and `Vertices` data.
+- [ ] During the entity sprite pass, barriers are sorted alongside NPCs by distance
+- [ ] For each barrier, compute screen bounds using `GetSpriteScreenBounds()` with the barrier's width/height
+- [ ] Sample the barrier's sprite with its alpha mask to produce the silhouette
+- [ ] The alpha mask is generated procedurally from the `ShapeType` and `Vertices` data
 
 #### Algorithm: Polygon Collision Detection
 
 For irregular barrier shapes, collision uses a 2D polygon intersection test:
 
-1. Each barrier's `Vertices` define a convex hull in world-space relative to the barrier's center.
-2. Player movement checks: for each movement vector, test line-segment vs polygon edge intersection.
-3. Use separating axis theorem (SAT) for convex polygon vs circle (player bounding circle) collision.
-4. Cylinder and box shapes use optimized fast-path checks (circle-circle, AABB).
+- [ ] Each barrier's `Vertices` define a convex hull in world-space relative to the barrier's center
+- [ ] Player movement checks: for each movement vector, test line-segment vs polygon edge intersection
+- [ ] Use separating axis theorem (SAT) for convex polygon vs circle (player bounding circle) collision
+- [ ] Cylinder and box shapes use optimized fast-path checks (circle-circle, AABB)
 
 #### Performance Impact
 - **Barrier rendering:** Same cost as NPC sprite rendering (billboard transform + column draw). With 50 barriers visible: ~50× sprite column cost. Mitigated by frustum culling and distance culling.
 - **Collision:** SAT test per barrier within player's cell neighborhood (3×3 grid). Typically <20 barriers in range. Sub-microsecond per test.
 
 #### Integration Points
-- `pkg/engine/components/definitions.go`: New `Barrier` component.
-- `pkg/engine/systems/`: Barriers consumed by `WorldChunkSystem` (spawning) and collision system.
-- `pkg/world/chunk/manager.go`: `DetailSpawn` extended with `BarrierShape` data for spawning.
-- `pkg/rendering/sprite/generator.go`: New barrier sprite generation functions.
+- [ ] `pkg/engine/components/definitions.go`: New `Barrier` component
+- [ ] `pkg/engine/systems/`: Barriers consumed by `WorldChunkSystem` (spawning) and collision system
+- [ ] `pkg/world/chunk/manager.go`: `DetailSpawn` extended with `BarrierShape` data for spawning
+- [ ] `pkg/rendering/sprite/generator.go`: New barrier sprite generation functions
 
 ---
 
@@ -369,10 +369,10 @@ type PartialBarrierProperties struct {
 
 For walls/barriers with `FlagTransparent` or `FlagSemiOpaque`:
 
-1. During `renderWallStrip()`, after sampling the wall texture color, check `MapCell.Flags`.
-2. If transparent: apply `cell.Opacity` to the alpha channel. Blend with the sky/floor color behind.
-3. If semi-opaque with gap pattern: use a procedural gap mask (based on seed + position) to determine per-pixel opacity. Pixels in "gap" regions get alpha 0 (show through to background).
-4. For lattice patterns: `texX % spacing < bar_width` creates vertical bars; combine with horizontal for lattice.
+- [ ] During `renderWallStrip()`, after sampling the wall texture color, check `MapCell.Flags`
+- [ ] If transparent: apply `cell.Opacity` to the alpha channel. Blend with the sky/floor color behind
+- [ ] If semi-opaque with gap pattern: use a procedural gap mask (based on seed + position) to determine per-pixel opacity. Pixels in "gap" regions get alpha 0 (show through to background)
+- [ ] For lattice patterns: `texX % spacing < bar_width` creates vertical bars; combine with horizontal for lattice
 
 **Rendering order change:** Partial barriers require a **two-pass approach**:
 - Pass 1: Render all opaque walls (existing behavior, populates ZBuffer).
@@ -383,19 +383,19 @@ This avoids the need to sort walls by distance (which DDA handles implicitly for
 #### Climbable Objects
 
 When the player approaches a `FlagClimbable` barrier:
-1. Check `barrier.ClimbHeight` vs player step height (configurable, default 0.5 world units).
-2. If climbable: smoothly adjust `PlayerZ` over 0.3 seconds to rise over the barrier.
-3. On the other side: smoothly return `PlayerZ` to ground level.
+- [ ] Check `barrier.ClimbHeight` vs player step height (configurable, default 0.5 world units)
+- [ ] If climbable: smoothly adjust `PlayerZ` over 0.3 seconds to rise over the barrier
+- [ ] On the other side: smoothly return `PlayerZ` to ground level
 
 This reuses the `PlayerZ` field added for variable-height walls.
 
 #### Destructible Elements
 
 Destructible barriers have `HitPoints`. When attacked:
-1. Reduce `HitPoints` by weapon damage.
-2. Update `DamageOverlay` on the barrier's `Appearance` component.
-3. At 50% HP: switch sprite to "damaged" variant (cracks, gaps increase).
-4. At 0 HP: remove barrier entity, spawn debris particles, play destruction sound.
+- [ ] Reduce `HitPoints` by weapon damage
+- [ ] Update `DamageOverlay` on the barrier's `Appearance` component
+- [ ] At 50% HP: switch sprite to "damaged" variant (cracks, gaps increase)
+- [ ] At 0 HP: remove barrier entity, spawn debris particles, play destruction sound
 
 #### Performance Impact
 - **Two-pass walls:** The second pass only touches partial barriers (typically <10% of walls). Minimal overhead.
@@ -455,10 +455,10 @@ type GenreMaterialOverride struct {
 
 Normal maps are procedurally generated alongside albedo textures. During wall rendering:
 
-1. Sample normal map at `(texX, texY)` to get surface normal perturbation `(nx, ny, nz)`.
-2. Transform the normal from tangent space to world space using the wall's orientation (side 0 = X-facing, side 1 = Y-facing).
-3. Compute light direction from the lighting system's sun/point lights.
-4. Apply `dot(normal, lightDir) * lightIntensity` as a brightness modifier.
+- [ ] Sample normal map at `(texX, texY)` to get surface normal perturbation `(nx, ny, nz)`
+- [ ] Transform the normal from tangent space to world space using the wall's orientation (side 0 = X-facing, side 1 = Y-facing)
+- [ ] Compute light direction from the lighting system's sun/point lights
+- [ ] Apply `dot(normal, lightDir) * lightIntensity` as a brightness modifier
 
 The normal map is a `Texture` where RGB channels encode the normal vector: `R=nx*127+128, G=ny*127+128, B=nz*127+128`.
 
@@ -466,10 +466,10 @@ The normal map is a `Texture` where RGB channels encode the normal vector: `R=nx
 
 For materials with `Reflectivity > 0`:
 
-1. Compute the reflection vector: `R = 2 * dot(N, L) * N - L`.
-2. Compute specular intensity: `spec = pow(max(dot(R, viewDir), 0), shininess)`.
-3. `shininess = (1.0 - Roughness) * 64.0` (rougher = wider, dimmer highlights).
-4. Add `spec * Reflectivity * lightColor` to the final pixel color.
+- [ ] Compute the reflection vector: `R = 2 * dot(N, L) * N - L`
+- [ ] Compute specular intensity: `spec = pow(max(dot(R, viewDir), 0), shininess)`
+- [ ] `shininess = (1.0 - Roughness) * 64.0` (rougher = wider, dimmer highlights)
+- [ ] Add `spec * Reflectivity * lightColor` to the final pixel color
 
 This is a simplified Blinn-Phong model suitable for CPU-based per-pixel computation.
 
@@ -477,10 +477,10 @@ This is a simplified Blinn-Phong model suitable for CPU-based per-pixel computat
 
 Surface wear is applied as a texture-space modification:
 
-1. Generate a "wear noise" texture at material creation time (low-frequency Perlin noise).
-2. `wearIntensity = WearFactor * AgeMultiplier * worldAge`.
-3. Where wear noise exceeds a threshold based on `wearIntensity`: darken the albedo, increase roughness, add color shift toward grey/brown.
-4. Edge wear: increase wear at texture edges (top/bottom rows of wall textures) to simulate erosion.
+- [ ] Generate a "wear noise" texture at material creation time (low-frequency Perlin noise)
+- [ ] `wearIntensity = WearFactor * AgeMultiplier * worldAge`
+- [ ] Where wear noise exceeds a threshold based on `wearIntensity`: darken the albedo, increase roughness, add color shift toward grey/brown
+- [ ] Edge wear: increase wear at texture edges (top/bottom rows of wall textures) to simulate erosion
 
 #### Performance Impact
 - **Normal map sampling:** One additional texture lookup per pixel + dot product + multiply. Approximately 2× the per-pixel cost of albedo-only rendering. At 1280×720 with ~30% wall pixels: ~276K additional lookups per frame. At 1ns per lookup: ~0.3ms. Acceptable.
@@ -533,10 +533,10 @@ type InteractionTarget struct {
 
 Each frame, cast a ray from the screen center (crosshair) into the world:
 
-1. Use the same DDA algorithm as wall rendering, but for the center column only.
-2. After the ray completes, check all `EnvironmentObject` entities within the ray path.
-3. For each object: test if the ray passes within `object.Radius` of the object's world position.
-4. Return the closest intersecting object within `InteractRange`.
+- [ ] Use the same DDA algorithm as wall rendering, but for the center column only
+- [ ] After the ray completes, check all `EnvironmentObject` entities within the ray path
+- [ ] For each object: test if the ray passes within `object.Radius` of the object's world position
+- [ ] Return the closest intersecting object within `InteractRange`
 
 This is a single additional ray cast per frame — negligible cost.
 
@@ -544,10 +544,10 @@ This is a single additional ray cast per frame — negligible cost.
 
 For objects with `HighlightState > 0`:
 
-1. After drawing the object's sprite to the framebuffer, perform an edge-detection pass on the sprite's screen region.
-2. For each pixel on the sprite's boundary (where alpha transitions from >0 to 0): write a highlight color.
-3. The highlight color uses the genre's accent color (gold for fantasy, cyan for sci-fi, red for horror, neon pink for cyberpunk, orange for post-apoc).
-4. Pulse the highlight intensity using `sin(time * 3.0) * 0.3 + 0.7` for a subtle breathing effect.
+- [ ] After drawing the object's sprite to the framebuffer, perform an edge-detection pass on the sprite's screen region
+- [ ] For each pixel on the sprite's boundary (where alpha transitions from >0 to 0): write a highlight color
+- [ ] The highlight color uses the genre's accent color (gold for fantasy, cyan for sci-fi, red for horror, neon pink for cyberpunk, orange for post-apoc)
+- [ ] Pulse the highlight intensity using `sin(time * 3.0) * 0.3 + 0.7` for a subtle breathing effect
 
 **Optimization:** Only compute highlight for the one currently-targeted object, not all interactive objects.
 
@@ -569,21 +569,21 @@ The `Scale` field on `SpriteEntity` is set based on the item's category during p
 #### Physics Integration
 
 Pushable objects (crates, barrels):
-1. On player collision with a pushable object: apply force in the player's movement direction.
-2. Move the object's `Position` component by `pushForce * dt` in the push direction.
-3. Check collision of the pushed object against walls and other barriers.
-4. Limit push speed to prevent objects from phasing through walls.
+- [ ] On player collision with a pushable object: apply force in the player's movement direction
+- [ ] Move the object's `Position` component by `pushForce * dt` in the push direction
+- [ ] Check collision of the pushed object against walls and other barriers
+- [ ] Limit push speed to prevent objects from phasing through walls
 
 Swinging doors:
-1. Doors have a `rotation` field in addition to position.
-2. On interaction: animate the rotation from 0° to 90° over 0.5 seconds.
-3. Update the door's collision polygon each frame during animation.
-4. After animation: the door remains in the open state until interacted with again.
+- [ ] Doors have a `rotation` field in addition to position
+- [ ] On interaction: animate the rotation from 0° to 90° over 0.5 seconds
+- [ ] Update the door's collision polygon each frame during animation
+- [ ] After animation: the door remains in the open state until interacted with again
 
 #### Integration Points
-- `pkg/engine/components/definitions.go`: Extend or use existing `Appearance` component. No new component needed — use `SpriteCategory = "object"` with `BodyPlan` for item type.
-- `pkg/engine/systems/`: `RenderSystem` already handles sprite rendering. Extend with interaction targeting.
-- `cmd/client/main.go`: Add crosshair rendering and interaction key binding.
+- [ ] `pkg/engine/components/definitions.go`: Configure existing `Appearance` component with `SpriteCategory = "object"` and `BodyPlan` for item type
+- [ ] `pkg/engine/systems/`: Extend `RenderSystem` with interaction targeting
+- [ ] `cmd/client/main.go`: Add crosshair rendering and interaction key binding
 
 ---
 
@@ -602,10 +602,10 @@ The `Skybox` struct in `pkg/rendering/raycast/skybox.go` is **fully implemented*
 
 #### Integration Plan
 
-1. In `drawFloorCeiling()`: for rows above the horizon line (plus pitch offset), call `skybox.GetSkyColorAt(x, y)` instead of `GetCeilingTextureColor()`.
-2. When `skybox.IsIndoor()` is true: fall back to existing ceiling texture rendering.
-3. Connect `WeatherSystem` ECS output to `skybox.SetWeather()` each frame.
-4. Connect `WorldClockSystem` output to `skybox.SetTimeOfDay()` each frame.
+- [ ] In `drawFloorCeiling()`: for rows above the horizon line (plus pitch offset), call `skybox.GetSkyColorAt(x, y)` instead of `GetCeilingTextureColor()`
+- [ ] When `skybox.IsIndoor()` is true: fall back to existing ceiling texture rendering
+- [ ] Connect `WeatherSystem` ECS output to `skybox.SetWeather()` each frame
+- [ ] Connect `WorldClockSystem` output to `skybox.SetTimeOfDay()` each frame
 
 #### Enhancements
 
@@ -655,14 +655,15 @@ Ebitengine provides `ebiten.CursorPosition()` for cursor position and `ebiten.Se
 
 **Per-frame in `Game.Update()`:**
 
-1. Read `ebiten.CursorPosition()` to get current cursor `(cx, cy)`.
-2. Compute delta: `dx = cx - screenCenterX`, `dy = cy - screenCenterY`.
-3. Apply sensitivity: `yawDelta = dx * sensitivity`, `pitchDelta = dy * sensitivity * (invertY ? -1 : 1)`.
-4. Apply optional acceleration: `if |dx| > threshold: yawDelta *= 1.0 + acceleration * (|dx| / maxDelta)`.
-5. Apply smoothing: average the last N frame deltas.
-6. Update player angle: `PlayerA += yawDelta` (wrap to 0–2π). Note: `PlayerA` is the existing field name in `Renderer` (renderer.go:39). Consider renaming to `PlayerYaw` for consistency with the new `PlayerPitch`, but this is a separate refactoring task.
-7. Update player pitch: `PlayerPitch = clamp(PlayerPitch + pitchDelta, -pitchLimit, +pitchLimit)`.
-8. Reset cursor to screen center: use `ebiten.SetCursorMode(ebiten.CursorModeCaptured)` which automatically captures the cursor.
+- [ ] Read `ebiten.CursorPosition()` to get current cursor `(cx, cy)`
+- [ ] Compute delta: `dx = cx - screenCenterX`, `dy = cy - screenCenterY`
+- [ ] Apply sensitivity: `yawDelta = dx * sensitivity`, `pitchDelta = dy * sensitivity * (invertY ? -1 : 1)`
+- [ ] Apply optional acceleration: `if |dx| > threshold: yawDelta *= 1.0 + acceleration * (|dx| / maxDelta)`
+- [ ] Apply smoothing: average the last N frame deltas
+- [ ] Update player angle: `PlayerA += yawDelta` (wrap to 0–2π)
+- [ ] *(Future)* Consider renaming `PlayerA` to `PlayerYaw` for consistency with `PlayerPitch`
+- [ ] Update player pitch: `PlayerPitch = clamp(PlayerPitch + pitchDelta, -pitchLimit, +pitchLimit)`
+- [ ] Reset cursor to screen center: use `ebiten.SetCursorMode(ebiten.CursorModeCaptured)` which automatically captures the cursor
 
 **Cursor Visibility:**
 - During gameplay: `CursorModeCaptured` — cursor hidden, deltas computed from movement.
@@ -688,9 +689,9 @@ This is the standard technique used in classic raycasters (Wolfenstein 3D-style)
 
 For interaction targeting (Section 3.5), the crosshair position is always screen center. When an interactable object is within range and near the crosshair:
 
-1. Compute angular distance from crosshair ray to object center.
-2. If within `aimAssistAngle` (configurable, default 3°): snap the interaction target to that object.
-3. Display a subtle reticle expansion to indicate aim assist is active.
+- [ ] Compute angular distance from crosshair ray to object center
+- [ ] If within `aimAssistAngle` (configurable, default 3°): snap the interaction target to that object
+- [ ] Display a subtle reticle expansion to indicate aim assist is active
 
 This does NOT move the camera — only the interaction target selection is assisted.
 
@@ -701,6 +702,73 @@ This does NOT move the camera — only the interaction target selection is assis
 ---
 
 ## 4. Code Modification Breakdown
+
+### Completion Checklist
+
+#### `pkg/rendering/raycast/renderer.go`
+
+- [ ] Add `MapCell` struct (new type — replace `int` wall type with rich cell data)
+- [ ] Add `WorldMapCells` field (new field — parallel to existing `WorldMap`, stores `MapCell` grid)
+- [ ] Add `PlayerPitch` field (new field — vertical look angle for mouse pitch)
+- [ ] Add `PlayerZ` field (new field — player eye height for variable-height rendering)
+- [ ] Modify `SetWorldMap()` (edit — accept height data alongside heightmap, populate `MapCell` grid)
+- [ ] Add `SetWorldMapCells()` (new method — direct setter for `MapCell` grid)
+- [ ] Add `castRayEnhanced()` (new method — returns `MapCell` data instead of just wall type)
+- [ ] Add `MaterialRegistry` integration (new field — pointer to shared `MaterialRegistry`)
+
+#### `pkg/rendering/raycast/draw.go`
+
+- [ ] Modify `Draw()` (edit — add skybox pass before floor/ceiling, pass pitch offset)
+- [ ] Modify `drawFloorCeiling()` (edit — use `horizonLine` pitch-adjusted instead of `Height/2`, call skybox for ceiling pixels)
+- [ ] Modify `drawWalls()` (edit — use `MapCell` height for per-column wall height calculation)
+- [ ] Modify `drawWallColumn()` (edit — variable height + normal map + specular calculation)
+- [ ] Modify `renderWallStrip()` (edit — material-aware shading, alpha blending for partial barriers)
+- [ ] Add `drawPartialBarriers()` (new method — second pass for transparent/semi-opaque walls)
+- [ ] Add `drawEnvironmentObjects()` (new method — render barrier sprites, items, interactive objects)
+- [ ] Add `drawInteractionHighlight()` (new method — glow outline for targeted interactive object)
+
+#### `pkg/rendering/raycast/skybox.go`
+
+- [ ] Add `StarField` struct (new type — deterministic star positions)
+- [ ] Add `RenderToFramebuffer()` (new method — write sky pixels directly to framebuffer for ceiling area)
+- [ ] Add star rendering (new method — render stars during nighttime)
+- [ ] Wire into `Draw()` pipeline (edit — called from `draw.go` during ceiling pass)
+
+#### `pkg/rendering/raycast/billboard.go`
+
+- [ ] Add `EnvironmentObject` struct (new type — extended sprite with interaction data)
+- [ ] Add `CastInteractionRay()` (new method — single center-screen ray for interaction targeting)
+- [ ] Modify `TransformEntityToScreen()` (edit — apply pitch offset to sprite vertical position)
+- [ ] Add `DrawHighlight()` (new method — edge-detect and glow for interaction highlight)
+
+#### `pkg/rendering/texture/material.go` (new file)
+
+- [ ] `MaterialProperties` struct (new type — physical material properties)
+- [ ] `MaterialRegistry` struct (new type — material type registry with textures and normal maps)
+- [ ] `GenerateNormalMap()` (new function — procedural normal map generation from heightfield noise)
+- [ ] `GenerateMaterialTexture()` (new function — genre-aware material texture with wear/aging)
+- [ ] `NewMaterialRegistry()` (new constructor — initialize with standard materials)
+
+#### `pkg/rendering/texture/generator.go`
+
+- [ ] Add `GenerateNormalMapWithSeed()` (new function — normal map variant of texture generation)
+- [ ] Add wear/aging overlay (edit — apply surface degradation based on age parameter)
+
+#### `cmd/client/main.go`
+
+- [ ] Add mouse input handling (new code — `CursorPosition()` delta computation in `Update()`)
+- [ ] Add `CursorModeCaptured` (new code — mouse capture toggling)
+- [ ] Add skybox integration (new code — connect skybox to renderer, set time/weather each frame)
+- [ ] Add interaction targeting (new code — center-screen raycast + highlight management)
+- [ ] Add crosshair rendering (new code — simple crosshair drawn at screen center)
+
+#### `config/config.go`
+
+- [ ] Add `MouseConfig` (new struct — mouse sensitivity, acceleration, invert, smoothing)
+- [ ] Add `RenderingConfig` (new struct — quality levels for normal maps, specular, barrier detail)
+- [ ] Add to `Config` struct (edit — new fields for mouse and rendering config)
+
+### Detailed Change Tables
 
 ### `pkg/rendering/raycast/renderer.go`
 
@@ -785,6 +853,28 @@ This does NOT move the camera — only the interaction target selection is assis
 
 ## 5. ECS Integration
 
+### Completion Checklist
+
+#### New Components
+- [ ] `Barrier` component (`"Barrier"` — Shape, Genre, Destructible, HitPoints, MaxHP)
+- [ ] `Interactable` component (`"Interactable"` — InteractionType, Range, Prompt, Cooldown, Locked)
+- [ ] `WorldItem` component (`"WorldItem"` — ItemID, Quantity, SpawnTime, Respawnable)
+- [ ] `PhysicsBody` component (`"PhysicsBody"` — Mass, Velocity, Pushable, Friction)
+
+#### New Systems
+- [ ] `BarrierCollisionSystem` (consumes Position + Barrier → produces clamped Position)
+- [ ] `InteractionTargetSystem` (consumes Position + Interactable + WorldItem → produces InteractionTarget)
+- [ ] `BarrierDestructionSystem` (consumes Barrier + Health → produces particle spawn + entity removal)
+- [ ] `ObjectPhysicsSystem` (consumes PhysicsBody + Position + Barrier → produces updated Position)
+
+#### System Registration
+- [ ] Register `BarrierCollisionSystem` in `cmd/server/main.go` and `cmd/client/main.go`
+- [ ] Register `BarrierDestructionSystem` in `cmd/server/main.go` and `cmd/client/main.go`
+- [ ] Register `ObjectPhysicsSystem` in `cmd/server/main.go` and `cmd/client/main.go`
+- [ ] Register `InteractionTargetSystem` in `cmd/client/main.go` (client only)
+
+### Details
+
 ### New Components
 
 | Component | Type String | Fields | Purpose |
@@ -861,6 +951,45 @@ world.RegisterSystem(&systems.InteractionTargetSystem{})
 
 ## 6. Testing Strategy
 
+### Completion Checklist
+
+#### Unit Tests
+- [ ] `renderer_height_test.go` — Variable height wall rendering, multi-story buildings, height transitions
+- [ ] `mapcell_test.go` — MapCell creation, flag operations, material lookup
+- [ ] `pitch_test.go` — Pitch offset calculation, horizon clamping, pitch limits
+- [ ] `skybox_integration_test.go` — Sky renders above horizon, indoor fallback, star field
+- [ ] `barrier_collision_test.go` — Polygon SAT collision, cylinder collision, AABB collision
+- [ ] `material_test.go` — Material registry, normal map generation, specular calculation
+- [ ] `partial_barrier_test.go` — Alpha blending, gap patterns, transparency rendering
+- [ ] `interaction_ray_test.go` — Center-screen ray, object targeting, range checking
+- [ ] `highlight_test.go` — Edge detection, glow rendering
+- [ ] `mouse_input_test.go` — Sensitivity, acceleration, smoothing, pitch clamping
+- [ ] `barrier_component_test.go` — Component creation, Type() string, flag operations
+- [ ] `barrier_system_test.go` — System Update() with mock world, collision resolution
+
+#### Integration Tests
+- [ ] Variable height chunk rendering (`chunk` + `raycast`)
+- [ ] Skybox + weather (`raycast` + `systems`)
+- [ ] Barrier spawn + collision (`chunk` + `components` + `systems`)
+- [ ] Item pickup flow (`components` + `systems`)
+- [ ] Material + lighting (`texture` + `lighting` + `raycast`)
+
+#### Performance Benchmarks
+- [ ] `BenchmarkDrawWallsVariableHeight` — target <8ms per frame (1280×720)
+- [ ] `BenchmarkDrawWallsWithNormals` — target <12ms per frame
+- [ ] `BenchmarkBarrierCollision50` — target <0.1ms
+- [ ] `BenchmarkSkyboxRender` — target <2ms per frame
+- [ ] `BenchmarkPartialBarrierPass` — target <3ms per frame
+- [ ] `BenchmarkInteractionRay` — target <0.05ms
+- [ ] `BenchmarkMaterialRegistryLookup` — target <10ns
+
+#### Determinism Tests
+- [ ] `TestDeterministicBarrierSpawn` — Same seed → same barrier positions, shapes, materials
+- [ ] `TestDeterministicMaterialGeneration` — Same seed → identical textures and normal maps
+- [ ] `TestDeterministicStarField` — Same seed → identical star positions
+
+### Details
+
 ### Unit Tests
 
 | Test File | Package | Tests |
@@ -914,6 +1043,18 @@ All tests run with `go test -tags=noebiten -count=1 ./...` for headless CI. Rend
 
 ## 7. Asset Pipeline (Zero External Assets)
 
+### Completion Checklist
+
+- [ ] Wall texture generation via `texture.GenerateWithSeed()` with material-aware caching
+- [ ] Normal map generation via `texture.GenerateNormalMapWithSeed()` keyed alongside albedo
+- [ ] Barrier sprite generation via `sprite.GenerateBarrier()` with LRU cache
+- [ ] Item sprite generation via `sprite.GenerateItem()` with LRU cache
+- [ ] Star position generation via `StarField.Generate()` at startup
+- [ ] Material palette initialization via `MaterialRegistry.Init()` per genre
+- [ ] Texture generation pipeline (noise → palette → material → wear → normal → cache)
+- [ ] Barrier sprite generation pipeline (silhouette → fill → detail overlay → variations)
+- [ ] Item sprite generation pipeline (silhouette → palette → texture fill → scale → thumbnail)
+
 All visual content is procedurally generated. No image files, model files, or external data are added.
 
 ### Procedural Generation Chain
@@ -952,28 +1093,39 @@ Cache storage (albedo + normal map stored as pair)
 
 Barrier sprites use the existing `sprite.Generator` with a new `CategoryBarrier` mode:
 
-1. Generate a base shape silhouette from `BarrierShape.ShapeType`:
+- [ ] Generate a base shape silhouette from `BarrierShape.ShapeType`:
    - `"cylinder"` → oval silhouette
    - `"box"` → rectangular silhouette  
    - `"polygon"` → custom silhouette from vertices
    - `"billboard"` → rectangular with alpha-mask edges
-2. Fill silhouette with material texture (sampled from `MaterialRegistry`).
-3. Add genre-appropriate detail overlays (moss for fantasy, rust for post-apoc, neon for cyberpunk).
-4. Generate multiple variations per archetype (3-5 variations) for visual diversity.
+- [ ] Fill silhouette with material texture (sampled from `MaterialRegistry`)
+- [ ] Add genre-appropriate detail overlays (moss for fantasy, rust for post-apoc, neon for cyberpunk)
+- [ ] Generate multiple variations per archetype (3-5 variations) for visual diversity
 
 ### Item Sprite Generation
 
 Item sprites match their inventory representation:
 
-1. Generate item silhouette from `BodyPlan` (sword shape, potion shape, book shape).
-2. Apply genre palette colors.
-3. Add material-appropriate texture fill (metal sheen for weapons, leather for armor).
-4. Scale to world-appropriate size (see Section 3.5 scale table).
-5. Store a thumbnail variant for inventory UI (same silhouette, smaller resolution).
+- [ ] Generate item silhouette from `BodyPlan` (sword shape, potion shape, book shape)
+- [ ] Apply genre palette colors
+- [ ] Add material-appropriate texture fill (metal sheen for weapons, leather for armor)
+- [ ] Scale to world-appropriate size (see Section 3.5 scale table)
+- [ ] Store a thumbnail variant for inventory UI (same silhouette, smaller resolution)
 
 ---
 
 ## 8. Fallback Systems
+
+### Completion Checklist
+
+- [ ] Define `RenderQuality` struct in `config/config.go`
+- [ ] Implement high/medium/low quality tiers
+- [ ] Implement automatic quality detection (startup benchmark)
+- [ ] Implement graceful degradation during play (frame time monitoring)
+- [ ] Implement quality recovery (restore tiers when performance improves)
+- [ ] Implement high-contrast accessibility fallback
+- [ ] Implement colorblind-mode accessibility fallback
+- [ ] Integrate with existing `AccessibilityConfig`
 
 ### Quality Levels
 
@@ -1015,10 +1167,10 @@ On startup, run a quick benchmark (render 10 frames, measure average time):
 ### Graceful Degradation During Play
 
 If frame time exceeds 18ms for 10 consecutive frames:
-1. Reduce particle count by 50%.
-2. If still slow: disable normal maps.
-3. If still slow: reduce barrier detail to level 1.
-4. If still slow: reduce barrier detail to level 0.
+- [ ] Reduce particle count by 50%
+- [ ] If still slow: disable normal maps
+- [ ] If still slow: reduce barrier detail to level 1
+- [ ] If still slow: reduce barrier detail to level 0
 
 Recovery: if frame time drops below 12ms for 30 consecutive frames, restore one quality tier.
 
