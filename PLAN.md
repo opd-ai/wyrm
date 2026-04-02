@@ -857,8 +857,8 @@ This does NOT move the camera — only the interaction target selection is assis
 
 #### New Components
 - [x] `Barrier` component (`"Barrier"` — Shape, Genre, Destructible, HitPoints, MaxHP)
-- [ ] `Interactable` component (`"Interactable"` — InteractionType, Range, Prompt, Cooldown, Locked)
-- [ ] `WorldItem` component (`"WorldItem"` — ItemID, Quantity, SpawnTime, Respawnable)
+- [x] `Interactable` component (`"Interactable"` — InteractionType, Range, Prompt, Cooldown, Locked)
+- [x] `WorldItem` component (`"WorldItem"` — ItemID, Quantity, SpawnTime, Respawnable)
 - [x] `PhysicsBody` component (`"PhysicsBody"` — Mass, Velocity, Pushable, Friction)
 
 #### New Systems
