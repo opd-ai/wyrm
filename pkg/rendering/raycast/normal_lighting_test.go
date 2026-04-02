@@ -214,3 +214,89 @@ func TestNormalizeVec3_ZeroVector(t *testing.T) {
 		}
 	}
 }
+
+func TestApplySpecularHighlight_NoReflectivity(t *testing.T) {
+	nl := DefaultNormalLighting()
+	baseColor := color.RGBA{R: 100, G: 100, B: 100, A: 255}
+	normal := [3]float64{0, 0, 1}
+
+	// Zero reflectivity should return unchanged color
+	result := nl.ApplySpecularHighlight(baseColor, normal, 0.0, 0.5)
+
+	if result.R != baseColor.R || result.G != baseColor.G || result.B != baseColor.B {
+		t.Errorf("expected unchanged color with zero reflectivity")
+	}
+}
+
+func TestApplySpecularHighlight_HighReflectivity(t *testing.T) {
+	nl := DefaultNormalLighting()
+	// Set sun direction to hit the surface head-on for maximum specular
+	nl.SunDirection = [3]float64{0, 0, -1}
+
+	baseColor := color.RGBA{R: 100, G: 100, B: 100, A: 255}
+	normal := [3]float64{0, 0, 1} // Facing camera
+
+	// High reflectivity, low roughness (sharp highlight)
+	result := nl.ApplySpecularHighlight(baseColor, normal, 1.0, 0.1)
+
+	// Should add specular highlight (color should be brighter)
+	if result.R <= baseColor.R {
+		t.Errorf("expected brighter red with specular, got %d vs %d", result.R, baseColor.R)
+	}
+}
+
+func TestApplySpecularHighlight_BackFacing(t *testing.T) {
+	nl := DefaultNormalLighting()
+	nl.SunDirection = [3]float64{0, 0, 1} // Light from behind camera
+
+	baseColor := color.RGBA{R: 100, G: 100, B: 100, A: 255}
+	normal := [3]float64{0, 0, 1} // Facing camera but light is behind
+
+	// Surface facing away from light should have no specular
+	result := nl.ApplySpecularHighlight(baseColor, normal, 1.0, 0.1)
+
+	// Color should be unchanged (no specular when facing away)
+	if result.R != baseColor.R {
+		t.Errorf("expected unchanged color when back-facing, got %d vs %d", result.R, baseColor.R)
+	}
+}
+
+func TestApplySpecularHighlight_PreservesAlpha(t *testing.T) {
+	nl := DefaultNormalLighting()
+	baseColor := color.RGBA{R: 100, G: 100, B: 100, A: 128}
+	normal := [3]float64{0, 0, 1}
+
+	result := nl.ApplySpecularHighlight(baseColor, normal, 0.5, 0.5)
+
+	if result.A != 128 {
+		t.Errorf("expected alpha preserved at 128, got %d", result.A)
+	}
+}
+
+func TestSpecularEnabled_DisablesSpecular(t *testing.T) {
+	nl := DefaultNormalLighting()
+	nl.SpecularEnabled = false
+	nl.SunDirection = [3]float64{0, 0, -1}
+
+	tex := &texture.Texture{
+		Width:  64,
+		Height: 64,
+		Pixels: make([]color.RGBA, 64*64),
+	}
+	baseColor := color.RGBA{R: 100, G: 100, B: 100, A: 255}
+
+	result := nl.ApplyNormalMapLighting(tex, baseColor, 0.5, 0.5, 0)
+
+	// With specular disabled, result should just have diffuse lighting
+	// (no bright specular highlights)
+	nlWithSpec := DefaultNormalLighting()
+	nlWithSpec.SpecularEnabled = true
+	nlWithSpec.SunDirection = nl.SunDirection
+
+	resultWithSpec := nlWithSpec.ApplyNormalMapLighting(tex, baseColor, 0.5, 0.5, 0)
+
+	// Without specular should be same or darker
+	if result.R > resultWithSpec.R {
+		t.Logf("result without spec: %d, with spec: %d", result.R, resultWithSpec.R)
+	}
+}

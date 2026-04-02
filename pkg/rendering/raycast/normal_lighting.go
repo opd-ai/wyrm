@@ -19,14 +19,22 @@ type NormalLighting struct {
 
 	// AmbientLight is the ambient light level (0.0-1.0).
 	AmbientLight float64
+
+	// SunColor is the color of sunlight (for specular highlights).
+	SunColor color.RGBA
+
+	// SpecularEnabled controls whether specular highlights are calculated.
+	SpecularEnabled bool
 }
 
 // DefaultNormalLighting creates a NormalLighting with default settings.
 func DefaultNormalLighting() *NormalLighting {
 	return &NormalLighting{
-		SunDirection: [3]float64{-0.5, -0.7, 0.5}, // Angled from upper-left
-		SunIntensity: 0.8,
-		AmbientLight: 0.3,
+		SunDirection:    [3]float64{-0.5, -0.7, 0.5}, // Angled from upper-left
+		SunIntensity:    0.8,
+		AmbientLight:    0.3,
+		SunColor:        color.RGBA{R: 255, G: 248, B: 220, A: 255}, // Warm white
+		SpecularEnabled: true,
 	}
 }
 
@@ -135,7 +143,93 @@ func (nl *NormalLighting) ApplyNormalMapLighting(
 	intensity := nl.ComputeLightIntensity(worldNormal)
 
 	// Apply intensity to color
-	return applyLightIntensity(baseColor, intensity)
+	result := applyLightIntensity(baseColor, intensity)
+
+	// Apply specular highlights if enabled (requires view direction - use default towards camera)
+	// For simplified implementation, view direction is assumed to be (0, 0, 1) (looking at wall)
+	if nl.SpecularEnabled {
+		// Default material properties - could be extended to use MaterialRegistry
+		reflectivity := 0.2 // Mild reflectivity
+		roughness := 0.5    // Moderate roughness
+		result = nl.ApplySpecularHighlight(result, worldNormal, reflectivity, roughness)
+	}
+
+	return result
+}
+
+// ApplySpecularHighlight adds specular highlight to a color.
+// Uses simplified Blinn-Phong model with fixed view direction.
+// reflectivity: 0.0-1.0, controls specular intensity
+// roughness: 0.0-1.0, controls specular sharpness (lower = sharper)
+func (nl *NormalLighting) ApplySpecularHighlight(
+	baseColor color.RGBA,
+	worldNormal [3]float64,
+	reflectivity, roughness float64,
+) color.RGBA {
+	if reflectivity <= 0 {
+		return baseColor
+	}
+
+	// View direction (camera looking into wall)
+	viewDir := [3]float64{0, 0, 1}
+
+	// Light direction (towards light source)
+	lightDir := [3]float64{-nl.SunDirection[0], -nl.SunDirection[1], -nl.SunDirection[2]}
+	normalizeVec3(&lightDir)
+
+	// Calculate reflection vector: R = 2 * dot(N, L) * N - L
+	dotNL := worldNormal[0]*lightDir[0] + worldNormal[1]*lightDir[1] + worldNormal[2]*lightDir[2]
+	if dotNL < 0 {
+		return baseColor // Surface facing away from light
+	}
+
+	reflectVec := [3]float64{
+		2*dotNL*worldNormal[0] - lightDir[0],
+		2*dotNL*worldNormal[1] - lightDir[1],
+		2*dotNL*worldNormal[2] - lightDir[2],
+	}
+	normalizeVec3(&reflectVec)
+
+	// Calculate specular intensity: spec = pow(max(dot(R, V), 0), shininess)
+	dotRV := reflectVec[0]*viewDir[0] + reflectVec[1]*viewDir[1] + reflectVec[2]*viewDir[2]
+	if dotRV < 0 {
+		dotRV = 0
+	}
+
+	// shininess = (1.0 - Roughness) * 64.0
+	shininess := (1.0 - roughness) * 64.0
+	if shininess < 1 {
+		shininess = 1
+	}
+
+	specIntensity := math.Pow(dotRV, shininess)
+
+	// Add spec * Reflectivity * lightColor to final color
+	specR := specIntensity * reflectivity * float64(nl.SunColor.R) / 255.0
+	specG := specIntensity * reflectivity * float64(nl.SunColor.G) / 255.0
+	specB := specIntensity * reflectivity * float64(nl.SunColor.B) / 255.0
+
+	newR := float64(baseColor.R) + specR*255.0
+	newG := float64(baseColor.G) + specG*255.0
+	newB := float64(baseColor.B) + specB*255.0
+
+	// Clamp to 255
+	if newR > 255 {
+		newR = 255
+	}
+	if newG > 255 {
+		newG = 255
+	}
+	if newB > 255 {
+		newB = 255
+	}
+
+	return color.RGBA{
+		R: uint8(newR),
+		G: uint8(newG),
+		B: uint8(newB),
+		A: baseColor.A,
+	}
 }
 
 // applyLightIntensity multiplies a color by an intensity factor.

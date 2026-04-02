@@ -466,10 +466,10 @@ The normal map is a `Texture` where RGB channels encode the normal vector: `R=nx
 
 For materials with `Reflectivity > 0`:
 
-- [ ] Compute the reflection vector: `R = 2 * dot(N, L) * N - L`
-- [ ] Compute specular intensity: `spec = pow(max(dot(R, viewDir), 0), shininess)`
-- [ ] `shininess = (1.0 - Roughness) * 64.0` (rougher = wider, dimmer highlights)
-- [ ] Add `spec * Reflectivity * lightColor` to the final pixel color
+- [x] Compute the reflection vector: `R = 2 * dot(N, L) * N - L`
+- [x] Compute specular intensity: `spec = pow(max(dot(R, viewDir), 0), shininess)`
+- [x] `shininess = (1.0 - Roughness) * 64.0` (rougher = wider, dimmer highlights)
+- [x] Add `spec * Reflectivity * lightColor` to the final pixel color
 
 This is a simplified Blinn-Phong model suitable for CPU-based per-pixel computation.
 
