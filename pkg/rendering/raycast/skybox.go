@@ -57,6 +57,12 @@ type Skybox struct {
 	// Rendering parameters
 	sunRadius  float64
 	moonRadius float64
+
+	// Star field for nighttime sky
+	starField *StarField
+
+	// Animation time for star twinkle
+	animTime float64
 }
 
 // NewSkybox creates a new skybox renderer.
@@ -65,6 +71,22 @@ func NewSkybox() *Skybox {
 		config:     NewSkyConfig(),
 		sunRadius:  0.05,
 		moonRadius: 0.03,
+		starField:  DefaultStarField(12345), // Default seed
+		animTime:   0,
+	}
+	s.updateColors()
+	s.updateCelestialPositions()
+	return s
+}
+
+// NewSkyboxWithSeed creates a new skybox renderer with a specific seed for stars.
+func NewSkyboxWithSeed(seed int64) *Skybox {
+	s := &Skybox{
+		config:     NewSkyConfig(),
+		sunRadius:  0.05,
+		moonRadius: 0.03,
+		starField:  DefaultStarField(seed),
+		animTime:   0,
 	}
 	s.updateColors()
 	s.updateCelestialPositions()
@@ -90,10 +112,19 @@ func (s *Skybox) SetTimeOfDay(t float64) {
 	s.updateCelestialPositions()
 }
 
-// SetGenre updates the genre palette.
+// SetGenre updates the genre palette and star field colors.
 func (s *Skybox) SetGenre(genre string) {
 	s.config.Genre = genre
 	s.updateColors()
+	if s.starField != nil {
+		s.starField.SetGenre(genre)
+	}
+}
+
+// Update advances animation time for star twinkle effects.
+// dt is the time since the last update in seconds.
+func (s *Skybox) Update(dt float64) {
+	s.animTime += dt
 }
 
 // SetWeather updates weather conditions.
@@ -122,6 +153,18 @@ func (s *Skybox) GetSkyColorAt(x, y float64) color.RGBA {
 
 	// Base gradient from zenith to horizon
 	baseColor := s.blendColors(s.zenithColor, s.horizonColor, y)
+
+	// Add stars during night (before celestial bodies so they don't overlap)
+	if s.starField != nil {
+		nightIntensity := GetNightIntensity(s.config.TimeOfDay)
+		if nightIntensity > 0 {
+			starColor := s.starField.GetStarColorAt(x, y, s.animTime, nightIntensity)
+			if starColor.A > 0 {
+				// Blend star onto sky background
+				baseColor = s.addGlow(baseColor, starColor, 1.0)
+			}
+		}
+	}
 
 	// Add celestial bodies
 	baseColor = s.addCelestialBody(baseColor, x, y, s.sunX, s.sunY,
@@ -461,4 +504,207 @@ func (s *Skybox) GetConfig() *SkyConfig {
 // GetTimeOfDay returns the current time of day.
 func (s *Skybox) GetTimeOfDay() float64 {
 	return s.config.TimeOfDay
+}
+
+// ============================================================
+// Star Field Implementation
+// ============================================================
+
+// Star represents a single star in the night sky.
+type Star struct {
+	// X, Y are normalized sky coordinates (0-1)
+	X, Y float64
+	// Brightness is the star intensity (0.0-1.0)
+	Brightness float64
+	// Color is the star's color (typically white or slight blue/yellow tint)
+	Color color.RGBA
+	// Twinkle phase offset for per-star twinkle variation
+	TwinklePhase float64
+}
+
+// StarField manages a deterministic set of stars for nighttime sky rendering.
+type StarField struct {
+	// Stars is the list of generated stars
+	Stars []Star
+	// Seed used for generation (for determinism)
+	Seed int64
+	// StarCount is the number of stars to generate
+	StarCount int
+	// TwinkleSpeed controls how fast stars twinkle
+	TwinkleSpeed float64
+	// Genre affects star colors and density
+	Genre string
+}
+
+// NewStarField creates a new deterministic star field from the given seed.
+func NewStarField(seed int64, starCount int, genre string) *StarField {
+	sf := &StarField{
+		Seed:         seed,
+		StarCount:    starCount,
+		TwinkleSpeed: 2.0,
+		Genre:        genre,
+	}
+	sf.generateStars()
+	return sf
+}
+
+// DefaultStarField creates a star field with default parameters.
+func DefaultStarField(seed int64) *StarField {
+	return NewStarField(seed, 200, "fantasy")
+}
+
+// generateStars creates the star positions and properties deterministically.
+func (sf *StarField) generateStars() {
+	sf.Stars = make([]Star, sf.StarCount)
+
+	// Simple linear congruential generator for determinism
+	rngState := uint64(sf.Seed)
+	nextRand := func() float64 {
+		rngState = rngState*6364136223846793005 + 1442695040888963407
+		return float64(rngState>>33) / float64(1<<31)
+	}
+
+	for i := 0; i < sf.StarCount; i++ {
+		// Position: distribute across the sky (avoid horizon)
+		x := nextRand()
+		y := nextRand() * 0.7 // Stars mostly in upper 70% of sky
+
+		// Brightness: most stars are dim, few are bright
+		brightness := nextRand() * nextRand() // Squared for more dim stars
+		brightness = 0.3 + brightness*0.7     // Range 0.3-1.0
+
+		// Color based on genre and random variation
+		starColor := sf.getStarColor(nextRand(), brightness)
+
+		// Twinkle phase offset
+		twinklePhase := nextRand() * 2 * 3.14159
+
+		sf.Stars[i] = Star{
+			X:            x,
+			Y:            y,
+			Brightness:   brightness,
+			Color:        starColor,
+			TwinklePhase: twinklePhase,
+		}
+	}
+}
+
+// getStarColor returns a star color based on genre and random value.
+func (sf *StarField) getStarColor(rand, brightness float64) color.RGBA {
+	// Base white with slight color variation
+	var r, g, b uint8
+
+	switch sf.Genre {
+	case "sci-fi":
+		// Blue-white stars
+		if rand < 0.3 {
+			r, g, b = 200, 220, 255 // Blue
+		} else if rand < 0.6 {
+			r, g, b = 255, 255, 255 // White
+		} else {
+			r, g, b = 180, 255, 220 // Cyan-ish
+		}
+	case "horror":
+		// Dim, cold stars
+		if rand < 0.5 {
+			r, g, b = 180, 180, 200 // Cold white
+		} else {
+			r, g, b = 200, 150, 150 // Dim reddish
+		}
+	case "cyberpunk":
+		// Neon-tinted stars (light pollution effect)
+		if rand < 0.4 {
+			r, g, b = 255, 200, 255 // Pink-ish
+		} else if rand < 0.7 {
+			r, g, b = 200, 255, 255 // Cyan
+		} else {
+			r, g, b = 255, 255, 200 // Yellow
+		}
+	case "post-apocalyptic":
+		// Orange-tinted (dust in atmosphere)
+		if rand < 0.6 {
+			r, g, b = 255, 230, 200 // Warm white
+		} else {
+			r, g, b = 255, 200, 150 // Orange-ish
+		}
+	default: // fantasy
+		// Classic star colors
+		if rand < 0.4 {
+			r, g, b = 255, 255, 255 // White
+		} else if rand < 0.7 {
+			r, g, b = 255, 255, 220 // Warm white
+		} else {
+			r, g, b = 220, 230, 255 // Blue-ish
+		}
+	}
+
+	// Apply brightness
+	br := uint8(float64(r) * brightness)
+	bg := uint8(float64(g) * brightness)
+	bb := uint8(float64(b) * brightness)
+
+	return color.RGBA{R: br, G: bg, B: bb, A: 255}
+}
+
+// GetStarColorAt returns the star contribution at the given sky position.
+// Returns black (0,0,0,0) if no star is at this position.
+// time is the current animation time for twinkle effects.
+func (sf *StarField) GetStarColorAt(x, y, time, nightIntensity float64) color.RGBA {
+	if nightIntensity <= 0 {
+		return color.RGBA{} // No stars during day
+	}
+
+	// Check each star (could optimize with spatial partitioning for large star counts)
+	for _, star := range sf.Stars {
+		// Distance from star center
+		dx := x - star.X
+		dy := y - star.Y
+		dist := dx*dx + dy*dy
+
+		// Stars are small points, check if within radius
+		starRadius := 0.003 // Very small
+		if dist < starRadius*starRadius {
+			// Calculate twinkle effect
+			twinkle := 0.7 + 0.3*math.Sin(time*sf.TwinkleSpeed+star.TwinklePhase)
+
+			// Apply night intensity (stars fade at dawn/dusk)
+			intensity := star.Brightness * twinkle * nightIntensity
+
+			return color.RGBA{
+				R: uint8(float64(star.Color.R) * intensity),
+				G: uint8(float64(star.Color.G) * intensity),
+				B: uint8(float64(star.Color.B) * intensity),
+				A: 255,
+			}
+		}
+	}
+
+	return color.RGBA{} // No star at this position
+}
+
+// SetGenre updates the genre and regenerates stars with new colors.
+func (sf *StarField) SetGenre(genre string) {
+	if sf.Genre != genre {
+		sf.Genre = genre
+		sf.generateStars()
+	}
+}
+
+// GetNightIntensity calculates how visible stars should be based on time of day.
+// Returns 0 during day, 1 at full night, with gradual transitions at dawn/dusk.
+func GetNightIntensity(timeOfDay float64) float64 {
+	// Night is roughly 19:00 to 05:00
+	// Transition periods: 05:00-07:00 (dawn), 17:00-19:00 (dusk)
+
+	if timeOfDay >= 7 && timeOfDay < 17 {
+		return 0 // Full day, no stars
+	} else if timeOfDay >= 19 || timeOfDay < 5 {
+		return 1 // Full night, full stars
+	} else if timeOfDay >= 5 && timeOfDay < 7 {
+		// Dawn transition: 5:00 = 1.0, 7:00 = 0.0
+		return 1 - (timeOfDay-5)/2
+	} else {
+		// Dusk transition: 17:00 = 0.0, 19:00 = 1.0
+		return (timeOfDay - 17) / 2
+	}
 }
