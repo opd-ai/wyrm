@@ -103,7 +103,7 @@
 
 **Milestone:** Walls render at variable heights; multi-story buildings visible.
 
-- [ ] Define `MapCell` struct replacing `int` in `WorldMap`
+- [x] Define `MapCell` struct replacing `int` in `WorldMap`
 - [ ] Extend `Chunk` with per-cell wall height data
 - [ ] Modify `castRayWithTexCoord()` to return wall height
 - [ ] Modify `drawWallColumn()` to use per-cell height for `drawStart`/`drawEnd`

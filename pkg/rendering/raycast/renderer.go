@@ -150,14 +150,14 @@ func (c MapCell) EffectiveHeight() float64 {
 
 // Renderer handles first-person raycasting and draws to an Ebitengine image.
 type Renderer struct {
-	Width        int
-	Height       int
-	PlayerX      float64
-	PlayerY      float64
-	PlayerA      float64 // angle in radians
-	PlayerZ      float64 // player eye height (default 0.5 = standing)
-	PlayerPitch  float64 // vertical look angle in radians (clamped ±85°)
-	WorldMap     [][]int // 2D map: 0=empty, >0=wall type (legacy)
+	Width       int
+	Height      int
+	PlayerX     float64
+	PlayerY     float64
+	PlayerA     float64 // angle in radians
+	PlayerZ     float64 // player eye height (default 0.5 = standing)
+	PlayerPitch float64 // vertical look angle in radians (clamped ±85°)
+	WorldMap    [][]int // 2D map: 0=empty, >0=wall type (legacy)
 	// WorldMapCells is the enhanced map with variable heights and materials.
 	// When set, this takes precedence over WorldMap for rendering.
 	WorldMapCells [][]MapCell

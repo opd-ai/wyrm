@@ -52,6 +52,7 @@ type Chunk struct {
 	TerrainTypes []int         // Terrain type per cell
 	BiomeMap     []float64     // Biome noise values for vegetation density
 	DetailSpawns []DetailSpawn // Vegetation, rocks, and other detail entities
+	WallHeights  []float64     // Per-cell wall height multipliers for variable-height rendering
 }
 
 // DetailSpawnType represents different types of detail entities.
@@ -103,6 +104,7 @@ func NewChunkWithNoiseType(x, y, size int, seed int64, noiseType noise.NoiseType
 	biomeMap := generateBiomeMapWorldSpace(x, y, size, seed)
 	terrainTypes := generateTerrainTypes(size, heightMap, elevationMap, biomeMap)
 	detailSpawns := generateDetailSpawns(size, seed, terrainTypes, biomeMap)
+	wallHeights := generateWallHeights(size, heightMap, elevationMap, terrainTypes)
 	return &Chunk{
 		X:            x,
 		Y:            y,
@@ -113,6 +115,7 @@ func NewChunkWithNoiseType(x, y, size int, seed int64, noiseType noise.NoiseType
 		TerrainTypes: terrainTypes,
 		BiomeMap:     biomeMap,
 		DetailSpawns: detailSpawns,
+		WallHeights:  wallHeights,
 	}
 }
 
@@ -615,6 +618,99 @@ func abs(x float64) float64 {
 	return x
 }
 
+// Wall height constants for variable-height rendering.
+const (
+	// MinWallHeight is the minimum wall height multiplier.
+	MinWallHeight = 0.25
+	// MaxWallHeightMultiplier is the maximum wall height multiplier.
+	MaxWallHeightMultiplier = 3.0
+	// DefaultWallHeight is the standard wall height multiplier.
+	DefaultWallHeight = 1.0
+)
+
+// generateWallHeights creates per-cell wall height multipliers based on terrain.
+// Wall heights vary based on terrain type and elevation to create visual variety.
+func generateWallHeights(size int, heightMap, elevationMap []float64, terrainTypes []int) []float64 {
+	wallHeights := make([]float64, size*size)
+
+	for y := 0; y < size; y++ {
+		for x := 0; x < size; x++ {
+			idx := y*size + x
+			wallHeights[idx] = calculateWallHeight(idx, heightMap, elevationMap, terrainTypes)
+		}
+	}
+
+	return wallHeights
+}
+
+// calculateWallHeight determines the wall height for a single cell.
+func calculateWallHeight(idx int, heightMap, elevationMap []float64, terrainTypes []int) float64 {
+	// Get base values
+	height := 0.0
+	if idx < len(heightMap) {
+		height = heightMap[idx]
+	}
+
+	elevation := 0.0
+	if elevationMap != nil && idx < len(elevationMap) {
+		elevation = elevationMap[idx]
+	}
+
+	terrainType := TerrainFlat
+	if idx < len(terrainTypes) {
+		terrainType = terrainTypes[idx]
+	}
+
+	return wallHeightFromTerrain(height, elevation, terrainType)
+}
+
+// wallHeightFromTerrain calculates wall height based on terrain properties.
+func wallHeightFromTerrain(height, elevation float64, terrainType int) float64 {
+	// Base height from terrain height
+	baseHeight := DefaultWallHeight
+
+	switch terrainType {
+	case TerrainFlat:
+		// Flat terrain has standard walls with slight variation
+		baseHeight = DefaultWallHeight + (height-0.5)*0.5
+	case TerrainHill:
+		// Hills have taller structures (towers, lookouts)
+		baseHeight = DefaultWallHeight + height*0.5
+	case TerrainCliff:
+		// Cliffs have tall walls representing the cliff face
+		baseHeight = DefaultWallHeight + 1.0
+	case TerrainPeak:
+		// Peaks have the tallest structures (castle towers, monuments)
+		baseHeight = DefaultWallHeight + 1.5
+	case TerrainValley:
+		// Valleys have shorter structures
+		baseHeight = DefaultWallHeight * 0.75
+	case TerrainWater:
+		// Water has no walls (returns default for potential bridges/piers)
+		return DefaultWallHeight
+	case TerrainForest:
+		// Forest can have varying height trees represented as walls
+		baseHeight = DefaultWallHeight + height*0.8
+	case TerrainRoad:
+		// Roads are flat, minimal height variation
+		return DefaultWallHeight
+	}
+
+	// Add variation from elevation
+	elevationFactor := elevation / MaxElevation
+	baseHeight += elevationFactor * 0.3
+
+	// Clamp to valid range
+	if baseHeight < MinWallHeight {
+		baseHeight = MinWallHeight
+	}
+	if baseHeight > MaxWallHeightMultiplier {
+		baseHeight = MaxWallHeightMultiplier
+	}
+
+	return baseHeight
+}
+
 // GetHeight returns the height at the given local coordinates.
 func (c *Chunk) GetHeight(localX, localY int) float64 {
 	if localX < 0 || localX >= c.Size || localY < 0 || localY >= c.Size {
@@ -643,6 +739,18 @@ func (c *Chunk) GetTerrainType(localX, localY int) int {
 		return TerrainFlat
 	}
 	return c.TerrainTypes[localY*c.Size+localX]
+}
+
+// GetWallHeight returns the wall height multiplier at the given local coordinates.
+// Returns DefaultWallHeight if coordinates are out of bounds or WallHeights is nil.
+func (c *Chunk) GetWallHeight(localX, localY int) float64 {
+	if localX < 0 || localX >= c.Size || localY < 0 || localY >= c.Size {
+		return DefaultWallHeight
+	}
+	if c.WallHeights == nil {
+		return DefaultWallHeight
+	}
+	return c.WallHeights[localY*c.Size+localX]
 }
 
 // IsCliff returns true if the terrain at the given coordinates is a cliff.

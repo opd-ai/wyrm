@@ -467,10 +467,15 @@ func TestDeterministicTextureGeneration(t *testing.T) {
 func TestPerformDDAMaxSteps(t *testing.T) {
 	r := NewRenderer(640, 480)
 
-	// Clear the world to test max steps
+	// Clear the world to test max steps (both legacy and enhanced maps)
 	for i := range r.WorldMap {
 		for j := range r.WorldMap[i] {
 			r.WorldMap[i][j] = 0
+		}
+	}
+	for i := range r.WorldMapCells {
+		for j := range r.WorldMapCells[i] {
+			r.WorldMapCells[i][j] = DefaultMapCell()
 		}
 	}
 
@@ -599,5 +604,247 @@ func TestFOVConstants(t *testing.T) {
 	expectedFOV := math.Pi / 3
 	if math.Abs(DefaultFOV-expectedFOV) > 0.001 {
 		t.Errorf("DefaultFOV should be pi/3, got %f", DefaultFOV)
+	}
+}
+
+// === MapCell Tests ===
+
+func TestDefaultMapCell(t *testing.T) {
+	cell := DefaultMapCell()
+	if cell.WallType != 0 {
+		t.Errorf("expected WallType=0, got %d", cell.WallType)
+	}
+	if cell.WallHeight != DefaultWallHeight {
+		t.Errorf("expected WallHeight=%f, got %f", DefaultWallHeight, cell.WallHeight)
+	}
+	if cell.FloorH != 0.0 {
+		t.Errorf("expected FloorH=0.0, got %f", cell.FloorH)
+	}
+	if !cell.IsEmpty() {
+		t.Error("default cell should be empty")
+	}
+	if cell.IsSolid() {
+		t.Error("default cell should not be solid")
+	}
+}
+
+func TestWallMapCell(t *testing.T) {
+	tests := []struct {
+		wallType int
+	}{
+		{1},
+		{2},
+		{3},
+	}
+	for _, tc := range tests {
+		cell := WallMapCell(tc.wallType)
+		if cell.WallType != tc.wallType {
+			t.Errorf("expected WallType=%d, got %d", tc.wallType, cell.WallType)
+		}
+		if cell.WallHeight != DefaultWallHeight {
+			t.Errorf("expected WallHeight=%f, got %f", DefaultWallHeight, cell.WallHeight)
+		}
+		if cell.IsEmpty() {
+			t.Error("wall cell should not be empty")
+		}
+		if !cell.IsSolid() {
+			t.Error("wall cell should be solid")
+		}
+	}
+}
+
+func TestWallMapCellWithHeight(t *testing.T) {
+	tests := []struct {
+		name           string
+		wallType       int
+		height         float64
+		expectedHeight float64
+	}{
+		{"standard height", 1, 1.0, 1.0},
+		{"double height", 2, 2.0, 2.0},
+		{"half height", 3, 0.5, 0.5},
+		{"triple height", 1, 3.0, MaxWallHeight},
+		{"below minimum", 2, 0.1, MinWallHeight},
+		{"above maximum", 3, 5.0, MaxWallHeight},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cell := WallMapCellWithHeight(tc.wallType, tc.height)
+			if cell.WallType != tc.wallType {
+				t.Errorf("expected WallType=%d, got %d", tc.wallType, cell.WallType)
+			}
+			if cell.WallHeight != tc.expectedHeight {
+				t.Errorf("expected WallHeight=%f, got %f", tc.expectedHeight, cell.WallHeight)
+			}
+			if !cell.IsSolid() {
+				t.Error("wall cell should be solid")
+			}
+		})
+	}
+}
+
+func TestCellFlags(t *testing.T) {
+	tests := []struct {
+		name           string
+		flags          CellFlags
+		isTransparent  bool
+		isClimbable    bool
+		isDestructible bool
+	}{
+		{"no flags", 0, false, false, false},
+		{"transparent only", FlagTransparent, true, false, false},
+		{"climbable only", FlagClimbable, false, true, false},
+		{"destructible only", FlagDestructible, false, false, true},
+		{"all flags", FlagTransparent | FlagClimbable | FlagDestructible, true, true, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cell := MapCell{Flags: tc.flags}
+			if cell.IsTransparent() != tc.isTransparent {
+				t.Errorf("IsTransparent: expected %v, got %v", tc.isTransparent, cell.IsTransparent())
+			}
+			if cell.IsClimbable() != tc.isClimbable {
+				t.Errorf("IsClimbable: expected %v, got %v", tc.isClimbable, cell.IsClimbable())
+			}
+			if cell.IsDestructible() != tc.isDestructible {
+				t.Errorf("IsDestructible: expected %v, got %v", tc.isDestructible, cell.IsDestructible())
+			}
+		})
+	}
+}
+
+func TestEffectiveHeight(t *testing.T) {
+	tests := []struct {
+		name           string
+		wallHeight     float64
+		floorH         float64
+		ceilH          float64
+		expectedHeight float64
+	}{
+		{"default ceiling", 1.0, 0.0, 0.0, 1.0},
+		{"explicit ceiling", 1.0, 0.0, 2.0, 2.0},
+		{"elevated floor", 1.0, 0.5, 1.5, 1.0},
+		{"tall building", 2.0, 0.0, 3.0, 3.0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cell := MapCell{
+				WallHeight: tc.wallHeight,
+				FloorH:     tc.floorH,
+				CeilH:      tc.ceilH,
+			}
+			if cell.EffectiveHeight() != tc.expectedHeight {
+				t.Errorf("expected EffectiveHeight=%f, got %f", tc.expectedHeight, cell.EffectiveHeight())
+			}
+		})
+	}
+}
+
+func TestGetMapCell(t *testing.T) {
+	r := NewRenderer(640, 480)
+
+	// Test getting a cell from WorldMapCells
+	cell := r.GetMapCell(4, 4)
+	if cell.WallType != 2 {
+		t.Errorf("expected WallType=2 at (4,4), got %d", cell.WallType)
+	}
+
+	// Test out of bounds returns default
+	cell = r.GetMapCell(-1, 0)
+	if cell.WallType != 0 {
+		t.Errorf("expected WallType=0 for out of bounds, got %d", cell.WallType)
+	}
+
+	cell = r.GetMapCell(100, 100)
+	if cell.WallType != 0 {
+		t.Errorf("expected WallType=0 for out of bounds, got %d", cell.WallType)
+	}
+}
+
+func TestHasWall(t *testing.T) {
+	r := NewRenderer(640, 480)
+
+	// Test wall positions
+	if !r.HasWall(4, 4) {
+		t.Error("expected wall at (4,4)")
+	}
+	if !r.HasWall(0, 0) {
+		t.Error("expected boundary wall at (0,0)")
+	}
+
+	// Test empty positions
+	if r.HasWall(7, 7) {
+		t.Error("expected no wall at (7,7)")
+	}
+
+	// Test out of bounds
+	if r.HasWall(-1, 0) {
+		t.Error("expected no wall for out of bounds")
+	}
+}
+
+func TestSetWorldMapCells(t *testing.T) {
+	r := NewRenderer(640, 480)
+
+	// Create a custom map with variable heights
+	customMap := [][]MapCell{
+		{WallMapCell(1), WallMapCellWithHeight(2, 2.0)},
+		{DefaultMapCell(), WallMapCellWithHeight(3, 0.5)},
+	}
+
+	r.SetWorldMapCells(customMap)
+
+	// Verify WorldMapCells was set
+	if len(r.WorldMapCells) != 2 {
+		t.Errorf("expected WorldMapCells length=2, got %d", len(r.WorldMapCells))
+	}
+
+	// Verify legacy WorldMap was also created
+	if len(r.WorldMap) != 2 {
+		t.Errorf("expected WorldMap length=2, got %d", len(r.WorldMap))
+	}
+
+	// Check cell at (0,1)
+	cell := r.GetMapCell(0, 1)
+	if cell.WallHeight != 2.0 {
+		t.Errorf("expected WallHeight=2.0 at (0,1), got %f", cell.WallHeight)
+	}
+
+	// Check legacy map reflects wall type
+	if r.WorldMap[0][1] != 2 {
+		t.Errorf("expected WorldMap[0][1]=2, got %d", r.WorldMap[0][1])
+	}
+}
+
+func TestRendererNewFieldsInitialized(t *testing.T) {
+	r := NewRenderer(1280, 720)
+
+	// Test new fields added to Renderer
+	if r.PlayerZ != 0.5 {
+		t.Errorf("expected PlayerZ=0.5, got %f", r.PlayerZ)
+	}
+	if r.PlayerPitch != 0.0 {
+		t.Errorf("expected PlayerPitch=0.0, got %f", r.PlayerPitch)
+	}
+	if r.WorldMapCells == nil {
+		t.Error("WorldMapCells should not be nil")
+	}
+	if len(r.WorldMapCells) != DefaultMapSize {
+		t.Errorf("expected WorldMapCells size %d, got %d", DefaultMapSize, len(r.WorldMapCells))
+	}
+
+	// Verify WorldMapCells has varying heights in default map
+	// Position (4,5) should have height 1.5, (8,8) should have height 2.0
+	cell := r.GetMapCell(4, 5)
+	if cell.WallHeight != 1.5 {
+		t.Errorf("expected WallHeight=1.5 at (4,5), got %f", cell.WallHeight)
+	}
+	cell = r.GetMapCell(8, 8)
+	if cell.WallHeight != 2.0 {
+		t.Errorf("expected WallHeight=2.0 at (8,8), got %f", cell.WallHeight)
+	}
+	cell = r.GetMapCell(9, 8)
+	if cell.WallHeight != 0.5 {
+		t.Errorf("expected WallHeight=0.5 at (9,8), got %f", cell.WallHeight)
 	}
 }
