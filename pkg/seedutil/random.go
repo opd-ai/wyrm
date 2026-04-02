@@ -63,12 +63,17 @@ func (p *PseudoRandomLCG) Float64() float64 {
 
 // FormatPrefixedID creates a prefixed ID string (e.g., "CQ-123", "EV-456").
 // The prefix should be 2 characters. Returns prefix + "-" + decimal number.
+// Negative numbers are treated as their absolute value.
 func FormatPrefixedID(prefix string, n int) string {
 	result := make([]byte, 0, 12)
 	result = append(result, prefix...)
 	result = append(result, '-')
 	if n == 0 {
 		return string(append(result, '0'))
+	}
+	// Handle negative numbers by using absolute value
+	if n < 0 {
+		n = -n
 	}
 	digits := make([]byte, 0, 8)
 	for n > 0 {
