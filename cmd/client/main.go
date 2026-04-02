@@ -415,9 +415,9 @@ func (g *Game) handleDoorInteraction(doorEntity ecs.Entity) {
 
 	// Toggle door state: doors store open/closed state in the Angle field (radians)
 	// Open door has angle ~ PI/2, closed door has angle = 0
-	const doorOpenAngle = 1.5708   // PI/2 radians (90 degrees)
-	const doorCloseAngle = 0.0     // 0 radians
-	const doorThreshold = 0.785398 // PI/4 radians (45 degrees)
+	doorOpenAngle := math.Pi / 2 // PI/2 radians (90 degrees)
+	const doorCloseAngle = 0.0   // 0 radians
+	doorThreshold := math.Pi / 4 // PI/4 radians (45 degrees)
 
 	if pos.Angle > doorThreshold { // Currently open
 		pos.Angle = doorCloseAngle

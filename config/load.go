@@ -2,6 +2,7 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -20,6 +21,59 @@ type Config struct {
 	Mouse         MouseConfig         `mapstructure:"mouse"`
 	Debug         DebugConfig         `mapstructure:"debug"`
 	Genre         string              `mapstructure:"genre"`
+}
+
+// Validate checks that all configuration values are within valid ranges.
+// Returns an error describing the first invalid value found.
+func (c *Config) Validate() error {
+	// Window validation
+	if c.Window.Width <= 0 {
+		return fmt.Errorf("config: window.width must be positive, got %d", c.Window.Width)
+	}
+	if c.Window.Height <= 0 {
+		return fmt.Errorf("config: window.height must be positive, got %d", c.Window.Height)
+	}
+
+	// Server validation
+	if c.Server.TickRate <= 0 {
+		return fmt.Errorf("config: server.tick_rate must be positive, got %d", c.Server.TickRate)
+	}
+
+	// World validation
+	if c.World.ChunkSize <= 0 {
+		return fmt.Errorf("config: world.chunk_size must be positive, got %d", c.World.ChunkSize)
+	}
+
+	// Audio validation
+	if c.Audio.MasterVolume < 0 || c.Audio.MasterVolume > 10 {
+		return fmt.Errorf("config: audio.master_volume must be 0-10, got %d", c.Audio.MasterVolume)
+	}
+
+	// Difficulty validation - multipliers should be non-negative
+	if c.Difficulty.EnemyDamageMultiplier < 0 {
+		return fmt.Errorf("config: difficulty.enemy_damage_multiplier cannot be negative, got %f", c.Difficulty.EnemyDamageMultiplier)
+	}
+	if c.Difficulty.EnemyHealthMultiplier < 0 {
+		return fmt.Errorf("config: difficulty.enemy_health_multiplier cannot be negative, got %f", c.Difficulty.EnemyHealthMultiplier)
+	}
+	if c.Difficulty.PlayerDamageMultiplier < 0 {
+		return fmt.Errorf("config: difficulty.player_damage_multiplier cannot be negative, got %f", c.Difficulty.PlayerDamageMultiplier)
+	}
+
+	// Debug port validation
+	if c.Debug.ProfilingEnabled && (c.Debug.ProfilingPort < 1 || c.Debug.ProfilingPort > 65535) {
+		return fmt.Errorf("config: debug.profiling_port must be 1-65535, got %d", c.Debug.ProfilingPort)
+	}
+
+	// Mouse validation
+	if c.Mouse.Sensitivity < 0 {
+		return fmt.Errorf("config: mouse.sensitivity cannot be negative, got %f", c.Mouse.Sensitivity)
+	}
+	if c.Mouse.SmoothingFactor < 0 || c.Mouse.SmoothingFactor > 1 {
+		return fmt.Errorf("config: mouse.smoothing_factor must be 0-1, got %f", c.Mouse.SmoothingFactor)
+	}
+
+	return nil
 }
 
 // MouseConfig holds mouse input settings for FPS-style camera control.
@@ -266,6 +320,11 @@ func Load() (*Config, error) {
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, err
 	}
+
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
 	return &cfg, nil
 }
 

@@ -524,7 +524,13 @@ func registerServerSystems(world *ecs.World, cm *chunk.Manager, cfg *config.Conf
 
 // runServerLoop runs the main server tick loop until shutdown.
 func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server, fed *federation.Federation, pm *persist.Persister, cm *chunk.Manager) {
-	tickInterval := time.Second / time.Duration(cfg.Server.TickRate)
+	// Guard against division by zero (should be caught by config validation, but be defensive)
+	tickRate := cfg.Server.TickRate
+	if tickRate <= 0 {
+		tickRate = 20 // Default to 20 Hz
+		log.Printf("warning: invalid tick rate %d, defaulting to %d", cfg.Server.TickRate, tickRate)
+	}
+	tickInterval := time.Second / time.Duration(tickRate)
 	ticker := time.NewTicker(tickInterval)
 	defer ticker.Stop()
 

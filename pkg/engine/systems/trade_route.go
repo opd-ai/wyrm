@@ -477,7 +477,16 @@ func (s *TradeRouteSystem) sellCargoAtDestination(w *ecs.World, caravan *TradeCa
 		}
 		return total
 	}
-	dest := destComp.(interface{ GetPrice(string) float64 })
+	dest, ok := destComp.(interface{ GetPrice(string) float64 })
+	if !ok {
+		// Component doesn't support GetPrice - fallback to base prices
+		for item, qty := range caravan.Cargo {
+			if price, ok := s.Economy.BasePrices[item]; ok {
+				total += price * route.ProfitMargin * float64(qty)
+			}
+		}
+		return total
+	}
 	for item, qty := range caravan.Cargo {
 		price := dest.GetPrice(item)
 		if price <= 0 {

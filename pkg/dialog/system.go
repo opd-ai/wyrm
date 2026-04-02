@@ -122,7 +122,9 @@ func (dm *Manager) GetLastTopic(npcID, playerID uint64) *TopicMemory {
 	if memory == nil || len(memory.Topics) == 0 {
 		return nil
 	}
-	return &memory.Topics[len(memory.Topics)-1]
+	// Return a copy to avoid stale pointer issues if the slice is modified later
+	topic := memory.Topics[len(memory.Topics)-1]
+	return &topic
 }
 
 // HasDiscussedTopic checks if a topic has been discussed before.

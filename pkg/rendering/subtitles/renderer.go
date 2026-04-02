@@ -340,6 +340,12 @@ func (ss *SubtitleSystem) SetPosition(pos Position) {
 func (ss *SubtitleSystem) SetBackgroundOpacity(opacity float64) {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
+	// Clamp opacity to valid range to prevent uint8 overflow
+	if opacity > 1.0 {
+		opacity = 1.0
+	} else if opacity < 0.0 {
+		opacity = 0.0
+	}
 	ss.style.BackgroundOpacity = opacity
 	ss.style.BackgroundColor[3] = uint8(opacity * 255)
 }
@@ -433,6 +439,12 @@ func (ss *SubtitleSystem) GetRenderData() *SubtitleRenderData {
 		}
 	}
 
+	// Guard against division by zero (Duration should never be 0 via Add(), but check anyway)
+	remainingFraction := 0.0
+	if sub.Duration > 0 {
+		remainingFraction = float64(sub.RemainingTime(time.Now())) / float64(sub.Duration)
+	}
+
 	return &SubtitleRenderData{
 		Text:              sub.Text,
 		Speaker:           sub.Speaker,
@@ -445,7 +457,7 @@ func (ss *SubtitleSystem) GetRenderData() *SubtitleRenderData {
 		MaxWidth:          style.MaxWidth,
 		Position:          style.Position,
 		Alignment:         style.Alignment,
-		RemainingFraction: float64(sub.RemainingTime(time.Now())) / float64(sub.Duration),
+		RemainingFraction: remainingFraction,
 	}
 }
 

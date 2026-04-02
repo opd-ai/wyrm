@@ -3,6 +3,7 @@ package lighting
 
 import (
 	"image/color"
+	"log"
 	"math"
 )
 
@@ -68,6 +69,9 @@ func NewDirectionalLight(dirX, dirY, dirZ, intensity float64, c color.RGBA) *Lig
 		dirX /= len
 		dirY /= len
 		dirZ /= len
+	} else {
+		// Zero-length direction vector produces no directional illumination
+		log.Printf("warning: directional light created with zero-length direction vector")
 	}
 	return &Light{
 		Type:      TypeDirectional,

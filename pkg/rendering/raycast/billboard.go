@@ -241,7 +241,8 @@ func (r *Renderer) DrawSpriteColumn(screenX int, ctx *SpriteDrawContext, pixels 
 	}
 
 	// Z-buffer test: skip if this column is behind a wall
-	if ctx.Distance >= r.GetZBufferAt(screenX) {
+	// Use > (not >=) to avoid z-fighting when sprites are exactly at wall distance
+	if ctx.Distance > r.GetZBufferAt(screenX) {
 		return
 	}
 

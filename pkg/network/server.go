@@ -123,6 +123,9 @@ func nextEntityID() uint64 {
 
 // registerClient adds a new client connection and creates a player entity.
 func (s *Server) registerClient(conn net.Conn) {
+	// Set initial deadline for client registration
+	conn.SetDeadline(time.Now().Add(10 * time.Second))
+
 	entityID := nextEntityID()
 
 	s.mu.Lock()
@@ -169,7 +172,12 @@ func (s *Server) cleanupClient(conn net.Conn) {
 }
 
 // processClientMessage reads and handles a single message from a client.
+// Sets a read deadline to prevent blocking indefinitely on slow/disconnected clients.
 func (s *Server) processClientMessage(conn net.Conn) error {
+	// Set read deadline per project's high-latency design mandate (200-5000ms tolerance)
+	if err := conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return err
+	}
 	msgType, err := ReadMessageType(conn)
 	if err != nil {
 		return err
@@ -339,14 +347,16 @@ func (s *Server) handlePlayerInput(conn net.Conn, input *PlayerInput) {
 	state.Angle += input.Turn * turnSpeed
 	state.X += input.MoveForward * moveSpeed * float32(cos64(float64(state.Angle)))
 	state.Y += input.MoveForward * moveSpeed * float32(sin64(float64(state.Angle)))
-	state.X += input.MoveRight * moveSpeed * float32(cos64(float64(state.Angle)+1.5708))
-	state.Y += input.MoveRight * moveSpeed * float32(sin64(float64(state.Angle)+1.5708))
+	state.X += input.MoveRight * moveSpeed * float32(cos64(float64(state.Angle)+math.Pi/2))
+	state.Y += input.MoveRight * moveSpeed * float32(sin64(float64(state.Angle)+math.Pi/2))
 
 	// Update last acknowledged sequence
 	s.lastAck[conn] = input.SequenceNum
 
 	// Send acknowledgement with world state (unlocks after this line via defer)
 	// Note: sendWorldState is called after unlock via goroutine to avoid holding lock
+	// Track goroutine in WaitGroup to ensure clean shutdown
+	s.wg.Add(1)
 	go s.sendWorldState(conn, entityID, input.SequenceNum)
 }
 
@@ -373,6 +383,8 @@ func sin64(x float64) float64 {
 
 // sendWorldState sends the current world state to a client.
 func (s *Server) sendWorldState(conn net.Conn, playerID uint64, ackSeq uint32) {
+	defer s.wg.Done()
+
 	s.mu.Lock()
 	entities := make([]EntityState, 0, len(s.playerStates))
 	for _, ps := range s.playerStates {
@@ -391,6 +403,12 @@ func (s *Server) sendWorldState(conn net.Conn, playerID uint64, ackSeq uint32) {
 		ServerTimeMs: uint32(serverTimeMs()),
 		AckSequence:  ackSeq,
 		Entities:     entities,
+	}
+
+	// Set write deadline to prevent blocking indefinitely on slow/disconnected clients
+	if err := conn.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		s.disconnectOnError(conn, err, "SetWriteDeadline")
+		return
 	}
 	if err := state.Encode(conn); err != nil {
 		s.disconnectOnError(conn, err, "SendWorldState")

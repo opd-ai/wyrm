@@ -61,7 +61,10 @@ func (s *HazardSystem) processHazardZones(w *ecs.World, dt float64) {
 
 // processHazardEntity handles damage application for a single hazard.
 func (s *HazardSystem) processHazardEntity(w *ecs.World, hazardEnt ecs.Entity, targets []ecs.Entity, dt float64) {
-	hazardComp, _ := w.GetComponent(hazardEnt, "EnvironmentalHazard")
+	hazardComp, ok := w.GetComponent(hazardEnt, "EnvironmentalHazard")
+	if !ok {
+		return
+	}
 	hazard := hazardComp.(*components.EnvironmentalHazard)
 
 	if !hazard.Active || s.isOnCooldown(hazard) {
@@ -69,6 +72,9 @@ func (s *HazardSystem) processHazardEntity(w *ecs.World, hazardEnt ecs.Entity, t
 	}
 
 	hazardPos := s.getEntityPosition(w, hazardEnt)
+	if hazardPos == nil {
+		return
+	}
 	s.damageTargetsInRadius(w, hazardEnt, hazardPos, hazard, targets, dt)
 	hazard.LastDamageTick = s.getCurrentTime()
 }
@@ -80,7 +86,10 @@ func (s *HazardSystem) isOnCooldown(hazard *components.EnvironmentalHazard) bool
 
 // getEntityPosition retrieves an entity's position component.
 func (s *HazardSystem) getEntityPosition(w *ecs.World, entity ecs.Entity) *components.Position {
-	posComp, _ := w.GetComponent(entity, "Position")
+	posComp, ok := w.GetComponent(entity, "Position")
+	if !ok {
+		return nil
+	}
 	return posComp.(*components.Position)
 }
 
@@ -99,6 +108,9 @@ func (s *HazardSystem) damageTargetsInRadius(w *ecs.World, hazardEnt ecs.Entity,
 // isInHazardRadius checks if a target is within the hazard's effect radius.
 func (s *HazardSystem) isInHazardRadius(w *ecs.World, target ecs.Entity, hazardPos *components.Position, radius float64) bool {
 	targetPos := s.getEntityPosition(w, target)
+	if targetPos == nil {
+		return false
+	}
 	dx := hazardPos.X - targetPos.X
 	dy := hazardPos.Y - targetPos.Y
 	dz := hazardPos.Z - targetPos.Z
@@ -136,12 +148,18 @@ func (s *HazardSystem) processHazardEffects(w *ecs.World, dt float64) {
 	entities := w.Entities("HazardEffect", "Health")
 
 	for _, ent := range entities {
-		effectComp, _ := w.GetComponent(ent, "HazardEffect")
+		effectComp, ok := w.GetComponent(ent, "HazardEffect")
+		if !ok {
+			continue
+		}
 		effect := effectComp.(*components.HazardEffect)
 
 		// Apply damage over time
 		if effect.DamageOverTime > 0 {
-			healthComp, _ := w.GetComponent(ent, "Health")
+			healthComp, ok := w.GetComponent(ent, "Health")
+			if !ok {
+				continue
+			}
 			health := healthComp.(*components.Health)
 
 			damage := effect.DamageOverTime * float64(effect.StackCount) * dt * s.DamageMultiplier
@@ -167,14 +185,20 @@ func (s *HazardSystem) processTraps(w *ecs.World, dt float64) {
 	targets := w.Entities("Position", "Health")
 
 	for _, trapEnt := range traps {
-		trapComp, _ := w.GetComponent(trapEnt, "TrapMechanism")
+		trapComp, ok := w.GetComponent(trapEnt, "TrapMechanism")
+		if !ok {
+			continue
+		}
 		trap := trapComp.(*components.TrapMechanism)
 
 		if s.updateTrapReset(trap, dt) {
 			continue
 		}
 
-		trapPosComp, _ := w.GetComponent(trapEnt, "Position")
+		trapPosComp, ok := w.GetComponent(trapEnt, "Position")
+		if !ok {
+			continue
+		}
 		trapPos := trapPosComp.(*components.Position)
 		s.checkTrapTriggers(w, trapEnt, trapPos, trap, targets)
 	}
@@ -202,7 +226,10 @@ func (s *HazardSystem) checkTrapTriggers(w *ecs.World, trapEnt ecs.Entity, trapP
 			continue
 		}
 
-		targetPosComp, _ := w.GetComponent(targetEnt, "Position")
+		targetPosComp, ok := w.GetComponent(targetEnt, "Position")
+		if !ok {
+			continue
+		}
 		targetPos := targetPosComp.(*components.Position)
 
 		if s.isInTriggerRadius(trapPos, targetPos, trap.TriggerRadius) {
@@ -243,7 +270,10 @@ func (s *HazardSystem) processWeatherHazards(w *ecs.World, dt float64) {
 	weatherEnts := w.Entities("WeatherHazard")
 
 	for _, weatherEnt := range weatherEnts {
-		weatherComp, _ := w.GetComponent(weatherEnt, "WeatherHazard")
+		weatherComp, ok := w.GetComponent(weatherEnt, "WeatherHazard")
+		if !ok {
+			continue
+		}
 		weather := weatherComp.(*components.WeatherHazard)
 
 		// Update duration
@@ -267,7 +297,10 @@ func (s *HazardSystem) applyWeatherDamage(w *ecs.World, weather *components.Weat
 	entities := w.Entities("Position", "Health")
 
 	for _, ent := range entities {
-		posComp, _ := w.GetComponent(ent, "Position")
+		posComp, ok := w.GetComponent(ent, "Position")
+		if !ok {
+			continue
+		}
 		pos := posComp.(*components.Position)
 
 		// Check if entity is indoors (shelter check)
@@ -275,7 +308,10 @@ func (s *HazardSystem) applyWeatherDamage(w *ecs.World, weather *components.Weat
 			continue // Skip damage for sheltered entities
 		}
 
-		healthComp, _ := w.GetComponent(ent, "Health")
+		healthComp, ok := w.GetComponent(ent, "Health")
+		if !ok {
+			continue
+		}
 		health := healthComp.(*components.Health)
 
 		damage := weather.OutdoorDamage * weather.Severity * dt * s.DamageMultiplier
@@ -299,7 +335,10 @@ func (s *HazardSystem) updateTemporaryHazards(w *ecs.World, dt float64) {
 	hazards := w.Entities("EnvironmentalHazard")
 
 	for _, ent := range hazards {
-		hazardComp, _ := w.GetComponent(ent, "EnvironmentalHazard")
+		hazardComp, ok := w.GetComponent(ent, "EnvironmentalHazard")
+		if !ok {
+			continue
+		}
 		hazard := hazardComp.(*components.EnvironmentalHazard)
 
 		if hazard.Permanent {
@@ -346,9 +385,11 @@ func (s *HazardSystem) CreateHazard(w *ecs.World, hazardType components.HazardTy
 func (s *HazardSystem) CreatePermanentHazard(w *ecs.World, hazardType components.HazardType, x, y, z, radius, intensity float64) ecs.Entity {
 	ent := s.CreateHazard(w, hazardType, x, y, z, radius, intensity)
 
-	hazardComp, _ := w.GetComponent(ent, "EnvironmentalHazard")
-	hazard := hazardComp.(*components.EnvironmentalHazard)
-	hazard.Permanent = true
+	hazardComp, ok := w.GetComponent(ent, "EnvironmentalHazard")
+	if ok {
+		hazard := hazardComp.(*components.EnvironmentalHazard)
+		hazard.Permanent = true
+	}
 
 	return ent
 }

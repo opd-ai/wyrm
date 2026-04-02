@@ -239,8 +239,10 @@ func (s *CityBuildingSystem) CreateShopBuilding(w *ecs.World, shopType, name str
 
 	// Create and link interior
 	interior := s.CreateShopInterior(w, shopType)
-	buildingComp, _ := w.GetComponent(building, "Building")
-	buildingComp.(*components.Building).InteriorEntity = uint64(interior)
+	buildingComp, ok := w.GetComponent(building, "Building")
+	if ok {
+		buildingComp.(*components.Building).InteriorEntity = uint64(interior)
+	}
 
 	return building
 }
@@ -365,7 +367,10 @@ func (s *CityBuildingSystem) GetNearbyPOIs(w *ecs.World, x, y, z, radius float64
 	radiusSq := radius * radius
 
 	for _, e := range w.Entities("POIMarker", "Position") {
-		posComp, _ := w.GetComponent(e, "Position")
+		posComp, ok := w.GetComponent(e, "Position")
+		if !ok {
+			continue
+		}
 		pos := posComp.(*components.Position)
 
 		dx := pos.X - x
@@ -377,7 +382,10 @@ func (s *CityBuildingSystem) GetNearbyPOIs(w *ecs.World, x, y, z, radius float64
 			continue
 		}
 
-		poiComp, _ := w.GetComponent(e, "POIMarker")
+		poiComp, ok := w.GetComponent(e, "POIMarker")
+		if !ok {
+			continue
+		}
 		poi := poiComp.(*components.POIMarker)
 
 		if onlyDiscovered && !poi.Discovered && poi.DiscoveryRequired {

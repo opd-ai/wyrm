@@ -114,7 +114,10 @@ func (s *EmotionalStateSystem) applyMoodEffects(w *ecs.World, dt float64) {
 
 // applyMoodEffectToEntity adjusts an NPC's dispositions based on mood.
 func (s *EmotionalStateSystem) applyMoodEffectToEntity(w *ecs.World, e ecs.Entity, dt float64) {
-	emotionComp, _ := w.GetComponent(e, "EmotionalState")
+	emotionComp, ok := w.GetComponent(e, "EmotionalState")
+	if !ok {
+		return
+	}
 	emotion := emotionComp.(*components.EmotionalState)
 
 	memoryComp, ok := w.GetComponent(e, "NPCMemory")

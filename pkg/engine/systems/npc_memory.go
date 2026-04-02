@@ -104,7 +104,7 @@ func (s *NPCMemorySystem) getOrCreateMemory(w *ecs.World, npc ecs.Entity) *compo
 	if !ok {
 		memory := newDefaultNPCMemory()
 		w.AddComponent(npc, memory)
-		memComp, _ = w.GetComponent(npc, "NPCMemory")
+		return memory
 	}
 	return memComp.(*components.NPCMemory)
 }

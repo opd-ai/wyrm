@@ -69,16 +69,25 @@ func (s *GossipSystem) propagateGossip(w *ecs.World, dt float64) {
 
 // canShareGossip checks if an entity is off cooldown for sharing.
 func (s *GossipSystem) canShareGossip(w *ecs.World, e ecs.Entity) bool {
-	g1Comp, _ := w.GetComponent(e, "GossipNetwork")
+	g1Comp, ok := w.GetComponent(e, "GossipNetwork")
+	if !ok {
+		return false
+	}
 	g1 := g1Comp.(*components.GossipNetwork)
 	return s.GameTime-g1.LastGossipTime >= g1.GossipCooldown
 }
 
 // tryShareWithNearbyNPCs attempts to share gossip with all nearby NPCs.
 func (s *GossipSystem) tryShareWithNearbyNPCs(w *ecs.World, e1 ecs.Entity, entities []ecs.Entity, i int, dt float64) {
-	g1Comp, _ := w.GetComponent(e1, "GossipNetwork")
+	g1Comp, ok := w.GetComponent(e1, "GossipNetwork")
+	if !ok {
+		return
+	}
 	g1 := g1Comp.(*components.GossipNetwork)
-	p1Comp, _ := w.GetComponent(e1, "Position")
+	p1Comp, ok := w.GetComponent(e1, "Position")
+	if !ok {
+		return
+	}
 	p1 := p1Comp.(*components.Position)
 
 	for j, e2 := range entities {
@@ -91,14 +100,20 @@ func (s *GossipSystem) tryShareWithNearbyNPCs(w *ecs.World, e1 ecs.Entity, entit
 
 // tryExchangeGossipWithNPC exchanges gossip with a single NPC if in range.
 func (s *GossipSystem) tryExchangeGossipWithNPC(w *ecs.World, g1 *components.GossipNetwork, p1 *components.Position, e2 ecs.Entity, dt float64) {
-	p2Comp, _ := w.GetComponent(e2, "Position")
+	p2Comp, ok := w.GetComponent(e2, "Position")
+	if !ok {
+		return
+	}
 	p2 := p2Comp.(*components.Position)
 
 	if !s.inGossipRange(p1, p2) {
 		return
 	}
 
-	g2Comp, _ := w.GetComponent(e2, "GossipNetwork")
+	g2Comp, ok := w.GetComponent(e2, "GossipNetwork")
+	if !ok {
+		return
+	}
 	g2 := g2Comp.(*components.GossipNetwork)
 	s.exchangeGossip(g1, g2, dt)
 }

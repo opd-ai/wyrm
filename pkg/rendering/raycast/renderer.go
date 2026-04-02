@@ -192,6 +192,14 @@ func NewRenderer(width, height int) *Renderer {
 
 // NewRendererWithGenre creates a renderer with specified genre and seed.
 func NewRendererWithGenre(width, height int, genre string, seed int64) *Renderer {
+	// Validate dimensions to prevent panics from empty framebuffer access
+	if width < 1 {
+		width = 1
+	}
+	if height < 1 {
+		height = 1
+	}
+
 	// Create a simple default world map (legacy format for backward compatibility)
 	worldMap := make([][]int, DefaultMapSize)
 	worldMapCells := make([][]MapCell, DefaultMapSize)
@@ -434,7 +442,10 @@ func (r *Renderer) performDDA(sideDistX, sideDistY, deltaDistX, deltaDistY float
 
 // isValidMapPosition checks if coordinates are within map bounds.
 func (r *Renderer) isValidMapPosition(x, y int) bool {
-	return x >= 0 && x < len(r.WorldMap) && y >= 0 && y < len(r.WorldMap[0])
+	if x < 0 || x >= len(r.WorldMap) {
+		return false
+	}
+	return y >= 0 && y < len(r.WorldMap[x])
 }
 
 // isValidMapCellPosition checks if coordinates are within WorldMapCells bounds.
@@ -442,7 +453,10 @@ func (r *Renderer) isValidMapCellPosition(x, y int) bool {
 	if r.WorldMapCells == nil {
 		return false
 	}
-	return x >= 0 && x < len(r.WorldMapCells) && y >= 0 && y < len(r.WorldMapCells[0])
+	if x < 0 || x >= len(r.WorldMapCells) {
+		return false
+	}
+	return y >= 0 && y < len(r.WorldMapCells[x])
 }
 
 // GetMapCell returns the MapCell at the given position.

@@ -3,6 +3,7 @@ package particles
 
 import (
 	"image/color"
+	"math"
 )
 
 // Renderer draws particles to a pixel buffer.
@@ -42,10 +43,10 @@ func (r *Renderer) Draw(system *System, pixels []byte) {
 
 // drawParticle renders a single particle.
 func (r *Renderer) drawParticle(p *Particle, pixels []byte) {
-	// Convert normalized coords to screen coords
-	screenX := int(p.X * float64(r.width))
-	screenY := int(p.Y * float64(r.height))
-	size := int(p.Size)
+	// Convert normalized coords to screen coords using rounding for accuracy
+	screenX := int(math.Round(p.X * float64(r.width)))
+	screenY := int(math.Round(p.Y * float64(r.height)))
+	size := int(math.Round(p.Size))
 	if size < 1 {
 		size = 1
 	}

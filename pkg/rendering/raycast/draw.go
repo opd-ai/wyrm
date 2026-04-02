@@ -107,7 +107,8 @@ func (r *Renderer) drawSpriteColumnToFramebuffer(screenX int, ctx *SpriteDrawCon
 	}
 
 	// Z-buffer test: skip if this column is behind a wall
-	if ctx.Distance >= r.GetZBufferAt(screenX) {
+	// Use > (not >=) to avoid z-fighting when sprites are exactly at wall distance
+	if ctx.Distance > r.GetZBufferAt(screenX) {
 		return
 	}
 
@@ -158,7 +159,15 @@ func (r *Renderer) drawFloorCeiling() {
 	horizonY := r.getHorizonLine()
 	renderCeiling := r.Skybox == nil || r.Skybox.IsIndoor()
 
-	for y := horizonY; y < r.Height; y++ {
+	// Start from horizonY + 1 to avoid rendering the horizon row twice
+	// (once as floor and once as ceiling via the ceilY = Height - y - 1 mirror).
+	// This prevents a 1-pixel overlap artifact at the exact center for odd heights.
+	startY := horizonY + 1
+	if startY >= r.Height {
+		return
+	}
+
+	for y := startY; y < r.Height; y++ {
 		rayDirX0, rayDirY0, rayDirX1, rayDirY1 := r.calculateFOVRayDirections()
 		rowDistance := r.calculateRowDistance(y, halfHeight)
 		floorStepX, floorStepY := r.calculateFloorStep(rowDistance, rayDirX0, rayDirY0, rayDirX1, rayDirY1)

@@ -76,6 +76,18 @@ func (p *Player) IsPlaying() bool {
 	return p.isPlaying
 }
 
+// Close releases the audio player resources.
+func (p *Player) Close() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.player != nil {
+		p.player.Close()
+		p.player = nil
+	}
+	p.isPlaying = false
+	return nil
+}
+
 // SampleStream implements io.Reader for Ebitengine audio playback.
 type SampleStream struct {
 	mu      sync.Mutex

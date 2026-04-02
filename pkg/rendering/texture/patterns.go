@@ -215,9 +215,10 @@ func voronoiPattern(x, y float64, seed int64, config GenrePatternConfig) float64
 
 // distortionPattern creates wavy, unstable patterns.
 func distortionPattern(x, y float64, seed int64, config GenrePatternConfig) float64 {
-	// Apply distortion to coordinates
-	distortX := noise.Noise2D(x*config.SecondaryNoiseScale, y*config.SecondaryNoiseScale, seed+100) * 10.0
-	distortY := noise.Noise2D(x*config.SecondaryNoiseScale, y*config.SecondaryNoiseScale, seed+200) * 10.0
+	// Apply distortion to coordinates with reduced amplitude to prevent aliasing
+	// Using 3.0 instead of 10.0 provides smooth distortion without harsh banding
+	distortX := noise.Noise2D(x*config.SecondaryNoiseScale, y*config.SecondaryNoiseScale, seed+100) * 3.0
+	distortY := noise.Noise2D(x*config.SecondaryNoiseScale, y*config.SecondaryNoiseScale, seed+200) * 3.0
 
 	// Sample noise at distorted position
 	return noise.Noise2D((x+distortX)*config.NoiseScale, (y+distortY)*config.NoiseScale, seed)

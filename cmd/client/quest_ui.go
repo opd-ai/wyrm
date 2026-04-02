@@ -408,9 +408,15 @@ func (q *QuestUI) drawBackground(screen *ebiten.Image, x, y int) {
 		q.panelPixels = make([]byte, questUIWidth*questUIHeight*4)
 	}
 
-	// Type assert to color.RGBA for direct field access
-	bgColor := q.getBackgroundColor().(color.RGBA)
-	borderColor := q.getBorderColor().(color.RGBA)
+	// Safe type assertion to color.RGBA for direct field access
+	bgColor, ok := q.getBackgroundColor().(color.RGBA)
+	if !ok {
+		bgColor = color.RGBA{40, 30, 20, 230} // Default fallback
+	}
+	borderColor, ok := q.getBorderColor().(color.RGBA)
+	if !ok {
+		borderColor = color.RGBA{180, 150, 100, 255} // Default fallback
+	}
 
 	// Fill background
 	for py := 0; py < questUIHeight; py++ {
