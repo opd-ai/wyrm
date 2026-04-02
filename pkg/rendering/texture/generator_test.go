@@ -1467,3 +1467,215 @@ func BenchmarkApplyWear(b *testing.B) {
 		_ = ApplyWear(pixels, 64, 64, config)
 	}
 }
+
+// ============================================================
+// Genre-Specific Palette Tests
+// ============================================================
+
+func TestGenrePalettes(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+	for _, genre := range genres {
+		t.Run(genre, func(t *testing.T) {
+			p := GetGenreColorScheme(genre)
+			if p == nil {
+				t.Fatal("palette should not be nil")
+			}
+			if len(p.Primary) == 0 {
+				t.Error("primary colors should not be empty")
+			}
+			if len(p.Accent) == 0 {
+				t.Error("accent colors should not be empty")
+			}
+			if p.Saturation <= 0 {
+				t.Error("saturation should be positive")
+			}
+			if p.Brightness <= 0 {
+				t.Error("brightness should be positive")
+			}
+			if p.Contrast <= 0 {
+				t.Error("contrast should be positive")
+			}
+		})
+	}
+}
+
+func TestGetGenreColorSchemeUnknown(t *testing.T) {
+	p := GetGenreColorScheme("unknown-genre")
+	if p == nil {
+		t.Fatal("should return default palette for unknown genre")
+	}
+	if len(p.Primary) == 0 {
+		t.Error("default palette should have primary colors")
+	}
+}
+
+func TestGetMaterialPaletteForGenre(t *testing.T) {
+	tests := []struct {
+		material  MaterialID
+		genre     string
+		condition float64
+	}{
+		{MaterialStone, "fantasy", 0.0},
+		{MaterialStone, "horror", 0.5},
+		{MaterialMetal, "sci-fi", 0.0},
+		{MaterialMetal, "post-apocalyptic", 0.8},
+		{MaterialWood, "fantasy", 0.3},
+		{MaterialGlass, "cyberpunk", 0.0},
+	}
+
+	for _, tt := range tests {
+		name := DefaultMaterialRegistry.Get(tt.material).Name
+		t.Run(name+"/"+tt.genre, func(t *testing.T) {
+			colors := GetMaterialPaletteForGenre(tt.material, tt.genre, tt.condition)
+			if colors == nil {
+				t.Fatal("should return colors")
+			}
+			if len(colors) == 0 {
+				t.Error("colors should not be empty")
+			}
+			// Verify all colors have valid alpha
+			for i, c := range colors {
+				if c.A == 0 {
+					t.Errorf("color %d has zero alpha", i)
+				}
+			}
+		})
+	}
+}
+
+func TestGetMaterialPaletteForGenreUnknownMaterial(t *testing.T) {
+	colors := GetMaterialPaletteForGenre(9999, "fantasy", 0.5)
+	if colors != nil {
+		t.Error("unknown material should return nil")
+	}
+}
+
+func TestApplyConditionToColors(t *testing.T) {
+	base := []color.RGBA{
+		{R: 200, G: 100, B: 50, A: 255},
+	}
+
+	// Zero condition should return unchanged colors
+	result := applyConditionToColors(base, 0, "fantasy")
+	if result[0] != base[0] {
+		t.Error("zero condition should not modify colors")
+	}
+
+	// High condition should modify colors
+	result = applyConditionToColors(base, 1.0, "post-apocalyptic")
+	if result[0] == base[0] {
+		t.Error("high condition should modify colors")
+	}
+}
+
+func TestApplyGenreStyling(t *testing.T) {
+	baseColor := color.RGBA{R: 128, G: 128, B: 128, A: 255}
+
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+	for _, genre := range genres {
+		t.Run(genre, func(t *testing.T) {
+			palette := GetGenreColorScheme(genre)
+			result := applyGenreStyling(baseColor, palette, "mineral")
+
+			// Result should be different from base (unless palette has no effect)
+			// We can't guarantee difference since some palettes might not change gray
+			// Just verify it doesn't crash and returns valid color
+			if result.A != baseColor.A {
+				t.Error("alpha should be preserved")
+			}
+		})
+	}
+}
+
+func TestGetRustyMetalPalette(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+	severities := []float64{0.0, 0.5, 1.0}
+
+	for _, genre := range genres {
+		for _, sev := range severities {
+			t.Run(genre, func(t *testing.T) {
+				colors := GetRustyMetalPalette(genre, sev)
+				if len(colors) != 4 {
+					t.Errorf("expected 4 colors, got %d", len(colors))
+				}
+				// Verify rust colors are in reasonable range (reddish-orange-brown)
+				for i, c := range colors {
+					if c.R < c.B {
+						t.Errorf("rust color %d should have R >= B (got R=%d, B=%d)", i, c.R, c.B)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestGetPolishedChromePalette(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+	reflectivities := []float64{0.0, 0.5, 1.0}
+
+	for _, genre := range genres {
+		for _, ref := range reflectivities {
+			t.Run(genre, func(t *testing.T) {
+				colors := GetPolishedChromePalette(genre, ref)
+				if len(colors) != 4 {
+					t.Errorf("expected 4 colors, got %d", len(colors))
+				}
+				// Chrome colors should be relatively bright
+				for i, c := range colors {
+					brightness := (int(c.R) + int(c.G) + int(c.B)) / 3
+					if brightness < 100 {
+						t.Errorf("chrome color %d should be bright (got avg=%d)", i, brightness)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestGetWeatheredStonePalette(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+	weatherings := []float64{0.0, 0.5, 1.0}
+
+	for _, genre := range genres {
+		for _, w := range weatherings {
+			t.Run(genre, func(t *testing.T) {
+				colors := GetWeatheredStonePalette(genre, w)
+				if len(colors) != 4 {
+					t.Errorf("expected 4 colors, got %d", len(colors))
+				}
+			})
+		}
+	}
+}
+
+func TestClampByte(t *testing.T) {
+	tests := []struct {
+		input    float64
+		expected uint8
+	}{
+		{-10, 0},
+		{0, 0},
+		{128, 128},
+		{255, 255},
+		{300, 255},
+	}
+
+	for _, tt := range tests {
+		result := clampByte(tt.input)
+		if result != tt.expected {
+			t.Errorf("clampByte(%f): expected %d, got %d", tt.input, tt.expected, result)
+		}
+	}
+}
+
+func BenchmarkGetMaterialPaletteForGenre(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = GetMaterialPaletteForGenre(MaterialStone, "fantasy", 0.5)
+	}
+}
+
+func BenchmarkGetRustyMetalPalette(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = GetRustyMetalPalette("post-apocalyptic", 0.7)
+	}
+}

@@ -154,7 +154,7 @@
 - [x] Add normal map generation to `texture.GenerateWithSeed()`
 - [x] Implement specular highlight calculation in wall/floor rendering
 - [x] Add surface wear/aging based on world age parameter
-- [ ] Genre-specific material palettes (rusty metal, polished chrome, weathered stone)
+- [x] Genre-specific material palettes (rusty metal, polished chrome, weathered stone)
 - [ ] Unit tests: transparency rendering, material property lookups, normal sampling
 
 ### Phase 5: Environmental Object Representation

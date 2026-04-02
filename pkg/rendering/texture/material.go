@@ -756,6 +756,407 @@ func (r *MaterialRegistry) registerDefaultMaterials() {
 var DefaultMaterialRegistry = NewMaterialRegistry()
 
 // ============================================================
+// Genre-Specific Material Palettes
+// ============================================================
+
+// GenrePalette defines a complete color scheme for a genre.
+type GenreColorScheme struct {
+	// Primary colors for the genre
+	Primary []color.RGBA
+	// Accent colors (highlights, details)
+	Accent []color.RGBA
+	// Ambient tint applied to all colors
+	AmbientTint color.RGBA
+	// Saturation modifier (1.0 = normal, <1 = desaturated, >1 = vivid)
+	Saturation float64
+	// Brightness modifier (1.0 = normal)
+	Brightness float64
+	// Contrast modifier (1.0 = normal)
+	Contrast float64
+}
+
+// GenrePalettes contains predefined palettes for each genre.
+var GenreColorSchemes = map[string]*GenreColorScheme{
+	"fantasy": {
+		Primary: []color.RGBA{
+			{R: 0x8B, G: 0x73, B: 0x55, A: 255}, // Earthy brown
+			{R: 0x6B, G: 0x8E, B: 0x4E, A: 255}, // Forest green
+			{R: 0xC4, G: 0xA3, B: 0x5A, A: 255}, // Golden
+			{R: 0x7B, G: 0x68, B: 0x8F, A: 255}, // Mystical purple
+		},
+		Accent: []color.RGBA{
+			{R: 0xFF, G: 0xD7, B: 0x00, A: 255}, // Gold
+			{R: 0x88, G: 0xCC, B: 0xFF, A: 255}, // Arcane blue
+			{R: 0xFF, G: 0x66, B: 0x99, A: 255}, // Enchanted pink
+		},
+		AmbientTint: color.RGBA{R: 0x10, G: 0x08, B: 0x00, A: 255},
+		Saturation:  1.1,
+		Brightness:  1.05,
+		Contrast:    1.0,
+	},
+	"sci-fi": {
+		Primary: []color.RGBA{
+			{R: 0x2A, G: 0x3A, B: 0x4D, A: 255}, // Deep blue
+			{R: 0x45, G: 0x45, B: 0x50, A: 255}, // Tech gray
+			{R: 0x88, G: 0xCC, B: 0xFF, A: 255}, // Holographic blue
+			{R: 0xE0, G: 0xE0, B: 0xE8, A: 255}, // Clean white
+		},
+		Accent: []color.RGBA{
+			{R: 0x00, G: 0xFF, B: 0xFF, A: 255}, // Cyan
+			{R: 0xFF, G: 0x88, B: 0x00, A: 255}, // Warning orange
+			{R: 0x00, G: 0xFF, B: 0x88, A: 255}, // Tech green
+		},
+		AmbientTint: color.RGBA{R: 0x00, G: 0x05, B: 0x10, A: 255},
+		Saturation:  0.9,
+		Brightness:  1.1,
+		Contrast:    1.15,
+	},
+	"horror": {
+		Primary: []color.RGBA{
+			{R: 0x2D, G: 0x2D, B: 0x2D, A: 255}, // Dark gray
+			{R: 0x3D, G: 0x30, B: 0x30, A: 255}, // Bloody shadow
+			{R: 0x50, G: 0x45, B: 0x35, A: 255}, // Decay brown
+			{R: 0x28, G: 0x28, B: 0x20, A: 255}, // Mold green
+		},
+		Accent: []color.RGBA{
+			{R: 0x8B, G: 0x00, B: 0x00, A: 255}, // Deep red
+			{R: 0x55, G: 0xAA, B: 0x55, A: 255}, // Sickly green
+			{R: 0xFF, G: 0xFF, B: 0x88, A: 255}, // Pale light
+		},
+		AmbientTint: color.RGBA{R: 0x08, G: 0x00, B: 0x00, A: 255},
+		Saturation:  0.7,
+		Brightness:  0.8,
+		Contrast:    1.3,
+	},
+	"cyberpunk": {
+		Primary: []color.RGBA{
+			{R: 0x15, G: 0x15, B: 0x25, A: 255}, // Night black
+			{R: 0x25, G: 0x25, B: 0x35, A: 255}, // Urban gray
+			{R: 0x40, G: 0x30, B: 0x50, A: 255}, // Purple-gray
+			{R: 0x2A, G: 0x40, B: 0x4D, A: 255}, // Teal shadow
+		},
+		Accent: []color.RGBA{
+			{R: 0xFF, G: 0x00, B: 0x80, A: 255}, // Neon pink
+			{R: 0x00, G: 0xFF, B: 0xCC, A: 255}, // Neon cyan
+			{R: 0xFF, G: 0xFF, B: 0x00, A: 255}, // Electric yellow
+			{R: 0x80, G: 0x00, B: 0xFF, A: 255}, // Neon purple
+		},
+		AmbientTint: color.RGBA{R: 0x10, G: 0x00, B: 0x15, A: 255},
+		Saturation:  1.3,
+		Brightness:  0.95,
+		Contrast:    1.4,
+	},
+	"post-apocalyptic": {
+		Primary: []color.RGBA{
+			{R: 0x6D, G: 0x5E, B: 0x4E, A: 255}, // Dust brown
+			{R: 0x8B, G: 0x6F, B: 0x4E, A: 255}, // Rust orange
+			{R: 0x55, G: 0x55, B: 0x4D, A: 255}, // Ash gray
+			{R: 0x70, G: 0x58, B: 0x42, A: 255}, // Decay tan
+		},
+		Accent: []color.RGBA{
+			{R: 0xA0, G: 0x50, B: 0x00, A: 255}, // Deep rust
+			{R: 0x80, G: 0x90, B: 0x60, A: 255}, // Overgrowth green
+			{R: 0xD0, G: 0xB0, B: 0x70, A: 255}, // Faded yellow
+		},
+		AmbientTint: color.RGBA{R: 0x10, G: 0x08, B: 0x00, A: 255},
+		Saturation:  0.75,
+		Brightness:  0.9,
+		Contrast:    1.1,
+	},
+}
+
+// GetGenreColorScheme returns the palette for a genre, or a default neutral palette.
+func GetGenreColorScheme(genre string) *GenreColorScheme {
+	if p, ok := GenreColorSchemes[genre]; ok {
+		return p
+	}
+	// Default neutral palette
+	return &GenreColorScheme{
+		Primary: []color.RGBA{
+			{R: 0x80, G: 0x80, B: 0x80, A: 255},
+			{R: 0x70, G: 0x70, B: 0x70, A: 255},
+			{R: 0x90, G: 0x90, B: 0x90, A: 255},
+		},
+		Accent: []color.RGBA{
+			{R: 0xFF, G: 0xFF, B: 0xFF, A: 255},
+		},
+		AmbientTint: color.RGBA{R: 0x00, G: 0x00, B: 0x00, A: 255},
+		Saturation:  1.0,
+		Brightness:  1.0,
+		Contrast:    1.0,
+	}
+}
+
+// MaterialGenrePalette combines material properties with genre styling.
+type MaterialGenrePalette struct {
+	// Material being styled
+	Material MaterialID
+	// Genre to apply
+	Genre string
+	// Condition affects wear/aging (0.0 = pristine, 1.0 = heavily worn)
+	Condition float64
+}
+
+// GetMaterialPaletteForGenre returns specialized colors for a material in a genre context.
+// This provides more nuanced palettes than simple material base colors.
+func GetMaterialPaletteForGenre(materialID MaterialID, genre string, condition float64) []color.RGBA {
+	// Get base material colors
+	mat := DefaultMaterialRegistry.Get(materialID)
+	if mat == nil {
+		return nil
+	}
+
+	// Check for explicit genre override first
+	if colors := DefaultMaterialRegistry.GetColorsForGenre(materialID, genre); colors != nil && len(colors) > 0 {
+		// Apply condition-based modifications
+		return applyConditionToColors(colors, condition, genre)
+	}
+
+	// Generate genre-appropriate colors based on material properties
+	palette := GetGenreColorScheme(genre)
+	baseColors := mat.BaseColors
+
+	// Modify colors based on genre palette
+	result := make([]color.RGBA, len(baseColors))
+	for i, c := range baseColors {
+		result[i] = applyGenreStyling(c, palette, mat.Category)
+	}
+
+	return applyConditionToColors(result, condition, genre)
+}
+
+// applyGenreStyling modifies a color based on genre palette and material category.
+func applyGenreStyling(c color.RGBA, palette *GenreColorScheme, category string) color.RGBA {
+	// Convert to float for manipulation
+	r := float64(c.R)
+	g := float64(c.G)
+	b := float64(c.B)
+
+	// Apply ambient tint
+	r += float64(palette.AmbientTint.R)
+	g += float64(palette.AmbientTint.G)
+	b += float64(palette.AmbientTint.B)
+
+	// Apply saturation adjustment
+	gray := 0.299*r + 0.587*g + 0.114*b
+	r = gray + (r-gray)*palette.Saturation
+	g = gray + (g-gray)*palette.Saturation
+	b = gray + (b-gray)*palette.Saturation
+
+	// Apply brightness
+	r *= palette.Brightness
+	g *= palette.Brightness
+	b *= palette.Brightness
+
+	// Apply contrast
+	r = (r-128)*palette.Contrast + 128
+	g = (g-128)*palette.Contrast + 128
+	b = (b-128)*palette.Contrast + 128
+
+	// Clamp
+	return color.RGBA{
+		R: clampByte(r),
+		G: clampByte(g),
+		B: clampByte(b),
+		A: c.A,
+	}
+}
+
+// applyConditionToColors modifies colors based on wear condition.
+func applyConditionToColors(colors []color.RGBA, condition float64, genre string) []color.RGBA {
+	if condition <= 0 {
+		return colors
+	}
+	if condition > 1 {
+		condition = 1
+	}
+
+	result := make([]color.RGBA, len(colors))
+	for i, c := range colors {
+		// Simulate weathering: reduce saturation and add dust/grime
+		r := float64(c.R)
+		g := float64(c.G)
+		b := float64(c.B)
+
+		// Calculate gray for desaturation
+		gray := 0.299*r + 0.587*g + 0.114*b
+
+		// Desaturate based on condition
+		saturationLoss := condition * 0.4
+		r = r + (gray-r)*saturationLoss
+		g = g + (gray-g)*saturationLoss
+		b = b + (gray-b)*saturationLoss
+
+		// Add genre-appropriate grime
+		switch genre {
+		case "horror":
+			// Add greenish-brown grime
+			r *= 1.0 - condition*0.15
+			g *= 1.0 - condition*0.1
+			b *= 1.0 - condition*0.2
+		case "post-apocalyptic":
+			// Add dusty orange tint
+			r += condition * 15
+			g += condition * 5
+			b -= condition * 10
+		case "cyberpunk":
+			// Add gritty urban dirt
+			r *= 1.0 - condition*0.1
+			g *= 1.0 - condition*0.1
+			b *= 1.0 - condition*0.05
+		default:
+			// Generic wear
+			r *= 1.0 - condition*0.1
+			g *= 1.0 - condition*0.1
+			b *= 1.0 - condition*0.1
+		}
+
+		result[i] = color.RGBA{
+			R: clampByte(r),
+			G: clampByte(g),
+			B: clampByte(b),
+			A: c.A,
+		}
+	}
+	return result
+}
+
+// clampByte clamps a float to 0-255 range and returns as uint8.
+func clampByte(v float64) uint8 {
+	if v < 0 {
+		return 0
+	}
+	if v > 255 {
+		return 255
+	}
+	return uint8(v)
+}
+
+// GetRustyMetalPalette returns rusty metal colors appropriate for the genre.
+func GetRustyMetalPalette(genre string, severity float64) []color.RGBA {
+	// Base rusty colors
+	base := []color.RGBA{
+		{R: 0x8B, G: 0x45, B: 0x13, A: 255}, // Saddle brown rust
+		{R: 0xA0, G: 0x52, B: 0x2D, A: 255}, // Sienna rust
+		{R: 0x6B, G: 0x3A, B: 0x1A, A: 255}, // Dark rust
+		{R: 0xB8, G: 0x73, B: 0x33, A: 255}, // Light rust
+	}
+
+	// Modify based on genre
+	switch genre {
+	case "post-apocalyptic":
+		// More orange, sun-bleached rust
+		for i := range base {
+			base[i].R = clampByte(float64(base[i].R) + 20*severity)
+			base[i].G = clampByte(float64(base[i].G) - 10*severity)
+		}
+	case "horror":
+		// Darker, blood-like rust
+		for i := range base {
+			base[i].R = clampByte(float64(base[i].R) + 15*severity)
+			base[i].G = clampByte(float64(base[i].G) * (1 - 0.3*severity))
+			base[i].B = clampByte(float64(base[i].B) * (1 - 0.2*severity))
+		}
+	case "sci-fi":
+		// Minimal rust, more corrosion patches
+		for i := range base {
+			base[i].R = clampByte(float64(base[i].R) * (1 - 0.2*severity))
+			base[i].G = clampByte(float64(base[i].G) + 10*severity)
+		}
+	}
+
+	return base
+}
+
+// GetPolishedChromePalette returns polished chrome colors appropriate for the genre.
+func GetPolishedChromePalette(genre string, reflectivity float64) []color.RGBA {
+	// Base chrome colors
+	base := []color.RGBA{
+		{R: 0xD4, G: 0xD4, B: 0xD8, A: 255}, // Silver
+		{R: 0xE8, G: 0xE8, B: 0xEC, A: 255}, // Bright chrome
+		{R: 0xB8, G: 0xB8, B: 0xC0, A: 255}, // Muted chrome
+		{R: 0xF0, G: 0xF0, B: 0xF4, A: 255}, // Highlight
+	}
+
+	// Modify based on genre
+	switch genre {
+	case "cyberpunk":
+		// Neon reflections in chrome
+		for i := range base {
+			base[i].R = clampByte(float64(base[i].R) + 10*reflectivity)
+			base[i].B = clampByte(float64(base[i].B) + 15*reflectivity)
+		}
+	case "sci-fi":
+		// Blue-tinted clean chrome
+		for i := range base {
+			base[i].B = clampByte(float64(base[i].B) + 20*reflectivity)
+		}
+	case "post-apocalyptic":
+		// Scratched, tarnished chrome
+		for i := range base {
+			base[i].R = clampByte(float64(base[i].R) - 20*(1-reflectivity))
+			base[i].G = clampByte(float64(base[i].G) - 25*(1-reflectivity))
+			base[i].B = clampByte(float64(base[i].B) - 30*(1-reflectivity))
+		}
+	case "horror":
+		// Dirty, ominous chrome
+		for i := range base {
+			gray := (float64(base[i].R) + float64(base[i].G) + float64(base[i].B)) / 3
+			base[i].R = clampByte(gray - 10)
+			base[i].G = clampByte(gray - 15)
+			base[i].B = clampByte(gray - 5)
+		}
+	}
+
+	return base
+}
+
+// GetWeatheredStonePalette returns weathered stone colors appropriate for the genre.
+func GetWeatheredStonePalette(genre string, weathering float64) []color.RGBA {
+	// Base weathered stone colors
+	base := []color.RGBA{
+		{R: 0x78, G: 0x78, B: 0x70, A: 255}, // Gray-green stone
+		{R: 0x68, G: 0x68, B: 0x60, A: 255}, // Dark weathered
+		{R: 0x88, G: 0x85, B: 0x7D, A: 255}, // Light weathered
+		{R: 0x70, G: 0x6B, B: 0x65, A: 255}, // Mid weathered
+	}
+
+	// Modify based on genre
+	switch genre {
+	case "fantasy":
+		// Mossy, ancient stone
+		for i := range base {
+			base[i].G = clampByte(float64(base[i].G) + 15*weathering)
+			base[i].R = clampByte(float64(base[i].R) - 10*weathering)
+		}
+	case "horror":
+		// Dark, stained stone
+		for i := range base {
+			base[i].R = clampByte(float64(base[i].R) - 20*weathering)
+			base[i].G = clampByte(float64(base[i].G) - 25*weathering)
+			base[i].B = clampByte(float64(base[i].B) - 20*weathering)
+		}
+	case "post-apocalyptic":
+		// Crumbling, dusty stone
+		for i := range base {
+			base[i].R = clampByte(float64(base[i].R) + 15*weathering)
+			base[i].G = clampByte(float64(base[i].G) + 10*weathering)
+			base[i].B = clampByte(float64(base[i].B) - 5*weathering)
+		}
+	case "sci-fi":
+		// Clean but eroded
+		for i := range base {
+			gray := (float64(base[i].R) + float64(base[i].G) + float64(base[i].B)) / 3
+			base[i].R = clampByte(gray + 5)
+			base[i].G = clampByte(gray + 5)
+			base[i].B = clampByte(gray + 10)
+		}
+	}
+
+	return base
+}
+
+// ============================================================
 // Surface Wear/Aging System
 // ============================================================
 
