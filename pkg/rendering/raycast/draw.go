@@ -214,16 +214,16 @@ func (r *Renderer) drawWallColumn(x int) {
 	rayDirX := math.Cos(rayAngle)
 	rayDirY := math.Sin(rayAngle)
 
-	distance, wallType, wallX, side := r.castRayWithTexCoord(rayDirX, rayDirY)
+	distance, wallType, wallX, side, cellWallHeight := r.castRayWithTexCoord(rayDirX, rayDirY)
 	distance *= math.Cos(cameraX * (r.FOV / 2)) // Fix fisheye
 	distance = clampDistance(distance)
 
 	// Store distance in ZBuffer for sprite occlusion
 	r.ZBuffer[x] = distance
 
-	wallHeight := calculateWallHeight(r.Height, distance)
-	drawStart := (r.Height - wallHeight) / 2
-	drawEnd := drawStart + wallHeight
+	// Calculate wall height with variable height multiplier
+	wallHeight := calculateWallHeightWithMultiplier(r.Height, distance, cellWallHeight)
+	drawStart, drawEnd := calculateDrawBounds(r.Height, wallHeight, cellWallHeight, r.PlayerZ)
 
 	// Texture X coordinate (0-1 range)
 	texX := wallX - math.Floor(wallX)
@@ -239,13 +239,40 @@ func clampDistance(distance float64) float64 {
 	return distance
 }
 
-// calculateWallHeight computes wall height from distance.
+// calculateWallHeight computes wall height from distance (standard height).
 func calculateWallHeight(screenHeight int, distance float64) int {
-	wallHeight := int(float64(screenHeight) / distance)
-	if wallHeight > screenHeight*2 {
-		wallHeight = screenHeight * 2
+	return calculateWallHeightWithMultiplier(screenHeight, distance, DefaultWallHeight)
+}
+
+// calculateWallHeightWithMultiplier computes wall height with a height multiplier.
+func calculateWallHeightWithMultiplier(screenHeight int, distance, heightMultiplier float64) int {
+	wallHeight := int(float64(screenHeight) / distance * heightMultiplier)
+	maxHeight := int(float64(screenHeight) * MaxWallHeight)
+	if wallHeight > maxHeight {
+		wallHeight = maxHeight
 	}
 	return wallHeight
+}
+
+// calculateDrawBounds determines where to start and end drawing the wall column.
+// Takes into account the wall height multiplier and player eye height.
+func calculateDrawBounds(screenHeight, wallHeight int, cellWallHeight, playerZ float64) (drawStart, drawEnd int) {
+	// Calculate horizon line (can be offset by player pitch later)
+	horizon := screenHeight / 2
+
+	// Calculate where wall top and bottom should be based on player eye height
+	// Player at Z=0.5 sees standard walls centered
+	// Walls taller than 1.0 extend above and below the standard view
+	eyeOffset := (playerZ - 0.5) * float64(wallHeight)
+
+	// For variable height walls, adjust draw bounds
+	// A wall with height 2.0 should extend twice as far from center
+	halfWall := wallHeight / 2
+
+	drawStart = horizon - halfWall + int(eyeOffset)
+	drawEnd = horizon + halfWall + int(eyeOffset)
+
+	return drawStart, drawEnd
 }
 
 // renderWallStrip draws a vertical strip of wall pixels to the framebuffer.
@@ -285,7 +312,8 @@ func applySideDarkening(c color.RGBA, factor float64) color.RGBA {
 }
 
 // castRayWithTexCoord performs DDA raycasting and returns texture coordinate info.
-func (r *Renderer) castRayWithTexCoord(rayDirX, rayDirY float64) (float64, int, float64, int) {
+// Returns: (perpWallDist, wallType, wallX, side, wallHeight)
+func (r *Renderer) castRayWithTexCoord(rayDirX, rayDirY float64) (float64, int, float64, int, float64) {
 	mapX := int(r.PlayerX)
 	mapY := int(r.PlayerY)
 
@@ -298,7 +326,7 @@ func (r *Renderer) castRayWithTexCoord(rayDirX, rayDirY float64) (float64, int, 
 	hit, side, sideDistX, sideDistY, mapX, mapY := r.performDDA(sideDistX, sideDistY, deltaDistX, deltaDistY, stepX, stepY, mapX, mapY)
 
 	if !hit {
-		return MaxRayDistance, 0, 0.0, 0
+		return MaxRayDistance, 0, 0.0, 0, DefaultWallHeight
 	}
 
 	// Calculate perpendicular wall distance
@@ -317,10 +345,8 @@ func (r *Renderer) castRayWithTexCoord(rayDirX, rayDirY float64) (float64, int, 
 		wallX = r.PlayerX + perpWallDist*rayDirX
 	}
 
-	wallType := 0
-	if r.isValidMapPosition(mapX, mapY) {
-		wallType = r.WorldMap[mapX][mapY]
-	}
+	// Get cell data including wall height
+	cell := r.GetMapCell(mapX, mapY)
 
-	return perpWallDist, wallType, wallX, side
+	return perpWallDist, cell.WallType, wallX, side, cell.WallHeight
 }

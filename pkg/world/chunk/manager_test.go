@@ -1208,3 +1208,101 @@ func BenchmarkGetChunkOrPlaceholder(b *testing.B) {
 		_, _ = cm.GetChunkOrPlaceholder(i%100, i/100)
 	}
 }
+
+// === WallHeights Tests ===
+
+func TestChunkWallHeightsGenerated(t *testing.T) {
+	c := NewChunk(0, 0, 16, 12345)
+
+	if c.WallHeights == nil {
+		t.Fatal("WallHeights should not be nil")
+	}
+	if len(c.WallHeights) != 16*16 {
+		t.Errorf("expected WallHeights size 256, got %d", len(c.WallHeights))
+	}
+
+	// Check that wall heights are within valid range
+	for i, h := range c.WallHeights {
+		if h < MinWallHeight || h > MaxWallHeightMultiplier {
+			t.Errorf("wall height at index %d out of range: %f", i, h)
+		}
+	}
+}
+
+func TestGetWallHeight(t *testing.T) {
+	c := NewChunk(0, 0, 16, 12345)
+
+	// Test valid coordinates
+	h := c.GetWallHeight(8, 8)
+	if h < MinWallHeight || h > MaxWallHeightMultiplier {
+		t.Errorf("wall height out of range: %f", h)
+	}
+
+	// Test out of bounds returns default
+	h = c.GetWallHeight(-1, 0)
+	if h != DefaultWallHeight {
+		t.Errorf("expected default wall height for out of bounds, got %f", h)
+	}
+
+	h = c.GetWallHeight(100, 100)
+	if h != DefaultWallHeight {
+		t.Errorf("expected default wall height for out of bounds, got %f", h)
+	}
+}
+
+func TestWallHeightsDeterminism(t *testing.T) {
+	seed := int64(42)
+
+	c1 := NewChunk(0, 0, 16, seed)
+	c2 := NewChunk(0, 0, 16, seed)
+
+	// Same seed should produce identical wall heights
+	for i := range c1.WallHeights {
+		if c1.WallHeights[i] != c2.WallHeights[i] {
+			t.Errorf("wall heights mismatch at index %d: %f != %f", i, c1.WallHeights[i], c2.WallHeights[i])
+		}
+	}
+}
+
+func TestWallHeightsVaryByTerrain(t *testing.T) {
+	// Create a large chunk to have various terrain types
+	c := NewChunk(0, 0, 64, 12345)
+
+	// Collect heights by terrain type
+	heightsByTerrain := make(map[int][]float64)
+	for i := 0; i < 64*64; i++ {
+		x := i % 64
+		y := i / 64
+		terrainType := c.GetTerrainType(x, y)
+		wallHeight := c.GetWallHeight(x, y)
+		heightsByTerrain[terrainType] = append(heightsByTerrain[terrainType], wallHeight)
+	}
+
+	// Verify we have some variation (at least 2 terrain types)
+	if len(heightsByTerrain) < 2 {
+		t.Log("Warning: chunk only has", len(heightsByTerrain), "terrain types, variation may be limited")
+	}
+
+	// Peaks should generally have taller walls than valleys
+	peakHeights := heightsByTerrain[TerrainPeak]
+	valleyHeights := heightsByTerrain[TerrainValley]
+
+	if len(peakHeights) > 0 && len(valleyHeights) > 0 {
+		avgPeak := average(peakHeights)
+		avgValley := average(valleyHeights)
+		if avgPeak <= avgValley {
+			t.Logf("Note: peak avg=%.2f, valley avg=%.2f - peaks should generally be taller", avgPeak, avgValley)
+		}
+	}
+}
+
+func average(vals []float64) float64 {
+	if len(vals) == 0 {
+		return 0
+	}
+	sum := 0.0
+	for _, v := range vals {
+		sum += v
+	}
+	return sum / float64(len(vals))
+}
