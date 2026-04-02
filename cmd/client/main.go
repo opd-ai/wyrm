@@ -129,6 +129,13 @@ type Game struct {
 	frameTimeHistory []float64 // Ring buffer of recent frame times
 	frameTimeIndex   int       // Current index in frame time history
 	lastMemStats     runtime.MemStats
+	// Mouse look state
+	mouseCaptured    bool    // Is the mouse cursor captured for FPS-style look?
+	lastMouseX       int     // Previous frame's mouse X position
+	lastMouseY       int     // Previous frame's mouse Y position
+	mouseInitialized bool    // Has the mouse position been initialized?
+	smoothedDeltaX   float64 // Smoothed mouse delta X
+	smoothedDeltaY   float64 // Smoothed mouse delta Y
 }
 
 // Update advances game state by one tick, processing player input and ECS systems.

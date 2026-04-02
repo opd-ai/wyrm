@@ -17,8 +17,20 @@ type Config struct {
 	Accessibility AccessibilityConfig `mapstructure:"accessibility"`
 	Difficulty    DifficultyConfig    `mapstructure:"difficulty"`
 	KeyBindings   KeyBindingsConfig   `mapstructure:"keybindings"`
+	Mouse         MouseConfig         `mapstructure:"mouse"`
 	Debug         DebugConfig         `mapstructure:"debug"`
 	Genre         string              `mapstructure:"genre"`
+}
+
+// MouseConfig holds mouse input settings for FPS-style camera control.
+type MouseConfig struct {
+	Sensitivity     float64 `mapstructure:"sensitivity"`      // Base mouse sensitivity (default 0.5)
+	AccelerationOn  bool    `mapstructure:"acceleration_on"`  // Enable mouse acceleration
+	Acceleration    float64 `mapstructure:"acceleration"`     // Acceleration multiplier (default 1.0)
+	InvertY         bool    `mapstructure:"invert_y"`         // Invert vertical mouse axis
+	SmoothingOn     bool    `mapstructure:"smoothing_on"`     // Enable input smoothing
+	SmoothingFactor float64 `mapstructure:"smoothing_factor"` // Smoothing interpolation factor (0.1-1.0)
+	RawInput        bool    `mapstructure:"raw_input"`        // Use raw mouse input (bypasses OS acceleration)
 }
 
 // DebugConfig holds debugging and profiling settings.
@@ -345,6 +357,15 @@ func setDefaults() {
 	viper.SetDefault("keybindings.chat_window", "Enter")
 	viper.SetDefault("keybindings.social_menu", "O")
 	viper.SetDefault("keybindings.trade_window", "Y")
+
+	// Mouse settings defaults
+	viper.SetDefault("mouse.sensitivity", 0.5)
+	viper.SetDefault("mouse.acceleration_on", false)
+	viper.SetDefault("mouse.acceleration", 1.0)
+	viper.SetDefault("mouse.invert_y", false)
+	viper.SetDefault("mouse.smoothing_on", false)
+	viper.SetDefault("mouse.smoothing_factor", 0.5)
+	viper.SetDefault("mouse.raw_input", true)
 
 	// Debug/profiling defaults
 	viper.SetDefault("debug.profiling_enabled", false)
