@@ -869,8 +869,8 @@ This does NOT move the camera — only the interaction target selection is assis
 
 #### System Registration
 - [x] Register `BarrierCollisionSystem` in `cmd/server/main.go` and `cmd/client/main.go`
-- [ ] Register `BarrierDestructionSystem` in `cmd/server/main.go` and `cmd/client/main.go`
-- [ ] Register `PhysicsSystem` in `cmd/server/main.go` and `cmd/client/main.go`
+- [x] Register `BarrierDestructionSystem` in `cmd/server/main.go` and `cmd/client/main.go`
+- [x] Register `PhysicsSystem` in `cmd/server/main.go` and `cmd/client/main.go`
 - [x] Register `InteractionTargetSystem` in `cmd/client/main.go` (client only; registered as InteractionSystem)
 
 ### Details
@@ -954,18 +954,18 @@ world.RegisterSystem(&systems.InteractionTargetSystem{})
 ### Completion Checklist
 
 #### Unit Tests
-- [ ] `renderer_height_test.go` — Variable height wall rendering, multi-story buildings, height transitions
-- [ ] `mapcell_test.go` — MapCell creation, flag operations, material lookup
-- [ ] `pitch_test.go` — Pitch offset calculation, horizon clamping, pitch limits
-- [ ] `skybox_integration_test.go` — Sky renders above horizon, indoor fallback, star field
-- [ ] `barrier_collision_test.go` — Polygon SAT collision, cylinder collision, AABB collision
-- [ ] `material_test.go` — Material registry, normal map generation, specular calculation
+- [x] `renderer_height_test.go` — Variable height wall rendering, multi-story buildings, height transitions (in core_test.go: TestHeightToWallType, TestWallMapCellWithHeight, TestEffectiveHeight, TestSetWorldMapWithWallHeights)
+- [x] `mapcell_test.go` — MapCell creation, flag operations, material lookup (in core_test.go: 7 MapCell tests)
+- [x] `pitch_test.go` — Pitch offset calculation, horizon clamping, pitch limits (in core_test.go: TestGetHorizonLineWithPitch, TestMaxPitchAngleConstant)
+- [x] `skybox_integration_test.go` — Sky renders above horizon, indoor fallback, star field (in skybox_test.go: 25+ tests including StarField)
+- [x] `barrier_collision_test.go` — Polygon SAT collision, cylinder collision, AABB collision (19 tests including SAT, cylinder, AABB)
+- [x] `material_test.go` — Material registry, normal map generation, specular calculation (in generator_test.go: 10+ MaterialRegistry tests)
 - [ ] `partial_barrier_test.go` — Alpha blending, gap patterns, transparency rendering
-- [ ] `interaction_ray_test.go` — Center-screen ray, object targeting, range checking
-- [ ] `highlight_test.go` — Edge detection, glow rendering
+- [x] `interaction_ray_test.go` — Center-screen ray, object targeting, range checking (in interaction_test.go: 17 tests)
+- [x] `highlight_test.go` — Edge detection, glow rendering (16 tests)
 - [ ] `mouse_input_test.go` — Sensitivity, acceleration, smoothing, pitch clamping
-- [ ] `barrier_component_test.go` — Component creation, Type() string, flag operations
-- [ ] `barrier_system_test.go` — System Update() with mock world, collision resolution
+- [x] `barrier_component_test.go` — Component creation, Type() string, flag operations (in types_test.go: Barrier tests)
+- [x] `barrier_system_test.go` — System Update() with mock world, collision resolution (in barrier_collision_test.go + destruction tests)
 
 #### Integration Tests
 - [ ] Variable height chunk rendering (`chunk` + `raycast`)
@@ -977,11 +977,11 @@ world.RegisterSystem(&systems.InteractionTargetSystem{})
 #### Performance Benchmarks
 - [ ] `BenchmarkDrawWallsVariableHeight` — target <8ms per frame (1280×720)
 - [ ] `BenchmarkDrawWallsWithNormals` — target <12ms per frame
-- [ ] `BenchmarkBarrierCollision50` — target <0.1ms
-- [ ] `BenchmarkSkyboxRender` — target <2ms per frame
+- [x] `BenchmarkBarrierCollision50` — target <0.1ms (in barrier_collision_test.go: BenchmarkBarrierCollision tests)
+- [x] `BenchmarkSkyboxRender` — target <2ms per frame (in skybox_test.go: BenchmarkSkyboxGetSkyColorAt, BenchmarkStarFieldGetColor)
 - [ ] `BenchmarkPartialBarrierPass` — target <3ms per frame
 - [ ] `BenchmarkInteractionRay` — target <0.05ms
-- [ ] `BenchmarkMaterialRegistryLookup` — target <10ns
+- [x] `BenchmarkMaterialRegistryLookup` — target <10ns (in generator_test.go: BenchmarkMaterialRegistryLookup)
 
 #### Determinism Tests
 - [ ] `TestDeterministicBarrierSpawn` — Same seed → same barrier positions, shapes, materials

@@ -172,6 +172,13 @@ func registerSinglePlayerSystems(world *ecs.World, cfg *config.Config, weatherSy
 	// Environment systems
 	world.RegisterSystem(systems.NewIndoorOutdoorSystem(weatherSys))
 	world.RegisterSystem(systems.NewHazardSystem(genre))
+
+	// Physics and destruction systems
+	world.RegisterSystem(systems.NewPhysicsSystem())
+	world.RegisterSystem(systems.NewBarrierDestructionSystem())
+
+	// Health systems
+	world.RegisterSystem(systems.NewHealthRegenSystem())
 }
 
 // startAmbientAudio initializes and plays genre-appropriate ambient audio.
