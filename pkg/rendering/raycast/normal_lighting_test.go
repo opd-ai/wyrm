@@ -1,3 +1,5 @@
+//go:build noebiten
+
 package raycast
 
 import (

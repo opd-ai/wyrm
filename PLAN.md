@@ -655,15 +655,15 @@ Ebitengine provides `ebiten.CursorPosition()` for cursor position and `ebiten.Se
 
 **Per-frame in `Game.Update()`:**
 
-- [ ] Read `ebiten.CursorPosition()` to get current cursor `(cx, cy)`
-- [ ] Compute delta: `dx = cx - screenCenterX`, `dy = cy - screenCenterY`
-- [ ] Apply sensitivity: `yawDelta = dx * sensitivity`, `pitchDelta = dy * sensitivity * (invertY ? -1 : 1)`
-- [ ] Apply optional acceleration: `if |dx| > threshold: yawDelta *= 1.0 + acceleration * (|dx| / maxDelta)`
-- [ ] Apply smoothing: average the last N frame deltas
-- [ ] Update player angle: `PlayerA += yawDelta` (wrap to 0–2π)
-- [ ] *(Future)* Consider renaming `PlayerA` to `PlayerYaw` for consistency with `PlayerPitch`
-- [ ] Update player pitch: `PlayerPitch = clamp(PlayerPitch + pitchDelta, -pitchLimit, +pitchLimit)`
-- [ ] Reset cursor to screen center: use `ebiten.SetCursorMode(ebiten.CursorModeCaptured)` which automatically captures the cursor
+- [x] Read `ebiten.CursorPosition()` to get current cursor `(cx, cy)`
+- [x] Compute delta: `dx = cx - screenCenterX`, `dy = cy - screenCenterY`
+- [x] Apply sensitivity: `yawDelta = dx * sensitivity`, `pitchDelta = dy * sensitivity * (invertY ? -1 : 1)`
+- [x] Apply optional acceleration: `if |dx| > threshold: yawDelta *= 1.0 + acceleration * (|dx| / maxDelta)`
+- [x] Apply smoothing: average the last N frame deltas
+- [x] Update player angle: `PlayerA += yawDelta` (wrap to 0–2π)
+- [x] *(Future)* Consider renaming `PlayerA` to `PlayerYaw` for consistency with `PlayerPitch`
+- [x] Update player pitch: `PlayerPitch = clamp(PlayerPitch + pitchDelta, -pitchLimit, +pitchLimit)`
+- [x] Reset cursor to screen center: use `ebiten.SetCursorMode(ebiten.CursorModeCaptured)` which automatically captures the cursor
 
 **Cursor Visibility:**
 - During gameplay: `CursorModeCaptured` — cursor hidden, deltas computed from movement.
@@ -689,9 +689,9 @@ This is the standard technique used in classic raycasters (Wolfenstein 3D-style)
 
 For interaction targeting (Section 3.5), the crosshair position is always screen center. When an interactable object is within range and near the crosshair:
 
-- [ ] Compute angular distance from crosshair ray to object center
-- [ ] If within `aimAssistAngle` (configurable, default 3°): snap the interaction target to that object
-- [ ] Display a subtle reticle expansion to indicate aim assist is active
+- [x] Compute angular distance from crosshair ray to object center
+- [x] If within `aimAssistAngle` (configurable, default 3°): snap the interaction target to that object
+- [x] Display a subtle reticle expansion to indicate aim assist is active
 
 This does NOT move the camera — only the interaction target selection is assisted.
 
@@ -707,39 +707,39 @@ This does NOT move the camera — only the interaction target selection is assis
 
 #### `pkg/rendering/raycast/renderer.go`
 
-- [ ] Add `MapCell` struct (new type — replace `int` wall type with rich cell data)
-- [ ] Add `WorldMapCells` field (new field — parallel to existing `WorldMap`, stores `MapCell` grid)
-- [ ] Add `PlayerPitch` field (new field — vertical look angle for mouse pitch)
-- [ ] Add `PlayerZ` field (new field — player eye height for variable-height rendering)
-- [ ] Modify `SetWorldMap()` (edit — accept height data alongside heightmap, populate `MapCell` grid)
-- [ ] Add `SetWorldMapCells()` (new method — direct setter for `MapCell` grid)
+- [x] Add `MapCell` struct (new type — replace `int` wall type with rich cell data)
+- [x] Add `WorldMapCells` field (new field — parallel to existing `WorldMap`, stores `MapCell` grid)
+- [x] Add `PlayerPitch` field (new field — vertical look angle for mouse pitch)
+- [x] Add `PlayerZ` field (new field — player eye height for variable-height rendering)
+- [x] Modify `SetWorldMap()` (edit — accept height data alongside heightmap, populate `MapCell` grid)
+- [x] Add `SetWorldMapCells()` (new method — direct setter for `MapCell` grid)
 - [ ] Add `castRayEnhanced()` (new method — returns `MapCell` data instead of just wall type)
-- [ ] Add `MaterialRegistry` integration (new field — pointer to shared `MaterialRegistry`)
+- [x] Add `MaterialRegistry` integration (new field — pointer to shared `MaterialRegistry`)
 
 #### `pkg/rendering/raycast/draw.go`
 
-- [ ] Modify `Draw()` (edit — add skybox pass before floor/ceiling, pass pitch offset)
-- [ ] Modify `drawFloorCeiling()` (edit — use `horizonLine` pitch-adjusted instead of `Height/2`, call skybox for ceiling pixels)
-- [ ] Modify `drawWalls()` (edit — use `MapCell` height for per-column wall height calculation)
-- [ ] Modify `drawWallColumn()` (edit — variable height + normal map + specular calculation)
-- [ ] Modify `renderWallStrip()` (edit — material-aware shading, alpha blending for partial barriers)
+- [x] Modify `Draw()` (edit — add skybox pass before floor/ceiling, pass pitch offset)
+- [x] Modify `drawFloorCeiling()` (edit — use `horizonLine` pitch-adjusted instead of `Height/2`, call skybox for ceiling pixels)
+- [x] Modify `drawWalls()` (edit — use `MapCell` height for per-column wall height calculation)
+- [x] Modify `drawWallColumn()` (edit — variable height + normal map + specular calculation)
+- [x] Modify `renderWallStrip()` (edit — material-aware shading, alpha blending for partial barriers)
 - [ ] Add `drawPartialBarriers()` (new method — second pass for transparent/semi-opaque walls)
 - [ ] Add `drawEnvironmentObjects()` (new method — render barrier sprites, items, interactive objects)
-- [ ] Add `drawInteractionHighlight()` (new method — glow outline for targeted interactive object)
+- [x] Add `drawInteractionHighlight()` (new method — glow outline for targeted interactive object)
 
 #### `pkg/rendering/raycast/skybox.go`
 
 - [ ] Add `StarField` struct (new type — deterministic star positions)
 - [ ] Add `RenderToFramebuffer()` (new method — write sky pixels directly to framebuffer for ceiling area)
 - [ ] Add star rendering (new method — render stars during nighttime)
-- [ ] Wire into `Draw()` pipeline (edit — called from `draw.go` during ceiling pass)
+- [x] Wire into `Draw()` pipeline (edit — called from `draw.go` during ceiling pass)
 
 #### `pkg/rendering/raycast/billboard.go`
 
 - [ ] Add `EnvironmentObject` struct (new type — extended sprite with interaction data)
-- [ ] Add `CastInteractionRay()` (new method — single center-screen ray for interaction targeting)
-- [ ] Modify `TransformEntityToScreen()` (edit — apply pitch offset to sprite vertical position)
-- [ ] Add `DrawHighlight()` (new method — edge-detect and glow for interaction highlight)
+- [x] Add `CastInteractionRay()` (new method — single center-screen ray for interaction targeting)
+- [x] Modify `TransformEntityToScreen()` (edit — apply pitch offset to sprite vertical position)
+- [x] Add `DrawHighlight()` (new method — edge-detect and glow for interaction highlight)
 
 #### `pkg/rendering/texture/material.go` (new file)
 
