@@ -33,7 +33,7 @@
 │                           ENHANCED RENDERER PIPELINE                            │
 │                                                                                 │
 │  ┌──────────────┐                                                               │
-│  │ Mouse Input  │──▶ PlayerA (yaw) + PlayerPitch (pitch clamped ±85°)          │
+│  │ Mouse Input  │──▶ PlayerA/yaw (existing field) + PlayerPitch (new, ±85°)    │
 │  └──────────────┘                                                               │
 │         │                                                                       │
 │         ▼                                                                       │
@@ -660,7 +660,7 @@ Ebitengine provides `ebiten.CursorPosition()` for cursor position and `ebiten.Se
 3. Apply sensitivity: `yawDelta = dx * sensitivity`, `pitchDelta = dy * sensitivity * (invertY ? -1 : 1)`.
 4. Apply optional acceleration: `if |dx| > threshold: yawDelta *= 1.0 + acceleration * (|dx| / maxDelta)`.
 5. Apply smoothing: average the last N frame deltas.
-6. Update player angle: `PlayerA += yawDelta` (wrap to 0–2π).
+6. Update player angle: `PlayerA += yawDelta` (wrap to 0–2π). Note: `PlayerA` is the existing field name in `Renderer` (renderer.go:39). Consider renaming to `PlayerYaw` for consistency with the new `PlayerPitch`, but this is a separate refactoring task.
 7. Update player pitch: `PlayerPitch = clamp(PlayerPitch + pitchDelta, -pitchLimit, +pitchLimit)`.
 8. Reset cursor to screen center: use `ebiten.SetCursorMode(ebiten.CursorModeCaptured)` which automatically captures the cursor.
 
@@ -794,7 +794,7 @@ This does NOT move the camera — only the interaction target selection is assis
 | `WorldItem` | `"WorldItem"` | ItemID, Quantity, SpawnTime, Respawnable | Items placed in the world for pickup |
 | `PhysicsBody` | `"PhysicsBody"` | Mass, Velocity, Pushable, Friction | Simple physics for pushable objects |
 
-**Note:** Check if `Interactable` already exists in the components — the grep results show it appears in `definitions.go`. If it exists, extend it rather than creating a new component.
+**Note:** The `Interactable` component does not currently exist in `pkg/engine/components/definitions.go` — it must be created as a new component. The `WorldItem` component is also new.
 
 ### New Systems
 
