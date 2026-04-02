@@ -150,7 +150,7 @@
 - [x] Add barrier permeability flags to `MapCell` (transparency, climbable, destructible)
 - [x] Implement alpha-blended wall rendering for partial barriers
 - [x] Define `MaterialRegistry` with physical properties per material type
-- [ ] Implement per-material texture generation with appropriate visual properties
+- [x] Implement per-material texture generation with appropriate visual properties
 - [ ] Add normal map generation to `texture.GenerateWithSeed()`
 - [ ] Implement specular highlight calculation in wall/floor rendering
 - [ ] Add surface wear/aging based on world age parameter

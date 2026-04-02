@@ -10,9 +10,49 @@ import (
 
 // Texture represents a procedurally generated texture.
 type Texture struct {
-	Width  int
-	Height int
-	Pixels []color.RGBA
+	Width     int
+	Height    int
+	Pixels    []color.RGBA
+	NormalMap []color.RGBA // Optional normal map (RGB = XYZ normal components)
+}
+
+// Normal represents a 3D normal vector.
+type Normal struct {
+	X, Y, Z float64
+}
+
+// ToColor converts a normal vector to an RGBA color for storage.
+// Normals range [-1, 1] and are mapped to [0, 255].
+func (n Normal) ToColor() color.RGBA {
+	return color.RGBA{
+		R: uint8((n.X + 1.0) * 127.5),
+		G: uint8((n.Y + 1.0) * 127.5),
+		B: uint8((n.Z + 1.0) * 127.5),
+		A: 255,
+	}
+}
+
+// NormalFromColor converts an RGBA normal map pixel back to a Normal vector.
+func NormalFromColor(c color.RGBA) Normal {
+	return Normal{
+		X: float64(c.R)/127.5 - 1.0,
+		Y: float64(c.G)/127.5 - 1.0,
+		Z: float64(c.B)/127.5 - 1.0,
+	}
+}
+
+// HasNormalMap returns true if the texture includes a normal map.
+func (t *Texture) HasNormalMap() bool {
+	return t != nil && len(t.NormalMap) > 0
+}
+
+// GetNormalAt returns the normal vector at the given texture coordinates.
+// Returns a flat normal (0, 0, 1) if no normal map exists or coords are out of range.
+func (t *Texture) GetNormalAt(x, y int) Normal {
+	if !t.HasNormalMap() || x < 0 || y < 0 || x >= t.Width || y >= t.Height {
+		return Normal{X: 0, Y: 0, Z: 1}
+	}
+	return NormalFromColor(t.NormalMap[y*t.Width+x])
 }
 
 // GenrePalette holds color palettes for different genres.
@@ -69,6 +109,138 @@ func GenerateWithSeed(width, height int, seed int64, genre string) *Texture {
 	generateNoiseTexture(pixels, width, height, seed, rng, palette)
 
 	return &Texture{Width: width, Height: height, Pixels: pixels}
+}
+
+// GenerateWithNormalMap creates a texture with an accompanying normal map.
+func GenerateWithNormalMap(width, height int, seed int64, genre string, strength float64) *Texture {
+	if width <= 0 || height <= 0 {
+		return nil
+	}
+
+	rng := rand.New(rand.NewSource(seed))
+	pixels := make([]color.RGBA, width*height)
+	palette := getGenrePalette(genre)
+
+	generateNoiseTexture(pixels, width, height, seed, rng, palette)
+
+	// Generate normal map from the color texture
+	normalMap := generateNormalMapFromTexture(pixels, width, height, strength)
+
+	return &Texture{
+		Width:     width,
+		Height:    height,
+		Pixels:    pixels,
+		NormalMap: normalMap,
+	}
+}
+
+// GenerateNormalMap generates a normal map from a height-based noise field.
+// strength controls how pronounced the bumps appear (0.0-1.0).
+func GenerateNormalMap(width, height int, seed int64, strength float64) []color.RGBA {
+	if width <= 0 || height <= 0 {
+		return nil
+	}
+
+	// Generate a heightmap first
+	heightMap := make([]float64, width*height)
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			heightMap[y*width+x] = noise.Noise2D(float64(x)*0.1, float64(y)*0.1, seed)
+		}
+	}
+
+	return normalMapFromHeightField(heightMap, width, height, strength)
+}
+
+// generateNormalMapFromTexture derives a normal map from texture luminance.
+func generateNormalMapFromTexture(pixels []color.RGBA, width, height int, strength float64) []color.RGBA {
+	if len(pixels) == 0 {
+		return nil
+	}
+
+	// Convert texture to heightmap using luminance
+	heightMap := make([]float64, width*height)
+	for i, p := range pixels {
+		// Standard luminance calculation
+		luminance := (0.299*float64(p.R) + 0.587*float64(p.G) + 0.114*float64(p.B)) / 255.0
+		heightMap[i] = luminance
+	}
+
+	return normalMapFromHeightField(heightMap, width, height, strength)
+}
+
+// normalMapFromHeightField converts a height field to normal vectors.
+func normalMapFromHeightField(heightMap []float64, width, height int, strength float64) []color.RGBA {
+	normalMap := make([]color.RGBA, width*height)
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			normal := calculateNormal(heightMap, width, height, x, y, strength)
+			normalMap[y*width+x] = normal.ToColor()
+		}
+	}
+
+	return normalMap
+}
+
+// calculateNormal computes the surface normal at a heightmap position.
+// Uses Sobel-like kernel for smooth gradients.
+func calculateNormal(heightMap []float64, width, height, x, y int, strength float64) Normal {
+	// Sample neighboring heights (wrap at edges)
+	getHeight := func(px, py int) float64 {
+		// Wrap coordinates
+		px = (px + width) % width
+		py = (py + height) % height
+		return heightMap[py*width+px]
+	}
+
+	// Sobel-style gradient calculation
+	// Left-right gradient
+	left := getHeight(x-1, y)
+	right := getHeight(x+1, y)
+	dx := (right - left) * strength
+
+	// Top-bottom gradient
+	up := getHeight(x, y-1)
+	down := getHeight(x, y+1)
+	dy := (down - up) * strength
+
+	// Construct normal from gradients
+	// Z points out of surface (towards viewer in tangent space)
+	normal := Normal{
+		X: -dx,
+		Y: -dy,
+		Z: 1.0,
+	}
+
+	// Normalize
+	return normalizeNormal(normal)
+}
+
+// normalizeNormal returns a unit-length normal.
+func normalizeNormal(n Normal) Normal {
+	length := sqrt(n.X*n.X + n.Y*n.Y + n.Z*n.Z)
+	if length < 0.0001 {
+		return Normal{X: 0, Y: 0, Z: 1}
+	}
+	return Normal{
+		X: n.X / length,
+		Y: n.Y / length,
+		Z: n.Z / length,
+	}
+}
+
+// sqrt is a simple square root approximation.
+func sqrt(x float64) float64 {
+	if x <= 0 {
+		return 0
+	}
+	// Newton-Raphson iteration
+	guess := x
+	for i := 0; i < 10; i++ {
+		guess = (guess + x/guess) / 2
+	}
+	return guess
 }
 
 // getGenrePalette returns the color palette for the given genre.
@@ -333,7 +505,7 @@ func applyVisualProperties(pixels []color.RGBA, width, height int, visual *Visua
 		// Apply emissive boost (brighter colors)
 		if visual.Emissive > 0.2 {
 			factor := 1.0 + visual.Emissive*0.5
-			pixels[i] = adjustBrightness(pixels[i], factor)
+			pixels[i] = scaleBrightness(pixels[i], factor)
 		}
 	}
 }

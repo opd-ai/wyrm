@@ -1,6 +1,7 @@
 package texture
 
 import (
+	"image/color"
 	"testing"
 
 	"github.com/opd-ai/wyrm/pkg/procgen/noise"
@@ -586,5 +587,268 @@ func BenchmarkMaterialRegistryGetByName(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = r.GetByName(names[i%len(names)])
+	}
+}
+
+// ============================================================
+// Material-Based Texture Generation Tests
+// ============================================================
+
+func TestGenerateForMaterial(t *testing.T) {
+	tests := []struct {
+		material MaterialID
+		genre    string
+	}{
+		{MaterialStone, "fantasy"},
+		{MaterialWood, "fantasy"},
+		{MaterialMetal, "sci-fi"},
+		{MaterialGlass, "cyberpunk"},
+		{MaterialDirt, "post-apocalyptic"},
+		{MaterialNeon, "cyberpunk"},
+		{MaterialChrome, "sci-fi"},
+		{MaterialRust, "post-apocalyptic"},
+	}
+
+	for _, tt := range tests {
+		name := DefaultMaterialRegistry.Get(tt.material).Name
+		t.Run(name+"_"+tt.genre, func(t *testing.T) {
+			tex := GenerateForMaterial(32, 32, tt.material, 12345, tt.genre)
+			if tex == nil {
+				t.Fatal("GenerateForMaterial returned nil")
+			}
+			if tex.Width != 32 || tex.Height != 32 {
+				t.Errorf("expected 32x32, got %dx%d", tex.Width, tex.Height)
+			}
+			if len(tex.Pixels) != 32*32 {
+				t.Errorf("expected %d pixels, got %d", 32*32, len(tex.Pixels))
+			}
+		})
+	}
+}
+
+func TestGenerateForMaterialDeterminism(t *testing.T) {
+	seed := int64(98765)
+
+	tex1 := GenerateForMaterial(16, 16, MaterialMetal, seed, "fantasy")
+	tex2 := GenerateForMaterial(16, 16, MaterialMetal, seed, "fantasy")
+
+	if tex1 == nil || tex2 == nil {
+		t.Fatal("textures should not be nil")
+	}
+
+	// Same seed should produce identical results
+	for i := range tex1.Pixels {
+		if tex1.Pixels[i] != tex2.Pixels[i] {
+			t.Errorf("pixel %d differs: %v vs %v", i, tex1.Pixels[i], tex2.Pixels[i])
+			break
+		}
+	}
+}
+
+func TestGenerateForMaterialDifferentSeeds(t *testing.T) {
+	tex1 := GenerateForMaterial(16, 16, MaterialStone, 11111, "fantasy")
+	tex2 := GenerateForMaterial(16, 16, MaterialStone, 22222, "fantasy")
+
+	if tex1 == nil || tex2 == nil {
+		t.Fatal("textures should not be nil")
+	}
+
+	// Different seeds should produce different results
+	different := false
+	for i := range tex1.Pixels {
+		if tex1.Pixels[i] != tex2.Pixels[i] {
+			different = true
+			break
+		}
+	}
+	if !different {
+		t.Error("different seeds should produce different textures")
+	}
+}
+
+func TestGenerateForMaterialInvalidSize(t *testing.T) {
+	if tex := GenerateForMaterial(0, 32, MaterialStone, 0, "fantasy"); tex != nil {
+		t.Error("should return nil for width=0")
+	}
+	if tex := GenerateForMaterial(32, 0, MaterialStone, 0, "fantasy"); tex != nil {
+		t.Error("should return nil for height=0")
+	}
+	if tex := GenerateForMaterial(-1, 32, MaterialStone, 0, "fantasy"); tex != nil {
+		t.Error("should return nil for negative width")
+	}
+}
+
+func TestGenerateForMaterialUnknownMaterial(t *testing.T) {
+	// Unknown material should fall back to generic texture
+	tex := GenerateForMaterial(16, 16, MaterialID(9999), 12345, "fantasy")
+	if tex == nil {
+		t.Fatal("should fall back to generic texture for unknown material")
+	}
+	if tex.Width != 16 || tex.Height != 16 {
+		t.Error("fallback texture dimensions wrong")
+	}
+}
+
+func TestGenerateForMaterialCategories(t *testing.T) {
+	// Test each material category produces valid textures
+	categories := map[string]MaterialID{
+		"metal":     MaterialMetal,
+		"organic":   MaterialWood,
+		"mineral":   MaterialStone,
+		"natural":   MaterialDirt,
+		"synthetic": MaterialNeon,
+	}
+
+	for category, materialID := range categories {
+		t.Run(category, func(t *testing.T) {
+			tex := GenerateForMaterial(32, 32, materialID, 12345, "fantasy")
+			if tex == nil {
+				t.Fatalf("GenerateForMaterial returned nil for %s", category)
+			}
+
+			// Check no nil/zero pixels
+			hasColor := false
+			for _, p := range tex.Pixels {
+				if p.R > 0 || p.G > 0 || p.B > 0 {
+					hasColor = true
+					break
+				}
+			}
+			if !hasColor {
+				t.Errorf("texture for %s has no color", category)
+			}
+		})
+	}
+}
+
+func TestGenerateForMaterialTransparency(t *testing.T) {
+	// Glass has high transparency, should have non-255 alpha
+	tex := GenerateForMaterial(16, 16, MaterialGlass, 12345, "fantasy")
+	if tex == nil {
+		t.Fatal("texture should not be nil")
+	}
+
+	// Check that some pixels have transparency
+	hasTransparency := false
+	for _, p := range tex.Pixels {
+		if p.A < 255 {
+			hasTransparency = true
+			break
+		}
+	}
+	if !hasTransparency {
+		t.Error("glass texture should have transparency")
+	}
+}
+
+func TestGenerateForMaterialEmissive(t *testing.T) {
+	// Neon has high emissive
+	tex := GenerateForMaterial(16, 16, MaterialNeon, 12345, "cyberpunk")
+	if tex == nil {
+		t.Fatal("texture should not be nil")
+	}
+
+	// Emissive materials should have bright colors
+	brightPixels := 0
+	for _, p := range tex.Pixels {
+		if p.R > 200 || p.G > 200 || p.B > 200 {
+			brightPixels++
+		}
+	}
+	if brightPixels == 0 {
+		t.Error("neon texture should have bright pixels")
+	}
+}
+
+func TestGenerateForMaterialWithRegistry(t *testing.T) {
+	// Test with custom registry
+	r := NewMaterialRegistry()
+	customMaterial := &Material{
+		ID:       MaterialCustom + 5,
+		Name:     "adamantium",
+		Category: "metal",
+		Physical: PhysicalProperties{Hardness: 1.0},
+		Visual:   VisualProperties{Roughness: 0.1, Metalness: 1.0},
+		BaseColors: []color.RGBA{
+			{R: 0x40, G: 0x40, B: 0x50, A: 255},
+		},
+	}
+	r.Register(customMaterial)
+
+	tex := GenerateForMaterialWithRegistry(16, 16, MaterialCustom+5, 12345, "fantasy", r)
+	if tex == nil {
+		t.Fatal("should generate texture for custom material")
+	}
+}
+
+func TestGenerateForMaterialNilRegistry(t *testing.T) {
+	// Should fall back to default registry
+	tex := GenerateForMaterialWithRegistry(16, 16, MaterialStone, 12345, "fantasy", nil)
+	if tex == nil {
+		t.Fatal("should use default registry when nil passed")
+	}
+}
+
+func TestScaleBrightness(t *testing.T) {
+	white := color.RGBA{R: 100, G: 100, B: 100, A: 255}
+
+	// No change
+	result := scaleBrightness(white, 1.0)
+	if result.R != 100 || result.G != 100 || result.B != 100 {
+		t.Error("factor 1.0 should not change color")
+	}
+
+	// Double brightness
+	result = scaleBrightness(white, 2.0)
+	if result.R != 200 || result.G != 200 || result.B != 200 {
+		t.Errorf("expected 200, got %d", result.R)
+	}
+
+	// Half brightness
+	result = scaleBrightness(white, 0.5)
+	if result.R != 50 || result.G != 50 || result.B != 50 {
+		t.Errorf("expected 50, got %d", result.R)
+	}
+
+	// Clamping at max
+	result = scaleBrightness(white, 3.0)
+	if result.R != 255 {
+		t.Errorf("expected clamped to 255, got %d", result.R)
+	}
+
+	// Alpha preserved
+	if result.A != 255 {
+		t.Error("alpha should be preserved")
+	}
+}
+
+func TestSinCos(t *testing.T) {
+	// Test sin approximation at key points
+	if sin(0) != 0 {
+		t.Error("sin(0) should be 0")
+	}
+
+	// Test cos approximation
+	cosVal := cos(0)
+	if cosVal < 0.99 || cosVal > 1.01 {
+		t.Errorf("cos(0) should be ~1, got %f", cosVal)
+	}
+}
+
+func BenchmarkGenerateForMaterial(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = GenerateForMaterial(64, 64, MaterialStone, int64(i), "fantasy")
+	}
+}
+
+func BenchmarkGenerateForMaterialMetal(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = GenerateForMaterial(64, 64, MaterialMetal, int64(i), "sci-fi")
+	}
+}
+
+func BenchmarkGenerateForMaterialOrganic(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = GenerateForMaterial(64, 64, MaterialWood, int64(i), "fantasy")
 	}
 }
