@@ -28,7 +28,125 @@ const (
 	MinFogFactor = 0.2
 	// MinWallDistance prevents division by zero in wall height calculation.
 	MinWallDistance = 0.1
+	// DefaultWallHeight is the standard wall height multiplier.
+	DefaultWallHeight = 1.0
+	// MaxWallHeight is the maximum wall height multiplier.
+	MaxWallHeight = 3.0
+	// MinWallHeight is the minimum wall height multiplier.
+	MinWallHeight = 0.25
 )
+
+// CellFlags are bit flags for MapCell properties.
+type CellFlags uint16
+
+const (
+	// FlagSolid indicates the cell blocks movement.
+	FlagSolid CellFlags = 1 << iota
+	// FlagPassable indicates the cell can be walked through (e.g., tall grass).
+	FlagPassable
+	// FlagTransparent indicates the cell renders with alpha blending.
+	FlagTransparent
+	// FlagClimbable indicates the cell can be climbed over.
+	FlagClimbable
+	// FlagDestructible indicates the cell can be destroyed.
+	FlagDestructible
+	// FlagSemiOpaque indicates partial opacity with gap patterns.
+	FlagSemiOpaque
+)
+
+// MapCell represents a single cell in the world map with extended properties.
+// This replaces the simple int wall type with rich data for variable-height
+// walls, materials, and partial barriers.
+type MapCell struct {
+	// WallType is the wall texture index (0=empty, 1-N=wall textures).
+	WallType int
+	// WallHeight is the height multiplier (0.5=half, 1.0=standard, 3.0=triple).
+	WallHeight float64
+	// FloorH is the floor elevation (0.0=ground level).
+	FloorH float64
+	// CeilH is the ceiling height (defaults to WallHeight if 0).
+	CeilH float64
+	// MaterialID is the index into the MaterialRegistry.
+	MaterialID int
+	// Flags contains bit flags for cell properties.
+	Flags CellFlags
+}
+
+// DefaultMapCell returns a MapCell with default values for an empty cell.
+func DefaultMapCell() MapCell {
+	return MapCell{
+		WallType:   0,
+		WallHeight: DefaultWallHeight,
+		FloorH:     0.0,
+		CeilH:      DefaultWallHeight,
+		MaterialID: 0,
+		Flags:      0,
+	}
+}
+
+// WallMapCell returns a MapCell configured as a standard wall.
+func WallMapCell(wallType int) MapCell {
+	return MapCell{
+		WallType:   wallType,
+		WallHeight: DefaultWallHeight,
+		FloorH:     0.0,
+		CeilH:      DefaultWallHeight,
+		MaterialID: wallType,
+		Flags:      FlagSolid,
+	}
+}
+
+// WallMapCellWithHeight returns a MapCell configured as a wall with custom height.
+func WallMapCellWithHeight(wallType int, height float64) MapCell {
+	if height < MinWallHeight {
+		height = MinWallHeight
+	}
+	if height > MaxWallHeight {
+		height = MaxWallHeight
+	}
+	return MapCell{
+		WallType:   wallType,
+		WallHeight: height,
+		FloorH:     0.0,
+		CeilH:      height,
+		MaterialID: wallType,
+		Flags:      FlagSolid,
+	}
+}
+
+// IsEmpty returns true if the cell has no wall.
+func (c MapCell) IsEmpty() bool {
+	return c.WallType == 0
+}
+
+// IsSolid returns true if the cell blocks movement.
+func (c MapCell) IsSolid() bool {
+	return c.Flags&FlagSolid != 0
+}
+
+// IsTransparent returns true if the cell renders with alpha.
+func (c MapCell) IsTransparent() bool {
+	return c.Flags&FlagTransparent != 0
+}
+
+// IsClimbable returns true if the cell can be climbed over.
+func (c MapCell) IsClimbable() bool {
+	return c.Flags&FlagClimbable != 0
+}
+
+// IsDestructible returns true if the cell can be destroyed.
+func (c MapCell) IsDestructible() bool {
+	return c.Flags&FlagDestructible != 0
+}
+
+// EffectiveHeight returns the effective wall height for rendering.
+// If CeilH is 0, it defaults to WallHeight.
+func (c MapCell) EffectiveHeight() float64 {
+	if c.CeilH > 0 {
+		return c.CeilH - c.FloorH
+	}
+	return c.WallHeight
+}
 
 // Renderer handles first-person raycasting and draws to an Ebitengine image.
 type Renderer struct {
@@ -37,13 +155,18 @@ type Renderer struct {
 	PlayerX      float64
 	PlayerY      float64
 	PlayerA      float64 // angle in radians
-	WorldMap     [][]int // 2D map: 0=empty, >0=wall type
-	FOV          float64 // field of view in radians
-	Genre        string  // current genre for texture palette
-	WallTextures []*texture.Texture
-	FloorTexture *texture.Texture
-	CeilTexture  *texture.Texture
-	textureSeed  int64
+	PlayerZ      float64 // player eye height (default 0.5 = standing)
+	PlayerPitch  float64 // vertical look angle in radians (clamped ±85°)
+	WorldMap     [][]int // 2D map: 0=empty, >0=wall type (legacy)
+	// WorldMapCells is the enhanced map with variable heights and materials.
+	// When set, this takes precedence over WorldMap for rendering.
+	WorldMapCells [][]MapCell
+	FOV           float64 // field of view in radians
+	Genre         string  // current genre for texture palette
+	WallTextures  []*texture.Texture
+	FloorTexture  *texture.Texture
+	CeilTexture   *texture.Texture
+	textureSeed   int64
 	// ZBuffer stores the perpendicular distance to walls for each screen column.
 	// Used for sprite occlusion testing. Populated during drawWalls().
 	ZBuffer []float64
@@ -63,26 +186,37 @@ func NewRenderer(width, height int) *Renderer {
 
 // NewRendererWithGenre creates a renderer with specified genre and seed.
 func NewRendererWithGenre(width, height int, genre string, seed int64) *Renderer {
-	// Create a simple default world map
+	// Create a simple default world map (legacy format for backward compatibility)
 	worldMap := make([][]int, DefaultMapSize)
+	worldMapCells := make([][]MapCell, DefaultMapSize)
 	for i := range worldMap {
 		worldMap[i] = make([]int, DefaultMapSize)
+		worldMapCells[i] = make([]MapCell, DefaultMapSize)
 		// Create boundary walls
 		worldMap[i][0] = 1
+		worldMapCells[i][0] = WallMapCell(1)
 		worldMap[i][DefaultMapSize-1] = 1
+		worldMapCells[i][DefaultMapSize-1] = WallMapCell(1)
 		if i == 0 || i == DefaultMapSize-1 {
 			for j := range worldMap[i] {
 				worldMap[i][j] = 1
+				worldMapCells[i][j] = WallMapCell(1)
 			}
 		}
 	}
-	// Add some interior walls
+	// Add some interior walls with varying heights
 	worldMap[4][4] = 2
+	worldMapCells[4][4] = WallMapCell(2)
 	worldMap[4][5] = 2
+	worldMapCells[4][5] = WallMapCellWithHeight(2, 1.5) // Taller wall
 	worldMap[4][6] = 2
+	worldMapCells[4][6] = WallMapCell(2)
 	worldMap[8][8] = 3
+	worldMapCells[8][8] = WallMapCellWithHeight(3, 2.0) // Double height
 	worldMap[8][9] = 3
+	worldMapCells[8][9] = WallMapCell(3)
 	worldMap[9][8] = 3
+	worldMapCells[9][8] = WallMapCellWithHeight(3, 0.5) // Half height
 
 	r := &Renderer{
 		Width:          width,
@@ -90,7 +224,10 @@ func NewRendererWithGenre(width, height int, genre string, seed int64) *Renderer
 		PlayerX:        DefaultPlayerX,
 		PlayerY:        DefaultPlayerY,
 		PlayerA:        0.0,
+		PlayerZ:        0.5, // Default standing eye height
+		PlayerPitch:    0.0,
 		WorldMap:       worldMap,
+		WorldMapCells:  worldMapCells,
 		FOV:            DefaultFOV,
 		Genre:          genre,
 		textureSeed:    seed,
@@ -239,10 +376,10 @@ func (r *Renderer) performDDA(sideDistX, sideDistY, deltaDistX, deltaDistY float
 			side = 1
 		}
 
-		if !r.isValidMapPosition(mapX, mapY) {
+		if !r.isValidMapPosition(mapX, mapY) && !r.isValidMapCellPosition(mapX, mapY) {
 			return false, side, sideDistX, sideDistY, mapX, mapY
 		}
-		if r.WorldMap[mapX][mapY] > 0 {
+		if r.HasWall(mapX, mapY) {
 			return true, side, sideDistX, sideDistY, mapX, mapY
 		}
 	}
@@ -254,6 +391,45 @@ func (r *Renderer) isValidMapPosition(x, y int) bool {
 	return x >= 0 && x < len(r.WorldMap) && y >= 0 && y < len(r.WorldMap[0])
 }
 
+// isValidMapCellPosition checks if coordinates are within WorldMapCells bounds.
+func (r *Renderer) isValidMapCellPosition(x, y int) bool {
+	if r.WorldMapCells == nil {
+		return false
+	}
+	return x >= 0 && x < len(r.WorldMapCells) && y >= 0 && y < len(r.WorldMapCells[0])
+}
+
+// GetMapCell returns the MapCell at the given position.
+// If WorldMapCells is set, it returns from that; otherwise, it converts
+// from the legacy WorldMap format.
+func (r *Renderer) GetMapCell(x, y int) MapCell {
+	// Try enhanced map first
+	if r.isValidMapCellPosition(x, y) {
+		return r.WorldMapCells[x][y]
+	}
+	// Fallback to legacy map conversion
+	if r.isValidMapPosition(x, y) {
+		wallType := r.WorldMap[x][y]
+		if wallType == 0 {
+			return DefaultMapCell()
+		}
+		return WallMapCell(wallType)
+	}
+	// Out of bounds
+	return DefaultMapCell()
+}
+
+// HasWall checks if there is a wall at the given position using either map format.
+func (r *Renderer) HasWall(x, y int) bool {
+	if r.isValidMapCellPosition(x, y) {
+		return r.WorldMapCells[x][y].WallType > 0
+	}
+	if r.isValidMapPosition(x, y) {
+		return r.WorldMap[x][y] > 0
+	}
+	return false
+}
+
 // calculateWallDistance computes the perpendicular wall distance.
 func (r *Renderer) calculateWallDistance(side int, sideDistX, sideDistY, deltaDistX, deltaDistY float64, mapX, mapY int) (float64, int) {
 	var perpWallDist float64
@@ -263,11 +439,8 @@ func (r *Renderer) calculateWallDistance(side int, sideDistX, sideDistY, deltaDi
 		perpWallDist = sideDistY - deltaDistY
 	}
 
-	wallType := 0
-	if r.isValidMapPosition(mapX, mapY) {
-		wallType = r.WorldMap[mapX][mapY]
-	}
-	return perpWallDist, wallType
+	cell := r.GetMapCell(mapX, mapY)
+	return perpWallDist, cell.WallType
 }
 
 // getWallColor returns a color based on wall type and distance.
@@ -311,13 +484,17 @@ func (r *Renderer) SetPlayerPos(x, y, angle float64) {
 
 // SetWorldMap sets the world map from chunk heightmap data.
 // The threshold determines height values that become walls.
+// Also populates WorldMapCells for the enhanced rendering pipeline.
 func (r *Renderer) SetWorldMap(heightMap []float64, mapSize int, wallThreshold float64) {
 	if mapSize <= 0 {
 		return
 	}
 	worldMap := createEmptyWorldMap(mapSize)
+	worldMapCells := createEmptyWorldMapCells(mapSize)
 	populateWorldMap(worldMap, heightMap, mapSize, wallThreshold)
+	populateWorldMapCells(worldMapCells, heightMap, mapSize, wallThreshold)
 	r.WorldMap = worldMap
+	r.WorldMapCells = worldMapCells
 }
 
 // createEmptyWorldMap allocates a 2D map grid of the given size.
@@ -329,6 +506,18 @@ func createEmptyWorldMap(mapSize int) [][]int {
 	return worldMap
 }
 
+// createEmptyWorldMapCells allocates a 2D MapCell grid of the given size.
+func createEmptyWorldMapCells(mapSize int) [][]MapCell {
+	worldMapCells := make([][]MapCell, mapSize)
+	for i := range worldMapCells {
+		worldMapCells[i] = make([]MapCell, mapSize)
+		for j := range worldMapCells[i] {
+			worldMapCells[i][j] = DefaultMapCell()
+		}
+	}
+	return worldMapCells
+}
+
 // populateWorldMap converts heightmap values to wall types.
 func populateWorldMap(worldMap [][]int, heightMap []float64, mapSize int, wallThreshold float64) {
 	for y := 0; y < mapSize; y++ {
@@ -336,6 +525,18 @@ func populateWorldMap(worldMap [][]int, heightMap []float64, mapSize int, wallTh
 			idx := y*mapSize + x
 			if idx < len(heightMap) {
 				worldMap[y][x] = heightToWallType(heightMap[idx], wallThreshold)
+			}
+		}
+	}
+}
+
+// populateWorldMapCells converts heightmap values to MapCells with height data.
+func populateWorldMapCells(worldMapCells [][]MapCell, heightMap []float64, mapSize int, wallThreshold float64) {
+	for y := 0; y < mapSize; y++ {
+		for x := 0; x < mapSize; x++ {
+			idx := y*mapSize + x
+			if idx < len(heightMap) {
+				worldMapCells[y][x] = heightToMapCell(heightMap[idx], wallThreshold)
 			}
 		}
 	}
@@ -355,9 +556,68 @@ func heightToWallType(height, wallThreshold float64) int {
 	return 1 // Low wall (red-brown)
 }
 
+// heightToMapCell converts a height value to a MapCell with appropriate properties.
+func heightToMapCell(height, wallThreshold float64) MapCell {
+	if height <= wallThreshold {
+		return DefaultMapCell()
+	}
+	wallType := heightToWallType(height, wallThreshold)
+	// Calculate wall height based on terrain height - higher terrain = taller walls
+	// Scale from 0.5 (just above threshold) to 2.0 (maximum height)
+	normalizedHeight := (height - wallThreshold) / (1.0 - wallThreshold)
+	wallHeight := MinWallHeight + normalizedHeight*(2.0-MinWallHeight)
+	if wallHeight > MaxWallHeight {
+		wallHeight = MaxWallHeight
+	}
+	return WallMapCellWithHeight(wallType, wallHeight)
+}
+
 // SetWorldMapDirect sets the world map directly (for pre-computed maps).
+// Also creates corresponding WorldMapCells with default heights.
 func (r *Renderer) SetWorldMapDirect(worldMap [][]int) {
 	r.WorldMap = worldMap
+	// Create corresponding WorldMapCells
+	if len(worldMap) > 0 && len(worldMap[0]) > 0 {
+		r.WorldMapCells = convertWorldMapToMapCells(worldMap)
+	}
+}
+
+// convertWorldMapToMapCells converts a legacy WorldMap to WorldMapCells.
+func convertWorldMapToMapCells(worldMap [][]int) [][]MapCell {
+	mapCells := make([][]MapCell, len(worldMap))
+	for x := range worldMap {
+		mapCells[x] = make([]MapCell, len(worldMap[x]))
+		for y := range worldMap[x] {
+			if worldMap[x][y] == 0 {
+				mapCells[x][y] = DefaultMapCell()
+			} else {
+				mapCells[x][y] = WallMapCell(worldMap[x][y])
+			}
+		}
+	}
+	return mapCells
+}
+
+// SetWorldMapCells sets the enhanced world map directly.
+// Also updates the legacy WorldMap for backward compatibility.
+func (r *Renderer) SetWorldMapCells(worldMapCells [][]MapCell) {
+	r.WorldMapCells = worldMapCells
+	// Create corresponding legacy WorldMap
+	if len(worldMapCells) > 0 && len(worldMapCells[0]) > 0 {
+		r.WorldMap = convertMapCellsToWorldMap(worldMapCells)
+	}
+}
+
+// convertMapCellsToWorldMap converts WorldMapCells to a legacy WorldMap.
+func convertMapCellsToWorldMap(mapCells [][]MapCell) [][]int {
+	worldMap := make([][]int, len(mapCells))
+	for x := range mapCells {
+		worldMap[x] = make([]int, len(mapCells[x]))
+		for y := range mapCells[x] {
+			worldMap[x][y] = mapCells[x][y].WallType
+		}
+	}
+	return worldMap
 }
 
 // GetPlayerAngle returns the player's current facing angle in radians.
