@@ -1011,3 +1011,206 @@ func TestMaxPitchAngleConstant(t *testing.T) {
 		t.Errorf("expected MaxPitchAngle=%f radians (85°), got %f", expected, MaxPitchAngle)
 	}
 }
+
+// ============================================================
+// Transparent Wall Rendering Tests
+// ============================================================
+
+func TestGetTransparencyForFlags(t *testing.T) {
+	tests := []struct {
+		name     string
+		flags    CellFlags
+		expected float64
+	}{
+		{"no flags", 0, 1.0},
+		{"solid only", FlagSolid, 1.0},
+		{"transparent", FlagTransparent, 0.5},
+		{"semi-opaque", FlagSemiOpaque, 0.9},
+		{"transparent and solid", FlagTransparent | FlagSolid, 0.5},
+		{"semi-opaque and solid", FlagSemiOpaque | FlagSolid, 0.9},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getTransparencyForFlags(tt.flags)
+			if math.Abs(result-tt.expected) > 0.001 {
+				t.Errorf("expected transparency=%f, got %f", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestIsSemiOpaqueGap(t *testing.T) {
+	// Test that the semi-opaque gap pattern creates gaps
+	gapCount := 0
+	solidCount := 0
+
+	// Sample the pattern
+	for i := 0; i < 100; i++ {
+		texX := float64(i%10) / 10.0
+		texY := float64(i/10) / 10.0
+		if isSemiOpaqueGap(texX, texY) {
+			gapCount++
+		} else {
+			solidCount++
+		}
+	}
+
+	// Should have a mix of gaps and solid areas
+	if gapCount == 0 {
+		t.Error("expected some gaps in semi-opaque pattern")
+	}
+	if solidCount == 0 {
+		t.Error("expected some solid areas in semi-opaque pattern")
+	}
+}
+
+func TestMapCellTransparencyFlags(t *testing.T) {
+	// Test that MapCell flags work correctly
+	tests := []struct {
+		name           string
+		cell           MapCell
+		isTransparent  bool
+		isClimbable    bool
+		isDestructible bool
+	}{
+		{
+			name:           "default cell",
+			cell:           DefaultMapCell(),
+			isTransparent:  false,
+			isClimbable:    false,
+			isDestructible: false,
+		},
+		{
+			name: "transparent cell",
+			cell: MapCell{
+				WallType:   1,
+				WallHeight: 1.0,
+				Flags:      FlagSolid | FlagTransparent,
+			},
+			isTransparent:  true,
+			isClimbable:    false,
+			isDestructible: false,
+		},
+		{
+			name: "climbable cell",
+			cell: MapCell{
+				WallType:   1,
+				WallHeight: 0.5,
+				Flags:      FlagSolid | FlagClimbable,
+			},
+			isTransparent:  false,
+			isClimbable:    true,
+			isDestructible: false,
+		},
+		{
+			name: "destructible cell",
+			cell: MapCell{
+				WallType:   1,
+				WallHeight: 1.0,
+				Flags:      FlagSolid | FlagDestructible,
+			},
+			isTransparent:  false,
+			isClimbable:    false,
+			isDestructible: true,
+		},
+		{
+			name: "all flags",
+			cell: MapCell{
+				WallType:   1,
+				WallHeight: 1.0,
+				Flags:      FlagSolid | FlagTransparent | FlagClimbable | FlagDestructible,
+			},
+			isTransparent:  true,
+			isClimbable:    true,
+			isDestructible: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.cell.IsTransparent() != tt.isTransparent {
+				t.Errorf("IsTransparent() = %v, want %v", tt.cell.IsTransparent(), tt.isTransparent)
+			}
+			if tt.cell.IsClimbable() != tt.isClimbable {
+				t.Errorf("IsClimbable() = %v, want %v", tt.cell.IsClimbable(), tt.isClimbable)
+			}
+			if tt.cell.IsDestructible() != tt.isDestructible {
+				t.Errorf("IsDestructible() = %v, want %v", tt.cell.IsDestructible(), tt.isDestructible)
+			}
+		})
+	}
+}
+
+func TestTransparentWallMapCell(t *testing.T) {
+	// Helper to create a transparent wall cell
+	cell := MapCell{
+		WallType:   3,
+		WallHeight: 1.0,
+		Flags:      FlagSolid | FlagTransparent,
+		MaterialID: 2,
+	}
+
+	if !cell.IsSolid() {
+		t.Error("transparent wall should still be solid for collision")
+	}
+	if !cell.IsTransparent() {
+		t.Error("transparent wall should be transparent")
+	}
+	if cell.WallType != 3 {
+		t.Errorf("expected WallType=3, got %d", cell.WallType)
+	}
+}
+
+func TestSemiOpaqueBarrierCell(t *testing.T) {
+	// Helper to create a semi-opaque barrier cell (fence, grate)
+	cell := MapCell{
+		WallType:   4,
+		WallHeight: 1.5,
+		Flags:      FlagSolid | FlagSemiOpaque,
+		MaterialID: 3,
+	}
+
+	if !cell.IsSolid() {
+		t.Error("semi-opaque barrier should be solid")
+	}
+	if cell.Flags&FlagSemiOpaque == 0 {
+		t.Error("semi-opaque flag should be set")
+	}
+}
+
+func TestApplySideDarkening(t *testing.T) {
+	white := color.RGBA{R: 255, G: 255, B: 255, A: 255}
+
+	// No darkening
+	result := applySideDarkening(white, 1.0)
+	if result.R != 255 || result.G != 255 || result.B != 255 {
+		t.Error("factor 1.0 should not change color")
+	}
+	if result.A != 255 {
+		t.Error("alpha should not change")
+	}
+
+	// 80% darkening
+	result = applySideDarkening(white, 0.8)
+	if result.R != 204 || result.G != 204 || result.B != 204 {
+		t.Errorf("expected RGB=(204,204,204), got (%d,%d,%d)", result.R, result.G, result.B)
+	}
+	if result.A != 255 {
+		t.Error("alpha should not change during darkening")
+	}
+}
+
+func TestGetSideDarkenFactor(t *testing.T) {
+	// Side 0 (horizontal wall) should have no darkening
+	factor0 := getSideDarkenFactor(0)
+	if factor0 != 1.0 {
+		t.Errorf("side 0 should have factor 1.0, got %f", factor0)
+	}
+
+	// Side 1 (vertical wall) should be darkened
+	factor1 := getSideDarkenFactor(1)
+	if factor1 != 0.8 {
+		t.Errorf("side 1 should have factor 0.8, got %f", factor1)
+	}
+}

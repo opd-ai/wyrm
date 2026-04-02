@@ -151,6 +151,55 @@ func (c MapCell) EffectiveHeight() float64 {
 	return c.WallHeight
 }
 
+// ============================================================
+// Transparency and Wall Rendering Utilities
+// ============================================================
+
+// getTransparencyForFlags returns the opacity (0.0-1.0) for the given cell flags.
+func getTransparencyForFlags(flags CellFlags) float64 {
+	if flags&FlagTransparent != 0 {
+		return 0.5 // 50% transparent
+	}
+	if flags&FlagSemiOpaque != 0 {
+		return 0.9 // 90% opaque (slight transparency)
+	}
+	return 1.0 // Fully opaque
+}
+
+// isSemiOpaqueGap determines if a texture coordinate should be transparent
+// for semi-opaque barriers like fences or grates.
+// Creates a regular pattern of gaps in the wall texture.
+func isSemiOpaqueGap(texX, texY float64) bool {
+	// Create a 4x4 grid pattern where some cells are gaps
+	gridX := int(texX * 8)
+	gridY := int(texY * 8)
+
+	// Gaps every other cell in a checkerboard pattern offset
+	// This creates a fence-like or grate-like appearance
+	return (gridX+gridY)%4 == 0
+}
+
+// getSideDarkenFactor returns the darkening factor for a wall side.
+func getSideDarkenFactor(side int) float64 {
+	if side == 1 {
+		return 0.8
+	}
+	return 1.0
+}
+
+// applySideDarkening applies a darkening factor to a color.
+func applySideDarkening(c color.RGBA, factor float64) color.RGBA {
+	if factor >= 1.0 {
+		return c
+	}
+	return color.RGBA{
+		R: uint8(float64(c.R) * factor),
+		G: uint8(float64(c.G) * factor),
+		B: uint8(float64(c.B) * factor),
+		A: c.A,
+	}
+}
+
 // Renderer handles first-person raycasting and draws to an Ebitengine image.
 type Renderer struct {
 	Width       int

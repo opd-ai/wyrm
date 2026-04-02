@@ -148,8 +148,8 @@
 **Milestone:** Semi-transparent barriers render with density; materials have physical properties.
 
 - [x] Add barrier permeability flags to `MapCell` (transparency, climbable, destructible)
-- [ ] Implement alpha-blended wall rendering for partial barriers
-- [ ] Define `MaterialRegistry` with physical properties per material type
+- [x] Implement alpha-blended wall rendering for partial barriers
+- [x] Define `MaterialRegistry` with physical properties per material type
 - [ ] Implement per-material texture generation with appropriate visual properties
 - [ ] Add normal map generation to `texture.GenerateWithSeed()`
 - [ ] Implement specular highlight calculation in wall/floor rendering
