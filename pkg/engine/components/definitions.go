@@ -2359,3 +2359,257 @@ func NewSwingingBody(maxAngle, damping float64) *PhysicsBody {
 		IsKinematic:   true, // Position controlled by swing, not linear physics
 	}
 }
+
+// ============================================================
+// Interactable Component
+// ============================================================
+
+// Interactable represents an entity that can be interacted with by the player.
+// This component is used for doors, containers, NPCs, switches, and other interactive objects.
+type Interactable struct {
+	// InteractionType describes what kind of interaction is available.
+	// Common types: "use", "open", "pickup", "talk", "read", "activate", "unlock"
+	InteractionType string
+
+	// Range is the maximum distance (in world units) from which the player can interact.
+	Range float64
+
+	// Prompt is the text shown to the player when in range (e.g., "Press E to open").
+	Prompt string
+
+	// Cooldown is the minimum time (in seconds) between interactions.
+	Cooldown float64
+
+	// LastInteractTime tracks when the entity was last interacted with.
+	LastInteractTime float64
+
+	// Locked indicates whether the object requires a key or condition to interact.
+	Locked bool
+
+	// KeyID is the item ID required to unlock (if Locked is true).
+	KeyID string
+
+	// RequiredSkill is the skill check required (e.g., "lockpicking", "hacking").
+	RequiredSkill string
+
+	// SkillDifficulty is the skill level required to pass the check.
+	SkillDifficulty int
+
+	// SingleUse indicates whether the interaction can only happen once.
+	SingleUse bool
+
+	// Used tracks whether a single-use interaction has been triggered.
+	Used bool
+
+	// Sound is the sound effect to play on interaction.
+	Sound string
+
+	// Animation is the animation to trigger on the interactable entity.
+	Animation string
+
+	// TargetEntity is the entity ID affected by this interaction (for switches/levers).
+	TargetEntity uint64
+
+	// DialogID links to a dialog tree (for NPCs or readable objects).
+	DialogID string
+
+	// QuestTrigger is the quest ID triggered by this interaction.
+	QuestTrigger string
+}
+
+// Type returns the component type identifier for Interactable.
+func (i *Interactable) Type() string { return "Interactable" }
+
+// CanInteract checks if the entity can be interacted with right now.
+func (i *Interactable) CanInteract(currentTime float64) bool {
+	if i.Used && i.SingleUse {
+		return false
+	}
+	if currentTime-i.LastInteractTime < i.Cooldown {
+		return false
+	}
+	return true
+}
+
+// TriggerInteraction marks the interaction as used and updates the timestamp.
+func (i *Interactable) TriggerInteraction(currentTime float64) {
+	i.LastInteractTime = currentTime
+	if i.SingleUse {
+		i.Used = true
+	}
+}
+
+// NewSimpleInteractable creates a basic interactable with common defaults.
+func NewSimpleInteractable(interactionType, prompt string, interactRange float64) *Interactable {
+	return &Interactable{
+		InteractionType: interactionType,
+		Range:           interactRange,
+		Prompt:          prompt,
+		Cooldown:        0.5, // Default half-second cooldown
+	}
+}
+
+// NewLockedInteractable creates an interactable that requires a key.
+func NewLockedInteractable(interactionType, prompt, keyID string, interactRange float64) *Interactable {
+	return &Interactable{
+		InteractionType: interactionType,
+		Range:           interactRange,
+		Prompt:          prompt,
+		Cooldown:        0.5,
+		Locked:          true,
+		KeyID:           keyID,
+	}
+}
+
+// NewSkillCheckInteractable creates an interactable that requires a skill check.
+func NewSkillCheckInteractable(interactionType, prompt, skill string, difficulty int, interactRange float64) *Interactable {
+	return &Interactable{
+		InteractionType: interactionType,
+		Range:           interactRange,
+		Prompt:          prompt,
+		Cooldown:        0.5,
+		RequiredSkill:   skill,
+		SkillDifficulty: difficulty,
+	}
+}
+
+// ============================================================
+// WorldItem Component
+// ============================================================
+
+// WorldItem represents an item that exists in the world and can be picked up.
+// This component is used for loot drops, resource nodes, and placed items.
+type WorldItem struct {
+	// ItemID is the unique identifier for the item type.
+	ItemID string
+
+	// Quantity is the number of items in this stack.
+	Quantity int
+
+	// SpawnTime is the game time when this item was spawned/dropped.
+	SpawnTime float64
+
+	// Respawnable indicates whether this item will respawn after being picked up.
+	Respawnable bool
+
+	// RespawnTime is the delay (in seconds) before respawning (if Respawnable).
+	RespawnTime float64
+
+	// LastPickupTime tracks when the item was last picked up (for respawn calculation).
+	LastPickupTime float64
+
+	// Quality is the item quality level (0 = common, 1 = uncommon, 2 = rare, etc.).
+	Quality int
+
+	// Durability is the current durability of the item (if applicable).
+	Durability float64
+
+	// MaxDurability is the maximum durability of the item.
+	MaxDurability float64
+
+	// Owner is the entity ID that owns this item (0 = no owner, anyone can pick up).
+	Owner uint64
+
+	// OwnerExpiry is the game time when ownership expires (others can then pick up).
+	OwnerExpiry float64
+
+	// Highlight indicates whether this item should be visually highlighted.
+	Highlight bool
+
+	// StackLimit is the maximum quantity per stack for this item type.
+	StackLimit int
+
+	// Value is the base gold/currency value of the item.
+	Value int
+
+	// Weight is the weight of the item (affects carry capacity).
+	Weight float64
+
+	// Category categorizes the item (weapon, armor, consumable, material, quest, etc.).
+	Category string
+
+	// Rarity affects drop chance and visual effects (common, uncommon, rare, epic, legendary).
+	Rarity string
+
+	// PickupSound is the sound effect to play when picked up.
+	PickupSound string
+
+	// LevelRequirement is the minimum player level to pick up/use this item.
+	LevelRequirement int
+
+	// BoundOnPickup indicates whether the item becomes bound to the player when picked up.
+	BoundOnPickup bool
+}
+
+// Type returns the component type identifier for WorldItem.
+func (w *WorldItem) Type() string { return "WorldItem" }
+
+// CanPickup checks if the item can be picked up by the given entity at the current time.
+func (w *WorldItem) CanPickup(entityID uint64, currentTime float64) bool {
+	// Check if respawn is still pending
+	if w.Respawnable && w.LastPickupTime > 0 {
+		if currentTime-w.LastPickupTime < w.RespawnTime {
+			return false
+		}
+	}
+	// Check ownership
+	if w.Owner != 0 && w.Owner != entityID {
+		if currentTime < w.OwnerExpiry {
+			return false
+		}
+	}
+	return true
+}
+
+// Pickup marks the item as picked up.
+func (w *WorldItem) Pickup(currentTime float64) {
+	w.LastPickupTime = currentTime
+}
+
+// IsRespawned checks if a respawnable item has respawned.
+func (w *WorldItem) IsRespawned(currentTime float64) bool {
+	if !w.Respawnable {
+		return false
+	}
+	if w.LastPickupTime == 0 {
+		return true // Never picked up
+	}
+	return currentTime-w.LastPickupTime >= w.RespawnTime
+}
+
+// NewWorldItem creates a basic world item with common defaults.
+func NewWorldItem(itemID string, quantity int, category string) *WorldItem {
+	return &WorldItem{
+		ItemID:     itemID,
+		Quantity:   quantity,
+		Category:   category,
+		Quality:    0,
+		StackLimit: 99,
+		Rarity:     "common",
+	}
+}
+
+// NewRespawnableItem creates a world item that will respawn after being picked up.
+func NewRespawnableItem(itemID string, quantity int, respawnTime float64) *WorldItem {
+	return &WorldItem{
+		ItemID:      itemID,
+		Quantity:    quantity,
+		Respawnable: true,
+		RespawnTime: respawnTime,
+		StackLimit:  99,
+		Rarity:      "common",
+	}
+}
+
+// NewOwnedDrop creates a world item with temporary ownership (like loot drops).
+func NewOwnedDrop(itemID string, quantity int, ownerID uint64, ownershipDuration, currentTime float64) *WorldItem {
+	return &WorldItem{
+		ItemID:      itemID,
+		Quantity:    quantity,
+		SpawnTime:   currentTime,
+		Owner:       ownerID,
+		OwnerExpiry: currentTime + ownershipDuration,
+		StackLimit:  99,
+		Rarity:      "common",
+	}
+}

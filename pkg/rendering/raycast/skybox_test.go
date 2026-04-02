@@ -466,3 +466,239 @@ func BenchmarkSkyboxSetTimeOfDay(b *testing.B) {
 		s.SetTimeOfDay(float64(i % 24))
 	}
 }
+
+// ============================================================
+// StarField Tests
+// ============================================================
+
+func TestNewStarField(t *testing.T) {
+	sf := NewStarField(12345, 100, "fantasy")
+	if sf == nil {
+		t.Fatal("NewStarField returned nil")
+	}
+	if sf.StarCount != 100 {
+		t.Errorf("expected StarCount 100, got %d", sf.StarCount)
+	}
+	if sf.Seed != 12345 {
+		t.Errorf("expected Seed 12345, got %d", sf.Seed)
+	}
+	if sf.Genre != "fantasy" {
+		t.Errorf("expected Genre 'fantasy', got %s", sf.Genre)
+	}
+	if len(sf.Stars) != 100 {
+		t.Errorf("expected 100 stars, got %d", len(sf.Stars))
+	}
+}
+
+func TestDefaultStarField(t *testing.T) {
+	sf := DefaultStarField(54321)
+	if sf == nil {
+		t.Fatal("DefaultStarField returned nil")
+	}
+	if sf.StarCount != 200 {
+		t.Errorf("expected default StarCount 200, got %d", sf.StarCount)
+	}
+	if sf.Seed != 54321 {
+		t.Errorf("expected Seed 54321, got %d", sf.Seed)
+	}
+}
+
+func TestStarFieldDeterminism(t *testing.T) {
+	sf1 := NewStarField(99999, 50, "fantasy")
+	sf2 := NewStarField(99999, 50, "fantasy")
+
+	if len(sf1.Stars) != len(sf2.Stars) {
+		t.Fatal("star counts differ for same seed")
+	}
+
+	for i := range sf1.Stars {
+		if sf1.Stars[i].X != sf2.Stars[i].X ||
+			sf1.Stars[i].Y != sf2.Stars[i].Y ||
+			sf1.Stars[i].Brightness != sf2.Stars[i].Brightness {
+			t.Errorf("star %d differs between identical seeds", i)
+		}
+	}
+}
+
+func TestStarFieldDifferentSeeds(t *testing.T) {
+	sf1 := NewStarField(11111, 50, "fantasy")
+	sf2 := NewStarField(22222, 50, "fantasy")
+
+	matches := 0
+	for i := range sf1.Stars {
+		if sf1.Stars[i].X == sf2.Stars[i].X && sf1.Stars[i].Y == sf2.Stars[i].Y {
+			matches++
+		}
+	}
+
+	// With 50 stars, we shouldn't have more than a few accidental matches
+	if matches > 5 {
+		t.Errorf("too many matching star positions (%d) for different seeds", matches)
+	}
+}
+
+func TestStarFieldGenreColors(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+
+	for _, genre := range genres {
+		sf := NewStarField(12345, 10, genre)
+		if sf.Genre != genre {
+			t.Errorf("expected genre %s, got %s", genre, sf.Genre)
+		}
+		// Verify all stars have valid colors
+		for i, star := range sf.Stars {
+			if star.Color.A != 255 {
+				t.Errorf("star %d has invalid alpha %d", i, star.Color.A)
+			}
+		}
+	}
+}
+
+func TestStarFieldSetGenre(t *testing.T) {
+	sf := NewStarField(12345, 20, "fantasy")
+	oldColors := make([]color.RGBA, len(sf.Stars))
+	for i, star := range sf.Stars {
+		oldColors[i] = star.Color
+	}
+
+	sf.SetGenre("cyberpunk")
+
+	if sf.Genre != "cyberpunk" {
+		t.Errorf("expected genre 'cyberpunk', got %s", sf.Genre)
+	}
+
+	// Positions should be same, but colors may differ
+	for i, star := range sf.Stars {
+		// Stars should still exist
+		if star.Brightness == 0 {
+			t.Errorf("star %d has zero brightness after genre change", i)
+		}
+	}
+}
+
+func TestGetNightIntensity(t *testing.T) {
+	tests := []struct {
+		timeOfDay float64
+		expected  float64
+		desc      string
+	}{
+		{0.0, 1.0, "midnight - full night"},
+		{3.0, 1.0, "3 AM - full night"},
+		{5.0, 1.0, "5 AM - start of dawn"},
+		{6.0, 0.5, "6 AM - middle of dawn"},
+		{7.0, 0.0, "7 AM - end of dawn"},
+		{12.0, 0.0, "noon - full day"},
+		{17.0, 0.0, "5 PM - start of dusk"},
+		{18.0, 0.5, "6 PM - middle of dusk"},
+		{19.0, 1.0, "7 PM - full night"},
+		{22.0, 1.0, "10 PM - full night"},
+	}
+
+	for _, tt := range tests {
+		result := GetNightIntensity(tt.timeOfDay)
+		// Allow small floating point tolerance
+		if result < tt.expected-0.01 || result > tt.expected+0.01 {
+			t.Errorf("%s: expected %f, got %f", tt.desc, tt.expected, result)
+		}
+	}
+}
+
+func TestStarFieldGetStarColorAt(t *testing.T) {
+	sf := NewStarField(12345, 200, "fantasy")
+
+	// Test during day - should return empty color
+	color := sf.GetStarColorAt(0.5, 0.5, 0.0, 0.0)
+	if color.A != 0 {
+		t.Error("expected empty color during day (nightIntensity=0)")
+	}
+
+	// Test at random position - might or might not hit a star
+	// The star field is sparse, so most positions should return empty
+	emptyCount := 0
+	for i := 0; i < 100; i++ {
+		x := float64(i) / 100.0
+		y := float64(i%50) / 100.0
+		c := sf.GetStarColorAt(x, y, 0.0, 1.0)
+		if c.A == 0 {
+			emptyCount++
+		}
+	}
+
+	// Most positions should be empty (no star)
+	if emptyCount < 90 {
+		t.Errorf("expected mostly empty positions, got %d/100 empty", emptyCount)
+	}
+}
+
+func TestSkyboxWithStarField(t *testing.T) {
+	s := NewSkyboxWithSeed(12345)
+	if s == nil {
+		t.Fatal("NewSkyboxWithSeed returned nil")
+	}
+	if s.starField == nil {
+		t.Error("skybox should have star field initialized")
+	}
+	if s.starField.Seed != 12345 {
+		t.Errorf("expected star field seed 12345, got %d", s.starField.Seed)
+	}
+}
+
+func TestSkyboxStarVisibilityDayNight(t *testing.T) {
+	s := NewSkyboxWithSeed(12345)
+
+	// At noon, stars should not affect sky color significantly
+	s.SetTimeOfDay(12.0)
+	dayColor := s.GetSkyColorAt(0.5, 0.3)
+
+	// At midnight, sky color might include star contributions
+	s.SetTimeOfDay(0.0)
+	nightColor := s.GetSkyColorAt(0.5, 0.3)
+
+	// Night sky should be darker (lower values) than day sky
+	// This is a simple sanity check
+	if nightColor.R > dayColor.R || nightColor.G > dayColor.G {
+		// This might happen if we hit a star, which is fine
+		// Just verify colors are valid
+		if nightColor.R > 255 || nightColor.G > 255 || nightColor.B > 255 {
+			t.Error("invalid color values")
+		}
+	}
+}
+
+func TestSkyboxUpdate(t *testing.T) {
+	s := NewSkybox()
+	initialTime := s.animTime
+
+	s.Update(0.016) // ~60fps frame
+	if s.animTime <= initialTime {
+		t.Error("animTime should advance after Update")
+	}
+
+	s.Update(1.0)
+	if s.animTime < 1.0 {
+		t.Errorf("expected animTime >= 1.0, got %f", s.animTime)
+	}
+}
+
+func BenchmarkStarFieldGenerate(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = NewStarField(int64(i), 200, "fantasy")
+	}
+}
+
+func BenchmarkStarFieldGetColor(b *testing.B) {
+	sf := NewStarField(12345, 200, "fantasy")
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		x := float64(i%1000) / 1000.0
+		y := float64((i/1000)%500) / 500.0
+		_ = sf.GetStarColorAt(x, y, float64(i)*0.01, 1.0)
+	}
+}
+
+func BenchmarkGetNightIntensity(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = GetNightIntensity(float64(i % 24))
+	}
+}

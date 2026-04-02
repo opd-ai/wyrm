@@ -1662,3 +1662,306 @@ func TestAppearanceConvenienceDefaults(t *testing.T) {
 		t.Errorf("expected damage overlay 0.0, got %f", app.DamageOverlay)
 	}
 }
+
+// ============================================================
+// Interactable Component Tests
+// ============================================================
+
+func TestInteractableType(t *testing.T) {
+	i := &Interactable{InteractionType: "use", Range: 2.0}
+	if i.Type() != "Interactable" {
+		t.Errorf("expected Interactable, got %s", i.Type())
+	}
+}
+
+func TestInteractableCanInteract(t *testing.T) {
+	tests := []struct {
+		name        string
+		interact    *Interactable
+		currentTime float64
+		expected    bool
+	}{
+		{
+			name:        "basic interaction available",
+			interact:    &Interactable{InteractionType: "use", Cooldown: 1.0, LastInteractTime: 0},
+			currentTime: 2.0,
+			expected:    true,
+		},
+		{
+			name:        "cooldown not elapsed",
+			interact:    &Interactable{InteractionType: "use", Cooldown: 1.0, LastInteractTime: 1.5},
+			currentTime: 2.0,
+			expected:    false,
+		},
+		{
+			name:        "cooldown elapsed",
+			interact:    &Interactable{InteractionType: "use", Cooldown: 1.0, LastInteractTime: 0.5},
+			currentTime: 2.0,
+			expected:    true,
+		},
+		{
+			name:        "single use not used",
+			interact:    &Interactable{InteractionType: "use", SingleUse: true, Used: false},
+			currentTime: 1.0,
+			expected:    true,
+		},
+		{
+			name:        "single use already used",
+			interact:    &Interactable{InteractionType: "use", SingleUse: true, Used: true},
+			currentTime: 1.0,
+			expected:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.interact.CanInteract(tt.currentTime)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestInteractableTriggerInteraction(t *testing.T) {
+	i := &Interactable{InteractionType: "use", SingleUse: false}
+	i.TriggerInteraction(5.0)
+
+	if i.LastInteractTime != 5.0 {
+		t.Errorf("expected LastInteractTime 5.0, got %f", i.LastInteractTime)
+	}
+	if i.Used {
+		t.Error("non-single-use should not be marked as used")
+	}
+
+	// Test single use
+	i2 := &Interactable{InteractionType: "pickup", SingleUse: true}
+	i2.TriggerInteraction(10.0)
+
+	if !i2.Used {
+		t.Error("single-use should be marked as used")
+	}
+}
+
+func TestNewSimpleInteractable(t *testing.T) {
+	i := NewSimpleInteractable("open", "Press E to open", 2.5)
+
+	if i.InteractionType != "open" {
+		t.Errorf("expected InteractionType 'open', got %s", i.InteractionType)
+	}
+	if i.Prompt != "Press E to open" {
+		t.Errorf("expected Prompt 'Press E to open', got %s", i.Prompt)
+	}
+	if i.Range != 2.5 {
+		t.Errorf("expected Range 2.5, got %f", i.Range)
+	}
+	if i.Cooldown != 0.5 {
+		t.Errorf("expected default Cooldown 0.5, got %f", i.Cooldown)
+	}
+}
+
+func TestNewLockedInteractable(t *testing.T) {
+	i := NewLockedInteractable("unlock", "Requires key", "gold_key", 1.5)
+
+	if !i.Locked {
+		t.Error("expected Locked to be true")
+	}
+	if i.KeyID != "gold_key" {
+		t.Errorf("expected KeyID 'gold_key', got %s", i.KeyID)
+	}
+}
+
+func TestNewSkillCheckInteractable(t *testing.T) {
+	i := NewSkillCheckInteractable("lockpick", "Pick lock", "lockpicking", 5, 1.0)
+
+	if i.RequiredSkill != "lockpicking" {
+		t.Errorf("expected RequiredSkill 'lockpicking', got %s", i.RequiredSkill)
+	}
+	if i.SkillDifficulty != 5 {
+		t.Errorf("expected SkillDifficulty 5, got %d", i.SkillDifficulty)
+	}
+}
+
+// ============================================================
+// WorldItem Component Tests
+// ============================================================
+
+func TestWorldItemType(t *testing.T) {
+	w := &WorldItem{ItemID: "sword", Quantity: 1}
+	if w.Type() != "WorldItem" {
+		t.Errorf("expected WorldItem, got %s", w.Type())
+	}
+}
+
+func TestWorldItemCanPickup(t *testing.T) {
+	tests := []struct {
+		name        string
+		item        *WorldItem
+		entityID    uint64
+		currentTime float64
+		expected    bool
+	}{
+		{
+			name:        "basic item pickup",
+			item:        &WorldItem{ItemID: "gold", Quantity: 10},
+			entityID:    1,
+			currentTime: 0,
+			expected:    true,
+		},
+		{
+			name: "owned item - owner can pickup",
+			item: &WorldItem{
+				ItemID:      "rare_sword",
+				Quantity:    1,
+				Owner:       1,
+				OwnerExpiry: 100.0,
+			},
+			entityID:    1,
+			currentTime: 50.0,
+			expected:    true,
+		},
+		{
+			name: "owned item - non-owner cannot pickup",
+			item: &WorldItem{
+				ItemID:      "rare_sword",
+				Quantity:    1,
+				Owner:       1,
+				OwnerExpiry: 100.0,
+			},
+			entityID:    2,
+			currentTime: 50.0,
+			expected:    false,
+		},
+		{
+			name: "owned item - ownership expired",
+			item: &WorldItem{
+				ItemID:      "rare_sword",
+				Quantity:    1,
+				Owner:       1,
+				OwnerExpiry: 100.0,
+			},
+			entityID:    2,
+			currentTime: 150.0,
+			expected:    true,
+		},
+		{
+			name: "respawnable not yet respawned",
+			item: &WorldItem{
+				ItemID:         "herb",
+				Quantity:       1,
+				Respawnable:    true,
+				RespawnTime:    60.0,
+				LastPickupTime: 100.0,
+			},
+			entityID:    1,
+			currentTime: 120.0,
+			expected:    false,
+		},
+		{
+			name: "respawnable has respawned",
+			item: &WorldItem{
+				ItemID:         "herb",
+				Quantity:       1,
+				Respawnable:    true,
+				RespawnTime:    60.0,
+				LastPickupTime: 100.0,
+			},
+			entityID:    1,
+			currentTime: 200.0,
+			expected:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.item.CanPickup(tt.entityID, tt.currentTime)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestWorldItemPickup(t *testing.T) {
+	w := &WorldItem{ItemID: "gold", Quantity: 50}
+	w.Pickup(100.0)
+
+	if w.LastPickupTime != 100.0 {
+		t.Errorf("expected LastPickupTime 100.0, got %f", w.LastPickupTime)
+	}
+}
+
+func TestWorldItemIsRespawned(t *testing.T) {
+	// Non-respawnable item
+	w1 := &WorldItem{ItemID: "unique_item", Respawnable: false}
+	if w1.IsRespawned(1000.0) {
+		t.Error("non-respawnable item should never be considered respawned")
+	}
+
+	// Respawnable item, never picked up
+	w2 := &WorldItem{ItemID: "herb", Respawnable: true, RespawnTime: 60.0}
+	if !w2.IsRespawned(0.0) {
+		t.Error("never-picked-up respawnable should be available")
+	}
+
+	// Respawnable item, not yet respawned
+	w3 := &WorldItem{
+		ItemID:         "herb",
+		Respawnable:    true,
+		RespawnTime:    60.0,
+		LastPickupTime: 100.0,
+	}
+	if w3.IsRespawned(120.0) {
+		t.Error("item should not be respawned before respawn time")
+	}
+
+	// Respawnable item, has respawned
+	if !w3.IsRespawned(200.0) {
+		t.Error("item should be respawned after respawn time")
+	}
+}
+
+func TestNewWorldItem(t *testing.T) {
+	w := NewWorldItem("iron_ore", 5, "material")
+
+	if w.ItemID != "iron_ore" {
+		t.Errorf("expected ItemID 'iron_ore', got %s", w.ItemID)
+	}
+	if w.Quantity != 5 {
+		t.Errorf("expected Quantity 5, got %d", w.Quantity)
+	}
+	if w.Category != "material" {
+		t.Errorf("expected Category 'material', got %s", w.Category)
+	}
+	if w.StackLimit != 99 {
+		t.Errorf("expected default StackLimit 99, got %d", w.StackLimit)
+	}
+	if w.Rarity != "common" {
+		t.Errorf("expected default Rarity 'common', got %s", w.Rarity)
+	}
+}
+
+func TestNewRespawnableItem(t *testing.T) {
+	w := NewRespawnableItem("mushroom", 3, 120.0)
+
+	if !w.Respawnable {
+		t.Error("expected Respawnable to be true")
+	}
+	if w.RespawnTime != 120.0 {
+		t.Errorf("expected RespawnTime 120.0, got %f", w.RespawnTime)
+	}
+}
+
+func TestNewOwnedDrop(t *testing.T) {
+	w := NewOwnedDrop("epic_helm", 1, 42, 30.0, 1000.0)
+
+	if w.Owner != 42 {
+		t.Errorf("expected Owner 42, got %d", w.Owner)
+	}
+	if w.OwnerExpiry != 1030.0 {
+		t.Errorf("expected OwnerExpiry 1030.0, got %f", w.OwnerExpiry)
+	}
+	if w.SpawnTime != 1000.0 {
+		t.Errorf("expected SpawnTime 1000.0, got %f", w.SpawnTime)
+	}
+}

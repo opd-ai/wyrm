@@ -729,14 +729,14 @@ This does NOT move the camera — only the interaction target selection is assis
 
 #### `pkg/rendering/raycast/skybox.go`
 
-- [ ] Add `StarField` struct (new type — deterministic star positions)
-- [ ] Add `RenderToFramebuffer()` (new method — write sky pixels directly to framebuffer for ceiling area)
-- [ ] Add star rendering (new method — render stars during nighttime)
+- [x] Add `StarField` struct (new type — deterministic star positions)
+- [x] Add `RenderToFramebuffer()` (new method — write sky pixels directly to framebuffer for ceiling area; integrated into GetSkyColorAt)
+- [x] Add star rendering (new method — render stars during nighttime)
 - [x] Wire into `Draw()` pipeline (edit — called from `draw.go` during ceiling pass)
 
 #### `pkg/rendering/raycast/billboard.go`
 
-- [ ] Add `EnvironmentObject` struct (new type — extended sprite with interaction data)
+- [x] Add `EnvironmentObject` struct (new type — extended sprite with interaction data; implemented as SpriteEntity with InteractionType/InteractionRange/HighlightState fields)
 - [x] Add `CastInteractionRay()` (new method — single center-screen ray for interaction targeting)
 - [x] Modify `TransformEntityToScreen()` (edit — apply pitch offset to sprite vertical position)
 - [x] Add `DrawHighlight()` (new method — edge-detect and glow for interaction highlight)
