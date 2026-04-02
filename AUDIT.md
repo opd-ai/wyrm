@@ -549,8 +549,8 @@ Track issue resolution status below. Check off each item when the corresponding 
 - [x] **[P-003]**: Hoist FOV ray direction calculation out of floor loop
 
 ### 4. Technical Debt
-- [ ] **[Q-001]**: Clarify non-Component helper structs (20 types missing Type())
-- [ ] **[Q-003]**: Eliminate `_ = variable` suppression pattern (7 instances)
+- [x] **[Q-001]**: Clarify non-Component helper structs (20 types missing Type())
+- [x] **[Q-003]**: Eliminate `_ = variable` suppression pattern (7 instances)
 - [x] **[Q-004]**: Split 2,259-line client main.go into logical modules
 - [ ] **[Q-008]**: Remove or use computed-then-discarded values
 
