@@ -716,3 +716,418 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+// ShapeType constants for barrier sprite generation.
+const (
+	ShapeCylinder  = "cylinder"
+	ShapeBox       = "box"
+	ShapePolygon   = "polygon"
+	ShapeBillboard = "billboard"
+)
+
+// BarrierSpriteParams defines parameters for generating barrier sprites.
+type BarrierSpriteParams struct {
+	// ShapeType is the collision/visual shape type.
+	ShapeType string
+	// Width is the world-space width (for box shapes).
+	Width float64
+	// Depth is the world-space depth (for box shapes).
+	Depth float64
+	// Radius is the world-space radius (for cylinder shapes).
+	Radius float64
+	// Height is the world-space height.
+	Height float64
+	// Genre affects color palette and texture.
+	Genre string
+	// ArchetypeID identifies the barrier type for texture selection.
+	ArchetypeID string
+	// Destructible affects visual rendering (damage overlays).
+	Destructible bool
+	// DamagePercent is 0.0 (pristine) to 1.0 (destroyed).
+	DamagePercent float64
+	// Vertices for polygon shapes (x0,y0, x1,y1, ...).
+	Vertices []float64
+}
+
+// GenerateBarrierSprite creates a barrier sprite with alpha mask based on shape.
+func (g *Generator) GenerateBarrierSprite(params BarrierSpriteParams, seed int64) *Sprite {
+	rng := rand.New(rand.NewSource(seed))
+
+	// Calculate sprite dimensions from world-space dimensions
+	// Use a scale factor (pixels per world unit)
+	pixelsPerUnit := 32.0
+	var spriteWidth, spriteHeight int
+
+	switch params.ShapeType {
+	case ShapeCylinder:
+		spriteWidth = int(params.Radius * 2 * pixelsPerUnit)
+		spriteHeight = int(params.Height * pixelsPerUnit)
+	case ShapeBox:
+		spriteWidth = int(params.Width * pixelsPerUnit)
+		spriteHeight = int(params.Height * pixelsPerUnit)
+	case ShapePolygon:
+		spriteWidth, spriteHeight = g.calculatePolygonBounds(params.Vertices, pixelsPerUnit, params.Height)
+	default:
+		spriteWidth = int(pixelsPerUnit)
+		spriteHeight = int(params.Height * pixelsPerUnit)
+	}
+
+	// Clamp dimensions
+	if spriteWidth < 8 {
+		spriteWidth = 8
+	}
+	if spriteHeight < 8 {
+		spriteHeight = 8
+	}
+	if spriteWidth > MaxSpriteWidth {
+		spriteWidth = MaxSpriteWidth
+	}
+	if spriteHeight > MaxSpriteHeight {
+		spriteHeight = MaxSpriteHeight
+	}
+
+	sprite := NewSprite(spriteWidth, spriteHeight)
+
+	// Get genre-appropriate colors
+	baseColor, accentColor := g.getBarrierColors(params.Genre, params.ArchetypeID, rng)
+
+	// Generate the alpha mask based on shape
+	alphaMask := g.generateAlphaMask(params, spriteWidth, spriteHeight, rng)
+
+	// Fill sprite with textured pixels using alpha mask
+	g.fillBarrierTexture(sprite, alphaMask, baseColor, accentColor, params, rng)
+
+	// Apply damage overlay if applicable
+	if params.Destructible && params.DamagePercent > 0 {
+		g.applyDamageOverlay(sprite, alphaMask, params.DamagePercent, rng)
+	}
+
+	return sprite
+}
+
+// calculatePolygonBounds calculates sprite dimensions from polygon vertices.
+func (g *Generator) calculatePolygonBounds(vertices []float64, pixelsPerUnit, height float64) (int, int) {
+	if len(vertices) < 4 {
+		return 32, int(height * pixelsPerUnit)
+	}
+
+	minX, maxX := vertices[0], vertices[0]
+	for i := 0; i < len(vertices); i += 2 {
+		if vertices[i] < minX {
+			minX = vertices[i]
+		}
+		if vertices[i] > maxX {
+			maxX = vertices[i]
+		}
+	}
+
+	width := int((maxX - minX) * pixelsPerUnit)
+	spriteHeight := int(height * pixelsPerUnit)
+
+	if width < 16 {
+		width = 16
+	}
+
+	return width, spriteHeight
+}
+
+// generateAlphaMask creates an alpha mask based on the barrier shape.
+func (g *Generator) generateAlphaMask(params BarrierSpriteParams, width, height int, rng *rand.Rand) []uint8 {
+	mask := make([]uint8, width*height)
+
+	switch params.ShapeType {
+	case ShapeCylinder:
+		g.generateCylinderMask(mask, width, height, rng)
+	case ShapeBox:
+		g.generateBoxMask(mask, width, height, rng)
+	case ShapePolygon:
+		g.generatePolygonMask(mask, width, height, params.Vertices, rng)
+	default:
+		g.generateBoxMask(mask, width, height, rng)
+	}
+
+	return mask
+}
+
+// generateCylinderMask creates a cylindrical alpha mask with organic edge variation.
+func (g *Generator) generateCylinderMask(mask []uint8, width, height int, rng *rand.Rand) {
+	centerX := float64(width) / 2
+	radiusX := float64(width) / 2
+
+	// Add edge variation for organic look
+	edgeVariation := make([]float64, height)
+	for y := 0; y < height; y++ {
+		edgeVariation[y] = 1.0 + (rng.Float64()-0.5)*0.15
+	}
+
+	for y := 0; y < height; y++ {
+		effectiveRadius := radiusX * edgeVariation[y]
+		for x := 0; x < width; x++ {
+			dx := float64(x) - centerX
+			dist := math.Abs(dx)
+
+			if dist < effectiveRadius-1 {
+				mask[y*width+x] = 255
+			} else if dist < effectiveRadius {
+				// Anti-aliased edge
+				alpha := 255.0 * (effectiveRadius - dist)
+				mask[y*width+x] = uint8(alpha)
+			}
+		}
+	}
+}
+
+// generateBoxMask creates a rectangular alpha mask with optional edge roughness.
+func (g *Generator) generateBoxMask(mask []uint8, width, height int, rng *rand.Rand) {
+	// Add slight edge roughness
+	leftEdge := make([]int, height)
+	rightEdge := make([]int, height)
+
+	for y := 0; y < height; y++ {
+		leftEdge[y] = int(rng.Float64() * 2)
+		rightEdge[y] = width - 1 - int(rng.Float64()*2)
+	}
+
+	for y := 0; y < height; y++ {
+		for x := leftEdge[y]; x <= rightEdge[y]; x++ {
+			mask[y*width+x] = 255
+		}
+	}
+}
+
+// generatePolygonMask creates an alpha mask from polygon vertices.
+func (g *Generator) generatePolygonMask(mask []uint8, width, height int, vertices []float64, rng *rand.Rand) {
+	if len(vertices) < 6 {
+		g.generateBoxMask(mask, width, height, rng)
+		return
+	}
+
+	// Normalize vertices to sprite coordinates
+	minX, maxX := vertices[0], vertices[0]
+	minY, maxY := vertices[1], vertices[1]
+	for i := 0; i < len(vertices); i += 2 {
+		if vertices[i] < minX {
+			minX = vertices[i]
+		}
+		if vertices[i] > maxX {
+			maxX = vertices[i]
+		}
+		if i+1 < len(vertices) {
+			if vertices[i+1] < minY {
+				minY = vertices[i+1]
+			}
+			if vertices[i+1] > maxY {
+				maxY = vertices[i+1]
+			}
+		}
+	}
+
+	polyWidth := maxX - minX
+	polyHeight := maxY - minY
+	if polyWidth <= 0 || polyHeight <= 0 {
+		g.generateBoxMask(mask, width, height, rng)
+		return
+	}
+
+	// Scale vertices to sprite coordinates
+	scaledVerts := make([]float64, len(vertices))
+	for i := 0; i < len(vertices); i += 2 {
+		scaledVerts[i] = (vertices[i] - minX) / polyWidth * float64(width)
+		if i+1 < len(vertices) {
+			scaledVerts[i+1] = (vertices[i+1] - minY) / polyHeight * float64(height)
+		}
+	}
+
+	// Fill polygon using scanline algorithm
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			if g.pointInPolygon(float64(x)+0.5, float64(y)+0.5, scaledVerts) {
+				mask[y*width+x] = 255
+			}
+		}
+	}
+}
+
+// pointInPolygon tests if a point is inside a polygon using ray casting.
+func (g *Generator) pointInPolygon(x, y float64, vertices []float64) bool {
+	if len(vertices) < 6 {
+		return false
+	}
+
+	inside := false
+	n := len(vertices) / 2
+	j := n - 1
+
+	for i := 0; i < n; i++ {
+		xi, yi := vertices[i*2], vertices[i*2+1]
+		xj, yj := vertices[j*2], vertices[j*2+1]
+
+		if ((yi > y) != (yj > y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi) {
+			inside = !inside
+		}
+		j = i
+	}
+
+	return inside
+}
+
+// getBarrierColors returns genre-appropriate colors for barrier rendering.
+func (g *Generator) getBarrierColors(genre, archetypeID string, rng *rand.Rand) (base, accent color.RGBA) {
+	// Genre color palettes
+	switch genre {
+	case "fantasy":
+		base = color.RGBA{R: 140, G: 120, B: 100, A: 255} // Earthy brown
+		accent = color.RGBA{R: 80, G: 100, B: 60, A: 255} // Forest green
+	case "sci-fi":
+		base = color.RGBA{R: 120, G: 130, B: 150, A: 255}   // Cool metal
+		accent = color.RGBA{R: 100, G: 180, B: 200, A: 255} // Cyan glow
+	case "horror":
+		base = color.RGBA{R: 80, G: 70, B: 75, A: 255}    // Dark grey
+		accent = color.RGBA{R: 100, G: 60, B: 60, A: 255} // Dried blood
+	case "cyberpunk":
+		base = color.RGBA{R: 60, G: 60, B: 70, A: 255}     // Urban grey
+		accent = color.RGBA{R: 255, G: 50, B: 150, A: 255} // Neon pink
+	case "post-apocalyptic":
+		base = color.RGBA{R: 130, G: 110, B: 90, A: 255}    // Rust brown
+		accent = color.RGBA{R: 180, G: 150, B: 100, A: 255} // Sand
+	default:
+		base = color.RGBA{R: 128, G: 128, B: 128, A: 255}
+		accent = color.RGBA{R: 160, G: 160, B: 160, A: 255}
+	}
+
+	// Add random variation
+	base.R = uint8(clampInt(int(base.R)+rng.Intn(30)-15, 0, 255))
+	base.G = uint8(clampInt(int(base.G)+rng.Intn(30)-15, 0, 255))
+	base.B = uint8(clampInt(int(base.B)+rng.Intn(30)-15, 0, 255))
+
+	return base, accent
+}
+
+// fillBarrierTexture fills the sprite with textured pixels.
+func (g *Generator) fillBarrierTexture(sprite *Sprite, mask []uint8, base, accent color.RGBA, params BarrierSpriteParams, rng *rand.Rand) {
+	width, height := sprite.Width, sprite.Height
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			alpha := mask[y*width+x]
+			if alpha == 0 {
+				continue
+			}
+
+			// Mix base and accent based on noise
+			noise := rng.Float64()
+			var c color.RGBA
+			if noise < 0.7 {
+				c = base
+			} else {
+				c = accent
+			}
+
+			// Add subtle variation
+			c.R = uint8(clampInt(int(c.R)+rng.Intn(20)-10, 0, 255))
+			c.G = uint8(clampInt(int(c.G)+rng.Intn(20)-10, 0, 255))
+			c.B = uint8(clampInt(int(c.B)+rng.Intn(20)-10, 0, 255))
+			c.A = alpha
+
+			sprite.SetPixel(x, y, c)
+		}
+	}
+}
+
+// applyDamageOverlay adds cracks and damage effects to the sprite.
+func (g *Generator) applyDamageOverlay(sprite *Sprite, mask []uint8, damagePercent float64, rng *rand.Rand) {
+	width, height := sprite.Width, sprite.Height
+
+	// Number of cracks based on damage
+	numCracks := int(damagePercent * 10)
+
+	for i := 0; i < numCracks; i++ {
+		// Random crack start point
+		startX := rng.Intn(width)
+		startY := rng.Intn(height)
+
+		// Crack length based on damage
+		crackLen := int(damagePercent * float64(height) * 0.5)
+
+		// Draw jagged crack line
+		x, y := startX, startY
+		for j := 0; j < crackLen; j++ {
+			if x < 0 || x >= width || y < 0 || y >= height {
+				break
+			}
+
+			idx := y*width + x
+			if mask[idx] > 0 {
+				// Dark crack color
+				sprite.SetPixel(x, y, color.RGBA{R: 30, G: 25, B: 20, A: 255})
+			}
+
+			// Jagged movement
+			x += rng.Intn(3) - 1
+			y += 1
+		}
+	}
+
+	// Add some transparent holes at high damage
+	if damagePercent > 0.5 {
+		numHoles := int((damagePercent - 0.5) * 20)
+		for i := 0; i < numHoles; i++ {
+			hx := rng.Intn(width)
+			hy := rng.Intn(height)
+			holeRadius := 1 + rng.Intn(3)
+
+			for dy := -holeRadius; dy <= holeRadius; dy++ {
+				for dx := -holeRadius; dx <= holeRadius; dx++ {
+					px, py := hx+dx, hy+dy
+					if px >= 0 && px < width && py >= 0 && py < height {
+						if dx*dx+dy*dy <= holeRadius*holeRadius {
+							// Make hole semi-transparent
+							c := sprite.GetPixel(px, py)
+							c.A = uint8(float64(c.A) * 0.3)
+							sprite.SetPixel(px, py, c)
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// clampInt clamps an integer to [min, max].
+func clampInt(v, minV, maxV int) int {
+	if v < minV {
+		return minV
+	}
+	if v > maxV {
+		return maxV
+	}
+	return v
+}
+
+// GenerateBarrierSpriteSheet creates a sprite sheet with normal and damaged variants.
+func (g *Generator) GenerateBarrierSpriteSheet(params BarrierSpriteParams, seed int64) *SpriteSheet {
+	normal := g.GenerateBarrierSprite(params, seed)
+	sheet := NewSpriteSheet(normal.Width, normal.Height)
+
+	// Create idle animation with single frame
+	idleAnim := NewAnimation(AnimIdle, true)
+	idleAnim.AddFrame(normal)
+	sheet.AddAnimation(idleAnim)
+
+	// If destructible, add damaged variants
+	if params.Destructible {
+		damageStates := []float64{0.25, 0.5, 0.75, 1.0}
+		for i, dmg := range damageStates {
+			damagedParams := params
+			damagedParams.DamagePercent = dmg
+			damagedSprite := g.GenerateBarrierSprite(damagedParams, seed+int64(i+1))
+
+			stateName := "damaged_" + string('0'+rune(i+1))
+			damagedAnim := NewAnimation(stateName, false)
+			damagedAnim.AddFrame(damagedSprite)
+			sheet.AddAnimation(damagedAnim)
+		}
+	}
+
+	return sheet
+}

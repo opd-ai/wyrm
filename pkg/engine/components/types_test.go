@@ -64,6 +64,7 @@ func TestComponentImplementsInterface(t *testing.T) {
 		&Quest{Flags: make(map[string]bool)},
 		&WorldClock{},
 		&Skills{Levels: make(map[string]int), Experience: make(map[string]float64)},
+		&Barrier{},
 	}
 
 	for _, c := range components {
@@ -1122,5 +1123,258 @@ func TestAppearanceDefaults(t *testing.T) {
 	// Zero values are valid, just not visible
 	if a.Visible {
 		t.Error("expected default visible to be false")
+	}
+}
+
+func TestBarrierType(t *testing.T) {
+	b := &Barrier{
+		Shape: BarrierShape{ShapeType: "cylinder", Height: 2.0},
+		Genre: "fantasy",
+	}
+	if b.Type() != "Barrier" {
+		t.Errorf("expected Barrier, got %s", b.Type())
+	}
+}
+
+func TestNewBarrier(t *testing.T) {
+	b := NewBarrier("cylinder", "boulder_01", "fantasy", 1.5)
+	if b.Shape.ShapeType != "cylinder" {
+		t.Errorf("expected cylinder, got %s", b.Shape.ShapeType)
+	}
+	if b.Shape.SpriteKey != "boulder_01" {
+		t.Errorf("expected boulder_01, got %s", b.Shape.SpriteKey)
+	}
+	if b.Genre != "fantasy" {
+		t.Errorf("expected fantasy, got %s", b.Genre)
+	}
+	if b.Shape.Height != 1.5 {
+		t.Errorf("expected height 1.5, got %f", b.Shape.Height)
+	}
+	if b.Destructible {
+		t.Error("expected non-destructible by default")
+	}
+}
+
+func TestNewDestructibleBarrier(t *testing.T) {
+	b := NewDestructibleBarrier("box", "crate_01", "sci-fi", 1.0, 100.0)
+	if !b.Destructible {
+		t.Error("expected destructible")
+	}
+	if b.HitPoints != 100.0 {
+		t.Errorf("expected HitPoints 100.0, got %f", b.HitPoints)
+	}
+	if b.MaxHP != 100.0 {
+		t.Errorf("expected MaxHP 100.0, got %f", b.MaxHP)
+	}
+}
+
+func TestBarrierDamagePercent(t *testing.T) {
+	tests := []struct {
+		name        string
+		barrier     *Barrier
+		wantPercent float64
+	}{
+		{
+			name:        "non-destructible",
+			barrier:     NewBarrier("cylinder", "rock", "fantasy", 1.0),
+			wantPercent: 0.0,
+		},
+		{
+			name:        "undamaged",
+			barrier:     NewDestructibleBarrier("box", "crate", "sci-fi", 1.0, 100.0),
+			wantPercent: 0.0,
+		},
+		{
+			name: "half damaged",
+			barrier: &Barrier{
+				Destructible: true,
+				HitPoints:    50.0,
+				MaxHP:        100.0,
+			},
+			wantPercent: 0.5,
+		},
+		{
+			name: "fully destroyed",
+			barrier: &Barrier{
+				Destructible: true,
+				HitPoints:    0.0,
+				MaxHP:        100.0,
+			},
+			wantPercent: 1.0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.barrier.DamagePercent()
+			if got != tt.wantPercent {
+				t.Errorf("DamagePercent() = %f, want %f", got, tt.wantPercent)
+			}
+		})
+	}
+}
+
+func TestBarrierIsDamaged(t *testing.T) {
+	// Non-destructible is never damaged
+	b1 := NewBarrier("cylinder", "rock", "fantasy", 1.0)
+	if b1.IsDamaged() {
+		t.Error("non-destructible should not be damaged")
+	}
+
+	// Undamaged destructible
+	b2 := NewDestructibleBarrier("box", "crate", "sci-fi", 1.0, 100.0)
+	if b2.IsDamaged() {
+		t.Error("undamaged should not be damaged")
+	}
+
+	// Damaged destructible
+	b3 := NewDestructibleBarrier("box", "crate", "sci-fi", 1.0, 100.0)
+	b3.HitPoints = 50.0
+	if !b3.IsDamaged() {
+		t.Error("partially damaged should be damaged")
+	}
+}
+
+func TestBarrierIsDestroyed(t *testing.T) {
+	// Non-destructible is never destroyed
+	b1 := NewBarrier("cylinder", "rock", "fantasy", 1.0)
+	if b1.IsDestroyed() {
+		t.Error("non-destructible should not be destroyed")
+	}
+
+	// Undamaged destructible
+	b2 := NewDestructibleBarrier("box", "crate", "sci-fi", 1.0, 100.0)
+	if b2.IsDestroyed() {
+		t.Error("undamaged should not be destroyed")
+	}
+
+	// Destroyed
+	b3 := NewDestructibleBarrier("box", "crate", "sci-fi", 1.0, 100.0)
+	b3.HitPoints = 0.0
+	if !b3.IsDestroyed() {
+		t.Error("zero HP should be destroyed")
+	}
+}
+
+func TestBarrierShapeTypes(t *testing.T) {
+	shapeTypes := []string{"cylinder", "box", "polygon", "billboard"}
+
+	for _, st := range shapeTypes {
+		t.Run(st, func(t *testing.T) {
+			b := NewBarrier(st, "sprite_"+st, "fantasy", 2.0)
+			if b.Shape.ShapeType != st {
+				t.Errorf("expected ShapeType %s, got %s", st, b.Shape.ShapeType)
+			}
+		})
+	}
+}
+
+func TestBarrierArchetypeRegistry(t *testing.T) {
+	reg := NewBarrierArchetypeRegistry()
+
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+
+	for _, genre := range genres {
+		t.Run(genre, func(t *testing.T) {
+			archetypes := reg.GetArchetypes(genre)
+			if len(archetypes) == 0 {
+				t.Errorf("expected archetypes for genre %s", genre)
+			}
+
+			// Each genre should have all 3 categories
+			natural := reg.GetArchetypesByCategory(genre, BarrierCategoryNatural)
+			if len(natural) == 0 {
+				t.Errorf("expected natural archetypes for genre %s", genre)
+			}
+
+			constructed := reg.GetArchetypesByCategory(genre, BarrierCategoryConstructed)
+			if len(constructed) == 0 {
+				t.Errorf("expected constructed archetypes for genre %s", genre)
+			}
+
+			organic := reg.GetArchetypesByCategory(genre, BarrierCategoryOrganic)
+			if len(organic) == 0 {
+				t.Errorf("expected organic archetypes for genre %s", genre)
+			}
+		})
+	}
+}
+
+func TestBarrierArchetypeByID(t *testing.T) {
+	reg := NewBarrierArchetypeRegistry()
+
+	// Test known archetype
+	arch, found := reg.GetArchetypeByID("fantasy", "boulder")
+	if !found {
+		t.Error("expected to find boulder archetype")
+	}
+	if arch.Name != "Boulder" {
+		t.Errorf("expected Boulder, got %s", arch.Name)
+	}
+	if arch.ShapeType != "cylinder" {
+		t.Errorf("expected cylinder shape, got %s", arch.ShapeType)
+	}
+
+	// Test unknown archetype
+	_, found = reg.GetArchetypeByID("fantasy", "nonexistent")
+	if found {
+		t.Error("expected not to find nonexistent archetype")
+	}
+}
+
+func TestCreateBarrierFromArchetype(t *testing.T) {
+	reg := NewBarrierArchetypeRegistry()
+
+	arch, _ := reg.GetArchetypeByID("fantasy", "hedgerow")
+	barrier := CreateBarrierFromArchetype(arch, "hedgerow_sprite")
+
+	if barrier.Genre != "fantasy" {
+		t.Errorf("expected fantasy genre, got %s", barrier.Genre)
+	}
+	if !barrier.Destructible {
+		t.Error("expected destructible barrier")
+	}
+	if barrier.HitPoints != arch.BaseHP {
+		t.Errorf("expected HP %f, got %f", arch.BaseHP, barrier.HitPoints)
+	}
+	if barrier.Shape.SpriteKey != "hedgerow_sprite" {
+		t.Errorf("expected hedgerow_sprite, got %s", barrier.Shape.SpriteKey)
+	}
+}
+
+func TestBarrierArchetypeValidation(t *testing.T) {
+	reg := NewBarrierArchetypeRegistry()
+
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+
+	for _, genre := range genres {
+		archetypes := reg.GetArchetypes(genre)
+		for _, arch := range archetypes {
+			t.Run(genre+"/"+arch.ID, func(t *testing.T) {
+				// Every archetype should have required fields
+				if arch.ID == "" {
+					t.Error("archetype ID is empty")
+				}
+				if arch.Name == "" {
+					t.Error("archetype Name is empty")
+				}
+				if arch.Genre != genre {
+					t.Errorf("archetype Genre mismatch: expected %s, got %s", genre, arch.Genre)
+				}
+				if arch.ShapeType == "" {
+					t.Error("archetype ShapeType is empty")
+				}
+				if arch.BaseHeight <= 0 {
+					t.Errorf("archetype BaseHeight should be positive, got %f", arch.BaseHeight)
+				}
+				if arch.SpawnWeight <= 0 {
+					t.Errorf("archetype SpawnWeight should be positive, got %f", arch.SpawnWeight)
+				}
+				// Destructible barriers must have HP
+				if arch.Destructible && arch.BaseHP <= 0 {
+					t.Error("destructible archetype has no BaseHP")
+				}
+			})
+		}
 	}
 }

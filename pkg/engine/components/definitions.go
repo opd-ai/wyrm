@@ -1679,3 +1679,282 @@ func NewAppearance(category, bodyPlan, genre string) *Appearance {
 		GenreID:        genre,
 	}
 }
+
+// BarrierShape defines the collision and visual profile of a barrier.
+// NOTE: This is a helper struct used within Barrier, not an ECS component.
+type BarrierShape struct {
+	// ShapeType is the collision shape type: "cylinder", "box", "polygon", "billboard".
+	ShapeType string
+	// Radius is used for cylinder shapes.
+	Radius float64
+	// Width is used for box shapes.
+	Width float64
+	// Depth is used for box shapes.
+	Depth float64
+	// Height is the world-space height of the barrier.
+	Height float64
+	// Vertices defines polygon shapes as [x0,y0, x1,y1, ...] relative to center.
+	Vertices []float64
+	// SpriteKey is the key into sprite cache for visual representation.
+	SpriteKey string
+	// MaterialID indexes into MaterialRegistry for collision sound/effects.
+	MaterialID int
+}
+
+// Barrier is an ECS component for environmental barriers.
+type Barrier struct {
+	// Shape defines the collision and visual profile.
+	Shape BarrierShape
+	// Genre is the genre that generated this barrier.
+	Genre string
+	// Destructible indicates if the barrier can be destroyed.
+	Destructible bool
+	// HitPoints is the current health for destructible barriers.
+	HitPoints float64
+	// MaxHP is the maximum health for destructible barriers.
+	MaxHP float64
+}
+
+// Type returns the component type identifier for Barrier.
+func (b *Barrier) Type() string { return "Barrier" }
+
+// NewBarrier creates a new Barrier component with the given shape and genre.
+func NewBarrier(shapeType, spriteKey, genre string, height float64) *Barrier {
+	return &Barrier{
+		Shape: BarrierShape{
+			ShapeType: shapeType,
+			Height:    height,
+			SpriteKey: spriteKey,
+		},
+		Genre:        genre,
+		Destructible: false,
+		HitPoints:    0,
+		MaxHP:        0,
+	}
+}
+
+// NewDestructibleBarrier creates a destructible Barrier with health.
+func NewDestructibleBarrier(shapeType, spriteKey, genre string, height, maxHP float64) *Barrier {
+	return &Barrier{
+		Shape: BarrierShape{
+			ShapeType: shapeType,
+			Height:    height,
+			SpriteKey: spriteKey,
+		},
+		Genre:        genre,
+		Destructible: true,
+		HitPoints:    maxHP,
+		MaxHP:        maxHP,
+	}
+}
+
+// IsDamaged returns true if the barrier has taken damage.
+func (b *Barrier) IsDamaged() bool {
+	return b.Destructible && b.HitPoints < b.MaxHP
+}
+
+// IsDestroyed returns true if the barrier has been destroyed.
+func (b *Barrier) IsDestroyed() bool {
+	return b.Destructible && b.HitPoints <= 0
+}
+
+// DamagePercent returns the damage percentage (0.0 = pristine, 1.0 = destroyed).
+func (b *Barrier) DamagePercent() float64 {
+	if !b.Destructible || b.MaxHP <= 0 {
+		return 0
+	}
+	return 1.0 - (b.HitPoints / b.MaxHP)
+}
+
+// BarrierCategory represents a category of barrier (natural, constructed, organic).
+type BarrierCategory string
+
+const (
+	// BarrierCategoryNatural represents natural terrain obstacles.
+	BarrierCategoryNatural BarrierCategory = "natural"
+	// BarrierCategoryConstructed represents man-made structural barriers.
+	BarrierCategoryConstructed BarrierCategory = "constructed"
+	// BarrierCategoryOrganic represents living or once-living barriers.
+	BarrierCategoryOrganic BarrierCategory = "organic"
+)
+
+// BarrierArchetype defines a template for generating barriers of a specific type.
+type BarrierArchetype struct {
+	// ID is the unique identifier for this archetype.
+	ID string
+	// Name is the display name for this barrier type.
+	Name string
+	// Category is the barrier category (natural, constructed, organic).
+	Category BarrierCategory
+	// Genre is the genre this archetype belongs to.
+	Genre string
+	// ShapeType is the default collision shape type.
+	ShapeType string
+	// BaseRadius is the default radius for cylinder shapes.
+	BaseRadius float64
+	// BaseWidth is the default width for box shapes.
+	BaseWidth float64
+	// BaseDepth is the default depth for box shapes.
+	BaseDepth float64
+	// BaseHeight is the default height.
+	BaseHeight float64
+	// Destructible indicates if barriers of this type can be destroyed.
+	Destructible bool
+	// BaseHP is the base hit points for destructible barriers.
+	BaseHP float64
+	// SpawnWeight is the relative spawn probability (higher = more common).
+	SpawnWeight float64
+	// MaterialID is the default material ID.
+	MaterialID int
+}
+
+// BarrierArchetypeRegistry holds all registered barrier archetypes by genre.
+type BarrierArchetypeRegistry struct {
+	archetypes map[string][]BarrierArchetype
+}
+
+// NewBarrierArchetypeRegistry creates a registry pre-populated with genre archetypes.
+func NewBarrierArchetypeRegistry() *BarrierArchetypeRegistry {
+	r := &BarrierArchetypeRegistry{
+		archetypes: make(map[string][]BarrierArchetype),
+	}
+	r.registerFantasyArchetypes()
+	r.registerSciFiArchetypes()
+	r.registerHorrorArchetypes()
+	r.registerCyberpunkArchetypes()
+	r.registerPostApocArchetypes()
+	return r
+}
+
+// GetArchetypes returns all archetypes for a given genre.
+func (r *BarrierArchetypeRegistry) GetArchetypes(genre string) []BarrierArchetype {
+	return r.archetypes[genre]
+}
+
+// GetArchetypesByCategory returns archetypes for a genre filtered by category.
+func (r *BarrierArchetypeRegistry) GetArchetypesByCategory(genre string, category BarrierCategory) []BarrierArchetype {
+	all := r.archetypes[genre]
+	var filtered []BarrierArchetype
+	for _, a := range all {
+		if a.Category == category {
+			filtered = append(filtered, a)
+		}
+	}
+	return filtered
+}
+
+// GetArchetypeByID returns a specific archetype by ID and genre.
+func (r *BarrierArchetypeRegistry) GetArchetypeByID(genre, id string) (BarrierArchetype, bool) {
+	for _, a := range r.archetypes[genre] {
+		if a.ID == id {
+			return a, true
+		}
+	}
+	return BarrierArchetype{}, false
+}
+
+func (r *BarrierArchetypeRegistry) registerFantasyArchetypes() {
+	r.archetypes["fantasy"] = []BarrierArchetype{
+		// Natural
+		{ID: "boulder", Name: "Boulder", Category: BarrierCategoryNatural, Genre: "fantasy", ShapeType: "cylinder", BaseRadius: 0.8, BaseHeight: 1.2, SpawnWeight: 3.0, MaterialID: 1},
+		{ID: "ancient_tree", Name: "Ancient Tree", Category: BarrierCategoryNatural, Genre: "fantasy", ShapeType: "cylinder", BaseRadius: 1.2, BaseHeight: 4.0, SpawnWeight: 2.0, MaterialID: 2},
+		{ID: "crystal_formation", Name: "Crystal Formation", Category: BarrierCategoryNatural, Genre: "fantasy", ShapeType: "polygon", BaseHeight: 2.5, SpawnWeight: 1.0, MaterialID: 3},
+		// Constructed
+		{ID: "stone_pillar", Name: "Stone Pillar", Category: BarrierCategoryConstructed, Genre: "fantasy", ShapeType: "cylinder", BaseRadius: 0.5, BaseHeight: 3.0, SpawnWeight: 2.0, MaterialID: 1},
+		{ID: "archway", Name: "Stone Archway", Category: BarrierCategoryConstructed, Genre: "fantasy", ShapeType: "box", BaseWidth: 2.0, BaseDepth: 0.5, BaseHeight: 3.5, SpawnWeight: 1.0, MaterialID: 1},
+		{ID: "statue", Name: "Statue", Category: BarrierCategoryConstructed, Genre: "fantasy", ShapeType: "cylinder", BaseRadius: 0.6, BaseHeight: 2.5, Destructible: true, BaseHP: 150, SpawnWeight: 1.5, MaterialID: 1},
+		// Organic
+		{ID: "hedgerow", Name: "Hedgerow", Category: BarrierCategoryOrganic, Genre: "fantasy", ShapeType: "box", BaseWidth: 2.0, BaseDepth: 0.6, BaseHeight: 1.8, Destructible: true, BaseHP: 50, SpawnWeight: 2.5, MaterialID: 2},
+		{ID: "thornbush", Name: "Thornbush", Category: BarrierCategoryOrganic, Genre: "fantasy", ShapeType: "cylinder", BaseRadius: 0.7, BaseHeight: 1.2, Destructible: true, BaseHP: 30, SpawnWeight: 2.0, MaterialID: 2},
+		{ID: "vine_wall", Name: "Vine Wall", Category: BarrierCategoryOrganic, Genre: "fantasy", ShapeType: "box", BaseWidth: 3.0, BaseDepth: 0.3, BaseHeight: 2.5, Destructible: true, BaseHP: 80, SpawnWeight: 1.5, MaterialID: 2},
+	}
+}
+
+func (r *BarrierArchetypeRegistry) registerSciFiArchetypes() {
+	r.archetypes["sci-fi"] = []BarrierArchetype{
+		// Natural
+		{ID: "alien_rock", Name: "Alien Rock", Category: BarrierCategoryNatural, Genre: "sci-fi", ShapeType: "polygon", BaseHeight: 1.5, SpawnWeight: 2.5, MaterialID: 4},
+		{ID: "fungal_growth", Name: "Fungal Growth", Category: BarrierCategoryNatural, Genre: "sci-fi", ShapeType: "cylinder", BaseRadius: 0.9, BaseHeight: 1.8, Destructible: true, BaseHP: 40, SpawnWeight: 2.0, MaterialID: 5},
+		{ID: "crystal_node", Name: "Crystal Node", Category: BarrierCategoryNatural, Genre: "sci-fi", ShapeType: "cylinder", BaseRadius: 0.4, BaseHeight: 2.0, SpawnWeight: 1.5, MaterialID: 3},
+		// Constructed
+		{ID: "steel_beam", Name: "Steel Beam", Category: BarrierCategoryConstructed, Genre: "sci-fi", ShapeType: "box", BaseWidth: 0.3, BaseDepth: 0.3, BaseHeight: 4.0, SpawnWeight: 2.0, MaterialID: 6},
+		{ID: "energy_pylon", Name: "Energy Pylon", Category: BarrierCategoryConstructed, Genre: "sci-fi", ShapeType: "cylinder", BaseRadius: 0.5, BaseHeight: 3.5, SpawnWeight: 1.5, MaterialID: 6},
+		{ID: "antenna_array", Name: "Antenna Array", Category: BarrierCategoryConstructed, Genre: "sci-fi", ShapeType: "box", BaseWidth: 1.5, BaseDepth: 1.5, BaseHeight: 5.0, Destructible: true, BaseHP: 200, SpawnWeight: 1.0, MaterialID: 6},
+		// Organic
+		{ID: "bio_pod", Name: "Bio-Pod", Category: BarrierCategoryOrganic, Genre: "sci-fi", ShapeType: "cylinder", BaseRadius: 0.8, BaseHeight: 1.5, Destructible: true, BaseHP: 60, SpawnWeight: 2.0, MaterialID: 5},
+		{ID: "growth_membrane", Name: "Growth Membrane", Category: BarrierCategoryOrganic, Genre: "sci-fi", ShapeType: "box", BaseWidth: 2.5, BaseDepth: 0.2, BaseHeight: 2.0, Destructible: true, BaseHP: 25, SpawnWeight: 1.5, MaterialID: 5},
+		{ID: "tendril_curtain", Name: "Tendril Curtain", Category: BarrierCategoryOrganic, Genre: "sci-fi", ShapeType: "box", BaseWidth: 3.0, BaseDepth: 0.3, BaseHeight: 3.0, Destructible: true, BaseHP: 40, SpawnWeight: 1.0, MaterialID: 5},
+	}
+}
+
+func (r *BarrierArchetypeRegistry) registerHorrorArchetypes() {
+	r.archetypes["horror"] = []BarrierArchetype{
+		// Natural
+		{ID: "gnarled_tree", Name: "Gnarled Tree", Category: BarrierCategoryNatural, Genre: "horror", ShapeType: "cylinder", BaseRadius: 1.0, BaseHeight: 3.5, SpawnWeight: 2.5, MaterialID: 2},
+		{ID: "bone_pile", Name: "Bone Pile", Category: BarrierCategoryNatural, Genre: "horror", ShapeType: "cylinder", BaseRadius: 0.9, BaseHeight: 0.8, Destructible: true, BaseHP: 30, SpawnWeight: 2.0, MaterialID: 7},
+		{ID: "pulsing_hive", Name: "Pulsing Hive", Category: BarrierCategoryNatural, Genre: "horror", ShapeType: "cylinder", BaseRadius: 1.1, BaseHeight: 1.5, Destructible: true, BaseHP: 80, SpawnWeight: 1.0, MaterialID: 5},
+		// Constructed
+		{ID: "iron_gate", Name: "Iron Gate", Category: BarrierCategoryConstructed, Genre: "horror", ShapeType: "box", BaseWidth: 2.5, BaseDepth: 0.2, BaseHeight: 3.0, SpawnWeight: 1.5, MaterialID: 6},
+		{ID: "tombstone", Name: "Tombstone", Category: BarrierCategoryConstructed, Genre: "horror", ShapeType: "box", BaseWidth: 0.8, BaseDepth: 0.3, BaseHeight: 1.5, Destructible: true, BaseHP: 100, SpawnWeight: 3.0, MaterialID: 1},
+		{ID: "ritual_circle", Name: "Ritual Circle", Category: BarrierCategoryConstructed, Genre: "horror", ShapeType: "cylinder", BaseRadius: 1.5, BaseHeight: 0.1, SpawnWeight: 0.5, MaterialID: 1},
+		// Organic
+		{ID: "flesh_wall", Name: "Flesh Wall", Category: BarrierCategoryOrganic, Genre: "horror", ShapeType: "box", BaseWidth: 3.0, BaseDepth: 0.5, BaseHeight: 2.5, Destructible: true, BaseHP: 100, SpawnWeight: 1.0, MaterialID: 5},
+		{ID: "web_cluster", Name: "Web Cluster", Category: BarrierCategoryOrganic, Genre: "horror", ShapeType: "box", BaseWidth: 2.0, BaseDepth: 2.0, BaseHeight: 2.5, Destructible: true, BaseHP: 20, SpawnWeight: 2.0, MaterialID: 8},
+		{ID: "fungal_mass", Name: "Fungal Mass", Category: BarrierCategoryOrganic, Genre: "horror", ShapeType: "cylinder", BaseRadius: 1.2, BaseHeight: 1.0, Destructible: true, BaseHP: 50, SpawnWeight: 1.5, MaterialID: 5},
+	}
+}
+
+func (r *BarrierArchetypeRegistry) registerCyberpunkArchetypes() {
+	r.archetypes["cyberpunk"] = []BarrierArchetype{
+		// Natural (urban "natural")
+		{ID: "toxic_drum", Name: "Toxic Waste Drum", Category: BarrierCategoryNatural, Genre: "cyberpunk", ShapeType: "cylinder", BaseRadius: 0.4, BaseHeight: 1.0, Destructible: true, BaseHP: 50, SpawnWeight: 3.0, MaterialID: 6},
+		{ID: "mutant_flora", Name: "Mutant Flora", Category: BarrierCategoryNatural, Genre: "cyberpunk", ShapeType: "cylinder", BaseRadius: 0.7, BaseHeight: 1.5, Destructible: true, BaseHP: 30, SpawnWeight: 1.5, MaterialID: 5},
+		{ID: "debris_pile", Name: "Debris Pile", Category: BarrierCategoryNatural, Genre: "cyberpunk", ShapeType: "polygon", BaseHeight: 0.8, Destructible: true, BaseHP: 40, SpawnWeight: 2.5, MaterialID: 9},
+		// Constructed
+		{ID: "neon_sign", Name: "Neon Sign", Category: BarrierCategoryConstructed, Genre: "cyberpunk", ShapeType: "box", BaseWidth: 2.0, BaseDepth: 0.2, BaseHeight: 3.0, Destructible: true, BaseHP: 60, SpawnWeight: 2.0, MaterialID: 6},
+		{ID: "holographic_wall", Name: "Holographic Wall", Category: BarrierCategoryConstructed, Genre: "cyberpunk", ShapeType: "box", BaseWidth: 3.0, BaseDepth: 0.1, BaseHeight: 2.5, SpawnWeight: 1.0, MaterialID: 10},
+		{ID: "vending_machine", Name: "Vending Machine", Category: BarrierCategoryConstructed, Genre: "cyberpunk", ShapeType: "box", BaseWidth: 1.0, BaseDepth: 0.8, BaseHeight: 2.0, Destructible: true, BaseHP: 150, SpawnWeight: 2.5, MaterialID: 6},
+		// Organic
+		{ID: "graffiti_barrier", Name: "Graffiti Barrier", Category: BarrierCategoryOrganic, Genre: "cyberpunk", ShapeType: "box", BaseWidth: 2.5, BaseDepth: 0.3, BaseHeight: 2.0, Destructible: true, BaseHP: 80, SpawnWeight: 2.0, MaterialID: 9},
+		{ID: "plant_wall", Name: "Urban Plant Wall", Category: BarrierCategoryOrganic, Genre: "cyberpunk", ShapeType: "box", BaseWidth: 3.0, BaseDepth: 0.4, BaseHeight: 2.5, Destructible: true, BaseHP: 40, SpawnWeight: 1.0, MaterialID: 2},
+		{ID: "bio_wire_tangle", Name: "Bio-Wire Tangle", Category: BarrierCategoryOrganic, Genre: "cyberpunk", ShapeType: "cylinder", BaseRadius: 1.0, BaseHeight: 1.5, Destructible: true, BaseHP: 35, SpawnWeight: 1.5, MaterialID: 10},
+	}
+}
+
+func (r *BarrierArchetypeRegistry) registerPostApocArchetypes() {
+	r.archetypes["post-apocalyptic"] = []BarrierArchetype{
+		// Natural
+		{ID: "rubble_mound", Name: "Rubble Mound", Category: BarrierCategoryNatural, Genre: "post-apocalyptic", ShapeType: "polygon", BaseHeight: 1.2, SpawnWeight: 3.0, MaterialID: 9},
+		{ID: "burnt_tree", Name: "Burnt Tree", Category: BarrierCategoryNatural, Genre: "post-apocalyptic", ShapeType: "cylinder", BaseRadius: 0.6, BaseHeight: 2.5, SpawnWeight: 2.0, MaterialID: 2},
+		{ID: "crater_rim", Name: "Crater Rim", Category: BarrierCategoryNatural, Genre: "post-apocalyptic", ShapeType: "polygon", BaseHeight: 0.6, SpawnWeight: 1.0, MaterialID: 9},
+		// Constructed
+		{ID: "barricade", Name: "Barricade", Category: BarrierCategoryConstructed, Genre: "post-apocalyptic", ShapeType: "box", BaseWidth: 2.5, BaseDepth: 0.5, BaseHeight: 1.5, Destructible: true, BaseHP: 100, SpawnWeight: 2.5, MaterialID: 9},
+		{ID: "wrecked_car", Name: "Wrecked Car", Category: BarrierCategoryConstructed, Genre: "post-apocalyptic", ShapeType: "box", BaseWidth: 2.0, BaseDepth: 4.0, BaseHeight: 1.5, Destructible: true, BaseHP: 200, SpawnWeight: 2.0, MaterialID: 6},
+		{ID: "makeshift_wall", Name: "Makeshift Wall", Category: BarrierCategoryConstructed, Genre: "post-apocalyptic", ShapeType: "box", BaseWidth: 3.0, BaseDepth: 0.3, BaseHeight: 2.0, Destructible: true, BaseHP: 80, SpawnWeight: 2.0, MaterialID: 9},
+		// Organic
+		{ID: "overgrown_ruin", Name: "Overgrown Ruin", Category: BarrierCategoryOrganic, Genre: "post-apocalyptic", ShapeType: "polygon", BaseHeight: 2.0, SpawnWeight: 1.5, MaterialID: 9},
+		{ID: "thorn_thicket", Name: "Thorn Thicket", Category: BarrierCategoryOrganic, Genre: "post-apocalyptic", ShapeType: "cylinder", BaseRadius: 1.0, BaseHeight: 1.5, Destructible: true, BaseHP: 40, SpawnWeight: 2.0, MaterialID: 2},
+		{ID: "rad_fungus", Name: "Radioactive Fungus", Category: BarrierCategoryOrganic, Genre: "post-apocalyptic", ShapeType: "cylinder", BaseRadius: 0.8, BaseHeight: 1.0, Destructible: true, BaseHP: 25, SpawnWeight: 1.5, MaterialID: 5},
+	}
+}
+
+// CreateBarrierFromArchetype creates a Barrier component from an archetype template.
+func CreateBarrierFromArchetype(arch BarrierArchetype, spriteKey string) *Barrier {
+	shape := BarrierShape{
+		ShapeType:  arch.ShapeType,
+		Radius:     arch.BaseRadius,
+		Width:      arch.BaseWidth,
+		Depth:      arch.BaseDepth,
+		Height:     arch.BaseHeight,
+		SpriteKey:  spriteKey,
+		MaterialID: arch.MaterialID,
+	}
+
+	return &Barrier{
+		Shape:        shape,
+		Genre:        arch.Genre,
+		Destructible: arch.Destructible,
+		HitPoints:    arch.BaseHP,
+		MaxHP:        arch.BaseHP,
+	}
+}

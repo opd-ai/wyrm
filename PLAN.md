@@ -132,12 +132,12 @@
 
 **Milestone:** Natural/constructed barriers render as shaped sprites with collision.
 
-- [ ] Define `BarrierComponent` ECS component with shape, material, genre data
-- [ ] Define barrier archetypes per genre (boulders, pillars, hedgerows, wreckage)
-- [ ] Implement shaped billboard rendering (non-rectangular silhouettes via alpha masks)
-- [ ] Implement polygon-based collision for irregular barrier shapes
-- [ ] Add barrier spawn data to chunk `DetailSpawn` system
-- [ ] Procedural barrier sprite generation in `pkg/rendering/sprite/`
+- [x] Define `BarrierComponent` ECS component with shape, material, genre data
+- [x] Define barrier archetypes per genre (boulders, pillars, hedgerows, wreckage)
+- [x] Implement shaped billboard rendering (non-rectangular silhouettes via alpha masks)
+- [x] Implement polygon-based collision for irregular barrier shapes
+- [x] Add barrier spawn data to chunk `DetailSpawn` system
+- [x] Procedural barrier sprite generation in `pkg/rendering/sprite/`
 - [ ] Integration with existing `WorldChunkSystem`
 - [ ] Unit tests: collision detection, barrier sprite generation, genre variations
 

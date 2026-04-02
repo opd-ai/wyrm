@@ -80,7 +80,35 @@ const (
 	DetailSpawnScrap
 	DetailSpawnRubble
 	DetailSpawnBones
+
+	// Barrier spawn types (collidable environmental obstacles)
+	DetailSpawnBarrierNatural     // Natural barriers: boulders, rocks, fallen trees
+	DetailSpawnBarrierConstructed // Man-made barriers: walls, fences, barricades
+	DetailSpawnBarrierOrganic     // Organic barriers: hedges, mushroom clusters, bone piles
 )
+
+// BarrierSpawnData contains barrier-specific spawn configuration.
+// This data is used to create a Barrier ECS component when the spawn is instantiated.
+type BarrierSpawnData struct {
+	// ArchetypeID references a BarrierArchetype from the registry.
+	ArchetypeID string
+	// ShapeType is the collision shape: "cylinder", "box", "polygon", "billboard".
+	ShapeType string
+	// Radius is for cylinder shapes (world units).
+	Radius float64
+	// Width is for box shapes (world units).
+	Width float64
+	// Depth is for box shapes (world units).
+	Depth float64
+	// Height is the barrier height (world units).
+	Height float64
+	// Destructible indicates if this barrier can be destroyed.
+	Destructible bool
+	// HitPoints is the max HP for destructible barriers.
+	HitPoints float64
+	// MaterialID indexes into MaterialRegistry for collision effects.
+	MaterialID int
+}
 
 // DetailSpawn represents a spawned detail entity in the chunk.
 type DetailSpawn struct {
@@ -90,6 +118,14 @@ type DetailSpawn struct {
 	Scale     float64 // Size multiplier (0.5 to 1.5 typical)
 	Rotation  float64 // Rotation in radians
 	Variation int     // Variation index for visual variety
+	// BarrierData is populated only for barrier spawn types.
+	// For non-barrier spawns this will be nil.
+	BarrierData *BarrierSpawnData
+}
+
+// IsBarrier returns true if this spawn is a barrier type.
+func (d *DetailSpawn) IsBarrier() bool {
+	return d.Type >= DetailSpawnBarrierNatural && d.Type <= DetailSpawnBarrierOrganic
 }
 
 // NewChunk creates a new chunk at the given coordinates with generated terrain.
@@ -115,6 +151,44 @@ func NewChunkWithNoiseType(x, y, size int, seed int64, noiseType noise.NoiseType
 		TerrainTypes: terrainTypes,
 		BiomeMap:     biomeMap,
 		DetailSpawns: detailSpawns,
+		WallHeights:  wallHeights,
+	}
+}
+
+// NewChunkWithBarriers creates a chunk with both regular detail spawns and barrier spawns.
+// The genre parameter determines which barrier archetypes are available for spawning.
+func NewChunkWithBarriers(x, y, size int, seed int64, genre string) *Chunk {
+	return NewChunkWithBarriersAndConfig(x, y, size, seed, noise.NoiseTypeValue, genre, DefaultBarrierSpawnConfig())
+}
+
+// NewChunkWithBarriersAndConfig creates a chunk with detailed barrier spawn configuration.
+func NewChunkWithBarriersAndConfig(x, y, size int, seed int64, noiseType noise.NoiseType, genre string, barrierCfg BarrierSpawnConfig) *Chunk {
+	heightMap := generateHeightMapWithNoiseType(size, seed, noiseType)
+	elevationMap := generateElevationMapWithNoiseType(size, seed, heightMap, noiseType)
+	biomeMap := generateBiomeMapWorldSpace(x, y, size, seed)
+	terrainTypes := generateTerrainTypes(size, heightMap, elevationMap, biomeMap)
+	detailSpawns := generateDetailSpawns(size, seed, terrainTypes, biomeMap)
+	wallHeights := generateWallHeights(size, heightMap, elevationMap, terrainTypes)
+
+	// Generate barrier spawns with genre-specific configuration
+	barrierCfg.Genre = genre
+	barrierSpawns := GenerateBarrierSpawns(size, seed, terrainTypes, biomeMap, barrierCfg)
+
+	// Combine detail spawns and barrier spawns
+	allSpawns := make([]DetailSpawn, 0, len(detailSpawns)+len(barrierSpawns))
+	allSpawns = append(allSpawns, detailSpawns...)
+	allSpawns = append(allSpawns, barrierSpawns...)
+
+	return &Chunk{
+		X:            x,
+		Y:            y,
+		Size:         size,
+		Seed:         seed,
+		HeightMap:    heightMap,
+		ElevationMap: elevationMap,
+		TerrainTypes: terrainTypes,
+		BiomeMap:     biomeMap,
+		DetailSpawns: allSpawns,
 		WallHeights:  wallHeights,
 	}
 }
@@ -515,6 +589,241 @@ func selectFlatSpawn(biomeValue float64, rng *rand.Rand) *DetailSpawn {
 	}
 }
 
+// BarrierSpawnConfig holds configuration for barrier spawning in a chunk.
+type BarrierSpawnConfig struct {
+	// Genre determines which barrier archetypes to use.
+	Genre string
+	// Density is the probability multiplier for barrier spawns (0.0-1.0).
+	Density float64
+	// NaturalWeight is the relative weight for natural barriers.
+	NaturalWeight float64
+	// ConstructedWeight is the relative weight for constructed barriers.
+	ConstructedWeight float64
+	// OrganicWeight is the relative weight for organic barriers.
+	OrganicWeight float64
+}
+
+// DefaultBarrierSpawnConfig returns the default barrier spawn configuration.
+func DefaultBarrierSpawnConfig() BarrierSpawnConfig {
+	return BarrierSpawnConfig{
+		Genre:             "fantasy",
+		Density:           0.15, // 15% of spawn attempts may be barriers
+		NaturalWeight:     0.5,
+		ConstructedWeight: 0.2,
+		OrganicWeight:     0.3,
+	}
+}
+
+// selectBarrierSpawn chooses a barrier spawn based on terrain and configuration.
+// Returns nil if no barrier should spawn at this location.
+func selectBarrierSpawn(terrainType int, biomeValue float64, rng *rand.Rand, cfg BarrierSpawnConfig) *DetailSpawn {
+	// Barriers only spawn on specific terrain types
+	if terrainType == TerrainWater || terrainType == TerrainCliff {
+		return nil
+	}
+
+	// Apply density check
+	if rng.Float64() > cfg.Density {
+		return nil
+	}
+
+	// Select barrier category based on terrain type and weights
+	category := selectBarrierCategory(terrainType, biomeValue, rng, cfg)
+
+	// Create barrier spawn with archetype data
+	return createBarrierSpawn(category, cfg.Genre, rng)
+}
+
+// selectBarrierCategory chooses which category of barrier to spawn.
+func selectBarrierCategory(terrainType int, biomeValue float64, rng *rand.Rand, cfg BarrierSpawnConfig) DetailSpawnType {
+	// Calculate adjusted weights based on terrain
+	naturalW := cfg.NaturalWeight
+	constructedW := cfg.ConstructedWeight
+	organicW := cfg.OrganicWeight
+
+	// Adjust weights based on terrain
+	switch terrainType {
+	case TerrainForest:
+		// Forests favor organic and natural barriers
+		naturalW *= 1.5
+		organicW *= 2.0
+		constructedW *= 0.3
+	case TerrainHill, TerrainPeak:
+		// Mountains favor natural barriers (rocks, boulders)
+		naturalW *= 2.0
+		organicW *= 0.5
+		constructedW *= 0.5
+	case TerrainValley:
+		// Valleys have mixed barriers
+		naturalW *= 1.2
+		organicW *= 1.2
+	case TerrainFlat, TerrainRoad:
+		// Flat terrain and roads favor constructed barriers
+		constructedW *= 2.0
+		naturalW *= 0.7
+	}
+
+	// Normalize weights
+	total := naturalW + constructedW + organicW
+	if total <= 0 {
+		return DetailSpawnBarrierNatural
+	}
+
+	roll := rng.Float64() * total
+	if roll < naturalW {
+		return DetailSpawnBarrierNatural
+	}
+	if roll < naturalW+constructedW {
+		return DetailSpawnBarrierConstructed
+	}
+	return DetailSpawnBarrierOrganic
+}
+
+// createBarrierSpawn creates a DetailSpawn with barrier-specific data.
+func createBarrierSpawn(category DetailSpawnType, genre string, rng *rand.Rand) *DetailSpawn {
+	data := &BarrierSpawnData{
+		ArchetypeID: selectBarrierArchetypeID(category, genre, rng),
+	}
+
+	// Set default shape parameters based on category
+	switch category {
+	case DetailSpawnBarrierNatural:
+		data.ShapeType = "cylinder"
+		data.Radius = 0.3 + rng.Float64()*0.4 // 0.3 to 0.7
+		data.Height = 0.5 + rng.Float64()*1.5 // 0.5 to 2.0
+		data.Destructible = rng.Float64() < 0.3
+		if data.Destructible {
+			data.HitPoints = 50 + rng.Float64()*100 // 50 to 150
+		}
+		data.MaterialID = 1 // Stone/rock material
+
+	case DetailSpawnBarrierConstructed:
+		data.ShapeType = "box"
+		data.Width = 0.4 + rng.Float64()*0.6  // 0.4 to 1.0
+		data.Depth = 0.2 + rng.Float64()*0.3  // 0.2 to 0.5
+		data.Height = 0.8 + rng.Float64()*1.2 // 0.8 to 2.0
+		data.Destructible = rng.Float64() < 0.5
+		if data.Destructible {
+			data.HitPoints = 30 + rng.Float64()*70 // 30 to 100
+		}
+		data.MaterialID = 2 // Wood/metal material
+
+	case DetailSpawnBarrierOrganic:
+		data.ShapeType = "cylinder"
+		data.Radius = 0.4 + rng.Float64()*0.6  // 0.4 to 1.0
+		data.Height = 0.4 + rng.Float64()*1.0  // 0.4 to 1.4
+		data.Destructible = true               // Organic barriers are always destructible
+		data.HitPoints = 20 + rng.Float64()*40 // 20 to 60
+		data.MaterialID = 3                    // Organic material
+	}
+
+	return &DetailSpawn{
+		Type:        category,
+		BarrierData: data,
+	}
+}
+
+// selectBarrierArchetypeID returns an appropriate archetype ID for the barrier.
+func selectBarrierArchetypeID(category DetailSpawnType, genre string, rng *rand.Rand) string {
+	// Define archetype IDs per category and genre
+	archetypes := getBarrierArchetypeIDs(category, genre)
+	if len(archetypes) == 0 {
+		return "generic_barrier"
+	}
+	return archetypes[rng.Intn(len(archetypes))]
+}
+
+// getBarrierArchetypeIDs returns available archetype IDs for a category and genre.
+func getBarrierArchetypeIDs(category DetailSpawnType, genre string) []string {
+	// Map of genre -> category -> archetype IDs
+	// These match the archetypes defined in components.BarrierArchetypeRegistry
+	archetypeMap := map[string]map[DetailSpawnType][]string{
+		"fantasy": {
+			DetailSpawnBarrierNatural:     {"boulder", "stone_pillar", "fallen_tree"},
+			DetailSpawnBarrierConstructed: {"wooden_fence", "stone_wall", "iron_gate"},
+			DetailSpawnBarrierOrganic:     {"thorny_hedge", "giant_mushroom", "vine_cluster"},
+		},
+		"sci-fi": {
+			DetailSpawnBarrierNatural:     {"mineral_deposit", "crystal_formation", "meteor_fragment"},
+			DetailSpawnBarrierConstructed: {"force_barrier", "plasma_fence", "cargo_crate"},
+			DetailSpawnBarrierOrganic:     {"alien_flora", "bio_pod", "spore_cluster"},
+		},
+		"horror": {
+			DetailSpawnBarrierNatural:     {"grave_stone", "bone_pile", "corrupted_rock"},
+			DetailSpawnBarrierConstructed: {"rusted_fence", "coffin", "torture_device"},
+			DetailSpawnBarrierOrganic:     {"flesh_mass", "corpse_pile", "fungal_growth"},
+		},
+		"cyberpunk": {
+			DetailSpawnBarrierNatural:     {"concrete_block", "rubble_heap", "billboard_base"},
+			DetailSpawnBarrierConstructed: {"security_barrier", "neon_sign", "vending_machine"},
+			DetailSpawnBarrierOrganic:     {"dumpster", "trash_heap", "chemical_barrel"},
+		},
+		"post-apocalyptic": {
+			DetailSpawnBarrierNatural:     {"car_wreck", "rubble_mound", "crater_edge"},
+			DetailSpawnBarrierConstructed: {"scrap_wall", "barricade", "burned_vehicle"},
+			DetailSpawnBarrierOrganic:     {"mutant_growth", "rad_fungus", "bone_totem"},
+		},
+	}
+
+	genreMap, ok := archetypeMap[genre]
+	if !ok {
+		// Default to fantasy if genre not found
+		genreMap = archetypeMap["fantasy"]
+	}
+
+	return genreMap[category]
+}
+
+// GenerateBarrierSpawns generates barrier spawns for a chunk.
+// This is a separate pass from regular detail spawns for better control.
+func GenerateBarrierSpawns(size int, seed int64, terrainTypes []int, biomeMap []float64, cfg BarrierSpawnConfig) []DetailSpawn {
+	rng := rand.New(rand.NewSource(seed + 5000)) // Different offset from regular detail spawns
+	spawns := make([]DetailSpawn, 0)
+
+	// Calculate base number of barrier spawn attempts (fewer than regular details)
+	baseAttempts := (size * size * BaseDensity) / 300
+
+	for i := 0; i < baseAttempts; i++ {
+		// Random position within chunk
+		localX := rng.Float64() * float64(size)
+		localY := rng.Float64() * float64(size)
+
+		// Get terrain type at this position
+		gridX := int(localX)
+		gridY := int(localY)
+		if gridX >= size {
+			gridX = size - 1
+		}
+		if gridY >= size {
+			gridY = size - 1
+		}
+		idx := gridY*size + gridX
+		terrainType := terrainTypes[idx]
+
+		// Get biome value for density variation
+		biomeValue := 0.5
+		if biomeMap != nil && idx < len(biomeMap) {
+			biomeValue = biomeMap[idx]
+		}
+
+		// Try to spawn a barrier
+		spawn := selectBarrierSpawn(terrainType, biomeValue, rng, cfg)
+		if spawn == nil {
+			continue
+		}
+
+		spawn.LocalX = localX
+		spawn.LocalY = localY
+		spawn.Scale = 0.8 + rng.Float64()*0.4    // 0.8 to 1.2 (barriers vary less in size)
+		spawn.Rotation = rng.Float64() * 6.28318 // 0 to 2π
+		spawn.Variation = rng.Intn(4)            // 0 to 3
+
+		spawns = append(spawns, *spawn)
+	}
+
+	return spawns
+}
+
 // generateTerrainTypes classifies each cell based on height and slope.
 func generateTerrainTypes(size int, heightMap, elevationMap, biomeMap []float64) []int {
 	terrainTypes := make([]int, size*size)
@@ -826,6 +1135,54 @@ func (c *Chunk) GetDetailSpawnsInArea(minX, minY, maxX, maxY float64) []DetailSp
 // DetailSpawnCount returns the number of detail spawns in this chunk.
 func (c *Chunk) DetailSpawnCount() int {
 	return len(c.DetailSpawns)
+}
+
+// GetBarrierSpawns returns only barrier-type detail spawns in this chunk.
+func (c *Chunk) GetBarrierSpawns() []DetailSpawn {
+	if c.DetailSpawns == nil {
+		return nil
+	}
+
+	barriers := make([]DetailSpawn, 0)
+	for _, spawn := range c.DetailSpawns {
+		if spawn.IsBarrier() {
+			barriers = append(barriers, spawn)
+		}
+	}
+	return barriers
+}
+
+// GetBarrierSpawnsInArea returns barrier spawns within a local area.
+func (c *Chunk) GetBarrierSpawnsInArea(minX, minY, maxX, maxY float64) []DetailSpawn {
+	if c.DetailSpawns == nil {
+		return nil
+	}
+
+	result := make([]DetailSpawn, 0)
+	for _, spawn := range c.DetailSpawns {
+		if spawn.IsBarrier() &&
+			spawn.LocalX >= minX && spawn.LocalX <= maxX &&
+			spawn.LocalY >= minY && spawn.LocalY <= maxY {
+			result = append(result, spawn)
+		}
+	}
+	return result
+}
+
+// BarrierSpawnCount returns the number of barrier spawns in this chunk.
+func (c *Chunk) BarrierSpawnCount() int {
+	count := 0
+	for _, spawn := range c.DetailSpawns {
+		if spawn.IsBarrier() {
+			count++
+		}
+	}
+	return count
+}
+
+// AddBarrierSpawns adds barrier spawns to the existing detail spawns.
+func (c *Chunk) AddBarrierSpawns(barriers []DetailSpawn) {
+	c.DetailSpawns = append(c.DetailSpawns, barriers...)
 }
 
 // GetElevationDifference returns the elevation difference between two cells.

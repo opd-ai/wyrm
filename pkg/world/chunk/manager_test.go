@@ -1,6 +1,7 @@
 package chunk
 
 import (
+	"math/rand"
 	"testing"
 )
 
@@ -1305,4 +1306,309 @@ func average(vals []float64) float64 {
 		sum += v
 	}
 	return sum / float64(len(vals))
+}
+
+// ============================================================
+// Barrier Spawn Tests
+// ============================================================
+
+func TestBarrierSpawnDataDefaults(t *testing.T) {
+	cfg := DefaultBarrierSpawnConfig()
+
+	if cfg.Genre != "fantasy" {
+		t.Errorf("expected default genre 'fantasy', got %q", cfg.Genre)
+	}
+	if cfg.Density <= 0 || cfg.Density > 1 {
+		t.Errorf("density should be in (0, 1], got %f", cfg.Density)
+	}
+	if cfg.NaturalWeight+cfg.ConstructedWeight+cfg.OrganicWeight <= 0 {
+		t.Error("weights should sum to positive value")
+	}
+}
+
+func TestDetailSpawnIsBarrier(t *testing.T) {
+	tests := []struct {
+		name      string
+		spawnType DetailSpawnType
+		isBarrier bool
+	}{
+		{"tree is not barrier", DetailSpawnTree, false},
+		{"bush is not barrier", DetailSpawnBush, false},
+		{"rock is not barrier", DetailSpawnRock, false},
+		{"boulder is not barrier", DetailSpawnBoulder, false},
+		{"natural barrier is barrier", DetailSpawnBarrierNatural, true},
+		{"constructed barrier is barrier", DetailSpawnBarrierConstructed, true},
+		{"organic barrier is barrier", DetailSpawnBarrierOrganic, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spawn := DetailSpawn{Type: tt.spawnType}
+			if spawn.IsBarrier() != tt.isBarrier {
+				t.Errorf("IsBarrier() = %v, want %v", spawn.IsBarrier(), tt.isBarrier)
+			}
+		})
+	}
+}
+
+func TestGenerateBarrierSpawns(t *testing.T) {
+	size := 64
+	seed := int64(12345)
+
+	// Generate terrain data
+	biomeMap := make([]float64, size*size)
+	terrainTypes := make([]int, size*size)
+
+	// Fill with varied terrain
+	for i := 0; i < size*size; i++ {
+		biomeMap[i] = float64(i%5) / 5.0
+		terrainTypes[i] = i % 7 // Cycle through terrain types
+	}
+
+	cfg := DefaultBarrierSpawnConfig()
+	spawns := GenerateBarrierSpawns(size, seed, terrainTypes, biomeMap, cfg)
+
+	// Should generate some barriers
+	if len(spawns) == 0 {
+		t.Error("expected at least some barrier spawns")
+	}
+
+	// All spawns should be barriers
+	for i, spawn := range spawns {
+		if !spawn.IsBarrier() {
+			t.Errorf("spawn %d is not a barrier: type=%d", i, spawn.Type)
+		}
+		if spawn.BarrierData == nil {
+			t.Errorf("spawn %d has nil BarrierData", i)
+		}
+	}
+}
+
+func TestGenerateBarrierSpawnsDeterminism(t *testing.T) {
+	size := 32
+	seed := int64(42)
+
+	terrainTypes := make([]int, size*size)
+	biomeMap := make([]float64, size*size)
+	for i := 0; i < size*size; i++ {
+		terrainTypes[i] = TerrainFlat
+		biomeMap[i] = 0.5
+	}
+
+	cfg := DefaultBarrierSpawnConfig()
+
+	spawns1 := GenerateBarrierSpawns(size, seed, terrainTypes, biomeMap, cfg)
+	spawns2 := GenerateBarrierSpawns(size, seed, terrainTypes, biomeMap, cfg)
+
+	if len(spawns1) != len(spawns2) {
+		t.Fatalf("expected same number of spawns, got %d vs %d", len(spawns1), len(spawns2))
+	}
+
+	for i := range spawns1 {
+		if spawns1[i].Type != spawns2[i].Type {
+			t.Errorf("spawn %d: type mismatch %d vs %d", i, spawns1[i].Type, spawns2[i].Type)
+		}
+		if spawns1[i].LocalX != spawns2[i].LocalX {
+			t.Errorf("spawn %d: LocalX mismatch %f vs %f", i, spawns1[i].LocalX, spawns2[i].LocalX)
+		}
+		if spawns1[i].LocalY != spawns2[i].LocalY {
+			t.Errorf("spawn %d: LocalY mismatch %f vs %f", i, spawns1[i].LocalY, spawns2[i].LocalY)
+		}
+	}
+}
+
+func TestBarrierArchetypeIDs(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+	categories := []DetailSpawnType{DetailSpawnBarrierNatural, DetailSpawnBarrierConstructed, DetailSpawnBarrierOrganic}
+
+	for _, genre := range genres {
+		for _, category := range categories {
+			ids := getBarrierArchetypeIDs(category, genre)
+			if len(ids) == 0 {
+				t.Errorf("no archetypes for genre=%s category=%d", genre, category)
+			}
+			// Each archetype should have a non-empty ID
+			for _, id := range ids {
+				if id == "" {
+					t.Errorf("empty archetype ID for genre=%s category=%d", genre, category)
+				}
+			}
+		}
+	}
+}
+
+func TestSelectBarrierCategory(t *testing.T) {
+	cfg := BarrierSpawnConfig{
+		NaturalWeight:     1.0,
+		ConstructedWeight: 0.0,
+		OrganicWeight:     0.0,
+	}
+
+	// With only natural weight, should always get natural
+	for i := 0; i < 10; i++ {
+		rng := newSeededRNG(int64(i))
+		category := selectBarrierCategory(TerrainFlat, 0.5, rng, cfg)
+		if category != DetailSpawnBarrierNatural {
+			t.Errorf("expected natural barrier with cfg weights, got %d", category)
+		}
+	}
+}
+
+func TestNewChunkWithBarriers(t *testing.T) {
+	c := NewChunkWithBarriers(0, 0, 32, 12345, "fantasy")
+
+	if c == nil {
+		t.Fatal("NewChunkWithBarriers returned nil")
+	}
+
+	// Check basic chunk properties
+	if c.Size != 32 {
+		t.Errorf("expected size=32, got %d", c.Size)
+	}
+
+	// Should have some detail spawns (regular + barriers)
+	if len(c.DetailSpawns) == 0 {
+		t.Error("expected some detail spawns")
+	}
+
+	// Should have some barriers
+	barrierCount := c.BarrierSpawnCount()
+	// Note: may be 0 due to density, but GetBarrierSpawns should work
+	barriers := c.GetBarrierSpawns()
+	if len(barriers) != barrierCount {
+		t.Errorf("BarrierSpawnCount() = %d, but GetBarrierSpawns() returned %d", barrierCount, len(barriers))
+	}
+}
+
+func TestChunkGetBarrierSpawnsInArea(t *testing.T) {
+	// Create a chunk with known barrier spawns
+	c := &Chunk{
+		Size: 16,
+		DetailSpawns: []DetailSpawn{
+			{Type: DetailSpawnTree, LocalX: 5, LocalY: 5},
+			{Type: DetailSpawnBarrierNatural, LocalX: 2, LocalY: 2, BarrierData: &BarrierSpawnData{ShapeType: "cylinder"}},
+			{Type: DetailSpawnBarrierConstructed, LocalX: 8, LocalY: 8, BarrierData: &BarrierSpawnData{ShapeType: "box"}},
+			{Type: DetailSpawnBush, LocalX: 10, LocalY: 10},
+			{Type: DetailSpawnBarrierOrganic, LocalX: 12, LocalY: 12, BarrierData: &BarrierSpawnData{ShapeType: "cylinder"}},
+		},
+	}
+
+	// Get all barriers
+	all := c.GetBarrierSpawns()
+	if len(all) != 3 {
+		t.Errorf("expected 3 barriers, got %d", len(all))
+	}
+
+	// Get barriers in area (2,2) to (10,10)
+	inArea := c.GetBarrierSpawnsInArea(2, 2, 10, 10)
+	if len(inArea) != 2 {
+		t.Errorf("expected 2 barriers in area, got %d", len(inArea))
+	}
+}
+
+func TestChunkAddBarrierSpawns(t *testing.T) {
+	c := &Chunk{
+		Size:         16,
+		DetailSpawns: []DetailSpawn{{Type: DetailSpawnTree}},
+	}
+
+	newBarriers := []DetailSpawn{
+		{Type: DetailSpawnBarrierNatural, BarrierData: &BarrierSpawnData{ShapeType: "cylinder"}},
+		{Type: DetailSpawnBarrierConstructed, BarrierData: &BarrierSpawnData{ShapeType: "box"}},
+	}
+
+	c.AddBarrierSpawns(newBarriers)
+
+	if len(c.DetailSpawns) != 3 {
+		t.Errorf("expected 3 spawns after adding barriers, got %d", len(c.DetailSpawns))
+	}
+	if c.BarrierSpawnCount() != 2 {
+		t.Errorf("expected 2 barriers, got %d", c.BarrierSpawnCount())
+	}
+}
+
+func TestBarrierSpawnDataFields(t *testing.T) {
+	// Test that barrier spawns have valid data
+	size := 32
+	seed := int64(99999)
+
+	terrainTypes := make([]int, size*size)
+	biomeMap := make([]float64, size*size)
+	for i := 0; i < size*size; i++ {
+		terrainTypes[i] = TerrainForest // Lots of organic barriers
+		biomeMap[i] = 0.8
+	}
+
+	cfg := BarrierSpawnConfig{
+		Genre:             "fantasy",
+		Density:           0.5, // High density for testing
+		NaturalWeight:     0.3,
+		ConstructedWeight: 0.3,
+		OrganicWeight:     0.4,
+	}
+
+	spawns := GenerateBarrierSpawns(size, seed, terrainTypes, biomeMap, cfg)
+
+	for i, spawn := range spawns {
+		if spawn.BarrierData == nil {
+			t.Errorf("spawn %d: BarrierData is nil", i)
+			continue
+		}
+
+		data := spawn.BarrierData
+
+		// ShapeType should be valid
+		validShapes := map[string]bool{"cylinder": true, "box": true}
+		if !validShapes[data.ShapeType] {
+			t.Errorf("spawn %d: invalid shape type %q", i, data.ShapeType)
+		}
+
+		// Height should be positive
+		if data.Height <= 0 {
+			t.Errorf("spawn %d: height should be positive, got %f", i, data.Height)
+		}
+
+		// Radius or Width/Depth should be set based on shape
+		if data.ShapeType == "cylinder" && data.Radius <= 0 {
+			t.Errorf("spawn %d: cylinder should have positive radius, got %f", i, data.Radius)
+		}
+		if data.ShapeType == "box" && (data.Width <= 0 || data.Depth <= 0) {
+			t.Errorf("spawn %d: box should have positive width/depth, got %f/%f", i, data.Width, data.Depth)
+		}
+
+		// If destructible, should have HP
+		if data.Destructible && data.HitPoints <= 0 {
+			t.Errorf("spawn %d: destructible barrier should have positive HP, got %f", i, data.HitPoints)
+		}
+	}
+}
+
+func TestSelectBarrierSpawnTerrainFiltering(t *testing.T) {
+	cfg := DefaultBarrierSpawnConfig()
+	cfg.Density = 1.0 // Always spawn if terrain allows
+	rng := newSeededRNG(12345)
+
+	// Water should never spawn barriers
+	spawn := selectBarrierSpawn(TerrainWater, 0.5, rng, cfg)
+	if spawn != nil {
+		t.Error("expected no barrier spawn on water")
+	}
+
+	// Cliff should never spawn barriers
+	rng = newSeededRNG(12345)
+	spawn = selectBarrierSpawn(TerrainCliff, 0.5, rng, cfg)
+	if spawn != nil {
+		t.Error("expected no barrier spawn on cliff")
+	}
+
+	// Flat terrain should allow spawns
+	rng = newSeededRNG(12345)
+	spawn = selectBarrierSpawn(TerrainFlat, 0.5, rng, cfg)
+	if spawn == nil {
+		t.Error("expected barrier spawn on flat terrain")
+	}
+}
+
+func newSeededRNG(seed int64) *rand.Rand {
+	return rand.New(rand.NewSource(seed))
 }

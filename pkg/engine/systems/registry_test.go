@@ -1100,3 +1100,238 @@ func TestAudioSystemDisabledListener(t *testing.T) {
 		t.Error("AudioState was updated despite disabled listener")
 	}
 }
+
+// ============================================================
+// WorldChunkSystem Barrier Integration Tests
+// ============================================================
+
+// mockChunkLoaderWithBarriers creates chunks that have barrier spawns.
+type mockChunkLoaderWithBarriers struct {
+	chunks map[[2]int]*chunk.Chunk
+	calls  int
+}
+
+func newMockChunkLoaderWithBarriers() *mockChunkLoaderWithBarriers {
+	return &mockChunkLoaderWithBarriers{
+		chunks: make(map[[2]int]*chunk.Chunk),
+	}
+}
+
+func (m *mockChunkLoaderWithBarriers) GetChunk(x, y int) *chunk.Chunk {
+	m.calls++
+	key := [2]int{x, y}
+	if c, ok := m.chunks[key]; ok {
+		return c
+	}
+	// Create chunk with barriers
+	c := chunk.NewChunkWithBarriers(x, y, 16, int64(x*1000+y), "fantasy")
+	m.chunks[key] = c
+	return c
+}
+
+func TestWorldChunkSystemSpawnsBarriers(t *testing.T) {
+	w := ecs.NewWorld()
+	loader := newMockChunkLoaderWithBarriers()
+	sys := NewWorldChunkSystemWithGenre(loader, 16, "fantasy")
+	w.RegisterSystem(sys)
+
+	// Create entity with position to trigger chunk loading
+	e := w.CreateEntity()
+	_ = w.AddComponent(e, &components.Position{X: 8, Y: 8, Z: 0})
+
+	// Run update to load chunks
+	w.Update(0.016)
+
+	// System should have loaded chunks
+	if loader.calls == 0 {
+		t.Error("expected chunks to be loaded")
+	}
+
+	// Check if barrier count is tracked
+	chunkCount := sys.GetChunksWithBarriers()
+	if chunkCount == 0 {
+		t.Error("expected chunks to be tracked")
+	}
+}
+
+func TestWorldChunkSystemBarrierEntityCreation(t *testing.T) {
+	w := ecs.NewWorld()
+	loader := newMockChunkLoaderWithBarriers()
+	sys := NewWorldChunkSystemWithGenre(loader, 16, "fantasy")
+
+	// Pre-populate a chunk with known barrier data
+	testChunk := &chunk.Chunk{
+		X:    0,
+		Y:    0,
+		Size: 16,
+		DetailSpawns: []chunk.DetailSpawn{
+			{
+				Type:   chunk.DetailSpawnBarrierNatural,
+				LocalX: 5.0,
+				LocalY: 5.0,
+				Scale:  1.0,
+				BarrierData: &chunk.BarrierSpawnData{
+					ArchetypeID:  "boulder",
+					ShapeType:    "cylinder",
+					Radius:       0.5,
+					Height:       1.0,
+					Destructible: false,
+				},
+			},
+		},
+	}
+	loader.chunks[[2]int{0, 0}] = testChunk
+
+	w.RegisterSystem(sys)
+
+	// Create entity with position to trigger chunk loading
+	e := w.CreateEntity()
+	_ = w.AddComponent(e, &components.Position{X: 8, Y: 8, Z: 0})
+
+	// Run update
+	w.Update(0.016)
+
+	// Check that barrier entities were created
+	barrierEntities := w.Entities("Barrier")
+	if len(barrierEntities) == 0 {
+		t.Error("expected barrier entities to be created")
+	}
+
+	// Verify barrier has correct position
+	for _, be := range barrierEntities {
+		posComp, ok := w.GetComponent(be, "Position")
+		if !ok {
+			t.Error("barrier entity missing Position component")
+			continue
+		}
+		pos := posComp.(*components.Position)
+		// Position should be world-space (chunk offset + local)
+		if pos.X < 0 || pos.Y < 0 {
+			t.Errorf("unexpected barrier position: %f, %f", pos.X, pos.Y)
+		}
+
+		barrierComp, ok := w.GetComponent(be, "Barrier")
+		if !ok {
+			t.Error("barrier entity missing Barrier component")
+			continue
+		}
+		barrier := barrierComp.(*components.Barrier)
+		if barrier.Genre != "fantasy" {
+			t.Errorf("expected genre 'fantasy', got %q", barrier.Genre)
+		}
+	}
+}
+
+func TestWorldChunkSystemUnloadChunk(t *testing.T) {
+	w := ecs.NewWorld()
+	loader := newMockChunkLoaderWithBarriers()
+	sys := NewWorldChunkSystemWithGenre(loader, 16, "fantasy")
+
+	// Pre-populate a chunk with a barrier
+	testChunk := &chunk.Chunk{
+		X:    0,
+		Y:    0,
+		Size: 16,
+		DetailSpawns: []chunk.DetailSpawn{
+			{
+				Type:   chunk.DetailSpawnBarrierNatural,
+				LocalX: 5.0,
+				LocalY: 5.0,
+				Scale:  1.0,
+				BarrierData: &chunk.BarrierSpawnData{
+					ShapeType: "cylinder",
+					Radius:    0.5,
+					Height:    1.0,
+				},
+			},
+		},
+	}
+	loader.chunks[[2]int{0, 0}] = testChunk
+
+	w.RegisterSystem(sys)
+
+	// Create entity to trigger chunk loading
+	e := w.CreateEntity()
+	_ = w.AddComponent(e, &components.Position{X: 8, Y: 8, Z: 0})
+	w.Update(0.016)
+
+	// Count barriers before unload
+	barriersBefore := len(w.Entities("Barrier"))
+
+	// Unload the chunk
+	sys.UnloadChunk(w, 0, 0)
+
+	// Barrier entities should be removed
+	barriersAfter := len(w.Entities("Barrier"))
+	if barriersAfter >= barriersBefore && barriersBefore > 0 {
+		t.Errorf("expected barriers to be removed after unload, had %d, now %d", barriersBefore, barriersAfter)
+	}
+}
+
+func TestWorldChunkSystemDuplicateLoadPrevented(t *testing.T) {
+	w := ecs.NewWorld()
+	loader := newMockChunkLoaderWithBarriers()
+	sys := NewWorldChunkSystemWithGenre(loader, 16, "fantasy")
+
+	// Pre-populate a chunk with a barrier
+	testChunk := &chunk.Chunk{
+		X:    0,
+		Y:    0,
+		Size: 16,
+		DetailSpawns: []chunk.DetailSpawn{
+			{
+				Type:   chunk.DetailSpawnBarrierNatural,
+				LocalX: 5.0,
+				LocalY: 5.0,
+				Scale:  1.0,
+				BarrierData: &chunk.BarrierSpawnData{
+					ShapeType: "cylinder",
+					Radius:    0.5,
+					Height:    1.0,
+				},
+			},
+		},
+	}
+	loader.chunks[[2]int{0, 0}] = testChunk
+
+	w.RegisterSystem(sys)
+
+	// Create entity to trigger chunk loading
+	e := w.CreateEntity()
+	_ = w.AddComponent(e, &components.Position{X: 8, Y: 8, Z: 0})
+
+	// Run multiple updates
+	w.Update(0.016)
+	barriers1 := len(w.Entities("Barrier"))
+
+	w.Update(0.016)
+	barriers2 := len(w.Entities("Barrier"))
+
+	w.Update(0.016)
+	barriers3 := len(w.Entities("Barrier"))
+
+	// Barrier count should stay constant (no duplicates)
+	if barriers1 != barriers2 || barriers2 != barriers3 {
+		t.Errorf("barrier count changed across updates: %d -> %d -> %d", barriers1, barriers2, barriers3)
+	}
+}
+
+func TestChunkKey(t *testing.T) {
+	// Test that different coordinates produce different keys
+	key1 := chunkKey(0, 0)
+	key2 := chunkKey(1, 0)
+	key3 := chunkKey(0, 1)
+	key4 := chunkKey(-1, -1)
+
+	if key1 == key2 || key1 == key3 || key2 == key3 {
+		t.Error("different coordinates should produce different keys")
+	}
+	if key1 == key4 {
+		t.Error("(0,0) and (-1,-1) should have different keys")
+	}
+
+	// Test determinism
+	if chunkKey(5, 10) != chunkKey(5, 10) {
+		t.Error("same coordinates should produce same key")
+	}
+}

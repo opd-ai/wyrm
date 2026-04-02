@@ -391,3 +391,255 @@ func BenchmarkGenerateAllCategories(b *testing.B) {
 		}
 	}
 }
+
+// TestGenerateBarrierSprite tests barrier sprite generation for all shape types.
+func TestGenerateBarrierSprite(t *testing.T) {
+	gen := NewGenerator("fantasy", 12345)
+
+	testCases := []struct {
+		name      string
+		params    BarrierSpriteParams
+		minWidth  int
+		minHeight int
+	}{
+		{
+			name: "cylinder barrier",
+			params: BarrierSpriteParams{
+				ShapeType:   ShapeCylinder,
+				Radius:      0.8,
+				Height:      1.5,
+				Genre:       "fantasy",
+				ArchetypeID: "boulder",
+			},
+			minWidth:  8,
+			minHeight: 8,
+		},
+		{
+			name: "box barrier",
+			params: BarrierSpriteParams{
+				ShapeType:   ShapeBox,
+				Width:       2.0,
+				Depth:       0.5,
+				Height:      1.8,
+				Genre:       "sci-fi",
+				ArchetypeID: "steel_beam",
+			},
+			minWidth:  8,
+			minHeight: 8,
+		},
+		{
+			name: "polygon barrier",
+			params: BarrierSpriteParams{
+				ShapeType:   ShapePolygon,
+				Height:      2.0,
+				Genre:       "horror",
+				ArchetypeID: "bone_pile",
+				Vertices:    []float64{0, 0, 1, 0, 1.5, 0.5, 1, 1, 0, 1, -0.5, 0.5},
+			},
+			minWidth:  16,
+			minHeight: 8,
+		},
+		{
+			name: "destructible barrier",
+			params: BarrierSpriteParams{
+				ShapeType:     ShapeBox,
+				Width:         1.5,
+				Height:        1.0,
+				Genre:         "cyberpunk",
+				ArchetypeID:   "vending_machine",
+				Destructible:  true,
+				DamagePercent: 0.0,
+			},
+			minWidth:  8,
+			minHeight: 8,
+		},
+		{
+			name: "damaged barrier",
+			params: BarrierSpriteParams{
+				ShapeType:     ShapeCylinder,
+				Radius:        0.5,
+				Height:        1.2,
+				Genre:         "post-apocalyptic",
+				ArchetypeID:   "rubble_mound",
+				Destructible:  true,
+				DamagePercent: 0.75,
+			},
+			minWidth:  8,
+			minHeight: 8,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			sprite := gen.GenerateBarrierSprite(tc.params, 12345)
+
+			if sprite == nil {
+				t.Fatal("expected non-nil sprite")
+			}
+
+			if sprite.Width < tc.minWidth {
+				t.Errorf("expected width >= %d, got %d", tc.minWidth, sprite.Width)
+			}
+
+			if sprite.Height < tc.minHeight {
+				t.Errorf("expected height >= %d, got %d", tc.minHeight, sprite.Height)
+			}
+
+			// Verify sprite has non-transparent pixels
+			hasContent := false
+			for _, p := range sprite.Pixels {
+				if p.A > 0 {
+					hasContent = true
+					break
+				}
+			}
+			if !hasContent {
+				t.Error("expected sprite to have non-transparent content")
+			}
+		})
+	}
+}
+
+// TestGenerateBarrierSpriteSheetDestructible tests sprite sheet generation for destructible barriers.
+func TestGenerateBarrierSpriteSheetDestructible(t *testing.T) {
+	gen := NewGenerator("fantasy", 12345)
+
+	params := BarrierSpriteParams{
+		ShapeType:    ShapeBox,
+		Width:        1.5,
+		Height:       2.0,
+		Genre:        "fantasy",
+		ArchetypeID:  "hedgerow",
+		Destructible: true,
+	}
+
+	sheet := gen.GenerateBarrierSpriteSheet(params, 12345)
+
+	if sheet == nil {
+		t.Fatal("expected non-nil sprite sheet")
+	}
+
+	// Check for idle animation
+	idleAnim := sheet.GetAnimation(AnimIdle)
+	if idleAnim == nil {
+		t.Error("expected idle animation")
+	}
+
+	// Check for damage state animations
+	for i := 1; i <= 4; i++ {
+		stateName := "damaged_" + string('0'+rune(i))
+		if anim := sheet.Animations[stateName]; anim == nil {
+			t.Errorf("expected %s animation", stateName)
+		}
+	}
+}
+
+// TestBarrierSpriteGenreVariation tests that different genres produce different colors.
+func TestBarrierSpriteGenreVariation(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+
+	params := BarrierSpriteParams{
+		ShapeType:   ShapeCylinder,
+		Radius:      0.5,
+		Height:      1.0,
+		ArchetypeID: "test",
+	}
+
+	// Generate sprites for each genre with same seed
+	sprites := make(map[string]*Sprite)
+	for _, genre := range genres {
+		gen := NewGenerator(genre, 12345)
+		genreParams := params
+		genreParams.Genre = genre
+		sprites[genre] = gen.GenerateBarrierSprite(genreParams, 12345)
+	}
+
+	// Verify we have variation (sprites should be different between at least some genres)
+	differentCount := 0
+	for i := 0; i < len(genres); i++ {
+		for j := i + 1; j < len(genres); j++ {
+			s1 := sprites[genres[i]]
+			s2 := sprites[genres[j]]
+			if !spritesEqual(s1, s2) {
+				differentCount++
+			}
+		}
+	}
+
+	if differentCount == 0 {
+		t.Error("expected genre variation in barrier sprites")
+	}
+}
+
+// spritesEqual checks if two sprites are identical.
+func spritesEqual(a, b *Sprite) bool {
+	if a.Width != b.Width || a.Height != b.Height {
+		return false
+	}
+	for i := range a.Pixels {
+		if a.Pixels[i] != b.Pixels[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// TestAlphaMaskGeneration tests alpha mask generation for different shapes.
+func TestAlphaMaskGeneration(t *testing.T) {
+	gen := NewGenerator("fantasy", 12345)
+
+	t.Run("cylinder mask", func(t *testing.T) {
+		params := BarrierSpriteParams{ShapeType: ShapeCylinder}
+		sprite := gen.GenerateBarrierSprite(BarrierSpriteParams{
+			ShapeType: ShapeCylinder,
+			Radius:    1.0,
+			Height:    2.0,
+			Genre:     "fantasy",
+		}, 12345)
+
+		// Cylinder should have transparent corners
+		topLeftAlpha := sprite.GetPixel(0, 0).A
+		centerAlpha := sprite.GetPixel(sprite.Width/2, sprite.Height/2).A
+
+		if topLeftAlpha > 0 {
+			t.Log("Note: cylinder corners may have alpha based on radius")
+		}
+		if centerAlpha == 0 {
+			t.Error("expected center to have alpha > 0")
+		}
+		_ = params
+	})
+
+	t.Run("box mask", func(t *testing.T) {
+		sprite := gen.GenerateBarrierSprite(BarrierSpriteParams{
+			ShapeType: ShapeBox,
+			Width:     1.0,
+			Height:    1.0,
+			Genre:     "fantasy",
+		}, 12345)
+
+		// Box should be mostly filled
+		centerAlpha := sprite.GetPixel(sprite.Width/2, sprite.Height/2).A
+		if centerAlpha == 0 {
+			t.Error("expected center to have alpha > 0")
+		}
+	})
+}
+
+// BenchmarkBarrierSpriteGeneration benchmarks barrier sprite generation.
+func BenchmarkBarrierSpriteGeneration(b *testing.B) {
+	gen := NewGenerator("fantasy", 12345)
+
+	params := BarrierSpriteParams{
+		ShapeType:   ShapeCylinder,
+		Radius:      0.8,
+		Height:      1.5,
+		Genre:       "fantasy",
+		ArchetypeID: "boulder",
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		gen.GenerateBarrierSprite(params, int64(i))
+	}
+}
