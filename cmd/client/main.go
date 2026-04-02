@@ -126,7 +126,12 @@ type Game struct {
 
 // Update advances game state by one tick, processing player input and ECS systems.
 func (g *Game) Update() error {
-	const dt = 1.0 / 60.0
+	// Use actual TPS for frame-rate independence
+	actualTPS := ebiten.ActualTPS()
+	dt := 1.0 / 60.0 // fallback
+	if actualTPS > 0 {
+		dt = 1.0 / actualTPS
+	}
 	g.recordFrameTime(dt)
 	g.syncInputState()
 
@@ -139,8 +144,8 @@ func (g *Game) Update() error {
 	g.handleQuestToggle()
 	g.handleFactionToggle()
 
-	if g.handleQuitRequest() {
-		return nil
+	if err := g.handleQuitRequest(); err != nil {
+		return err
 	}
 
 	if g.updateActiveOverlay(dt) {
@@ -154,11 +159,12 @@ func (g *Game) Update() error {
 }
 
 // handleQuitRequest checks if quit was requested from menu.
-func (g *Game) handleQuitRequest() bool {
+// Returns ebiten.Termination to gracefully exit via Ebitengine's shutdown path.
+func (g *Game) handleQuitRequest() error {
 	if g.menu != nil && g.menu.QuitRequested() {
-		os.Exit(0)
+		return ebiten.Termination
 	}
-	return false
+	return nil
 }
 
 // updateActiveOverlay updates the currently open UI overlay.
@@ -205,6 +211,19 @@ func (g *Game) updateGameplay(dt float64) {
 	g.updateSubtitles(dt)
 	g.updateNetworkSync(dt)
 	g.updateBackgroundUI(dt)
+	g.syncRendererPosition()
+}
+
+// syncRendererPosition updates the renderer's camera position from player entity.
+// Must be called in Update(), not Draw(), to avoid race conditions per Ebitengine contract.
+func (g *Game) syncRendererPosition() {
+	if g.playerEntity == 0 || g.renderer == nil {
+		return
+	}
+	if comp, ok := g.world.GetComponent(g.playerEntity, "Position"); ok {
+		pos := comp.(*components.Position)
+		g.renderer.SetPlayerPos(pos.X, pos.Y, pos.Angle)
+	}
 }
 
 // updateNetworkSync synchronizes state with server if connected.
@@ -218,7 +237,8 @@ func (g *Game) updateNetworkSync(dt float64) {
 
 // updateBackgroundUI updates UI elements that run in the background.
 func (g *Game) updateBackgroundUI(dt float64) {
-	if g.questUI != nil {
+	// Only update questUI here if it's not the active overlay (avoids double-update)
+	if g.questUI != nil && !g.questUI.IsOpen() {
 		g.questUI.Update(g.world, dt)
 	}
 	if g.pvpUI != nil {
@@ -746,7 +766,11 @@ func (g *Game) rebuildWorldMap(centerChunkX, centerChunkY int) {
 			chunkX := centerChunkX + dx
 			chunkY := centerChunkY + dy
 			// GetChunkLODAsync returns placeholder while chunk generates in background
-			lodChunk, _ := g.lodManager.GetChunkLODAsync(chunkX, chunkY)
+			lodChunk, ok := g.lodManager.GetChunkLODAsync(chunkX, chunkY)
+			if !ok || lodChunk == nil {
+				// Skip chunk on error - player can still move through pending chunks
+				continue
+			}
 			g.sampleLODChunkIntoMap(worldMap, lodChunk, dx, dy, chunkSize)
 		}
 	}
@@ -757,6 +781,9 @@ func (g *Game) rebuildWorldMap(centerChunkX, centerChunkY int) {
 // sampleLODChunkIntoMap samples an LOD chunk's heightmap into the local world map.
 // Uses the LOD-appropriate heightmap which may be downsampled for distant chunks.
 func (g *Game) sampleLODChunkIntoMap(worldMap [][]int, lod *chunk.LODChunk, dx, dy, chunkSize int) {
+	if lod == nil {
+		return
+	}
 	sectionSize := g.mapSize / 3
 	startX := (dx + 1) * sectionSize
 	startY := (dy + 1) * sectionSize
@@ -833,9 +860,9 @@ func (g *Game) canMoveTo(x, y float64) bool {
 		mapX := int(checkX)
 		mapY := int(checkY)
 
-		// Bounds check
+		// Out of bounds - allow movement for seamless chunk transitions
 		if mapY < 0 || mapY >= len(g.worldMap) || mapX < 0 || mapX >= len(g.worldMap[0]) {
-			return false // Out of bounds is treated as wall
+			continue // Allow movement into areas outside loaded map
 		}
 
 		// Check if cell is a wall (value > 0)
@@ -995,13 +1022,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 // drawWorld renders the 3D world, NPCs, post-processing, and combat effects.
 func (g *Game) drawWorld(screen *ebiten.Image) {
-	// Sync player position to renderer
-	if g.playerEntity != 0 {
-		if comp, ok := g.world.GetComponent(g.playerEntity, "Position"); ok {
-			pos := comp.(*components.Position)
-			g.renderer.SetPlayerPos(pos.X, pos.Y, pos.Angle)
-		}
-	}
+	// Player position is synced in Update() via syncRendererPosition() to avoid
+	// race conditions between Update and Draw goroutines per Ebitengine contract.
 
 	// Render base scene (walls, floor, ceiling)
 	g.renderer.Draw(screen)
@@ -1796,7 +1818,8 @@ func uint32ToColor(c uint32) color.RGBA {
 
 // Layout returns the game's logical screen dimensions.
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return g.cfg.Window.Width, g.cfg.Window.Height
+	// Use actual window dimensions for responsive layout
+	return outsideWidth, outsideHeight
 }
 
 // startProfileServer starts the pprof HTTP server for runtime profiling.

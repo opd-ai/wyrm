@@ -399,9 +399,15 @@ func GetNPCEfficiency(occ *components.NPCOccupation) float64 {
 }
 
 // InitializeOccupation sets up default values for an occupation.
-func InitializeOccupation(occ *components.NPCOccupation, occupationType, genre string) {
+// Uses the provided RNG for deterministic initialization, or a default if rng is nil.
+func InitializeOccupation(occ *components.NPCOccupation, occupationType, genre string, rng *rand.Rand) {
 	occ.OccupationType = occupationType
-	occ.SkillLevel = 0.3 + math.Floor(rand.Float64()*5)/10 // 0.3-0.8
+	// Use provided RNG for deterministic skill level
+	if rng != nil {
+		occ.SkillLevel = 0.3 + math.Floor(rng.Float64()*5)/10 // 0.3-0.8
+	} else {
+		occ.SkillLevel = 0.5 // Default mid-range if no RNG provided
+	}
 	occ.WorkEfficiency = 1.0
 	occ.Fatigue = 0
 	occ.GoldPerHour = getBaseGoldPerHour(occupationType)

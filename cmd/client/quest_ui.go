@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -31,6 +32,10 @@ type QuestUI struct {
 	panelImage   *ebiten.Image // Main quest panel background
 	panelPixels  []byte        // Pixel buffer for panel
 	trackerImage *ebiten.Image // Quest tracker background
+	// Pre-allocated images to avoid per-frame GPU allocation
+	highlightBar *ebiten.Image // Selection highlight bar (reused for top/bottom)
+	notifBgImage *ebiten.Image // Notification background (reused for all notifications)
+	notifBgWidth int           // Current notification background width
 }
 
 // questDisplayInfo holds display information for a quest.
@@ -336,7 +341,7 @@ func (q *QuestUI) handleInput() {
 // handleMouseClick processes mouse clicks on the quest UI.
 func (q *QuestUI) handleMouseClick(mx, my int) {
 	// Check if click is in quest list area
-	screenW, screenH := 1280, 720 // Default, would get from ebiten.WindowSize() in production
+	screenW, screenH := ebiten.WindowSize()
 	startX := (screenW - questUIWidth) / 2
 	startY := (screenH - questUIHeight) / 2
 
@@ -492,19 +497,19 @@ func (q *QuestUI) drawQuestList(screen *ebiten.Image, x, y int) {
 		// Selection highlight using sub-image fill
 		if i == q.selectedQuestIdx {
 			highlightColor := color.RGBA{80, 80, 120, 200}
-			// Create temporary images for highlight bars
-			topBar := ebiten.NewImage(questListWidth, 1)
-			bottomBar := ebiten.NewImage(questListWidth, 1)
-			topBar.Fill(highlightColor)
-			bottomBar.Fill(highlightColor)
+			// Pre-allocate highlight bar once, reuse for top and bottom
+			if q.highlightBar == nil || q.highlightBar.Bounds().Dx() != questListWidth {
+				q.highlightBar = ebiten.NewImage(questListWidth, 1)
+			}
+			q.highlightBar.Fill(highlightColor)
 
 			opTop := &ebiten.DrawImageOptions{}
 			opTop.GeoM.Translate(float64(listX), float64(entryY-2))
-			screen.DrawImage(topBar, opTop)
+			screen.DrawImage(q.highlightBar, opTop)
 
 			opBottom := &ebiten.DrawImageOptions{}
 			opBottom.GeoM.Translate(float64(listX), float64(entryY+14))
-			screen.DrawImage(bottomBar, opBottom)
+			screen.DrawImage(q.highlightBar, opBottom)
 		}
 
 		// Quest status indicator
@@ -602,12 +607,19 @@ func (q *QuestUI) drawNotifications(screen *ebiten.Image) {
 		bgWidth := len(notif.Message)*6 + 10
 		bgHeight := 16
 
-		notifBg := ebiten.NewImage(bgWidth, bgHeight)
-		notifBg.Fill(bgColor)
+		// Pre-allocate notification background image, resize if needed
+		if q.notifBgImage == nil || q.notifBgWidth < bgWidth {
+			// Allocate with some buffer for longer messages
+			q.notifBgWidth = bgWidth + 50
+			q.notifBgImage = ebiten.NewImage(q.notifBgWidth, bgHeight)
+		}
+		q.notifBgImage.Fill(bgColor)
 
 		op := &ebiten.DrawImageOptions{}
 		op.GeoM.Translate(float64(notifX-5), float64(notifY-2))
-		screen.DrawImage(notifBg, op)
+		// Draw only the needed portion using SubImage
+		subImg := q.notifBgImage.SubImage(image.Rect(0, 0, bgWidth, bgHeight)).(*ebiten.Image)
+		screen.DrawImage(subImg, op)
 
 		ebitenutil.DebugPrintAt(screen, notif.Message, notifX, notifY)
 	}

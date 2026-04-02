@@ -2,6 +2,8 @@
 package systems
 
 import (
+	"sync"
+
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 )
@@ -10,6 +12,8 @@ import (
 type DialogConsequenceSystem struct {
 	// PendingConsequences queues consequences to process.
 	PendingConsequences []PendingConsequence
+	// mu protects PendingConsequences from concurrent access.
+	mu sync.Mutex
 }
 
 // PendingConsequence tracks a consequence waiting to be applied.
@@ -34,11 +38,15 @@ func NewDialogConsequenceSystem() *DialogConsequenceSystem {
 // Update processes pending dialog consequences.
 func (s *DialogConsequenceSystem) Update(w *ecs.World, dt float64) {
 	// Process all pending consequences
+	s.mu.Lock()
 	for len(s.PendingConsequences) > 0 {
 		pending := s.PendingConsequences[0]
 		s.PendingConsequences = s.PendingConsequences[1:]
+		s.mu.Unlock()
 		s.applyConsequences(w, pending)
+		s.mu.Lock()
 	}
+	s.mu.Unlock()
 
 	// Check for broken promises and update relationships
 	s.checkPromises(w, dt)
@@ -305,6 +313,8 @@ func (s *DialogConsequenceSystem) checkPromises(w *ecs.World, dt float64) {
 
 // QueueConsequence adds a consequence to be processed.
 func (s *DialogConsequenceSystem) QueueConsequence(player, npc ecs.Entity, optionID string, cons components.DialogConsequences) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.PendingConsequences = append(s.PendingConsequences, PendingConsequence{
 		PlayerEntity: player,
 		NPCEntity:    npc,

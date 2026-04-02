@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -39,6 +40,12 @@ type InventoryUI struct {
 	// Pre-allocated rendering images for batch GPU uploads
 	slotImage   *ebiten.Image // Reusable slot background
 	dialogImage *ebiten.Image // Confirmation dialog background
+	// Pre-allocated images to avoid per-frame GPU allocation
+	bgImage       *ebiten.Image // Background overlay
+	bgImageWidth  int
+	bgImageHeight int
+	barBgImage    *ebiten.Image // Capacity bar background
+	barFillImage  *ebiten.Image // Capacity bar fill
 }
 
 // NewInventoryUI creates a new inventory UI.
@@ -243,7 +250,7 @@ func (ui *InventoryUI) updateScrollOffset(itemCount int) {
 // getSlotAtPosition returns the slot index at the given screen position.
 func (ui *InventoryUI) getSlotAtPosition(x, y int) int {
 	// Calculate grid position
-	screenWidth, screenHeight := 1280, 720 // default dimensions
+	screenWidth, screenHeight := ebiten.WindowSize()
 	gridWidth := ui.gridCols*ui.slotSize + (ui.gridCols-1)*ui.padding
 	gridHeight := ui.gridRows*ui.slotSize + (ui.gridRows-1)*ui.padding
 	startX := (screenWidth - gridWidth) / 2
@@ -392,10 +399,15 @@ func (ui *InventoryUI) Draw(screen *ebiten.Image, world *ecs.World) {
 
 // drawBackground draws the semi-transparent overlay background using Fill.
 func (ui *InventoryUI) drawBackground(screen *ebiten.Image, width, height int) {
+	// Pre-allocate background image once, or reallocate if size changed
+	if ui.bgImage == nil || ui.bgImageWidth != width || ui.bgImageHeight != height {
+		ui.bgImage = ebiten.NewImage(width, height)
+		ui.bgImageWidth = width
+		ui.bgImageHeight = height
+	}
 	bgColor := color.RGBA{R: 20, G: 20, B: 30, A: 220}
-	bgImage := ebiten.NewImage(width, height)
-	bgImage.Fill(bgColor)
-	screen.DrawImage(bgImage, nil)
+	ui.bgImage.Fill(bgColor)
+	screen.DrawImage(ui.bgImage, nil)
 }
 
 // drawTitle draws the inventory title.
@@ -524,12 +536,14 @@ func (ui *InventoryUI) drawCapacityIndicator(screen *ebiten.Image, screenWidth, 
 	barX := screenWidth - barWidth - 20
 	barY := screenHeight - 25
 
-	// Background using Fill
-	barBgImage := ebiten.NewImage(barWidth, barHeight)
-	barBgImage.Fill(color.RGBA{R: 50, G: 50, B: 50, A: 255})
+	// Background using Fill - pre-allocate once
+	if ui.barBgImage == nil {
+		ui.barBgImage = ebiten.NewImage(barWidth, barHeight)
+	}
+	ui.barBgImage.Fill(color.RGBA{R: 50, G: 50, B: 50, A: 255})
 	opBg := &ebiten.DrawImageOptions{}
 	opBg.GeoM.Translate(float64(barX), float64(barY))
-	screen.DrawImage(barBgImage, opBg)
+	screen.DrawImage(ui.barBgImage, opBg)
 
 	// Fill
 	fillWidth := barWidth * itemCount / capacity
@@ -544,11 +558,16 @@ func (ui *InventoryUI) drawCapacityIndicator(screen *ebiten.Image, screenWidth, 
 		if itemCount >= capacity {
 			fillColor = color.RGBA{R: 200, G: 100, B: 100, A: 255}
 		}
-		fillImage := ebiten.NewImage(fillWidth, barHeight)
-		fillImage.Fill(fillColor)
+		// Pre-allocate bar fill image once with max width
+		if ui.barFillImage == nil {
+			ui.barFillImage = ebiten.NewImage(barWidth, barHeight)
+		}
+		ui.barFillImage.Fill(fillColor)
 		opFill := &ebiten.DrawImageOptions{}
 		opFill.GeoM.Translate(float64(barX), float64(barY))
-		screen.DrawImage(fillImage, opFill)
+		// Use SubImage to render only the needed portion
+		subImg := ui.barFillImage.SubImage(image.Rect(0, 0, fillWidth, barHeight)).(*ebiten.Image)
+		screen.DrawImage(subImg, opFill)
 	}
 }
 

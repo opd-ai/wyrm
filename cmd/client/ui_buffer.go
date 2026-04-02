@@ -18,6 +18,7 @@ type UIFramebuffer struct {
 	height int
 	pixels []byte
 	image  *ebiten.Image
+	dirty  bool // Tracks whether pixels have changed since last upload
 }
 
 // NewUIFramebuffer creates a new UIFramebuffer with the specified dimensions.
@@ -35,6 +36,7 @@ func (fb *UIFramebuffer) Clear() {
 	for i := range fb.pixels {
 		fb.pixels[i] = 0
 	}
+	fb.dirty = true
 }
 
 // ClearColor fills the entire framebuffer with the specified color.
@@ -48,6 +50,7 @@ func (fb *UIFramebuffer) ClearColor(c color.RGBA) {
 			fb.pixels[idx+3] = c.A
 		}
 	}
+	fb.dirty = true
 }
 
 // SetPixel sets a single pixel at (x, y) to the specified color.
@@ -61,6 +64,7 @@ func (fb *UIFramebuffer) SetPixel(x, y int, c color.RGBA) {
 	fb.pixels[idx+1] = c.G
 	fb.pixels[idx+2] = c.B
 	fb.pixels[idx+3] = c.A
+	fb.dirty = true
 }
 
 // SetPixelUint32 sets a single pixel using a uint32 color (RGBA format).
@@ -73,6 +77,7 @@ func (fb *UIFramebuffer) SetPixelUint32(x, y int, c uint32) {
 	fb.pixels[idx+1] = uint8(c >> 16)
 	fb.pixels[idx+2] = uint8(c >> 8)
 	fb.pixels[idx+3] = uint8(c)
+	fb.dirty = true
 }
 
 // BlendPixel alpha-blends a color onto the existing pixel at (x, y).
@@ -88,6 +93,7 @@ func (fb *UIFramebuffer) BlendPixel(x, y int, c color.RGBA) {
 	fb.pixels[idx+1] = uint8(float64(c.G)*srcA + float64(fb.pixels[idx+1])*dstA)
 	fb.pixels[idx+2] = uint8(float64(c.B)*srcA + float64(fb.pixels[idx+2])*dstA)
 	fb.pixels[idx+3] = uint8(float64(c.A)*srcA + float64(fb.pixels[idx+3])*dstA)
+	fb.dirty = true
 }
 
 // DrawRect fills a rectangle with the specified color.
@@ -146,19 +152,28 @@ func (fb *UIFramebuffer) DrawVLine(x, y, height int, c color.RGBA) {
 
 // Upload writes the pixel buffer to the GPU and returns the image for drawing.
 func (fb *UIFramebuffer) Upload() *ebiten.Image {
-	fb.image.WritePixels(fb.pixels)
+	if fb.dirty {
+		fb.image.WritePixels(fb.pixels)
+		fb.dirty = false
+	}
 	return fb.image
 }
 
 // UploadRegion uploads a specific region and returns a sub-image for drawing.
 func (fb *UIFramebuffer) UploadRegion(x, y, width, height int) *ebiten.Image {
-	fb.image.WritePixels(fb.pixels)
+	if fb.dirty {
+		fb.image.WritePixels(fb.pixels)
+		fb.dirty = false
+	}
 	return fb.image.SubImage(image.Rect(x, y, x+width, y+height)).(*ebiten.Image)
 }
 
 // DrawTo draws the framebuffer to the target screen at the specified position.
 func (fb *UIFramebuffer) DrawTo(screen *ebiten.Image, x, y int) {
-	fb.image.WritePixels(fb.pixels)
+	if fb.dirty {
+		fb.image.WritePixels(fb.pixels)
+		fb.dirty = false
+	}
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Translate(float64(x), float64(y))
 	screen.DrawImage(fb.image, op)
@@ -183,4 +198,5 @@ func (fb *UIFramebuffer) Resize(width, height int) {
 	fb.height = height
 	fb.pixels = make([]byte, width*height*4)
 	fb.image = ebiten.NewImage(width, height)
+	fb.dirty = true
 }

@@ -241,12 +241,19 @@ func (ui *PvPUI) drawLootDrop(screen *ebiten.Image) {
 	x := screenW/2 - 100
 	y := 150
 
-	// Fade based on time
+	// Fade based on time - compute as int first to avoid uint8 underflow
 	elapsed := time.Since(ui.dropShowTime).Seconds()
-	alpha := uint8(255 - int(elapsed*50))
-	if alpha < 50 {
-		alpha = 50
+	alphaVal := 255 - int(elapsed*50)
+	if alphaVal < 50 {
+		alphaVal = 50
 	}
+	if alphaVal > 255 {
+		alphaVal = 255
+	}
+	if alphaVal < 0 {
+		alphaVal = 0
+	}
+	alpha := uint8(alphaVal)
 
 	bgColor := color.RGBA{100, 30, 30, alpha}
 	ebitenutil.DrawRect(screen, float64(x), float64(y), 200, 60, bgColor)

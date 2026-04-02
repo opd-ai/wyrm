@@ -4,6 +4,7 @@ package ecs
 import (
 	"errors"
 	"sort"
+	"sync"
 )
 
 // Entity is a unique identifier for a game object.
@@ -24,6 +25,7 @@ var ErrEntityNotFound = errors.New("ecs: entity not found")
 
 // World holds all entities, their components, and the registered systems.
 type World struct {
+	mu         sync.RWMutex
 	nextID     Entity
 	components map[Entity]map[string]Component
 	systems    []System
@@ -39,6 +41,8 @@ func NewWorld() *World {
 
 // CreateEntity allocates a new entity and returns its ID.
 func (w *World) CreateEntity() Entity {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	id := w.nextID
 	w.nextID++
 	w.components[id] = make(map[string]Component)
@@ -47,12 +51,16 @@ func (w *World) CreateEntity() Entity {
 
 // DestroyEntity removes an entity and all its components.
 func (w *World) DestroyEntity(e Entity) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	delete(w.components, e)
 }
 
 // AddComponent attaches a component to an entity.
 // Returns ErrEntityNotFound if the entity does not exist.
 func (w *World) AddComponent(e Entity, c Component) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if _, ok := w.components[e]; !ok {
 		return ErrEntityNotFound
 	}
@@ -62,6 +70,8 @@ func (w *World) AddComponent(e Entity, c Component) error {
 
 // GetComponent retrieves a component by type from an entity.
 func (w *World) GetComponent(e Entity, typeName string) (Component, bool) {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
 	comps, ok := w.components[e]
 	if !ok {
 		return nil, false
@@ -72,6 +82,8 @@ func (w *World) GetComponent(e Entity, typeName string) (Component, bool) {
 
 // RemoveComponent removes a component by type from an entity.
 func (w *World) RemoveComponent(e Entity, typeName string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if comps, ok := w.components[e]; ok {
 		delete(comps, typeName)
 	}
@@ -80,6 +92,8 @@ func (w *World) RemoveComponent(e Entity, typeName string) {
 // Entities returns all entities that have the given component types,
 // sorted by entity ID for deterministic iteration order.
 func (w *World) Entities(types ...string) []Entity {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
 	var result []Entity
 	for e, comps := range w.components {
 		hasAll := true
@@ -111,6 +125,8 @@ func (w *World) Update(dt float64) {
 
 // AllEntities returns all entity IDs in the world, sorted for deterministic order.
 func (w *World) AllEntities() []Entity {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
 	result := make([]Entity, 0, len(w.components))
 	for e := range w.components {
 		result = append(result, e)
@@ -123,6 +139,8 @@ func (w *World) AllEntities() []Entity {
 // If the ID already exists, it returns the existing entity.
 // Updates nextID if the given ID is >= current nextID to prevent collisions.
 func (w *World) CreateEntityWithID(id Entity) Entity {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if _, exists := w.components[id]; !exists {
 		w.components[id] = make(map[string]Component)
 	}

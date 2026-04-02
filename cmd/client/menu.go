@@ -62,6 +62,10 @@ type Menu struct {
 	onSaveRequest func() error
 	onLoadRequest func() error
 	saveMessage   string // status message after save/load
+	// Pre-allocated overlay image to avoid per-frame GPU allocation
+	overlay       *ebiten.Image
+	overlayWidth  int
+	overlayHeight int
 }
 
 // NewMenu creates a new menu system.
@@ -631,13 +635,20 @@ func (m *Menu) Draw(screen *ebiten.Image) {
 		return
 	}
 
-	// Draw semi-transparent overlay
-	overlay := ebiten.NewImage(screen.Bounds().Dx(), screen.Bounds().Dy())
-	overlay.Fill(color.RGBA{0, 0, 0, 180})
-	screen.DrawImage(overlay, nil)
-
 	// Get screen dimensions
 	w, h := screen.Bounds().Dx(), screen.Bounds().Dy()
+
+	// Pre-allocate overlay image once, or reallocate if screen size changed
+	if m.overlay == nil || m.overlayWidth != w || m.overlayHeight != h {
+		m.overlay = ebiten.NewImage(w, h)
+		m.overlayWidth = w
+		m.overlayHeight = h
+	}
+
+	// Draw semi-transparent overlay
+	m.overlay.Fill(color.RGBA{0, 0, 0, 180})
+	screen.DrawImage(m.overlay, nil)
+
 	centerX := w / 2
 	centerY := h / 2
 

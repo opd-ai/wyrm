@@ -53,6 +53,10 @@ type DialogUI struct {
 	lastInteraction  time.Time
 	skillCheckResult *dialog.SkillCheckResult
 	world            *ecs.World // World reference for skill lookups
+	// Pre-allocated overlay image to avoid per-frame GPU allocation
+	overlayImage       *ebiten.Image
+	overlayImageWidth  int
+	overlayImageHeight int
 }
 
 // NewDialogUI creates a new dialog UI system.
@@ -463,14 +467,20 @@ func (d *DialogUI) drawOverlay(screen *ebiten.Image, width, height int) {
 	boxHeight := height / 3
 	boxY := height - boxHeight
 
+	// Pre-allocate overlay image once, or reallocate if size changed
+	if d.overlayImage == nil || d.overlayImageWidth != width || d.overlayImageHeight != boxHeight {
+		d.overlayImage = ebiten.NewImage(width, boxHeight)
+		d.overlayImageWidth = width
+		d.overlayImageHeight = boxHeight
+	}
+
 	// Draw semi-transparent background using Fill
 	bgColor := color.RGBA{R: 0, G: 0, B: 0, A: 180}
-	overlayImage := ebiten.NewImage(width, boxHeight)
-	overlayImage.Fill(bgColor)
+	d.overlayImage.Fill(bgColor)
 
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Translate(0, float64(boxY))
-	screen.DrawImage(overlayImage, op)
+	screen.DrawImage(d.overlayImage, op)
 }
 
 // drawNPCHeader draws the NPC name and emotional state.

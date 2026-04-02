@@ -1,6 +1,7 @@
 package systems
 
 import (
+	"math/rand"
 	"testing"
 
 	"github.com/opd-ai/wyrm/pkg/engine/components"
@@ -33,7 +34,8 @@ func TestNPCOccupationComponent(t *testing.T) {
 
 func TestInitializeOccupation(t *testing.T) {
 	occ := &components.NPCOccupation{}
-	InitializeOccupation(occ, OccupationMerchant, "fantasy")
+	rng := rand.New(rand.NewSource(12345))
+	InitializeOccupation(occ, OccupationMerchant, "fantasy", rng)
 
 	if occ.OccupationType != OccupationMerchant {
 		t.Errorf("OccupationType = %v, want %v", occ.OccupationType, OccupationMerchant)
@@ -281,7 +283,7 @@ func TestOccupationCapabilities(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.occupation, func(t *testing.T) {
 			occ := &components.NPCOccupation{}
-			InitializeOccupation(occ, tt.occupation, "fantasy")
+			InitializeOccupation(occ, tt.occupation, "fantasy", nil)
 			if occ.CanTrade != tt.canTrade {
 				t.Errorf("%v CanTrade = %v, want %v", tt.occupation, occ.CanTrade, tt.canTrade)
 			}

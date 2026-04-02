@@ -22,6 +22,7 @@ type Server struct {
 	lastAck       map[net.Conn]uint32 // Last acknowledged input sequence per client
 	clientChunks  map[net.Conn][2]int // Last known chunk position per client
 	running       bool
+	wg            sync.WaitGroup // Tracks all server goroutines for clean shutdown
 }
 
 // PlayerState stores authoritative player state.
@@ -55,12 +56,14 @@ func (s *Server) Start() error {
 	s.running = true
 	s.mu.Unlock()
 
+	s.wg.Add(1)
 	go s.acceptLoop()
 	return nil
 }
 
 // acceptLoop continuously accepts incoming connections.
 func (s *Server) acceptLoop() {
+	defer s.wg.Done()
 	for {
 		if s.shouldStopAccepting() {
 			return
@@ -86,6 +89,7 @@ func (s *Server) acceptConnection() {
 		return
 	}
 	s.registerClient(conn)
+	s.wg.Add(1)
 	go s.handleClient(conn)
 }
 
@@ -139,6 +143,7 @@ func (s *Server) registerClient(conn net.Conn) {
 
 // handleClient manages a single client connection.
 func (s *Server) handleClient(conn net.Conn) {
+	defer s.wg.Done()
 	defer s.cleanupClient(conn)
 
 	for {
@@ -307,14 +312,14 @@ func (s *Server) handlePingMessage(conn net.Conn) error {
 // handlePlayerInput processes player input from a client.
 func (s *Server) handlePlayerInput(conn net.Conn, input *PlayerInput) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	entityID, ok := s.clientPlayers[conn]
 	if !ok {
-		s.mu.Unlock()
 		return
 	}
 	state, ok := s.playerStates[entityID]
 	if !ok {
-		s.mu.Unlock()
 		return
 	}
 
@@ -335,10 +340,10 @@ func (s *Server) handlePlayerInput(conn net.Conn, input *PlayerInput) {
 
 	// Update last acknowledged sequence
 	s.lastAck[conn] = input.SequenceNum
-	s.mu.Unlock()
 
-	// Send acknowledgement with world state
-	s.sendWorldState(conn, entityID, input.SequenceNum)
+	// Send acknowledgement with world state (unlocks after this line via defer)
+	// Note: sendWorldState is called after unlock via goroutine to avoid holding lock
+	go s.sendWorldState(conn, entityID, input.SequenceNum)
 }
 
 // clampFloat32 clamps a value between min and max.
@@ -383,7 +388,9 @@ func (s *Server) sendWorldState(conn net.Conn, playerID uint64, ackSeq uint32) {
 		AckSequence:  ackSeq,
 		Entities:     entities,
 	}
-	_ = state.Encode(conn)
+	if err := state.Encode(conn); err != nil {
+		s.disconnectOnError(conn, err, "SendWorldState")
+	}
 }
 
 // SendEntityUpdate sends a single entity's state update to a client.
@@ -399,7 +406,9 @@ func (s *Server) SendEntityUpdate(conn net.Conn, entityID uint64, x, y, z, angle
 		Velocity:     velocity,
 		State:        state,
 	}
-	_ = update.Encode(conn)
+	if err := update.Encode(conn); err != nil {
+		s.disconnectOnError(conn, err, "SendEntityUpdate")
+	}
 }
 
 // BroadcastEntityUpdate sends an entity update to all connected clients.
@@ -424,7 +433,9 @@ func (s *Server) SendChunkData(conn net.Conn, chunkX, chunkY int32, chunkSize ui
 		HeightData:   heightData,
 		BiomeData:    biomeData,
 	}
-	_ = chunk.Encode(conn)
+	if err := chunk.Encode(conn); err != nil {
+		s.disconnectOnError(conn, err, "SendChunkData")
+	}
 }
 
 // handlePing responds to a ping with a pong.
@@ -433,7 +444,9 @@ func (s *Server) handlePing(conn net.Conn, ping *Ping) {
 		ClientTimeMs: ping.ClientTimeMs,
 		ServerTimeMs: uint32(serverTimeMs()),
 	}
-	_ = pong.Encode(conn)
+	if err := pong.Encode(conn); err != nil {
+		s.disconnectOnError(conn, err, "handlePing")
+	}
 }
 
 // serverTimeMs returns the current server time in milliseconds.
@@ -500,21 +513,39 @@ func (s *Server) removeClient(conn net.Conn) {
 	}
 }
 
+// disconnectOnError closes the connection and removes the client if an encode error occurs.
+// Returns true if an error occurred and the client was disconnected.
+func (s *Server) disconnectOnError(conn net.Conn, err error, context string) bool {
+	if err == nil {
+		return false
+	}
+	log.Printf("encode error (%s) for %s: %v, disconnecting client", context, conn.RemoteAddr(), err)
+	conn.Close()
+	s.removeClient(conn)
+	return true
+}
+
 // Stop closes the server listener and all client connections.
+// Waits for all server goroutines to finish before returning.
 func (s *Server) Stop() error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.running = false
+	// Close listener first to unblock Accept() in acceptLoop
+	var listenerErr error
+	if s.listener != nil {
+		listenerErr = s.listener.Close()
+		s.listener = nil
+	}
+	// Close all client connections to unblock handleClient goroutines
 	for _, c := range s.clients {
 		c.Close()
 	}
 	s.clients = nil
-	if s.listener != nil {
-		err := s.listener.Close()
-		s.listener = nil
-		return err
-	}
-	return nil
+	s.mu.Unlock()
+
+	// Wait for all goroutines to finish
+	s.wg.Wait()
+	return listenerErr
 }
 
 // ClientCount returns the number of connected clients.

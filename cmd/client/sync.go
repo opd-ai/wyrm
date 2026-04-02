@@ -309,10 +309,11 @@ func (s *StateSynchronizer) SendPlayerInput(moveForward, moveRight, turn float32
 		return nil
 	}
 
+	// Combine sequence increment and pending input append in a single critical section
+	// to prevent race condition between SendPlayerInput and receiveLoop
 	s.mu.Lock()
 	s.lastInputSeq++
 	seq := s.lastInputSeq
-	s.mu.Unlock()
 
 	input := &network.PlayerInput{
 		MoveForward:  moveForward,
@@ -326,7 +327,6 @@ func (s *StateSynchronizer) SendPlayerInput(moveForward, moveRight, turn float32
 	}
 
 	// Record for client-side prediction reconciliation
-	s.mu.Lock()
 	s.pendingInputs = append(s.pendingInputs, input)
 	s.mu.Unlock()
 

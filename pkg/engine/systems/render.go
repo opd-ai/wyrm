@@ -10,9 +10,10 @@ type RenderSystem struct {
 }
 
 // Update prepares render state based on player position each tick.
-func (s *RenderSystem) Update(w *ecs.World, dt float64) {
-	// Get player position for camera
-	if s.PlayerEntity != 0 {
-		_, _ = w.GetComponent(s.PlayerEntity, "Position")
-	}
+// Note: Camera sync is handled in the main game loop via syncRendererPosition()
+// to avoid circular dependencies with the Ebitengine renderer.
+func (s *RenderSystem) Update(w *ecs.World, _ float64) {
+	// Placeholder for future rendering preparation logic (e.g., culling, LOD selection).
+	// Camera position sync is handled externally due to renderer dependency.
+	_ = w // Acknowledge world parameter for interface compliance
 }
