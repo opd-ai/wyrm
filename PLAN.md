@@ -383,9 +383,9 @@ This avoids the need to sort walls by distance (which DDA handles implicitly for
 #### Climbable Objects
 
 When the player approaches a `FlagClimbable` barrier:
-- [ ] Check `barrier.ClimbHeight` vs player step height (configurable, default 0.5 world units)
-- [ ] If climbable: smoothly adjust `PlayerZ` over 0.3 seconds to rise over the barrier
-- [ ] On the other side: smoothly return `PlayerZ` to ground level
+- [x] Check `barrier.ClimbHeight` vs player step height (configurable, default 0.5 world units)
+- [x] If climbable: smoothly adjust `PlayerZ` over 0.3 seconds to rise over the barrier
+- [x] On the other side: smoothly return `PlayerZ` to ground level
 
 This reuses the `PlayerZ` field added for variable-height walls.
 
@@ -393,8 +393,8 @@ This reuses the `PlayerZ` field added for variable-height walls.
 
 Destructible barriers have `HitPoints`. When attacked:
 - [x] Reduce `HitPoints` by weapon damage
-- [ ] Update `DamageOverlay` on the barrier's `Appearance` component
-- [ ] At 50% HP: switch sprite to "damaged" variant (cracks, gaps increase)
+- [x] Update `DamageOverlay` on the barrier's `Appearance` component
+- [x] At 50% HP: switch sprite to "damaged" variant (cracks, gaps increase)
 - [x] At 0 HP: remove barrier entity, spawn debris particles, play destruction sound
 
 #### Performance Impact

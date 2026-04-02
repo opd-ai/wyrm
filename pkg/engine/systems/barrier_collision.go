@@ -375,6 +375,7 @@ func (s *BarrierDamageSystem) Update(w *ecs.World, dt float64) {
 }
 
 // DamageBarrier applies damage to a barrier and returns true if destroyed.
+// Updates the barrier's Appearance.DamageOverlay based on current HP percentage.
 func (s *BarrierDamageSystem) DamageBarrier(w *ecs.World, barrierEntity ecs.Entity, damage float64) bool {
 	barrierComp, ok := w.GetComponent(barrierEntity, "Barrier")
 	if !ok {
@@ -389,6 +390,21 @@ func (s *BarrierDamageSystem) DamageBarrier(w *ecs.World, barrierEntity ecs.Enti
 	barrier.HitPoints -= damage
 	if barrier.HitPoints < 0 {
 		barrier.HitPoints = 0
+	}
+
+	// Update damage overlay on appearance
+	if appComp, hasApp := w.GetComponent(barrierEntity, "Appearance"); hasApp {
+		appearance := appComp.(*components.Appearance)
+		// DamageOverlay: 0.0 = pristine, 1.0 = heavily damaged
+		if barrier.MaxHP > 0 {
+			appearance.DamageOverlay = 1.0 - (barrier.HitPoints / barrier.MaxHP)
+		}
+		// Switch to damaged sprite variant at 50% HP
+		if barrier.HitPoints <= barrier.MaxHP*0.5 && barrier.HitPoints > 0 {
+			if appearance.AnimState != "damaged" {
+				appearance.AnimState = "damaged"
+			}
+		}
 	}
 
 	return barrier.IsDestroyed()

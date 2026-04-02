@@ -17,6 +17,8 @@ type ClimbableSystem struct {
 	ClimbDuration float64
 	// ActiveClimbs tracks ongoing climb animations per entity.
 	ActiveClimbs map[ecs.Entity]*ClimbState
+	// RecentClimbs tracks recently climbed barriers to prevent re-triggering.
+	RecentClimbs map[ecs.Entity]map[ecs.Entity]float64
 }
 
 // ClimbState tracks the progress of a climb animation.
@@ -37,7 +39,10 @@ type ClimbState struct {
 const DefaultPlayerStepHeight = 0.3
 
 // DefaultClimbDuration is the default time to complete a climb.
-const DefaultClimbDuration = 0.3
+const DefaultClimbDuration = 0.1
+
+// ClimbCooldown is time before the same barrier can be climbed again.
+const ClimbCooldown = 0.5
 
 // NewClimbableSystem creates a new climbing system with default settings.
 func NewClimbableSystem() *ClimbableSystem {
@@ -45,11 +50,15 @@ func NewClimbableSystem() *ClimbableSystem {
 		PlayerStepHeight: DefaultPlayerStepHeight,
 		ClimbDuration:    DefaultClimbDuration,
 		ActiveClimbs:     make(map[ecs.Entity]*ClimbState),
+		RecentClimbs:     make(map[ecs.Entity]map[ecs.Entity]float64),
 	}
 }
 
 // Update processes climbing animations and detects new climbs.
 func (s *ClimbableSystem) Update(w *ecs.World, dt float64) {
+	// Update cooldowns
+	s.updateCooldowns(dt)
+
 	// Update active climb animations
 	s.updateActiveClimbs(w, dt)
 
@@ -57,9 +66,27 @@ func (s *ClimbableSystem) Update(w *ecs.World, dt float64) {
 	s.checkForNewClimbs(w)
 }
 
+// updateCooldowns decrements cooldown timers and removes expired ones.
+func (s *ClimbableSystem) updateCooldowns(dt float64) {
+	for climber, barriers := range s.RecentClimbs {
+		for barrier, cooldown := range barriers {
+			newCooldown := cooldown - dt
+			if newCooldown <= 0 {
+				delete(barriers, barrier)
+			} else {
+				barriers[barrier] = newCooldown
+			}
+		}
+		if len(barriers) == 0 {
+			delete(s.RecentClimbs, climber)
+		}
+	}
+}
+
 // updateActiveClimbs progresses active climb animations.
 func (s *ClimbableSystem) updateActiveClimbs(w *ecs.World, dt float64) {
 	toRemove := []ecs.Entity{}
+	completedClimbs := make(map[ecs.Entity]ecs.Entity) // climber -> barrier
 
 	for entity, state := range s.ActiveClimbs {
 		posComp, ok := w.GetComponent(entity, "Position")
@@ -92,12 +119,19 @@ func (s *ClimbableSystem) updateActiveClimbs(w *ecs.World, dt float64) {
 				// Climb complete
 				pos.Z = state.EndZ
 				toRemove = append(toRemove, entity)
+				completedClimbs[entity] = state.BarrierEntity
 			}
 		}
 	}
 
-	// Clean up completed climbs
+	// Clean up completed climbs and add cooldowns
 	for _, entity := range toRemove {
+		if barrierEntity, ok := completedClimbs[entity]; ok && barrierEntity != 0 {
+			if s.RecentClimbs[entity] == nil {
+				s.RecentClimbs[entity] = make(map[ecs.Entity]float64)
+			}
+			s.RecentClimbs[entity][barrierEntity] = ClimbCooldown
+		}
 		delete(s.ActiveClimbs, entity)
 	}
 }
@@ -133,6 +167,13 @@ func (s *ClimbableSystem) checkForNewClimbs(w *ecs.World) {
 
 // shouldStartClimb checks if the player should begin climbing a barrier.
 func (s *ClimbableSystem) shouldStartClimb(w *ecs.World, climber, barrierEntity ecs.Entity, climberPos *components.Position) bool {
+	// Check cooldown
+	if cooldowns, ok := s.RecentClimbs[climber]; ok {
+		if _, onCooldown := cooldowns[barrierEntity]; onCooldown {
+			return false
+		}
+	}
+
 	barrierComp, bOK := w.GetComponent(barrierEntity, "Barrier")
 	barrierPosComp, bpOK := w.GetComponent(barrierEntity, "Position")
 	if !bOK || !bpOK {
@@ -165,15 +206,16 @@ func (s *ClimbableSystem) shouldStartClimb(w *ecs.World, climber, barrierEntity 
 
 	// Start climbing
 	state := &ClimbState{
-		StartZ:       climberPos.Z,
-		PeakZ:        climberPos.Z + barrier.Shape.Height + 0.1, // Slightly above barrier
-		EndZ:         climberPos.Z,                              // Return to ground level
-		Progress:     0.0,
-		Phase:        0,
-		BarrierX:     barrierPos.X,
-		BarrierY:     barrierPos.Y,
-		ApproachDirX: -dx / dist,
-		ApproachDirY: -dy / dist,
+		StartZ:        climberPos.Z,
+		PeakZ:         climberPos.Z + barrier.Shape.Height + 0.1, // Slightly above barrier
+		EndZ:          climberPos.Z,                              // Return to ground level
+		Progress:      0.0,
+		Phase:         0,
+		BarrierX:      barrierPos.X,
+		BarrierY:      barrierPos.Y,
+		ApproachDirX:  -dx / dist,
+		ApproachDirY:  -dy / dist,
+		BarrierEntity: barrierEntity,
 	}
 
 	s.ActiveClimbs[climber] = state

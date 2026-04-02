@@ -279,7 +279,7 @@ func TestBarrierCollisionSystem_Update(t *testing.T) {
 func TestBarrierDamageSystem(t *testing.T) {
 	w := ecs.NewWorld()
 
-	// Create a destructible barrier
+	// Create a destructible barrier with appearance
 	barrierEntity := w.CreateEntity()
 	w.AddComponent(barrierEntity, &components.Barrier{
 		Shape: components.BarrierShape{
@@ -292,10 +292,11 @@ func TestBarrierDamageSystem(t *testing.T) {
 		HitPoints:    100,
 		MaxHP:        100,
 	})
+	w.AddComponent(barrierEntity, components.NewAppearance("object", "crate", "fantasy"))
 
 	sys := NewBarrierDamageSystem()
 
-	// Apply damage that doesn't destroy
+	// Apply damage that doesn't destroy (brings to 50%)
 	destroyed := sys.DamageBarrier(w, barrierEntity, 50)
 	if destroyed {
 		t.Error("expected barrier not to be destroyed after 50 damage")
@@ -307,6 +308,18 @@ func TestBarrierDamageSystem(t *testing.T) {
 		t.Errorf("expected 50 HP, got %f", barrier.HitPoints)
 	}
 
+	// Check damage overlay was updated
+	appComp, _ := w.GetComponent(barrierEntity, "Appearance")
+	appearance := appComp.(*components.Appearance)
+	if appearance.DamageOverlay != 0.5 {
+		t.Errorf("expected damage overlay 0.5, got %f", appearance.DamageOverlay)
+	}
+
+	// At 50% HP, should switch to damaged sprite variant
+	if appearance.AnimState != "damaged" {
+		t.Errorf("expected AnimState 'damaged' at 50%% HP, got '%s'", appearance.AnimState)
+	}
+
 	// Apply more damage to destroy
 	destroyed = sys.DamageBarrier(w, barrierEntity, 60)
 	if !destroyed {
@@ -315,6 +328,11 @@ func TestBarrierDamageSystem(t *testing.T) {
 
 	if barrier.HitPoints != 0 {
 		t.Errorf("expected 0 HP, got %f", barrier.HitPoints)
+	}
+
+	// Check damage overlay is at maximum
+	if appearance.DamageOverlay != 1.0 {
+		t.Errorf("expected damage overlay 1.0 at destruction, got %f", appearance.DamageOverlay)
 	}
 }
 
