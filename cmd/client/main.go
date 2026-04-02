@@ -83,6 +83,7 @@ type Game struct {
 	minimapImage    *ebiten.Image // Pre-allocated minimap image
 	minimapPixels   []byte        // Pixel buffer for minimap
 	barImage        *ebiten.Image // Pre-allocated bar image (health/mana)
+	barPixels       []byte        // Pixel buffer for bar rendering
 	crosshairImage  *ebiten.Image // Pre-allocated crosshair image
 	speechBubbleImg *ebiten.Image // Pre-allocated speech bubble image
 	// Audio subpackages
@@ -474,8 +475,9 @@ func (g *Game) initUIBuffers() {
 	g.minimapImage = ebiten.NewImage(minimapSize, minimapSize)
 	g.minimapPixels = make([]byte, minimapSize*minimapSize*4)
 
-	// Pre-allocate bar image
+	// Pre-allocate bar image and pixel buffer
 	g.barImage = ebiten.NewImage(barMaxWidth, barMaxHeight)
+	g.barPixels = make([]byte, barMaxWidth*barMaxHeight*4)
 
 	// Pre-allocate crosshair image (11x11 for the 5-pixel cross)
 	g.crosshairImage = ebiten.NewImage(crosshairSize, crosshairSize)
@@ -1444,22 +1446,46 @@ func (g *Game) drawWantedStatus(screen *ebiten.Image, x, y int) {
 // drawBar renders a horizontal bar (health/mana style) using batch pixel writes.
 // Uses WritePixels() for GPU-efficient rendering with zero per-pixel Set() calls.
 func (g *Game) drawBar(screen *ebiten.Image, x, y, width, height int, percent float64, fillColor, bgColor uint32) {
-	// Ensure bar image is initialized (lazy init)
+	g.ensureBarBuffers(width, height)
+
+	// Use pre-allocated pixel buffer (slice to required size)
+	bufSize := width * height * 4
+	pixels := g.barPixels[:bufSize]
+
+	g.fillBarPixels(pixels, width, height, percent, fillColor, bgColor)
+
+	// Create a sub-image of the correct size and write pixels
+	subImg := g.barImage.SubImage(image.Rect(0, 0, width, height)).(*ebiten.Image)
+	subImg.WritePixels(pixels)
+
+	// Draw to screen
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(float64(x), float64(y))
+	screen.DrawImage(subImg, op)
+}
+
+// ensureBarBuffers initializes or resizes bar rendering buffers.
+func (g *Game) ensureBarBuffers(width, height int) {
 	if g.barImage == nil {
-		g.barImage = ebiten.NewImage(200, 32) // Max size to accommodate various bars
+		g.barImage = ebiten.NewImage(200, 32)
+		g.barPixels = make([]byte, 200*32*4)
 	}
 
-	// Resize if bar image is too small
 	bounds := g.barImage.Bounds()
 	if bounds.Dx() < width || bounds.Dy() < height {
-		g.barImage = ebiten.NewImage(width, height)
+		newW := max(bounds.Dx(), width)
+		newH := max(bounds.Dy(), height)
+		g.barImage = ebiten.NewImage(newW, newH)
+		g.barPixels = make([]byte, newW*newH*4)
+	} else if len(g.barPixels) < width*height*4 {
+		g.barPixels = make([]byte, bounds.Dx()*bounds.Dy()*4)
 	}
 
-	// Clear and redraw into pre-allocated image
 	g.barImage.Clear()
-	pixels := make([]byte, width*height*4)
+}
 
-	// Background color bytes
+// fillBarPixels renders the bar content to the pixel buffer.
+func (g *Game) fillBarPixels(pixels []byte, width, height int, percent float64, fillColor, bgColor uint32) {
 	bgR, bgG, bgB, bgA := uint8(bgColor>>24), uint8(bgColor>>16), uint8(bgColor>>8), uint8(bgColor)
 	fillR, fillG, fillB, fillA := uint8(fillColor>>24), uint8(fillColor>>16), uint8(fillColor>>8), uint8(fillColor)
 
@@ -1485,15 +1511,6 @@ func (g *Game) drawBar(screen *ebiten.Image, x, y, width, height int, percent fl
 			pixels[idx+3] = fillA
 		}
 	}
-
-	// Create a sub-image of the correct size and write pixels
-	subImg := g.barImage.SubImage(image.Rect(0, 0, width, height)).(*ebiten.Image)
-	subImg.WritePixels(pixels)
-
-	// Draw to screen
-	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Translate(float64(x), float64(y))
-	screen.DrawImage(subImg, op)
 }
 
 // drawMinimap renders a small top-down view of the nearby area using batch pixel writes.
