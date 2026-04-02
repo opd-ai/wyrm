@@ -45,12 +45,13 @@ Each `Set()` call triggers GPU pipeline synchronization. At 60 FPS with UI open,
 
 ## Implementation Steps
 
-### Step 1: Create Shared UI Framebuffer Infrastructure
+### Step 1: Create Shared UI Framebuffer Infrastructure ✅
 - **Deliverable**: New `UIFramebuffer` struct in `cmd/client/ui_buffer.go` with pre-allocated `[]byte` buffer and `DrawRect()`, `DrawBorder()`, `BlendPixel()` helper methods
 - **Dependencies**: None
 - **Goal Impact**: Foundation for all subsequent UI migration steps
 - **Acceptance**: `UIFramebuffer` can render filled rectangles and borders to `[]byte` buffer
 - **Validation**: `go test -v ./cmd/client/... -run TestUIFramebuffer`
+- **Status**: COMPLETED 2026-04-01 — Created `ui_buffer.go` with full UIFramebuffer API + tests
 
 ### Step 2: Migrate Minimap Rendering
 - **Deliverable**: Replace 5 `screen.Set()` calls in `drawMinimap()` (`cmd/client/main.go:1302-1381`) with `UIFramebuffer` writes
