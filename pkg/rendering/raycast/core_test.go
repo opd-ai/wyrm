@@ -848,3 +848,166 @@ func TestRendererNewFieldsInitialized(t *testing.T) {
 		t.Errorf("expected WallHeight=0.5 at (9,8), got %f", cell.WallHeight)
 	}
 }
+
+func TestSetWorldMapWithWallHeights(t *testing.T) {
+	r := NewRenderer(640, 480)
+
+	// Create test heightmap (4x4)
+	heightMap := []float64{
+		0.7, 0.7, 0.2, 0.2, // Row 0: walls, empty
+		0.7, 0.7, 0.2, 0.2, // Row 1: walls, empty
+		0.2, 0.2, 0.7, 0.7, // Row 2: empty, walls
+		0.2, 0.2, 0.7, 0.7, // Row 3: empty, walls
+	}
+
+	// Create test wall heights
+	wallHeights := []float64{
+		2.0, 1.5, 1.0, 1.0, // Row 0
+		2.0, 1.5, 1.0, 1.0, // Row 1
+		1.0, 1.0, 0.5, 3.0, // Row 2
+		1.0, 1.0, 0.5, 3.0, // Row 3
+	}
+
+	r.SetWorldMapWithWallHeights(heightMap, wallHeights, 4, 0.5)
+
+	// Verify WorldMap size
+	if len(r.WorldMap) != 4 {
+		t.Fatalf("expected WorldMap length=4, got %d", len(r.WorldMap))
+	}
+
+	// Verify WorldMapCells size
+	if len(r.WorldMapCells) != 4 {
+		t.Fatalf("expected WorldMapCells length=4, got %d", len(r.WorldMapCells))
+	}
+
+	// Check wall heights are applied correctly
+	// Position (0,0) has height 0.7 > 0.5 threshold, wall height 2.0
+	cell := r.GetMapCell(0, 0)
+	if cell.WallType == 0 {
+		t.Error("expected wall at (0,0)")
+	}
+	if cell.WallHeight != 2.0 {
+		t.Errorf("expected WallHeight=2.0 at (0,0), got %f", cell.WallHeight)
+	}
+
+	// Position (2,0) has height 0.2 < 0.5 threshold, should be empty
+	cell = r.GetMapCell(2, 0)
+	if cell.WallType != 0 {
+		t.Errorf("expected no wall at (2,0), got wallType=%d", cell.WallType)
+	}
+
+	// Position (3,3) has height 0.7 > 0.5 threshold, wall height 3.0
+	cell = r.GetMapCell(3, 3)
+	if cell.WallType == 0 {
+		t.Error("expected wall at (3,3)")
+	}
+	if cell.WallHeight != MaxWallHeight {
+		t.Errorf("expected WallHeight=%f at (3,3), got %f", MaxWallHeight, cell.WallHeight)
+	}
+
+	// Position (2,2) has height 0.7 > 0.5 threshold, wall height 0.5
+	cell = r.GetMapCell(2, 2)
+	if cell.WallType == 0 {
+		t.Error("expected wall at (2,2)")
+	}
+	if cell.WallHeight != 0.5 {
+		t.Errorf("expected WallHeight=0.5 at (2,2), got %f", cell.WallHeight)
+	}
+}
+
+func TestRendererSkyboxInitialization(t *testing.T) {
+	r := NewRenderer(640, 480)
+
+	// Skybox should be initialized automatically
+	if r.Skybox == nil {
+		t.Fatal("expected Skybox to be initialized")
+	}
+
+	// Should default to fantasy genre
+	if r.Skybox.GetConfig().Genre != "fantasy" {
+		t.Errorf("expected genre=fantasy, got %s", r.Skybox.GetConfig().Genre)
+	}
+}
+
+func TestRendererSkyboxGenreInheritance(t *testing.T) {
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+
+	for _, genre := range genres {
+		r := NewRendererWithGenre(640, 480, genre, 12345)
+		if r.Skybox == nil {
+			t.Fatalf("expected Skybox for genre %s", genre)
+		}
+		if r.Skybox.GetConfig().Genre != genre {
+			t.Errorf("expected skybox genre=%s, got %s", genre, r.Skybox.GetConfig().Genre)
+		}
+	}
+}
+
+func TestRendererSetSkybox(t *testing.T) {
+	r := NewRenderer(640, 480)
+
+	// Create custom skybox
+	customSkybox := NewSkybox()
+	customSkybox.SetTimeOfDay(18.0)
+
+	r.SetSkybox(customSkybox)
+
+	if r.GetSkybox() != customSkybox {
+		t.Error("SetSkybox did not set the skybox")
+	}
+	if r.Skybox.GetTimeOfDay() != 18.0 {
+		t.Errorf("expected TimeOfDay=18.0, got %f", r.Skybox.GetTimeOfDay())
+	}
+}
+
+func TestGetHorizonLineDefault(t *testing.T) {
+	r := NewRenderer(640, 480)
+
+	// With no pitch, horizon should be at half height
+	horizonY := r.getHorizonLine()
+	expectedHorizon := 480 / 2
+
+	if horizonY != expectedHorizon {
+		t.Errorf("expected horizon at %d, got %d", expectedHorizon, horizonY)
+	}
+}
+
+func TestGetHorizonLineWithPitch(t *testing.T) {
+	r := NewRenderer(640, 480)
+	halfHeight := 480 / 2
+
+	// Test looking up (positive pitch moves horizon down)
+	r.PlayerPitch = MaxPitchAngle
+	horizonUp := r.getHorizonLine()
+	if horizonUp <= halfHeight {
+		t.Errorf("expected horizon below half when looking up, got %d", horizonUp)
+	}
+
+	// Test looking down (negative pitch moves horizon up)
+	r.PlayerPitch = -MaxPitchAngle
+	horizonDown := r.getHorizonLine()
+	if horizonDown >= halfHeight {
+		t.Errorf("expected horizon above half when looking down, got %d", horizonDown)
+	}
+
+	// Test horizon line clamping at screen edges
+	r.PlayerPitch = MaxPitchAngle * 2 // Exceeds max
+	horizonMax := r.getHorizonLine()
+	if horizonMax > 480 {
+		t.Errorf("horizon should be clamped to screen height, got %d", horizonMax)
+	}
+
+	r.PlayerPitch = -MaxPitchAngle * 2 // Exceeds max negative
+	horizonMin := r.getHorizonLine()
+	if horizonMin < 0 {
+		t.Errorf("horizon should be clamped to 0, got %d", horizonMin)
+	}
+}
+
+func TestMaxPitchAngleConstant(t *testing.T) {
+	// MaxPitchAngle should be 85 degrees in radians
+	expected := 85.0 * math.Pi / 180.0
+	if math.Abs(MaxPitchAngle-expected) > 0.0001 {
+		t.Errorf("expected MaxPitchAngle=%f radians (85°), got %f", expected, MaxPitchAngle)
+	}
+}

@@ -13,9 +13,35 @@ import (
 // After calling Draw(), use UploadFramebuffer() to copy to the ebiten.Image.
 func (r *Renderer) Draw(screen *ebiten.Image) {
 	r.ClearFramebuffer()
+	r.drawSky()
 	r.drawFloorCeiling()
 	r.drawWalls()
 	screen.WritePixels(r.Framebuffer)
+}
+
+// drawSky renders procedural sky pixels above the horizon line.
+// Uses the Skybox renderer for genre-appropriate sky colors, sun/moon, and weather.
+func (r *Renderer) drawSky() {
+	if r.Skybox == nil || r.Skybox.IsIndoor() {
+		return // No sky rendering when indoors or skybox not initialized
+	}
+
+	horizonY := r.getHorizonLine()
+
+	// Only render sky above horizon
+	for y := 0; y < horizonY; y++ {
+		// Calculate vertical position in sky (0=top of sky, 1=horizon)
+		skyY := float64(y) / float64(horizonY)
+
+		for x := 0; x < r.Width; x++ {
+			// Calculate horizontal position (0=left, 1=right)
+			skyX := float64(x) / float64(r.Width)
+
+			// Get sky color at this position
+			skyColor := r.Skybox.GetSkyColorAt(skyX, skyY)
+			r.SetPixelColor(x, y, skyColor)
+		}
+	}
 }
 
 // DrawSpritesToScreen renders billboard sprites to an ebiten.Image.
@@ -126,16 +152,19 @@ func (r *Renderer) drawSpriteColumnToFramebuffer(screenX int, ctx *SpriteDrawCon
 }
 
 // drawFloorCeiling renders textured floor and ceiling using raycasting.
+// When skybox is active, only the floor is rendered; sky replaces the ceiling.
 func (r *Renderer) drawFloorCeiling() {
 	halfHeight := r.Height / 2
+	horizonY := r.getHorizonLine()
+	renderCeiling := r.Skybox == nil || r.Skybox.IsIndoor()
 
-	for y := halfHeight; y < r.Height; y++ {
+	for y := horizonY; y < r.Height; y++ {
 		rayDirX0, rayDirY0, rayDirX1, rayDirY1 := r.calculateFOVRayDirections()
 		rowDistance := r.calculateRowDistance(y, halfHeight)
 		floorStepX, floorStepY := r.calculateFloorStep(rowDistance, rayDirX0, rayDirY0, rayDirX1, rayDirY1)
 		floorX, floorY := r.calculateFloorStart(rowDistance, rayDirX0, rayDirY0)
 
-		r.renderFloorCeilingRow(y, halfHeight, rowDistance, floorX, floorY, floorStepX, floorStepY)
+		r.renderFloorCeilingRow(y, horizonY, rowDistance, floorX, floorY, floorStepX, floorStepY, renderCeiling)
 	}
 }
 
@@ -176,8 +205,9 @@ func (r *Renderer) calculateFloorStart(rowDistance, rayDirX0, rayDirY0 float64) 
 	return floorX, floorY
 }
 
-// renderFloorCeilingRow renders a single row of floor and ceiling pixels.
-func (r *Renderer) renderFloorCeilingRow(y, halfHeight int, rowDistance, floorX, floorY, floorStepX, floorStepY float64) {
+// renderFloorCeilingRow renders a single row of floor and (optionally) ceiling pixels.
+// renderCeiling should be false when skybox is active outdoors.
+func (r *Renderer) renderFloorCeilingRow(y, horizonY int, rowDistance, floorX, floorY, floorStepX, floorStepY float64, renderCeiling bool) {
 	for x := 0; x < r.Width; x++ {
 		texX := floorX - math.Floor(floorX)
 		texY := floorY - math.Floor(floorY)
@@ -185,8 +215,9 @@ func (r *Renderer) renderFloorCeilingRow(y, halfHeight int, rowDistance, floorX,
 		floorColor := r.GetFloorTextureColor(texX, texY, rowDistance)
 		r.SetPixelColor(x, y, floorColor)
 
+		// Mirror floor Y to get ceiling Y position
 		ceilY := r.Height - y - 1
-		if ceilY >= 0 && ceilY < halfHeight {
+		if renderCeiling && ceilY >= 0 && ceilY < horizonY {
 			ceilColor := r.GetCeilingTextureColor(texX, texY, rowDistance)
 			r.SetPixelColor(x, ceilY, ceilColor)
 		}

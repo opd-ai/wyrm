@@ -34,6 +34,9 @@ const (
 	MaxWallHeight = 3.0
 	// MinWallHeight is the minimum wall height multiplier.
 	MinWallHeight = 0.25
+	// MaxPitchAngle is the maximum vertical look angle (85 degrees in radians).
+	// This prevents the player from looking straight up or down which causes rendering issues.
+	MaxPitchAngle = 85.0 * math.Pi / 180.0
 )
 
 // CellFlags are bit flags for MapCell properties.
@@ -177,6 +180,9 @@ type Renderer struct {
 	// visibleSprites is a pre-allocated slice for sorting visible sprites.
 	// Reused each frame with [:0] to avoid allocations.
 	visibleSprites []*SpriteEntity
+	// Skybox handles procedural sky rendering with time-of-day and weather effects.
+	// Initialized automatically in NewRenderer. Use SetSkybox to customize.
+	Skybox *Skybox
 }
 
 // NewRenderer creates a new raycasting renderer.
@@ -236,7 +242,47 @@ func NewRendererWithGenre(width, height int, genre string, seed int64) *Renderer
 		visibleSprites: make([]*SpriteEntity, 0, 256), // Pre-allocate for typical entity count
 	}
 	r.initTextures()
+	r.initSkybox(genre)
 	return r
+}
+
+// initSkybox initializes the skybox renderer with genre-appropriate settings.
+func (r *Renderer) initSkybox(genre string) {
+	r.Skybox = NewSkybox()
+	r.Skybox.SetGenre(genre)
+}
+
+// SetSkybox sets a custom skybox renderer.
+func (r *Renderer) SetSkybox(skybox *Skybox) {
+	r.Skybox = skybox
+}
+
+// GetSkybox returns the current skybox renderer.
+func (r *Renderer) GetSkybox() *Skybox {
+	return r.Skybox
+}
+
+// getHorizonLine returns the Y coordinate of the horizon line.
+// Affected by PlayerPitch: looking up moves horizon down, looking down moves it up.
+func (r *Renderer) getHorizonLine() int {
+	halfHeight := r.Height / 2
+
+	// Calculate pitch offset: positive pitch (look up) moves horizon down
+	// MaxPitchOffset is half the screen height (can look at pure sky or pure floor)
+	maxPitchOffset := float64(halfHeight)
+	pitchOffset := (r.PlayerPitch / MaxPitchAngle) * maxPitchOffset
+
+	horizonY := halfHeight + int(pitchOffset)
+
+	// Clamp to screen bounds
+	if horizonY < 0 {
+		horizonY = 0
+	}
+	if horizonY > r.Height {
+		horizonY = r.Height
+	}
+
+	return horizonY
 }
 
 // SetPixel writes a pixel to the framebuffer at the specified coordinates.
@@ -605,6 +651,61 @@ func (r *Renderer) SetWorldMapCells(worldMapCells [][]MapCell) {
 	// Create corresponding legacy WorldMap
 	if len(worldMapCells) > 0 && len(worldMapCells[0]) > 0 {
 		r.WorldMap = convertMapCellsToWorldMap(worldMapCells)
+	}
+}
+
+// SetWorldMapWithWallHeights sets the world map from chunk data including wall heights.
+// This method allows using pre-computed wall heights from chunk generation.
+func (r *Renderer) SetWorldMapWithWallHeights(heightMap, wallHeights []float64, mapSize int, wallThreshold float64) {
+	if mapSize <= 0 {
+		return
+	}
+	worldMap := createEmptyWorldMap(mapSize)
+	worldMapCells := createEmptyWorldMapCells(mapSize)
+	populateWorldMap(worldMap, heightMap, mapSize, wallThreshold)
+	populateWorldMapCellsWithWallHeights(worldMapCells, heightMap, wallHeights, mapSize, wallThreshold)
+	r.WorldMap = worldMap
+	r.WorldMapCells = worldMapCells
+}
+
+// populateWorldMapCellsWithWallHeights creates MapCells using pre-computed wall heights.
+func populateWorldMapCellsWithWallHeights(worldMapCells [][]MapCell, heightMap, wallHeights []float64, mapSize int, wallThreshold float64) {
+	for y := 0; y < mapSize; y++ {
+		for x := 0; x < mapSize; x++ {
+			idx := y*mapSize + x
+			height := 0.0
+			if idx < len(heightMap) {
+				height = heightMap[idx]
+			}
+			wallHeight := DefaultWallHeight
+			if wallHeights != nil && idx < len(wallHeights) {
+				wallHeight = wallHeights[idx]
+			}
+			worldMapCells[y][x] = heightToMapCellWithWallHeight(height, wallThreshold, wallHeight)
+		}
+	}
+}
+
+// heightToMapCellWithWallHeight creates a MapCell using a pre-computed wall height.
+func heightToMapCellWithWallHeight(height, wallThreshold, wallHeight float64) MapCell {
+	if height <= wallThreshold {
+		return DefaultMapCell()
+	}
+	wallType := heightToWallType(height, wallThreshold)
+	// Clamp wall height to valid range
+	if wallHeight < MinWallHeight {
+		wallHeight = MinWallHeight
+	}
+	if wallHeight > MaxWallHeight {
+		wallHeight = MaxWallHeight
+	}
+	return MapCell{
+		WallType:   wallType,
+		WallHeight: wallHeight,
+		FloorH:     0.0,
+		CeilH:      wallHeight,
+		MaterialID: wallType,
+		Flags:      FlagSolid,
 	}
 }
 

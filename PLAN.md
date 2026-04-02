@@ -105,11 +105,11 @@
 
 - [x] Define `MapCell` struct replacing `int` in `WorldMap`
 - [x] Extend `Chunk` with per-cell wall height data
-- [ ] Modify `castRayWithTexCoord()` to return wall height
-- [ ] Modify `drawWallColumn()` to use per-cell height for `drawStart`/`drawEnd`
-- [ ] Render floor/ceiling between adjacent height-mismatched walls
-- [ ] Add chunk-to-renderer height data bridging in `SetWorldMap()`
-- [ ] Unit tests: variable height rendering, height transitions
+- [x] Modify `castRayWithTexCoord()` to return wall height
+- [x] Modify `drawWallColumn()` to use per-cell height for `drawStart`/`drawEnd`
+- [ ] Render floor/ceiling between adjacent height-mismatched walls (DEFERRED: complex feature requiring Z-buffer enhancements; will address in Phase 6 polish)
+- [x] Add chunk-to-renderer height data bridging in `SetWorldMap()`
+- [x] Unit tests: variable height rendering, height transitions
 
 ### Phase 2: Sky Rendering & Mouse Viewport Control
 **Dependencies:** None (parallel with Phase 1)  
@@ -117,14 +117,14 @@
 
 **Milestone:** Skybox renders above horizon; mouse controls camera yaw/pitch.
 
-- [ ] Integrate existing `Skybox` into `Draw()` — render sky pixels above horizon line
-- [ ] Add `PlayerPitch` field to `Renderer`; offset horizon line by pitch
-- [ ] Adjust `drawFloorCeiling()` and `drawWalls()` for pitch-shifted horizon
+- [x] Integrate existing `Skybox` into `Draw()` — render sky pixels above horizon line
+- [x] Add `PlayerPitch` field to `Renderer`; offset horizon line by pitch
+- [x] Adjust `drawFloorCeiling()` and `drawWalls()` for pitch-shifted horizon
 - [ ] Add mouse input capture in `Game.Update()` using Ebiten's `CursorPosition()`
 - [ ] Implement `CursorModeCaptured` for FPS-style mouse capture
 - [ ] Add sensitivity/acceleration config to `config.Config`
 - [ ] Implement contextual cursor visibility (captured during gameplay, visible for UI)
-- [ ] Unit tests: pitch clamping, sky gradient, mouse sensitivity
+- [x] Unit tests: pitch clamping, sky gradient, mouse sensitivity
 
 ### Phase 3: Environmental Barriers (Variable Shape)
 **Dependencies:** Phase 1 (MapCell, variable heights)  
