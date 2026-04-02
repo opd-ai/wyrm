@@ -5,6 +5,7 @@ import (
 
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
+	"github.com/opd-ai/wyrm/pkg/geom"
 )
 
 // BarrierCollisionSystem handles collision detection between entities and barriers.
@@ -20,6 +21,55 @@ func NewBarrierCollisionSystem() *BarrierCollisionSystem {
 	return &BarrierCollisionSystem{
 		PlayerRadius: 0.25,
 		NPCRadius:    0.3,
+	}
+}
+
+// getMoverRadius returns the collision radius for an entity.
+func (s *BarrierCollisionSystem) getMoverRadius(w *ecs.World, entity ecs.Entity) float64 {
+	if _, hasPlayer := w.GetComponent(entity, "Player"); hasPlayer {
+		return s.PlayerRadius
+	}
+	return s.NPCRadius
+}
+
+// calculateNextPosition computes the simulated next position of a mover.
+func calculateNextPosition(pos *components.Position, path *components.NPCPathfinding, dt float64) (float64, float64, bool) {
+	dx := path.TargetX - pos.X
+	dy := path.TargetY - pos.Y
+	moveLen := math.Sqrt(dx*dx + dy*dy)
+	if moveLen < 0.001 {
+		return 0, 0, false
+	}
+	speed := path.MoveSpeed
+	if speed <= 0 {
+		speed = 5.0
+	}
+	newX := pos.X + (dx/moveLen)*speed*dt
+	newY := pos.Y + (dy/moveLen)*speed*dt
+	return newX, newY, true
+}
+
+// checkMoverBarrierCollision checks collision between a mover and all barriers.
+func (s *BarrierCollisionSystem) checkMoverBarrierCollision(w *ecs.World, barriers []ecs.Entity,
+	path *components.NPCPathfinding, newX, newY, radius, dt float64) {
+
+	for _, be := range barriers {
+		barrierComp, bOK := w.GetComponent(be, "Barrier")
+		barrierPosComp, bpOK := w.GetComponent(be, "Position")
+		if !bOK || !bpOK {
+			continue
+		}
+
+		barrier := barrierComp.(*components.Barrier)
+		barrierPos := barrierPosComp.(*components.Position)
+
+		if barrier.IsDestroyed() {
+			continue
+		}
+
+		if s.CheckCollision(newX, newY, radius, barrier, barrierPos) {
+			path.StuckTime += dt
+		}
 	}
 }
 
@@ -39,60 +89,17 @@ func (s *BarrierCollisionSystem) Update(w *ecs.World, dt float64) {
 		path := pathComp.(*components.NPCPathfinding)
 		pos := posComp.(*components.Position)
 
-		// Skip if not moving
-		if !path.IsMoving {
+		if !path.IsMoving || !path.HasTarget {
 			continue
 		}
 
-		// Determine collision radius based on entity type
-		radius := s.NPCRadius
-		if _, hasPlayer := w.GetComponent(me, "Player"); hasPlayer {
-			radius = s.PlayerRadius
+		radius := s.getMoverRadius(w, me)
+		newX, newY, ok := calculateNextPosition(pos, path, dt)
+		if !ok {
+			continue
 		}
 
-		// Check collision with each barrier
-		for _, be := range barriers {
-			barrierComp, bOK := w.GetComponent(be, "Barrier")
-			barrierPosComp, bpOK := w.GetComponent(be, "Position")
-			if !bOK || !bpOK {
-				continue
-			}
-
-			barrier := barrierComp.(*components.Barrier)
-			barrierPos := barrierPosComp.(*components.Position)
-
-			// Skip destroyed barriers
-			if barrier.IsDestroyed() {
-				continue
-			}
-
-			// Calculate target position from pathfinding
-			if !path.HasTarget {
-				continue
-			}
-
-			// Check if moving toward barrier
-			dx := path.TargetX - pos.X
-			dy := path.TargetY - pos.Y
-			moveLen := math.Sqrt(dx*dx + dy*dy)
-			if moveLen < 0.001 {
-				continue
-			}
-
-			// Simulate next position
-			speed := path.MoveSpeed
-			if speed <= 0 {
-				speed = 5.0
-			}
-			newX := pos.X + (dx/moveLen)*speed*dt
-			newY := pos.Y + (dy/moveLen)*speed*dt
-
-			// Check if new position collides with barrier
-			if s.CheckCollision(newX, newY, radius, barrier, barrierPos) {
-				// Mark as stuck if colliding
-				path.StuckTime += dt
-			}
-		}
+		s.checkMoverBarrierCollision(w, barriers, path, newX, newY, radius, dt)
 	}
 }
 
@@ -178,25 +185,7 @@ func (s *BarrierCollisionSystem) checkPolygonCollision(x, y, radius float64, bar
 
 // pointInPolygon tests if a point is inside a polygon using ray casting.
 func (s *BarrierCollisionSystem) pointInPolygon(x, y float64, vertices []float64) bool {
-	if len(vertices) < 6 {
-		return false
-	}
-
-	inside := false
-	n := len(vertices) / 2
-	j := n - 1
-
-	for i := 0; i < n; i++ {
-		xi, yi := vertices[i*2], vertices[i*2+1]
-		xj, yj := vertices[j*2], vertices[j*2+1]
-
-		if ((yi > y) != (yj > y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi) {
-			inside = !inside
-		}
-		j = i
-	}
-
-	return inside
+	return geom.PointInPolygon(x, y, vertices)
 }
 
 // pointToSegmentDistance calculates the shortest distance from a point to a line segment.

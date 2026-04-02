@@ -57,6 +57,39 @@ func (s *InteractionSystem) Update(w *ecs.World, dt float64) {
 	s.processInteractions(w)
 }
 
+// interactableEntityInfo holds extracted info for an interactable entity.
+type interactableEntityInfo struct {
+	Entity   ecs.Entity
+	EnvObj   *components.EnvironmentObject
+	Position *components.Position
+}
+
+// forEachInteractable iterates over all interactable entities with positions.
+func (s *InteractionSystem) forEachInteractable(w *ecs.World, fn func(info interactableEntityInfo)) {
+	for _, e := range w.Entities("EnvironmentObject", "Position") {
+		envComp, ok := w.GetComponent(e, "EnvironmentObject")
+		if !ok {
+			continue
+		}
+		envObj := envComp.(*components.EnvironmentObject)
+		if !envObj.CanInteract() {
+			continue
+		}
+
+		posComp, ok := w.GetComponent(e, "Position")
+		if !ok {
+			continue
+		}
+		pos := posComp.(*components.Position)
+
+		fn(interactableEntityInfo{
+			Entity:   e,
+			EnvObj:   envObj,
+			Position: pos,
+		})
+	}
+}
+
 // updateProximityHighlights updates highlight states for entities near the player.
 func (s *InteractionSystem) updateProximityHighlights(w *ecs.World) {
 	// Get player position
@@ -474,32 +507,16 @@ func (s *InteractionSystem) GetInteractableInRange(w *ecs.World) []ecs.Entity {
 
 	var result []ecs.Entity
 
-	for _, e := range w.Entities("EnvironmentObject", "Position") {
-		envComp, ok := w.GetComponent(e, "EnvironmentObject")
-		if !ok {
-			continue
-		}
-		envObj := envComp.(*components.EnvironmentObject)
-
-		if !envObj.CanInteract() {
-			continue
-		}
-
-		posComp, ok := w.GetComponent(e, "Position")
-		if !ok {
-			continue
-		}
-		pos := posComp.(*components.Position)
-
-		interactionRange := envObj.InteractionRange
+	s.forEachInteractable(w, func(info interactableEntityInfo) {
+		interactionRange := info.EnvObj.InteractionRange
 		if interactionRange <= 0 {
 			interactionRange = s.DefaultInteractionRange
 		}
 
-		if s.distanceBetween(playerPos, pos) <= interactionRange {
-			result = append(result, e)
+		if s.distanceBetween(playerPos, info.Position) <= interactionRange {
+			result = append(result, info.Entity)
 		}
-	}
+	})
 
 	return result
 }

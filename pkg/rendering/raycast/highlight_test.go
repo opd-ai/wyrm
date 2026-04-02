@@ -88,7 +88,7 @@ func TestSetTime(t *testing.T) {
 	}
 }
 
-func TestSetGenre(t *testing.T) {
+func TestEdgeHighlightRenderer_SetGenre(t *testing.T) {
 	config := DefaultEdgeHighlightConfig()
 	hr := NewEdgeHighlightRenderer(10, 10, config)
 

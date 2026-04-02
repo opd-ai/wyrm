@@ -442,6 +442,43 @@ const (
 	MountainDensityMultiplier = 2.0
 )
 
+// spawnPosition holds computed position and terrain data for a spawn attempt.
+type spawnPosition struct {
+	LocalX      float64
+	LocalY      float64
+	TerrainType int
+	BiomeValue  float64
+}
+
+// computeSpawnPosition computes random position and terrain data for a spawn attempt.
+func computeSpawnPosition(size int, rng *rand.Rand, terrainTypes []int, biomeMap []float64) spawnPosition {
+	localX := rng.Float64() * float64(size)
+	localY := rng.Float64() * float64(size)
+
+	gridX := int(localX)
+	gridY := int(localY)
+	if gridX >= size {
+		gridX = size - 1
+	}
+	if gridY >= size {
+		gridY = size - 1
+	}
+	idx := gridY*size + gridX
+	terrainType := terrainTypes[idx]
+
+	biomeValue := 0.5
+	if biomeMap != nil && idx < len(biomeMap) {
+		biomeValue = biomeMap[idx]
+	}
+
+	return spawnPosition{
+		LocalX:      localX,
+		LocalY:      localY,
+		TerrainType: terrainType,
+		BiomeValue:  biomeValue,
+	}
+}
+
 // generateDetailSpawns creates vegetation and detail entities for the chunk.
 func generateDetailSpawns(size int, seed int64, terrainTypes []int, biomeMap []float64) []DetailSpawn {
 	rng := rand.New(rand.NewSource(seed + 3000))
@@ -451,36 +488,16 @@ func generateDetailSpawns(size int, seed int64, terrainTypes []int, biomeMap []f
 	baseAttempts := (size * size * BaseDensity) / 100
 
 	for i := 0; i < baseAttempts; i++ {
-		// Random position within chunk
-		localX := rng.Float64() * float64(size)
-		localY := rng.Float64() * float64(size)
-
-		// Get terrain type at this position
-		gridX := int(localX)
-		gridY := int(localY)
-		if gridX >= size {
-			gridX = size - 1
-		}
-		if gridY >= size {
-			gridY = size - 1
-		}
-		idx := gridY*size + gridX
-		terrainType := terrainTypes[idx]
-
-		// Get biome value for density variation
-		biomeValue := 0.5
-		if biomeMap != nil && idx < len(biomeMap) {
-			biomeValue = biomeMap[idx]
-		}
+		pos := computeSpawnPosition(size, rng, terrainTypes, biomeMap)
 
 		// Determine if we should spawn based on terrain and biome
-		spawn := selectDetailSpawn(terrainType, biomeValue, rng)
+		spawn := selectDetailSpawn(pos.TerrainType, pos.BiomeValue, rng)
 		if spawn == nil {
 			continue
 		}
 
-		spawn.LocalX = localX
-		spawn.LocalY = localY
+		spawn.LocalX = pos.LocalX
+		spawn.LocalY = pos.LocalY
 		spawn.Scale = 0.7 + rng.Float64()*0.6    // 0.7 to 1.3
 		spawn.Rotation = rng.Float64() * 6.28318 // 0 to 2π
 		spawn.Variation = rng.Intn(4)            // 0 to 3
@@ -784,36 +801,16 @@ func GenerateBarrierSpawns(size int, seed int64, terrainTypes []int, biomeMap []
 	baseAttempts := (size * size * BaseDensity) / 300
 
 	for i := 0; i < baseAttempts; i++ {
-		// Random position within chunk
-		localX := rng.Float64() * float64(size)
-		localY := rng.Float64() * float64(size)
-
-		// Get terrain type at this position
-		gridX := int(localX)
-		gridY := int(localY)
-		if gridX >= size {
-			gridX = size - 1
-		}
-		if gridY >= size {
-			gridY = size - 1
-		}
-		idx := gridY*size + gridX
-		terrainType := terrainTypes[idx]
-
-		// Get biome value for density variation
-		biomeValue := 0.5
-		if biomeMap != nil && idx < len(biomeMap) {
-			biomeValue = biomeMap[idx]
-		}
+		pos := computeSpawnPosition(size, rng, terrainTypes, biomeMap)
 
 		// Try to spawn a barrier
-		spawn := selectBarrierSpawn(terrainType, biomeValue, rng, cfg)
+		spawn := selectBarrierSpawn(pos.TerrainType, pos.BiomeValue, rng, cfg)
 		if spawn == nil {
 			continue
 		}
 
-		spawn.LocalX = localX
-		spawn.LocalY = localY
+		spawn.LocalX = pos.LocalX
+		spawn.LocalY = pos.LocalY
 		spawn.Scale = 0.8 + rng.Float64()*0.4    // 0.8 to 1.2 (barriers vary less in size)
 		spawn.Rotation = rng.Float64() * 6.28318 // 0 to 2π
 		spawn.Variation = rng.Intn(4)            // 0 to 3

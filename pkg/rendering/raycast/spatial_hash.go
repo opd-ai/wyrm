@@ -138,29 +138,7 @@ func (sh *SpatialHash) Query(x, y float64) []*SpriteEntity {
 func (sh *SpatialHash) QueryRadius(x, y, radius float64) []*SpriteEntity {
 	sh.mu.RLock()
 	defer sh.mu.RUnlock()
-
-	// Calculate cell range to check
-	minCX, minCY := sh.worldToCell(x-radius, y-radius)
-	maxCX, maxCY := sh.worldToCell(x+radius, y+radius)
-
-	radiusSq := radius * radius
-	var result []*SpriteEntity
-
-	for cx := minCX; cx <= maxCX; cx++ {
-		for cy := minCY; cy <= maxCY; cy++ {
-			key := cellKey(cx, cy)
-			for _, e := range sh.cells[key] {
-				// Distance check
-				dx := e.X - x
-				dy := e.Y - y
-				if dx*dx+dy*dy <= radiusSq {
-					result = append(result, e)
-				}
-			}
-		}
-	}
-
-	return result
+	return sh.queryRadiusInternal(x, y, radius)
 }
 
 // QueryRect returns all entities within the rectangle from (minX, minY) to (maxX, maxY).

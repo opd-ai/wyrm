@@ -774,14 +774,9 @@ func (r *Renderer) FindTargetedEntity(entities []*SpriteEntity, cfg *TargetingCo
 		cfg = defaultTargetingConfig
 	}
 
-	// Reset context pool for targeting pass
 	r.ResetContextPool()
 
-	result := TargetingResult{
-		HasTarget: false,
-	}
-
-	// Crosshair is at screen center
+	result := TargetingResult{HasTarget: false}
 	crosshairX := r.Width / 2
 	crosshairY := r.Height / 2
 
@@ -789,57 +784,26 @@ func (r *Renderer) FindTargetedEntity(entities []*SpriteEntity, cfg *TargetingCo
 	bestDistance := cfg.MaxTargetDistance + 1
 
 	for _, e := range entities {
-		if e == nil || !e.IsInteractable || !e.Visible {
+		if !isValidTargetCandidate(e, cfg.MaxTargetDistance) {
 			continue
 		}
 
-		// Check if entity is in front of camera and within targeting distance
-		if e.Distance <= 0 || e.Distance > cfg.MaxTargetDistance {
-			continue
-		}
-
-		// Get entity's screen bounds
 		ctx := r.PrepareSpriteDrawContext(e)
 		if ctx == nil {
 			continue
 		}
 
-		// Calculate screen center of the entity
-		entityCenterX := (ctx.StartX + ctx.EndX) / 2
-		entityCenterY := (ctx.StartY + ctx.EndY) / 2
-
-		// Check if crosshair is within tolerance of entity bounds
-		// First check if within expanded bounding box
-		expandedStartX := ctx.StartX - cfg.CrosshairTolerance
-		expandedEndX := ctx.EndX + cfg.CrosshairTolerance
-		expandedStartY := ctx.StartY - cfg.CrosshairTolerance
-		expandedEndY := ctx.EndY + cfg.CrosshairTolerance
-
-		if crosshairX < expandedStartX || crosshairX > expandedEndX ||
-			crosshairY < expandedStartY || crosshairY > expandedEndY {
+		if !isCrosshairWithinBounds(crosshairX, crosshairY, ctx, cfg.CrosshairTolerance) {
 			continue
 		}
 
-		// Within tolerance - check if this is the best target
-		if cfg.PreferCloser {
-			if e.Distance < bestDistance {
-				bestTarget = e
-				bestDistance = e.Distance
-				result.ScreenX = entityCenterX
-				result.ScreenY = entityCenterY
-			}
-		} else {
-			// Prefer the one closest to crosshair center
-			dx := float64(crosshairX - entityCenterX)
-			dy := float64(crosshairY - entityCenterY)
-			distToCenter := math.Sqrt(dx*dx + dy*dy)
-			if bestTarget == nil || distToCenter < bestDistance {
-				bestTarget = e
-				bestDistance = distToCenter
-				result.ScreenX = entityCenterX
-				result.ScreenY = entityCenterY
-			}
-		}
+		entityCenterX := (ctx.StartX + ctx.EndX) / 2
+		entityCenterY := (ctx.StartY + ctx.EndY) / 2
+
+		bestTarget, bestDistance = selectBestTarget(
+			e, bestTarget, bestDistance, cfg.PreferCloser,
+			crosshairX, crosshairY, entityCenterX, entityCenterY, &result,
+		)
 	}
 
 	if bestTarget != nil {
@@ -851,6 +815,41 @@ func (r *Renderer) FindTargetedEntity(entities []*SpriteEntity, cfg *TargetingCo
 	}
 
 	return result
+}
+
+// isValidTargetCandidate checks if an entity can be targeted.
+func isValidTargetCandidate(e *SpriteEntity, maxDist float64) bool {
+	return e != nil && e.IsInteractable && e.Visible &&
+		e.Distance > 0 && e.Distance <= maxDist
+}
+
+// isCrosshairWithinBounds checks if crosshair is within entity bounds.
+func isCrosshairWithinBounds(crosshairX, crosshairY int, ctx *SpriteDrawContext, tolerance int) bool {
+	return crosshairX >= ctx.StartX-tolerance && crosshairX <= ctx.EndX+tolerance &&
+		crosshairY >= ctx.StartY-tolerance && crosshairY <= ctx.EndY+tolerance
+}
+
+// selectBestTarget selects the best target based on config preference.
+func selectBestTarget(e, bestTarget *SpriteEntity, bestDistance float64, preferCloser bool,
+	crosshairX, crosshairY, entityCenterX, entityCenterY int, result *TargetingResult) (*SpriteEntity, float64) {
+
+	if preferCloser {
+		if e.Distance < bestDistance {
+			result.ScreenX = entityCenterX
+			result.ScreenY = entityCenterY
+			return e, e.Distance
+		}
+	} else {
+		dx := float64(crosshairX - entityCenterX)
+		dy := float64(crosshairY - entityCenterY)
+		distToCenter := math.Sqrt(dx*dx + dy*dy)
+		if bestTarget == nil || distToCenter < bestDistance {
+			result.ScreenX = entityCenterX
+			result.ScreenY = entityCenterY
+			return e, distToCenter
+		}
+	}
+	return bestTarget, bestDistance
 }
 
 // UpdateEntityHighlightStates updates the highlight state of entities
@@ -879,6 +878,40 @@ func (r *Renderer) UpdateEntityHighlightStates(entities []*SpriteEntity, targetR
 	}
 }
 
+// formatPromptWithName builds the interaction prompt with the display name.
+func formatPromptWithName(action, name string) string {
+	if name != "" {
+		return action + " " + name
+	}
+	return action
+}
+
+// interactionTypePrompt returns the default prompt for an interaction type.
+func interactionTypePrompt(interactionType, displayName string) string {
+	switch interactionType {
+	case "pickup":
+		return formatPromptWithName("Take", displayName)
+	case "open":
+		return formatPromptWithName("Open", displayName)
+	case "use":
+		return formatPromptWithName("Use", displayName)
+	case "talk":
+		if displayName != "" {
+			return "Talk to " + displayName
+		}
+		return "Talk"
+	case "read":
+		return formatPromptWithName("Read", displayName)
+	case "examine":
+		return formatPromptWithName("Examine", displayName)
+	default:
+		if displayName != "" {
+			return "Interact with " + displayName
+		}
+		return "Interact"
+	}
+}
+
 // GetInteractionPrompt returns the interaction text for a targeting result.
 // Returns empty string if no target or no interaction available.
 func GetInteractionPrompt(result TargetingResult) string {
@@ -891,52 +924,11 @@ func GetInteractionPrompt(result TargetingResult) string {
 		return ""
 	}
 
-	// Build prompt from entity data
 	if e.UseText != "" {
-		if e.DisplayName != "" {
-			return e.UseText + " " + e.DisplayName
-		}
-		return e.UseText
+		return formatPromptWithName(e.UseText, e.DisplayName)
 	}
 
-	// Default prompts based on interaction type
-	switch e.InteractionType {
-	case "pickup":
-		if e.DisplayName != "" {
-			return "Take " + e.DisplayName
-		}
-		return "Take"
-	case "open":
-		if e.DisplayName != "" {
-			return "Open " + e.DisplayName
-		}
-		return "Open"
-	case "use":
-		if e.DisplayName != "" {
-			return "Use " + e.DisplayName
-		}
-		return "Use"
-	case "talk":
-		if e.DisplayName != "" {
-			return "Talk to " + e.DisplayName
-		}
-		return "Talk"
-	case "read":
-		if e.DisplayName != "" {
-			return "Read " + e.DisplayName
-		}
-		return "Read"
-	case "examine":
-		if e.DisplayName != "" {
-			return "Examine " + e.DisplayName
-		}
-		return "Examine"
-	default:
-		if e.DisplayName != "" {
-			return "Interact with " + e.DisplayName
-		}
-		return "Interact"
-	}
+	return interactionTypePrompt(e.InteractionType, e.DisplayName)
 }
 
 // IsEntityAtScreenPosition checks if an entity's screen bounds contain

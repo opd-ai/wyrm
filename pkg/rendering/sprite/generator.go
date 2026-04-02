@@ -4,6 +4,8 @@ import (
 	"image/color"
 	"math"
 	"math/rand"
+
+	"github.com/opd-ai/wyrm/pkg/geom"
 )
 
 // FrameGenerator is a function type for generating a single animation frame.
@@ -683,14 +685,8 @@ func (g *Generator) generateObjectFrame(width, height int, key SpriteCacheKey, r
 	return sprite
 }
 
-// drawPotion draws a potion bottle sprite.
-func (g *Generator) drawPotion(sprite *Sprite, width, height int, liquid, glass color.RGBA, rng *rand.Rand) {
-	centerX := width / 2
-
-	// Bottle neck (top ~20%)
-	neckTop := height / 10
-	neckBottom := height / 4
-	neckWidth := width / 6
+// drawPotionNeck draws the bottle neck portion.
+func drawPotionNeck(sprite *Sprite, centerX, neckTop, neckBottom, neckWidth, width int, glass color.RGBA) {
 	for y := neckTop; y < neckBottom; y++ {
 		for x := centerX - neckWidth; x <= centerX+neckWidth; x++ {
 			if x >= 0 && x < width {
@@ -698,9 +694,11 @@ func (g *Generator) drawPotion(sprite *Sprite, width, height int, liquid, glass 
 			}
 		}
 	}
+}
 
-	// Cork at very top
-	corkColor := color.RGBA{139, 90, 43, 255} // Brown cork
+// drawPotionCork draws the cork stopper.
+func drawPotionCork(sprite *Sprite, centerX, neckTop, neckWidth, width int) {
+	corkColor := color.RGBA{139, 90, 43, 255}
 	for y := 0; y < neckTop; y++ {
 		for x := centerX - neckWidth; x <= centerX+neckWidth; x++ {
 			if x >= 0 && x < width {
@@ -708,19 +706,16 @@ func (g *Generator) drawPotion(sprite *Sprite, width, height int, liquid, glass 
 			}
 		}
 	}
+}
 
-	// Body (bottom ~75%)
-	bodyTop := neckBottom
-	bodyBottom := height - height/10
-	bodyWidth := width / 3
+// drawPotionBody draws the bulging potion body.
+func drawPotionBody(sprite *Sprite, centerX, bodyTop, bodyBottom, bodyWidth, width int, liquid, glass color.RGBA) {
 	for y := bodyTop; y < bodyBottom; y++ {
-		// Bulge shape
 		progress := float64(y-bodyTop) / float64(bodyBottom-bodyTop)
 		bulge := math.Sin(progress * math.Pi)
 		currentWidth := int(float64(bodyWidth) * (0.7 + 0.3*bulge))
 		for x := centerX - currentWidth; x <= centerX+currentWidth; x++ {
 			if x >= 0 && x < width {
-				// Fill with liquid color, edge with glass highlight
 				if x == centerX-currentWidth || x == centerX+currentWidth {
 					sprite.SetPixel(x, y, glass)
 				} else {
@@ -729,27 +724,35 @@ func (g *Generator) drawPotion(sprite *Sprite, width, height int, liquid, glass 
 			}
 		}
 	}
+}
+
+// drawPotion draws a potion bottle sprite.
+func (g *Generator) drawPotion(sprite *Sprite, width, height int, liquid, glass color.RGBA, rng *rand.Rand) {
+	centerX := width / 2
+	neckTop := height / 10
+	neckBottom := height / 4
+	neckWidth := width / 6
+	bodyTop := neckBottom
+	bodyBottom := height - height/10
+	bodyWidth := width / 3
+
+	drawPotionNeck(sprite, centerX, neckTop, neckBottom, neckWidth, width, glass)
+	drawPotionCork(sprite, centerX, neckTop, neckWidth, width)
+	drawPotionBody(sprite, centerX, bodyTop, bodyBottom, bodyWidth, width, liquid, glass)
 
 	// Highlight on glass
 	highlightX := centerX - bodyWidth/2
+	highlight := color.RGBA{255, 255, 255, 100}
 	for y := bodyTop + 2; y < bodyBottom-2; y++ {
 		if highlightX >= 0 && highlightX < width {
-			highlight := color.RGBA{255, 255, 255, 100}
 			sprite.SetPixel(highlightX, y, highlight)
 		}
 	}
 }
 
-// drawSword draws a sword sprite.
-func (g *Generator) drawSword(sprite *Sprite, width, height int, blade, hilt color.RGBA, rng *rand.Rand) {
-	centerX := width / 2
-
-	// Blade (top ~70%)
-	bladeTop := 0
-	bladeBottom := height * 7 / 10
-	bladeWidth := width / 8
+// drawSwordBlade draws the tapered blade portion of a sword.
+func drawSwordBlade(sprite *Sprite, centerX, bladeTop, bladeBottom, bladeWidth, width int, blade color.RGBA) {
 	for y := bladeTop; y < bladeBottom; y++ {
-		// Taper toward tip
 		progress := float64(y) / float64(bladeBottom)
 		currentWidth := int(float64(bladeWidth) * (1.0 - progress*0.5))
 		if currentWidth < 1 {
@@ -761,9 +764,35 @@ func (g *Generator) drawSword(sprite *Sprite, width, height int, blade, hilt col
 			}
 		}
 	}
+}
 
-	// Point at bottom of blade
-	sprite.SetPixel(centerX, bladeBottom, blade)
+// drawSwordHilt draws the hilt and pommel of a sword.
+func drawSwordHilt(sprite *Sprite, centerX, hiltTop, hiltBottom, hiltWidth, pommelWidth, width, height int, hilt color.RGBA) {
+	for y := hiltTop; y < hiltBottom; y++ {
+		for x := centerX - hiltWidth; x <= centerX+hiltWidth; x++ {
+			if x >= 0 && x < width {
+				sprite.SetPixel(x, y, hilt)
+			}
+		}
+	}
+	// Pommel
+	pommelY := hiltBottom
+	for x := centerX - pommelWidth; x <= centerX+pommelWidth; x++ {
+		if x >= 0 && x < width && pommelY < height {
+			sprite.SetPixel(x, pommelY, hilt)
+		}
+	}
+}
+
+// drawSword draws a sword sprite.
+func (g *Generator) drawSword(sprite *Sprite, width, height int, blade, hilt color.RGBA, rng *rand.Rand) {
+	centerX := width / 2
+	bladeTop := 0
+	bladeBottom := height * 7 / 10
+	bladeWidth := width / 8
+
+	drawSwordBlade(sprite, centerX, bladeTop, bladeBottom, bladeWidth, width, blade)
+	sprite.SetPixel(centerX, bladeBottom, blade) // Point at bottom of blade
 
 	// Crossguard
 	guardY := bladeBottom + 1
@@ -774,26 +803,7 @@ func (g *Generator) drawSword(sprite *Sprite, width, height int, blade, hilt col
 		}
 	}
 
-	// Hilt
-	hiltTop := guardY + 1
-	hiltBottom := height - 2
-	hiltWidth := width / 10
-	for y := hiltTop; y < hiltBottom; y++ {
-		for x := centerX - hiltWidth; x <= centerX+hiltWidth; x++ {
-			if x >= 0 && x < width {
-				sprite.SetPixel(x, y, hilt)
-			}
-		}
-	}
-
-	// Pommel
-	pommelY := hiltBottom
-	pommelWidth := width / 8
-	for x := centerX - pommelWidth; x <= centerX+pommelWidth; x++ {
-		if x >= 0 && x < width && pommelY < height {
-			sprite.SetPixel(x, pommelY, hilt)
-		}
-	}
+	drawSwordHilt(sprite, centerX, guardY+1, height-2, width/10, width/8, width, height, hilt)
 }
 
 // drawAxe draws an axe sprite.
@@ -917,19 +927,13 @@ func (g *Generator) drawHelmetItem(sprite *Sprite, width, height int, metal, acc
 	}
 }
 
-// drawShield draws a shield sprite.
-func (g *Generator) drawShield(sprite *Sprite, width, height int, face, rim color.RGBA, rng *rand.Rand) {
-	centerX := width / 2
-	centerY := height / 2
-
-	// Shield shape (kite or round)
+// drawShieldBody draws the main kite shield shape.
+func drawShieldBody(sprite *Sprite, centerX, width, height int, face, rim color.RGBA) {
 	for y := height / 6; y < height*5/6; y++ {
 		progress := float64(y-height/6) / float64(height*4/6)
-		// Taper toward bottom
 		shieldWidth := int(float64(width/3) * (1.0 - progress*0.4))
 		for x := centerX - shieldWidth; x <= centerX+shieldWidth; x++ {
 			if x >= 0 && x < width {
-				// Rim on edges
 				if x == centerX-shieldWidth || x == centerX+shieldWidth {
 					sprite.SetPixel(x, y, rim)
 				} else {
@@ -938,17 +942,10 @@ func (g *Generator) drawShield(sprite *Sprite, width, height int, face, rim colo
 			}
 		}
 	}
+}
 
-	// Top rim
-	for x := centerX - width/3; x <= centerX+width/3; x++ {
-		y := height / 6
-		if x >= 0 && x < width && y >= 0 {
-			sprite.SetPixel(x, y, rim)
-		}
-	}
-
-	// Central emblem (simple cross or circle)
-	emblemSize := width / 8
+// drawShieldEmblem draws the central cross emblem.
+func drawShieldEmblem(sprite *Sprite, centerX, centerY, emblemSize, width, height int, rim color.RGBA) {
 	for dy := -emblemSize; dy <= emblemSize; dy++ {
 		x := centerX
 		y := centerY + dy
@@ -963,6 +960,24 @@ func (g *Generator) drawShield(sprite *Sprite, width, height int, face, rim colo
 			sprite.SetPixel(x, y, rim)
 		}
 	}
+}
+
+// drawShield draws a shield sprite.
+func (g *Generator) drawShield(sprite *Sprite, width, height int, face, rim color.RGBA, rng *rand.Rand) {
+	centerX := width / 2
+	centerY := height / 2
+
+	drawShieldBody(sprite, centerX, width, height, face, rim)
+
+	// Top rim
+	for x := centerX - width/3; x <= centerX+width/3; x++ {
+		y := height / 6
+		if x >= 0 && x < width && y >= 0 {
+			sprite.SetPixel(x, y, rim)
+		}
+	}
+
+	drawShieldEmblem(sprite, centerX, centerY, width/8, width, height, rim)
 }
 
 // drawArmor draws an armor/chestplate sprite.
@@ -1006,30 +1021,50 @@ func (g *Generator) drawArmor(sprite *Sprite, width, height int, main, trim colo
 	}
 }
 
-// drawChest draws a treasure chest sprite.
-func (g *Generator) drawChest(sprite *Sprite, width, height int, wood, metal color.RGBA, rng *rand.Rand) {
-	// Main body (rectangle)
-	bodyTop := height / 3
-	bodyBottom := height - height/8
-	margin := width / 8
+// drawChestBody draws the main rectangular body.
+func drawChestBody(sprite *Sprite, bodyTop, bodyBottom, margin, width int, wood color.RGBA) {
 	for y := bodyTop; y < bodyBottom; y++ {
 		for x := margin; x < width-margin; x++ {
 			sprite.SetPixel(x, y, wood)
 		}
 	}
+}
 
-	// Lid (curved top)
-	lidTop := height / 6
+// drawChestLid draws the curved lid at the top.
+func drawChestLid(sprite *Sprite, lidTop, bodyTop, margin, width int, wood color.RGBA) {
+	centerX := width / 2
 	for y := lidTop; y < bodyTop; y++ {
 		progress := float64(y-lidTop) / float64(bodyTop-lidTop)
 		lidWidth := int(float64(width/2-margin) * (0.8 + progress*0.2))
-		centerX := width / 2
 		for x := centerX - lidWidth; x <= centerX+lidWidth; x++ {
 			if x >= 0 && x < width {
 				sprite.SetPixel(x, y, wood)
 			}
 		}
 	}
+}
+
+// drawChestLock draws the lock/clasp on the chest.
+func drawChestLock(sprite *Sprite, lockX, lockY, lockSize, width, height int, metal color.RGBA) {
+	for dy := 0; dy < lockSize; dy++ {
+		for dx := -lockSize / 2; dx <= lockSize/2; dx++ {
+			x := lockX + dx
+			y := lockY + dy
+			if x >= 0 && x < width && y >= 0 && y < height {
+				sprite.SetPixel(x, y, metal)
+			}
+		}
+	}
+}
+
+// drawChest draws a treasure chest sprite.
+func (g *Generator) drawChest(sprite *Sprite, width, height int, wood, metal color.RGBA, rng *rand.Rand) {
+	bodyTop := height / 3
+	bodyBottom := height - height/8
+	margin := width / 8
+
+	drawChestBody(sprite, bodyTop, bodyBottom, margin, width, wood)
+	drawChestLid(sprite, height/6, bodyTop, margin, width, wood)
 
 	// Metal bands
 	bandY1 := height / 4
@@ -1043,19 +1078,7 @@ func (g *Generator) drawChest(sprite *Sprite, width, height int, wood, metal col
 		}
 	}
 
-	// Lock/clasp
-	lockX := width / 2
-	lockY := bodyTop
-	lockSize := width / 10
-	for dy := 0; dy < lockSize; dy++ {
-		for dx := -lockSize / 2; dx <= lockSize/2; dx++ {
-			x := lockX + dx
-			y := lockY + dy
-			if x >= 0 && x < width && y >= 0 && y < height {
-				sprite.SetPixel(x, y, metal)
-			}
-		}
-	}
+	drawChestLock(sprite, width/2, bodyTop, width/10, width, height, metal)
 }
 
 // drawBarrel draws a barrel/urn sprite.
@@ -1227,18 +1250,11 @@ func (g *Generator) drawBook(sprite *Sprite, width, height int, cover, pages col
 	}
 }
 
-// drawKey draws a key/lockpick sprite.
-func (g *Generator) drawKey(sprite *Sprite, width, height int, metal, handle color.RGBA, rng *rand.Rand) {
-	centerX := width / 2
-
-	// Key bow (circular handle at top)
-	bowCenterY := height / 4
-	bowRadius := width / 4
-	bowHoleRadius := width / 8
+// drawKeyBow draws the circular handle at the top of the key.
+func drawKeyBow(sprite *Sprite, centerX, bowCenterY, bowRadius, bowHoleRadius, width, height int, handle color.RGBA) {
 	for dy := -bowRadius; dy <= bowRadius; dy++ {
 		for dx := -bowRadius; dx <= bowRadius; dx++ {
 			dist := dx*dx + dy*dy
-			// Ring shape (outer - inner)
 			if dist <= bowRadius*bowRadius && dist >= bowHoleRadius*bowHoleRadius {
 				x := centerX + dx
 				y := bowCenterY + dy
@@ -1248,11 +1264,32 @@ func (g *Generator) drawKey(sprite *Sprite, width, height int, metal, handle col
 			}
 		}
 	}
+}
 
-	// Key shaft
+// drawKeyTeeth draws the notched teeth at the bottom of the key.
+func drawKeyTeeth(sprite *Sprite, centerX, teethTop, shaftBottom, teethWidth, width int, metal color.RGBA) {
+	for y := teethTop; y < shaftBottom; y++ {
+		for x := centerX; x < centerX+teethWidth; x++ {
+			notch := (y-teethTop)%3 == 1
+			if !notch && x >= 0 && x < width {
+				sprite.SetPixel(x, y, metal)
+			}
+		}
+	}
+}
+
+// drawKey draws a key/lockpick sprite.
+func (g *Generator) drawKey(sprite *Sprite, width, height int, metal, handle color.RGBA, rng *rand.Rand) {
+	centerX := width / 2
+	bowCenterY := height / 4
+	bowRadius := width / 4
 	shaftTop := bowCenterY + bowRadius
 	shaftBottom := height * 4 / 5
 	shaftWidth := width / 12
+
+	drawKeyBow(sprite, centerX, bowCenterY, bowRadius, width/8, width, height, handle)
+
+	// Key shaft
 	for y := shaftTop; y < shaftBottom; y++ {
 		for x := centerX - shaftWidth; x <= centerX+shaftWidth; x++ {
 			if x >= 0 && x < width {
@@ -1261,18 +1298,7 @@ func (g *Generator) drawKey(sprite *Sprite, width, height int, metal, handle col
 		}
 	}
 
-	// Key teeth (at bottom, to the right)
-	teethTop := shaftBottom - height/8
-	teethWidth := width / 4
-	for y := teethTop; y < shaftBottom; y++ {
-		for x := centerX; x < centerX+teethWidth; x++ {
-			// Notched pattern
-			notch := (y-teethTop)%3 == 1
-			if !notch && x >= 0 && x < width {
-				sprite.SetPixel(x, y, metal)
-			}
-		}
-	}
+	drawKeyTeeth(sprite, centerX, shaftBottom-height/8, shaftBottom, width/4, width, metal)
 }
 
 // drawCoin draws a coin/gem sprite.
@@ -1600,16 +1626,10 @@ func (g *Generator) generateBoxMask(mask []uint8, width, height int, rng *rand.R
 	}
 }
 
-// generatePolygonMask creates an alpha mask from polygon vertices.
-func (g *Generator) generatePolygonMask(mask []uint8, width, height int, vertices []float64, rng *rand.Rand) {
-	if len(vertices) < 6 {
-		g.generateBoxMask(mask, width, height, rng)
-		return
-	}
-
-	// Normalize vertices to sprite coordinates
-	minX, maxX := vertices[0], vertices[0]
-	minY, maxY := vertices[1], vertices[1]
+// polygonBounds returns the min/max X and Y bounds of polygon vertices.
+func polygonBounds(vertices []float64) (minX, maxX, minY, maxY float64) {
+	minX, maxX = vertices[0], vertices[0]
+	minY, maxY = vertices[1], vertices[1]
 	for i := 0; i < len(vertices); i += 2 {
 		if vertices[i] < minX {
 			minX = vertices[i]
@@ -1626,15 +1646,11 @@ func (g *Generator) generatePolygonMask(mask []uint8, width, height int, vertice
 			}
 		}
 	}
+	return
+}
 
-	polyWidth := maxX - minX
-	polyHeight := maxY - minY
-	if polyWidth <= 0 || polyHeight <= 0 {
-		g.generateBoxMask(mask, width, height, rng)
-		return
-	}
-
-	// Scale vertices to sprite coordinates
+// scaleVerticesToSprite scales polygon vertices to sprite dimensions.
+func scaleVerticesToSprite(vertices []float64, minX, minY, polyWidth, polyHeight float64, width, height int) []float64 {
 	scaledVerts := make([]float64, len(vertices))
 	for i := 0; i < len(vertices); i += 2 {
 		scaledVerts[i] = (vertices[i] - minX) / polyWidth * float64(width)
@@ -1642,8 +1658,11 @@ func (g *Generator) generatePolygonMask(mask []uint8, width, height int, vertice
 			scaledVerts[i+1] = (vertices[i+1] - minY) / polyHeight * float64(height)
 		}
 	}
+	return scaledVerts
+}
 
-	// Fill polygon using scanline algorithm
+// fillPolygonScanline fills the mask using point-in-polygon testing.
+func (g *Generator) fillPolygonScanline(mask []uint8, width, height int, scaledVerts []float64) {
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			if g.pointInPolygon(float64(x)+0.5, float64(y)+0.5, scaledVerts) {
@@ -1653,27 +1672,29 @@ func (g *Generator) generatePolygonMask(mask []uint8, width, height int, vertice
 	}
 }
 
+// generatePolygonMask creates an alpha mask from polygon vertices.
+func (g *Generator) generatePolygonMask(mask []uint8, width, height int, vertices []float64, rng *rand.Rand) {
+	if len(vertices) < 6 {
+		g.generateBoxMask(mask, width, height, rng)
+		return
+	}
+
+	minX, maxX, minY, maxY := polygonBounds(vertices)
+	polyWidth := maxX - minX
+	polyHeight := maxY - minY
+
+	if polyWidth <= 0 || polyHeight <= 0 {
+		g.generateBoxMask(mask, width, height, rng)
+		return
+	}
+
+	scaledVerts := scaleVerticesToSprite(vertices, minX, minY, polyWidth, polyHeight, width, height)
+	g.fillPolygonScanline(mask, width, height, scaledVerts)
+}
+
 // pointInPolygon tests if a point is inside a polygon using ray casting.
 func (g *Generator) pointInPolygon(x, y float64, vertices []float64) bool {
-	if len(vertices) < 6 {
-		return false
-	}
-
-	inside := false
-	n := len(vertices) / 2
-	j := n - 1
-
-	for i := 0; i < n; i++ {
-		xi, yi := vertices[i*2], vertices[i*2+1]
-		xj, yj := vertices[j*2], vertices[j*2+1]
-
-		if ((yi > y) != (yj > y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi) {
-			inside = !inside
-		}
-		j = i
-	}
-
-	return inside
+	return geom.PointInPolygon(x, y, vertices)
 }
 
 // getBarrierColors returns genre-appropriate colors for barrier rendering.
@@ -1739,61 +1760,61 @@ func (g *Generator) fillBarrierTexture(sprite *Sprite, mask []uint8, base, accen
 	}
 }
 
+// drawCrack draws a single jagged crack line on the sprite.
+func drawCrack(sprite *Sprite, mask []uint8, startX, startY, crackLen int, rng *rand.Rand) {
+	width, height := sprite.Width, sprite.Height
+	x, y := startX, startY
+	crackColor := color.RGBA{R: 30, G: 25, B: 20, A: 255}
+
+	for j := 0; j < crackLen; j++ {
+		if x < 0 || x >= width || y < 0 || y >= height {
+			break
+		}
+		idx := y*width + x
+		if mask[idx] > 0 {
+			sprite.SetPixel(x, y, crackColor)
+		}
+		x += rng.Intn(3) - 1
+		y += 1
+	}
+}
+
+// drawDamageHole punches a semi-transparent hole at the given position.
+func drawDamageHole(sprite *Sprite, hx, hy, holeRadius int) {
+	width, height := sprite.Width, sprite.Height
+	for dy := -holeRadius; dy <= holeRadius; dy++ {
+		for dx := -holeRadius; dx <= holeRadius; dx++ {
+			px, py := hx+dx, hy+dy
+			if px >= 0 && px < width && py >= 0 && py < height {
+				if dx*dx+dy*dy <= holeRadius*holeRadius {
+					c := sprite.GetPixel(px, py)
+					c.A = uint8(float64(c.A) * 0.3)
+					sprite.SetPixel(px, py, c)
+				}
+			}
+		}
+	}
+}
+
 // applyDamageOverlay adds cracks and damage effects to the sprite.
 func (g *Generator) applyDamageOverlay(sprite *Sprite, mask []uint8, damagePercent float64, rng *rand.Rand) {
 	width, height := sprite.Width, sprite.Height
-
-	// Number of cracks based on damage
 	numCracks := int(damagePercent * 10)
 
 	for i := 0; i < numCracks; i++ {
-		// Random crack start point
 		startX := rng.Intn(width)
 		startY := rng.Intn(height)
-
-		// Crack length based on damage
 		crackLen := int(damagePercent * float64(height) * 0.5)
-
-		// Draw jagged crack line
-		x, y := startX, startY
-		for j := 0; j < crackLen; j++ {
-			if x < 0 || x >= width || y < 0 || y >= height {
-				break
-			}
-
-			idx := y*width + x
-			if mask[idx] > 0 {
-				// Dark crack color
-				sprite.SetPixel(x, y, color.RGBA{R: 30, G: 25, B: 20, A: 255})
-			}
-
-			// Jagged movement
-			x += rng.Intn(3) - 1
-			y += 1
-		}
+		drawCrack(sprite, mask, startX, startY, crackLen, rng)
 	}
 
-	// Add some transparent holes at high damage
 	if damagePercent > 0.5 {
 		numHoles := int((damagePercent - 0.5) * 20)
 		for i := 0; i < numHoles; i++ {
 			hx := rng.Intn(width)
 			hy := rng.Intn(height)
 			holeRadius := 1 + rng.Intn(3)
-
-			for dy := -holeRadius; dy <= holeRadius; dy++ {
-				for dx := -holeRadius; dx <= holeRadius; dx++ {
-					px, py := hx+dx, hy+dy
-					if px >= 0 && px < width && py >= 0 && py < height {
-						if dx*dx+dy*dy <= holeRadius*holeRadius {
-							// Make hole semi-transparent
-							c := sprite.GetPixel(px, py)
-							c.A = uint8(float64(c.A) * 0.3)
-							sprite.SetPixel(px, py, c)
-						}
-					}
-				}
-			}
+			drawDamageHole(sprite, hx, hy, holeRadius)
 		}
 	}
 }
