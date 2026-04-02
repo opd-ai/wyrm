@@ -743,30 +743,30 @@ This does NOT move the camera — only the interaction target selection is assis
 
 #### `pkg/rendering/texture/material.go` (new file)
 
-- [ ] `MaterialProperties` struct (new type — physical material properties)
-- [ ] `MaterialRegistry` struct (new type — material type registry with textures and normal maps)
-- [ ] `GenerateNormalMap()` (new function — procedural normal map generation from heightfield noise)
-- [ ] `GenerateMaterialTexture()` (new function — genre-aware material texture with wear/aging)
-- [ ] `NewMaterialRegistry()` (new constructor — initialize with standard materials)
+- [x] `MaterialProperties` struct (new type — physical material properties)
+- [x] `MaterialRegistry` struct (new type — material type registry with textures and normal maps)
+- [x] `GenerateNormalMap()` (new function — procedural normal map generation from heightfield noise)
+- [x] `GenerateMaterialTexture()` (new function — genre-aware material texture with wear/aging)
+- [x] `NewMaterialRegistry()` (new constructor — initialize with standard materials)
 
 #### `pkg/rendering/texture/generator.go`
 
-- [ ] Add `GenerateNormalMapWithSeed()` (new function — normal map variant of texture generation)
-- [ ] Add wear/aging overlay (edit — apply surface degradation based on age parameter)
+- [x] Add `GenerateNormalMapWithSeed()` (new function — normal map variant of texture generation)
+- [x] Add wear/aging overlay (edit — apply surface degradation based on age parameter)
 
 #### `cmd/client/main.go`
 
-- [ ] Add mouse input handling (new code — `CursorPosition()` delta computation in `Update()`)
-- [ ] Add `CursorModeCaptured` (new code — mouse capture toggling)
-- [ ] Add skybox integration (new code — connect skybox to renderer, set time/weather each frame)
-- [ ] Add interaction targeting (new code — center-screen raycast + highlight management)
-- [ ] Add crosshair rendering (new code — simple crosshair drawn at screen center)
+- [x] Add mouse input handling (new code — `CursorPosition()` delta computation in `Update()`)
+- [x] Add `CursorModeCaptured` (new code — mouse capture toggling)
+- [x] Add skybox integration (new code — connect skybox to renderer, set time/weather each frame)
+- [x] Add interaction targeting (new code — center-screen raycast + highlight management)
+- [x] Add crosshair rendering (new code — simple crosshair drawn at screen center)
 
 #### `config/config.go`
 
-- [ ] Add `MouseConfig` (new struct — mouse sensitivity, acceleration, invert, smoothing)
-- [ ] Add `RenderingConfig` (new struct — quality levels for normal maps, specular, barrier detail)
-- [ ] Add to `Config` struct (edit — new fields for mouse and rendering config)
+- [x] Add `MouseConfig` (new struct — mouse sensitivity, acceleration, invert, smoothing)
+- [x] Add `RenderingConfig` (new struct — quality levels for normal maps, specular, barrier detail)
+- [x] Add to `Config` struct (edit — new fields for mouse and rendering config)
 
 ### Detailed Change Tables
 
