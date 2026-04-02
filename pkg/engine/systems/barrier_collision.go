@@ -51,8 +51,8 @@ func calculateNextPosition(pos *components.Position, path *components.NPCPathfin
 
 // checkMoverBarrierCollision checks collision between a mover and all barriers.
 func (s *BarrierCollisionSystem) checkMoverBarrierCollision(w *ecs.World, barriers []ecs.Entity,
-	path *components.NPCPathfinding, newX, newY, radius, dt float64) {
-
+	path *components.NPCPathfinding, newX, newY, radius, dt float64,
+) {
 	for _, be := range barriers {
 		barrierComp, bOK := w.GetComponent(be, "Barrier")
 		barrierPosComp, bpOK := w.GetComponent(be, "Position")

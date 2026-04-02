@@ -37,12 +37,12 @@ func DefaultEdgeHighlightConfig() EdgeHighlightConfig {
 
 // GenreAccentColors maps genres to their accent colors for highlighting.
 var GenreAccentColors = map[string]color.RGBA{
-	"fantasy":          {R: 255, G: 215, B: 0, A: 255},   // Gold
-	"sci-fi":           {R: 0, G: 255, B: 255, A: 255},   // Cyan
-	"horror":           {R: 220, G: 20, B: 60, A: 255},   // Crimson red
-	"cyberpunk":        {R: 255, G: 20, B: 147, A: 255},  // Neon pink
-	"post-apocalyptic": {R: 255, G: 140, B: 0, A: 255},   // Orange
-	"post-apoc":        {R: 255, G: 140, B: 0, A: 255},   // Orange (alias)
+	"fantasy":          {R: 255, G: 215, B: 0, A: 255},  // Gold
+	"sci-fi":           {R: 0, G: 255, B: 255, A: 255},  // Cyan
+	"horror":           {R: 220, G: 20, B: 60, A: 255},  // Crimson red
+	"cyberpunk":        {R: 255, G: 20, B: 147, A: 255}, // Neon pink
+	"post-apocalyptic": {R: 255, G: 140, B: 0, A: 255},  // Orange
+	"post-apoc":        {R: 255, G: 140, B: 0, A: 255},  // Orange (alias)
 }
 
 // GetAccentColor returns the accent color for a given genre.

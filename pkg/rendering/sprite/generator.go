@@ -1646,7 +1646,7 @@ func polygonBounds(vertices []float64) (minX, maxX, minY, maxY float64) {
 			}
 		}
 	}
-	return
+	return minX, maxX, minY, maxY
 }
 
 // scaleVerticesToSprite scales polygon vertices to sprite dimensions.

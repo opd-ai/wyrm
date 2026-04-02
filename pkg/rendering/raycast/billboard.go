@@ -831,8 +831,8 @@ func isCrosshairWithinBounds(crosshairX, crosshairY int, ctx *SpriteDrawContext,
 
 // selectBestTarget selects the best target based on config preference.
 func selectBestTarget(e, bestTarget *SpriteEntity, bestDistance float64, preferCloser bool,
-	crosshairX, crosshairY, entityCenterX, entityCenterY int, result *TargetingResult) (*SpriteEntity, float64) {
-
+	crosshairX, crosshairY, entityCenterX, entityCenterY int, result *TargetingResult,
+) (*SpriteEntity, float64) {
 	if preferCloser {
 		if e.Distance < bestDistance {
 			result.ScreenX = entityCenterX
