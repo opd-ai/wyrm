@@ -852,3 +852,282 @@ func BenchmarkGenerateForMaterialOrganic(b *testing.B) {
 		_ = GenerateForMaterial(64, 64, MaterialWood, int64(i), "fantasy")
 	}
 }
+
+// ============================================================
+// Normal Map Generation Tests
+// ============================================================
+
+func TestNormalToColor(t *testing.T) {
+	tests := []struct {
+		name   string
+		normal Normal
+		wantR  uint8
+		wantG  uint8
+		wantB  uint8
+	}{
+		{"flat", Normal{0, 0, 1}, 127, 127, 255},
+		{"pointing right", Normal{1, 0, 0}, 255, 127, 127},
+		{"pointing left", Normal{-1, 0, 0}, 0, 127, 127},
+		{"pointing up", Normal{0, 1, 0}, 127, 255, 127},
+		{"pointing down", Normal{0, -1, 0}, 127, 0, 127},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := tt.normal.ToColor()
+			if abs(int(c.R)-int(tt.wantR)) > 1 {
+				t.Errorf("R: expected %d, got %d", tt.wantR, c.R)
+			}
+			if abs(int(c.G)-int(tt.wantG)) > 1 {
+				t.Errorf("G: expected %d, got %d", tt.wantG, c.G)
+			}
+			if abs(int(c.B)-int(tt.wantB)) > 1 {
+				t.Errorf("B: expected %d, got %d", tt.wantB, c.B)
+			}
+		})
+	}
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+func TestNormalFromColor(t *testing.T) {
+	// Flat normal (blue = 255)
+	flatColor := color.RGBA{R: 127, G: 127, B: 255, A: 255}
+	n := NormalFromColor(flatColor)
+	if n.Z < 0.99 {
+		t.Errorf("flat normal Z should be ~1, got %f", n.Z)
+	}
+	if absFloat(n.X) > 0.01 || absFloat(n.Y) > 0.01 {
+		t.Errorf("flat normal X,Y should be ~0, got %f, %f", n.X, n.Y)
+	}
+
+	// Right-pointing normal
+	rightColor := color.RGBA{R: 255, G: 127, B: 127, A: 255}
+	n = NormalFromColor(rightColor)
+	if n.X < 0.99 {
+		t.Errorf("right normal X should be ~1, got %f", n.X)
+	}
+}
+
+func absFloat(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+func TestNormalRoundTrip(t *testing.T) {
+	// Test that Normal -> Color -> Normal preserves values
+	normals := []Normal{
+		{0, 0, 1},
+		{0.5, 0.5, 0.707},
+		{-0.5, 0.5, 0.707},
+		{0, -1, 0},
+	}
+
+	for i, orig := range normals {
+		c := orig.ToColor()
+		result := NormalFromColor(c)
+
+		// Allow small precision loss
+		if absFloat(orig.X-result.X) > 0.02 {
+			t.Errorf("normal %d: X mismatch: %f vs %f", i, orig.X, result.X)
+		}
+		if absFloat(orig.Y-result.Y) > 0.02 {
+			t.Errorf("normal %d: Y mismatch: %f vs %f", i, orig.Y, result.Y)
+		}
+		if absFloat(orig.Z-result.Z) > 0.02 {
+			t.Errorf("normal %d: Z mismatch: %f vs %f", i, orig.Z, result.Z)
+		}
+	}
+}
+
+func TestGenerateNormalMap(t *testing.T) {
+	normalMap := GenerateNormalMap(32, 32, 12345, 1.0)
+	if normalMap == nil {
+		t.Fatal("GenerateNormalMap returned nil")
+	}
+	if len(normalMap) != 32*32 {
+		t.Errorf("expected %d pixels, got %d", 32*32, len(normalMap))
+	}
+
+	// Check that normals are roughly unit length
+	for i := 0; i < 10; i++ {
+		n := NormalFromColor(normalMap[i*100])
+		length := sqrt(n.X*n.X + n.Y*n.Y + n.Z*n.Z)
+		if absFloat(length-1.0) > 0.1 {
+			t.Errorf("normal %d not unit length: %f", i, length)
+		}
+	}
+}
+
+func TestGenerateNormalMapInvalidSize(t *testing.T) {
+	if nm := GenerateNormalMap(0, 32, 0, 1.0); nm != nil {
+		t.Error("should return nil for width=0")
+	}
+	if nm := GenerateNormalMap(32, 0, 0, 1.0); nm != nil {
+		t.Error("should return nil for height=0")
+	}
+}
+
+func TestGenerateNormalMapStrength(t *testing.T) {
+	// Higher strength should produce more varied normals
+	weakMap := GenerateNormalMap(16, 16, 12345, 0.1)
+	strongMap := GenerateNormalMap(16, 16, 12345, 2.0)
+
+	if weakMap == nil || strongMap == nil {
+		t.Fatal("normal maps should not be nil")
+	}
+
+	// Calculate average deviation from flat normal
+	weakDev := 0.0
+	strongDev := 0.0
+	for i := range weakMap {
+		nw := NormalFromColor(weakMap[i])
+		ns := NormalFromColor(strongMap[i])
+
+		// Deviation from Z=1 (flat)
+		weakDev += absFloat(1.0 - nw.Z)
+		strongDev += absFloat(1.0 - ns.Z)
+	}
+
+	if strongDev <= weakDev {
+		t.Error("stronger normal map should have more deviation from flat")
+	}
+}
+
+func TestGenerateWithNormalMap(t *testing.T) {
+	tex := GenerateWithNormalMap(32, 32, 12345, "fantasy", 1.0)
+	if tex == nil {
+		t.Fatal("GenerateWithNormalMap returned nil")
+	}
+	if len(tex.Pixels) != 32*32 {
+		t.Errorf("expected %d pixels, got %d", 32*32, len(tex.Pixels))
+	}
+	if !tex.HasNormalMap() {
+		t.Error("texture should have normal map")
+	}
+	if len(tex.NormalMap) != 32*32 {
+		t.Errorf("expected %d normal map pixels, got %d", 32*32, len(tex.NormalMap))
+	}
+}
+
+func TestGenerateWithNormalMapInvalidSize(t *testing.T) {
+	if tex := GenerateWithNormalMap(0, 32, 0, "fantasy", 1.0); tex != nil {
+		t.Error("should return nil for width=0")
+	}
+	if tex := GenerateWithNormalMap(32, -1, 0, "fantasy", 1.0); tex != nil {
+		t.Error("should return nil for negative height")
+	}
+}
+
+func TestTextureHasNormalMap(t *testing.T) {
+	// Texture without normal map
+	texNoNormal := GenerateWithSeed(16, 16, 12345, "fantasy")
+	if texNoNormal.HasNormalMap() {
+		t.Error("texture without normal map should return false")
+	}
+
+	// Texture with normal map
+	texWithNormal := GenerateWithNormalMap(16, 16, 12345, "fantasy", 1.0)
+	if !texWithNormal.HasNormalMap() {
+		t.Error("texture with normal map should return true")
+	}
+
+	// Nil texture
+	var nilTex *Texture
+	if nilTex.HasNormalMap() {
+		t.Error("nil texture should return false")
+	}
+}
+
+func TestTextureGetNormalAt(t *testing.T) {
+	tex := GenerateWithNormalMap(16, 16, 12345, "fantasy", 1.0)
+
+	// Valid coordinates
+	n := tex.GetNormalAt(5, 5)
+	length := sqrt(n.X*n.X + n.Y*n.Y + n.Z*n.Z)
+	if absFloat(length-1.0) > 0.1 {
+		t.Errorf("normal at (5,5) not unit length: %f", length)
+	}
+
+	// Out of bounds - should return flat normal
+	n = tex.GetNormalAt(-1, 5)
+	if n.Z != 1 {
+		t.Error("out of bounds should return flat normal")
+	}
+
+	n = tex.GetNormalAt(5, 100)
+	if n.Z != 1 {
+		t.Error("out of bounds should return flat normal")
+	}
+}
+
+func TestTextureGetNormalAtNoNormalMap(t *testing.T) {
+	tex := GenerateWithSeed(16, 16, 12345, "fantasy")
+	n := tex.GetNormalAt(5, 5)
+	if n.X != 0 || n.Y != 0 || n.Z != 1 {
+		t.Error("texture without normal map should return flat normal")
+	}
+}
+
+func TestNormalizeNormal(t *testing.T) {
+	// Non-unit normal
+	n := normalizeNormal(Normal{X: 3, Y: 4, Z: 0})
+	length := sqrt(n.X*n.X + n.Y*n.Y + n.Z*n.Z)
+	if absFloat(length-1.0) > 0.001 {
+		t.Errorf("normalized normal should be unit length, got %f", length)
+	}
+
+	// Correct ratios (3-4-5 triangle)
+	if absFloat(n.X-0.6) > 0.01 {
+		t.Errorf("expected X=0.6, got %f", n.X)
+	}
+	if absFloat(n.Y-0.8) > 0.01 {
+		t.Errorf("expected Y=0.8, got %f", n.Y)
+	}
+
+	// Zero-length normal
+	n = normalizeNormal(Normal{X: 0, Y: 0, Z: 0})
+	if n.Z != 1 {
+		t.Error("zero-length normal should return default flat normal")
+	}
+}
+
+func TestSqrt(t *testing.T) {
+	tests := []struct {
+		input    float64
+		expected float64
+	}{
+		{0, 0},
+		{1, 1},
+		{4, 2},
+		{9, 3},
+		{16, 4},
+		{2, 1.414},
+	}
+
+	for _, tt := range tests {
+		result := sqrt(tt.input)
+		if absFloat(result-tt.expected) > 0.01 {
+			t.Errorf("sqrt(%f): expected %f, got %f", tt.input, tt.expected, result)
+		}
+	}
+}
+
+func BenchmarkGenerateNormalMap(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = GenerateNormalMap(64, 64, int64(i), 1.0)
+	}
+}
+
+func BenchmarkGenerateWithNormalMap(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_ = GenerateWithNormalMap(64, 64, int64(i), "fantasy", 1.0)
+	}
+}

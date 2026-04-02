@@ -151,7 +151,7 @@
 - [x] Implement alpha-blended wall rendering for partial barriers
 - [x] Define `MaterialRegistry` with physical properties per material type
 - [x] Implement per-material texture generation with appropriate visual properties
-- [ ] Add normal map generation to `texture.GenerateWithSeed()`
+- [x] Add normal map generation to `texture.GenerateWithSeed()`
 - [ ] Implement specular highlight calculation in wall/floor rendering
 - [ ] Add surface wear/aging based on world age parameter
 - [ ] Genre-specific material palettes (rusty metal, polished chrome, weathered stone)
