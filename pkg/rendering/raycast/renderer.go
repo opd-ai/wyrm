@@ -511,6 +511,9 @@ type Renderer struct {
 	// accessibilityConfig holds accessibility settings for rendering.
 	// If nil, DefaultAccessibilityConfig() is used.
 	accessibilityConfig *AccessibilityConfig
+	// NormalLighting handles normal map sampling and lighting calculations.
+	// If nil, normal map lighting is disabled.
+	NormalLighting *NormalLighting
 }
 
 // NewRenderer creates a new raycasting renderer.
@@ -584,6 +587,7 @@ func NewRendererWithGenre(width, height int, genre string, seed int64) *Renderer
 	}
 	r.initTextures()
 	r.initSkybox(genre)
+	r.NormalLighting = DefaultNormalLighting()
 	return r
 }
 

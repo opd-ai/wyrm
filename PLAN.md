@@ -455,10 +455,10 @@ type GenreMaterialOverride struct {
 
 Normal maps are procedurally generated alongside albedo textures. During wall rendering:
 
-- [ ] Sample normal map at `(texX, texY)` to get surface normal perturbation `(nx, ny, nz)`
-- [ ] Transform the normal from tangent space to world space using the wall's orientation (side 0 = X-facing, side 1 = Y-facing)
-- [ ] Compute light direction from the lighting system's sun/point lights
-- [ ] Apply `dot(normal, lightDir) * lightIntensity` as a brightness modifier
+- [x] Sample normal map at `(texX, texY)` to get surface normal perturbation `(nx, ny, nz)`
+- [x] Transform the normal from tangent space to world space using the wall's orientation (side 0 = X-facing, side 1 = Y-facing)
+- [x] Compute light direction from the lighting system's sun/point lights
+- [x] Apply `dot(normal, lightDir) * lightIntensity` as a brightness modifier
 
 The normal map is a `Texture` where RGB channels encode the normal vector: `R=nx*127+128, G=ny*127+128, B=nz*127+128`.
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/opd-ai/wyrm/pkg/rendering/sprite"
+	"github.com/opd-ai/wyrm/pkg/rendering/texture"
 )
 
 // Draw renders the current view to the framebuffer using DDA raycasting.
@@ -338,8 +339,21 @@ func calculateDrawBounds(screenHeight, wallHeight int, cellWallHeight, playerZ f
 }
 
 // renderWallStrip draws a vertical strip of wall pixels to the framebuffer.
+// Applies normal map lighting when enabled and appropriate based on LOD/Quality settings.
 func (r *Renderer) renderWallStrip(x, drawStart, drawEnd, wallHeight, wallType int, texX, distance float64, side int) {
 	sideDarken := getSideDarkenFactor(side)
+
+	// Check if normal map lighting should be applied
+	applyNormalMaps := r.shouldApplyNormalMaps(distance)
+	var tex *texture.Texture
+	if applyNormalMaps && wallType >= 0 && wallType < len(r.WallTextures) {
+		tex = r.WallTextures[wallType]
+		if tex != nil && !tex.HasNormalMap() {
+			applyNormalMaps = false
+		}
+	} else {
+		applyNormalMaps = false
+	}
 
 	for y := drawStart; y < drawEnd; y++ {
 		if y < 0 || y >= r.Height {
@@ -348,17 +362,48 @@ func (r *Renderer) renderWallStrip(x, drawStart, drawEnd, wallHeight, wallType i
 		texY := float64(y-drawStart) / float64(wallHeight)
 		wallColor := r.GetWallTextureColor(wallType, texX, texY, distance)
 		wallColor = applySideDarkening(wallColor, sideDarken)
+
+		// Apply normal map lighting if enabled
+		if applyNormalMaps && r.NormalLighting != nil {
+			wallColor = r.NormalLighting.ApplyNormalMapLighting(tex, wallColor, texX, texY, side)
+		}
+
 		r.SetPixelColor(x, y, wallColor)
 	}
 }
 
+// shouldApplyNormalMaps checks if normal map lighting should be applied at the given distance.
+func (r *Renderer) shouldApplyNormalMaps(distance float64) bool {
+	// Check quality config first
+	if cfg := r.GetQualityConfig(); cfg != nil && !cfg.NormalMapsEnabled {
+		return false
+	}
+
+	// Check LOD config
+	flags := r.GetLODRenderFlags(distance)
+	return flags.RenderNormalMaps
+}
+
 // renderTransparentWallStrip draws a vertical wall strip with alpha blending.
 // Used for transparent barriers like fences, glass, or partially destroyed walls.
+// Also applies normal map lighting when enabled.
 func (r *Renderer) renderTransparentWallStrip(x, drawStart, drawEnd, wallHeight, wallType int, texX, distance float64, side int, flags CellFlags) {
 	sideDarken := getSideDarkenFactor(side)
 
 	// Determine transparency level based on flags
 	transparency := getTransparencyForFlags(flags)
+
+	// Check if normal map lighting should be applied
+	applyNormalMaps := r.shouldApplyNormalMaps(distance)
+	var tex *texture.Texture
+	if applyNormalMaps && wallType >= 0 && wallType < len(r.WallTextures) {
+		tex = r.WallTextures[wallType]
+		if tex != nil && !tex.HasNormalMap() {
+			applyNormalMaps = false
+		}
+	} else {
+		applyNormalMaps = false
+	}
 
 	for y := drawStart; y < drawEnd; y++ {
 		if y < 0 || y >= r.Height {
@@ -375,6 +420,11 @@ func (r *Renderer) renderTransparentWallStrip(x, drawStart, drawEnd, wallHeight,
 
 		wallColor := r.GetWallTextureColor(wallType, texX, texY, distance)
 		wallColor = applySideDarkening(wallColor, sideDarken)
+
+		// Apply normal map lighting if enabled
+		if applyNormalMaps && r.NormalLighting != nil {
+			wallColor = r.NormalLighting.ApplyNormalMapLighting(tex, wallColor, texX, texY, side)
+		}
 
 		// Apply transparency
 		wallColor.A = uint8(float64(255) * transparency)
