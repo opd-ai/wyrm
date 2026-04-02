@@ -157,9 +157,9 @@ func TestClimbableSystem_ClimbAnimation(t *testing.T) {
 		t.Errorf("expected initial progress in ascending phase, got %f", initialProgress)
 	}
 
-	// Advance through ascending phase
+	// Advance through ascending phase (duration 0.1s)
 	for i := 0; i < 10; i++ {
-		s.Update(w, 0.02)
+		s.Update(w, 0.015)
 	}
 
 	// Get position
@@ -171,9 +171,11 @@ func TestClimbableSystem_ClimbAnimation(t *testing.T) {
 		t.Errorf("expected Z to increase during climb, got %f", pos.Z)
 	}
 
-	// Continue until climb completes
-	for i := 0; i < 20; i++ {
-		s.Update(w, 0.02)
+	// Continue until climb completes (ascending + descending phases = 2 * 0.1s)
+	// Total time needed: 0.2s, we've spent about 0.166s (1 * 0.016 + 10 * 0.015)
+	// Need at least 5 more updates of 0.015 to complete
+	for i := 0; i < 30; i++ {
+		s.Update(w, 0.015)
 	}
 
 	// Climb should be complete
