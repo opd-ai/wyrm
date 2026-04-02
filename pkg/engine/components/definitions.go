@@ -1699,6 +1699,9 @@ type BarrierShape struct {
 	SpriteKey string
 	// MaterialID indexes into MaterialRegistry for collision sound/effects.
 	MaterialID int
+	// ClimbHeight is the maximum height the player can climb over (0 = not climbable).
+	// Barriers with Height <= ClimbHeight can be climbed by the player.
+	ClimbHeight float64
 }
 
 // Barrier is an ECS component for environmental barriers.
@@ -1956,5 +1959,349 @@ func CreateBarrierFromArchetype(arch BarrierArchetype, spriteKey string) *Barrie
 		Destructible: arch.Destructible,
 		HitPoints:    arch.BaseHP,
 		MaxHP:        arch.BaseHP,
+	}
+}
+
+// ============================================================
+// Environment Object Components (Phase 5)
+// ============================================================
+
+// ObjectCategory defines the type of environment object for rendering and interaction.
+type ObjectCategory string
+
+const (
+	// ObjectCategoryInventoriable items can be picked up and stored in inventory.
+	ObjectCategoryInventoriable ObjectCategory = "inventoriable"
+	// ObjectCategoryInteractive items can be interacted with but not picked up (doors, levers, chests).
+	ObjectCategoryInteractive ObjectCategory = "interactive"
+	// ObjectCategoryDecorative items are purely visual with no interaction.
+	ObjectCategoryDecorative ObjectCategory = "decorative"
+)
+
+// InteractionType defines what kind of interaction an object supports.
+type InteractionType string
+
+const (
+	// InteractionNone indicates no interaction is possible.
+	InteractionNone InteractionType = "none"
+	// InteractionPickup allows the player to take the item into inventory.
+	InteractionPickup InteractionType = "pickup"
+	// InteractionOpen opens a container (chest, door, cabinet).
+	InteractionOpen InteractionType = "open"
+	// InteractionUse activates the object (lever, button, switch).
+	InteractionUse InteractionType = "use"
+	// InteractionRead displays text (signs, books, notes).
+	InteractionRead InteractionType = "read"
+	// InteractionTalk initiates dialog (for interactive NPCs/terminals).
+	InteractionTalk InteractionType = "talk"
+	// InteractionPush allows the player to push/move the object.
+	InteractionPush InteractionType = "push"
+	// InteractionExamine displays detailed description.
+	InteractionExamine InteractionType = "examine"
+)
+
+// EnvironmentObject represents an interactable or decorative object in the world.
+type EnvironmentObject struct {
+	// Category determines rendering and interaction behavior.
+	Category ObjectCategory
+
+	// ObjectType is the specific object identifier (e.g., "health_potion", "wooden_chest", "stone_pillar").
+	ObjectType string
+
+	// DisplayName is the name shown to the player.
+	DisplayName string
+
+	// SpriteKey indexes into the sprite cache for visual representation.
+	SpriteKey string
+
+	// Scale is the world-space scale multiplier (1.0 = normal item size).
+	Scale float64
+
+	// InteractionType is the primary interaction this object supports.
+	InteractionType InteractionType
+
+	// InteractionRange is the maximum distance (in world units) for interaction.
+	InteractionRange float64
+
+	// HighlightState indicates the current visual highlight state.
+	// 0 = no highlight, 1 = in range, 2 = targeted
+	HighlightState int
+
+	// IsTargeted indicates if this object is currently targeted by a player.
+	IsTargeted bool
+
+	// ItemID is the inventory item ID for inventoriable objects.
+	ItemID string
+
+	// Quantity is the stack count for inventoriable objects.
+	Quantity int
+
+	// ContainerContents holds item IDs for container objects.
+	ContainerContents []string
+
+	// IsLocked indicates if the object (door/chest) is locked.
+	IsLocked bool
+
+	// LockDifficulty is the skill check difficulty to unlock (0-100).
+	LockDifficulty int
+
+	// RequiredKeyID is the key item needed to unlock, if any.
+	RequiredKeyID string
+
+	// IsOpen indicates if the object (door/chest) is currently open.
+	IsOpen bool
+
+	// IsUsed indicates if the object has been used/activated.
+	IsUsed bool
+
+	// UseText is the action text shown (e.g., "Pick up", "Open", "Read").
+	UseText string
+
+	// ExamineText is the detailed description shown on examination.
+	ExamineText string
+
+	// Genre is used for appropriate sprite generation.
+	Genre string
+
+	// MaterialID indexes into MaterialRegistry for sounds and effects.
+	MaterialID int
+}
+
+// Type returns the component type identifier for EnvironmentObject.
+func (e *EnvironmentObject) Type() string { return "EnvironmentObject" }
+
+// CanInteract returns true if the object supports any interaction.
+func (e *EnvironmentObject) CanInteract() bool {
+	return e.InteractionType != InteractionNone
+}
+
+// IsPickupable returns true if the object can be picked up.
+func (e *EnvironmentObject) IsPickupable() bool {
+	return e.Category == ObjectCategoryInventoriable && e.InteractionType == InteractionPickup
+}
+
+// IsContainer returns true if the object is a container (chest, crate, etc).
+func (e *EnvironmentObject) IsContainer() bool {
+	return e.InteractionType == InteractionOpen && len(e.ContainerContents) > 0
+}
+
+// IsDoor returns true if the object is a door.
+func (e *EnvironmentObject) IsDoor() bool {
+	return e.InteractionType == InteractionOpen && e.ObjectType == "door"
+}
+
+// IsUsable returns true if the object can be used/activated.
+func (e *EnvironmentObject) IsUsable() bool {
+	return e.InteractionType == InteractionUse
+}
+
+// NeedsKey returns true if the object requires a specific key to unlock.
+func (e *EnvironmentObject) NeedsKey() bool {
+	return e.IsLocked && e.RequiredKeyID != ""
+}
+
+// NewInventoriableObject creates a new pickupable item.
+func NewInventoriableObject(objectType, displayName, itemID, genre string, quantity int) *EnvironmentObject {
+	return &EnvironmentObject{
+		Category:         ObjectCategoryInventoriable,
+		ObjectType:       objectType,
+		DisplayName:      displayName,
+		Scale:            1.0,
+		InteractionType:  InteractionPickup,
+		InteractionRange: 2.0,
+		ItemID:           itemID,
+		Quantity:         quantity,
+		UseText:          "Pick up",
+		Genre:            genre,
+	}
+}
+
+// NewInteractiveObject creates a new interactive object (door, lever, etc).
+func NewInteractiveObject(objectType, displayName string, interactionType InteractionType, genre string) *EnvironmentObject {
+	useText := "Use"
+	switch interactionType {
+	case InteractionOpen:
+		useText = "Open"
+	case InteractionUse:
+		useText = "Activate"
+	case InteractionRead:
+		useText = "Read"
+	case InteractionPush:
+		useText = "Push"
+	case InteractionExamine:
+		useText = "Examine"
+	}
+
+	return &EnvironmentObject{
+		Category:         ObjectCategoryInteractive,
+		ObjectType:       objectType,
+		DisplayName:      displayName,
+		Scale:            1.0,
+		InteractionType:  interactionType,
+		InteractionRange: 2.5,
+		UseText:          useText,
+		Genre:            genre,
+	}
+}
+
+// NewDecorativeObject creates a purely visual object with no interaction.
+func NewDecorativeObject(objectType, displayName, genre string) *EnvironmentObject {
+	return &EnvironmentObject{
+		Category:         ObjectCategoryDecorative,
+		ObjectType:       objectType,
+		DisplayName:      displayName,
+		Scale:            1.0,
+		InteractionType:  InteractionNone,
+		InteractionRange: 0,
+		Genre:            genre,
+	}
+}
+
+// NewContainer creates a container object (chest, crate, etc).
+func NewContainer(objectType, displayName, genre string, contents []string) *EnvironmentObject {
+	return &EnvironmentObject{
+		Category:          ObjectCategoryInteractive,
+		ObjectType:        objectType,
+		DisplayName:       displayName,
+		Scale:             1.0,
+		InteractionType:   InteractionOpen,
+		InteractionRange:  2.0,
+		ContainerContents: contents,
+		UseText:           "Open",
+		Genre:             genre,
+	}
+}
+
+// NewLockedContainer creates a locked container object.
+func NewLockedContainer(objectType, displayName, genre string, contents []string, lockDifficulty int, keyID string) *EnvironmentObject {
+	obj := NewContainer(objectType, displayName, genre, contents)
+	obj.IsLocked = true
+	obj.LockDifficulty = lockDifficulty
+	obj.RequiredKeyID = keyID
+	obj.UseText = "Unlock"
+	return obj
+}
+
+// NewDoor creates a door object.
+func NewDoor(displayName, genre string, isLocked bool, lockDifficulty int, keyID string) *EnvironmentObject {
+	useText := "Open"
+	if isLocked {
+		useText = "Unlock"
+	}
+	return &EnvironmentObject{
+		Category:         ObjectCategoryInteractive,
+		ObjectType:       "door",
+		DisplayName:      displayName,
+		Scale:            1.0,
+		InteractionType:  InteractionOpen,
+		InteractionRange: 2.0,
+		IsLocked:         isLocked,
+		LockDifficulty:   lockDifficulty,
+		RequiredKeyID:    keyID,
+		IsOpen:           false,
+		UseText:          useText,
+		Genre:            genre,
+	}
+}
+
+// ObjectHighlightNone indicates no highlight.
+const ObjectHighlightNone = 0
+
+// ObjectHighlightInRange indicates the object is within interaction range.
+const ObjectHighlightInRange = 1
+
+// ObjectHighlightTargeted indicates the object is being targeted by the player.
+const ObjectHighlightTargeted = 2
+
+// PhysicsBody enables physics simulation for an entity.
+// Used for pushable objects, swinging elements, and basic physics interactions.
+type PhysicsBody struct {
+	// VelocityX is the X component of velocity (units per second).
+	VelocityX float64
+	// VelocityY is the Y component of velocity (units per second).
+	VelocityY float64
+	// VelocityZ is the Z component of velocity (units per second).
+	VelocityZ float64
+	// Mass affects how the object responds to forces. 0 = infinite mass (immovable).
+	Mass float64
+	// Friction determines how quickly the object slows down (0-1).
+	Friction float64
+	// Bounciness determines how much velocity is retained on collision (0-1).
+	Bounciness float64
+	// IsKinematic when true, the object is moved by code, not physics forces.
+	IsKinematic bool
+	// IsPushable allows the object to be pushed by player or other entities.
+	IsPushable bool
+	// IsSwinging indicates the object can swing (like a door or hanging sign).
+	IsSwinging bool
+	// SwingAngle is the current swing angle in radians (for swinging objects).
+	SwingAngle float64
+	// SwingVelocity is the current angular velocity for swinging (radians/second).
+	SwingVelocity float64
+	// SwingDamping reduces swing velocity over time (0-1).
+	SwingDamping float64
+	// MaxSwingAngle is the maximum swing angle in radians.
+	MaxSwingAngle float64
+	// PivotOffsetX is the X offset of the pivot point from the object's position.
+	PivotOffsetX float64
+	// PivotOffsetY is the Y offset of the pivot point from the object's position.
+	PivotOffsetY float64
+	// CollisionRadius is the radius for collision detection.
+	CollisionRadius float64
+	// Grounded indicates if the object is resting on a surface.
+	Grounded bool
+}
+
+// Type returns the component type identifier for PhysicsBody.
+func (p *PhysicsBody) Type() string { return "PhysicsBody" }
+
+// ApplyForce adds a force to the physics body, converting to velocity based on mass.
+func (p *PhysicsBody) ApplyForce(forceX, forceY, forceZ float64) {
+	if p.Mass <= 0 || p.IsKinematic {
+		return // Immovable or kinematic objects don't respond to forces
+	}
+	p.VelocityX += forceX / p.Mass
+	p.VelocityY += forceY / p.Mass
+	p.VelocityZ += forceZ / p.Mass
+}
+
+// ApplyImpulse adds an instant velocity change.
+func (p *PhysicsBody) ApplyImpulse(impulseX, impulseY, impulseZ float64) {
+	if p.IsKinematic {
+		return
+	}
+	p.VelocityX += impulseX
+	p.VelocityY += impulseY
+	p.VelocityZ += impulseZ
+}
+
+// ApplySwingImpulse adds angular velocity to a swinging object.
+func (p *PhysicsBody) ApplySwingImpulse(angularImpulse float64) {
+	if !p.IsSwinging {
+		return
+	}
+	p.SwingVelocity += angularImpulse
+}
+
+// NewPushableBody creates a physics body for a pushable object.
+func NewPushableBody(mass, friction float64) *PhysicsBody {
+	return &PhysicsBody{
+		Mass:            mass,
+		Friction:        friction,
+		Bounciness:      0.2,
+		IsPushable:      true,
+		CollisionRadius: 0.5,
+		Grounded:        true,
+	}
+}
+
+// NewSwingingBody creates a physics body for a swinging object (door, sign).
+func NewSwingingBody(maxAngle, damping float64) *PhysicsBody {
+	return &PhysicsBody{
+		Mass:          1.0,
+		IsSwinging:    true,
+		SwingDamping:  damping,
+		MaxSwingAngle: maxAngle,
+		IsKinematic:   true, // Position controlled by swing, not linear physics
 	}
 }

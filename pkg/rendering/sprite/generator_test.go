@@ -643,3 +643,150 @@ func BenchmarkBarrierSpriteGeneration(b *testing.B) {
 		gen.GenerateBarrierSprite(params, int64(i))
 	}
 }
+
+// TestGenerateObjectItemTypes tests generation of various item type sprites.
+func TestGenerateObjectItemTypes(t *testing.T) {
+	gen := NewGenerator("fantasy", 12345)
+
+	itemTypes := []struct {
+		name      string
+		bodyPlan  string
+		minPixels int // minimum non-transparent pixels expected
+	}{
+		{"potion", "potion", 50},
+		{"health_potion", "health_potion", 50},
+		{"sword", "sword", 30},
+		{"dagger", "dagger", 30},
+		{"axe", "axe", 30},
+		{"bow", "bow", 20},
+		{"staff", "staff", 30},
+		{"wand", "wand", 30},
+		{"helmet", "helmet", 40},
+		{"shield", "shield", 50},
+		{"armor", "armor", 60},
+		{"chest", "chest", 80},
+		{"barrel", "barrel", 60},
+		{"door", "door", 80},
+		{"lever", "lever", 30},
+		{"book", "book", 40},
+		{"key", "key", 20},
+		{"coin", "coin", 30},
+		{"food", "food", 20},
+		{"generic", "unknown_type", 10}, // fallback to rectangle
+	}
+
+	for _, tc := range itemTypes {
+		t.Run(tc.name, func(t *testing.T) {
+			key := SpriteCacheKey{
+				Category:       CategoryObject,
+				BodyPlan:       tc.bodyPlan,
+				GenreID:        "fantasy",
+				PrimaryColor:   packColor(color.RGBA{R: 200, G: 100, B: 50, A: 255}),
+				SecondaryColor: packColor(color.RGBA{R: 100, G: 100, B: 100, A: 255}),
+				Scale:          1.0,
+				Seed:           12345,
+			}
+
+			sheet := gen.GenerateSheet(key)
+			if sheet == nil {
+				t.Fatal("expected non-nil sprite sheet")
+			}
+
+			idle := sheet.GetAnimation(AnimIdle)
+			if idle == nil {
+				t.Fatal("expected idle animation")
+			}
+
+			frame := idle.GetFrame(0)
+			if frame == nil {
+				t.Fatal("expected at least one frame")
+			}
+
+			// Count non-transparent pixels
+			nonTransparent := 0
+			for _, p := range frame.Pixels {
+				if p.A > 0 {
+					nonTransparent++
+				}
+			}
+
+			if nonTransparent < tc.minPixels {
+				t.Errorf("expected at least %d non-transparent pixels, got %d", tc.minPixels, nonTransparent)
+			}
+		})
+	}
+}
+
+// TestItemSpriteDeterminism verifies item sprites are deterministically generated.
+func TestItemSpriteDeterminism(t *testing.T) {
+	itemTypes := []string{"potion", "sword", "chest", "key"}
+
+	for _, itemType := range itemTypes {
+		t.Run(itemType, func(t *testing.T) {
+			gen1 := NewGenerator("fantasy", 99999)
+			gen2 := NewGenerator("fantasy", 99999)
+
+			key := SpriteCacheKey{
+				Category:       CategoryObject,
+				BodyPlan:       itemType,
+				GenreID:        "fantasy",
+				PrimaryColor:   packColor(color.RGBA{R: 150, G: 100, B: 50, A: 255}),
+				SecondaryColor: packColor(color.RGBA{R: 80, G: 80, B: 80, A: 255}),
+				Scale:          1.0,
+				Seed:           54321,
+			}
+
+			sheet1 := gen1.GenerateSheet(key)
+			sheet2 := gen2.GenerateSheet(key)
+
+			frame1 := sheet1.GetFrame(AnimIdle, 0)
+			frame2 := sheet2.GetFrame(AnimIdle, 0)
+
+			if frame1.Width != frame2.Width || frame1.Height != frame2.Height {
+				t.Errorf("dimensions differ: (%d,%d) vs (%d,%d)",
+					frame1.Width, frame1.Height, frame2.Width, frame2.Height)
+			}
+
+			for i := range frame1.Pixels {
+				if frame1.Pixels[i] != frame2.Pixels[i] {
+					t.Errorf("pixel %d differs between identical generators", i)
+					break
+				}
+			}
+		})
+	}
+}
+
+// TestItemSpriteScaling verifies item sprites scale correctly.
+func TestItemSpriteScaling(t *testing.T) {
+	gen := NewGenerator("fantasy", 12345)
+
+	scales := []float64{0.5, 1.0, 2.0}
+
+	for _, scale := range scales {
+		t.Run("scale_"+string(rune('0'+int(scale*10))), func(t *testing.T) {
+			key := SpriteCacheKey{
+				Category:       CategoryObject,
+				BodyPlan:       "potion",
+				GenreID:        "fantasy",
+				PrimaryColor:   packColor(color.RGBA{R: 200, G: 50, B: 50, A: 255}),
+				SecondaryColor: packColor(color.RGBA{R: 200, G: 200, B: 200, A: 255}),
+				Scale:          scale,
+				Seed:           12345,
+			}
+
+			sheet := gen.GenerateSheet(key)
+			frame := sheet.GetFrame(AnimIdle, 0)
+
+			expectedWidth := int(float64(DefaultSpriteWidth) * scale)
+			expectedHeight := int(float64(DefaultSpriteHeight) * scale)
+
+			if frame.Width != expectedWidth {
+				t.Errorf("expected width %d at scale %.1f, got %d", expectedWidth, scale, frame.Width)
+			}
+			if frame.Height != expectedHeight {
+				t.Errorf("expected height %d at scale %.1f, got %d", expectedHeight, scale, frame.Height)
+			}
+		})
+	}
+}

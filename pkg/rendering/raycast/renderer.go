@@ -490,6 +490,27 @@ type Renderer struct {
 	// Skybox handles procedural sky rendering with time-of-day and weather effects.
 	// Initialized automatically in NewRenderer. Use SetSkybox to customize.
 	Skybox *Skybox
+	// HighlightConfig holds the configuration for interaction highlight effects.
+	// If nil, DefaultHighlightConfig() is used.
+	HighlightConfig *HighlightConfig
+	// highlightPulsePhase is the current phase of the highlight pulse animation.
+	// Updated via UpdateHighlightPulse() each frame.
+	highlightPulsePhase float64
+	// contextPool is a pool of reusable SpriteDrawContext objects to reduce allocations.
+	// Pre-allocated in NewRenderer, reused in PrepareSpriteDrawContext.
+	contextPool []*SpriteDrawContext
+	// contextPoolIdx is the current index in the context pool.
+	// Reset to 0 at the start of each frame via ResetContextPool().
+	contextPoolIdx int
+	// LODConfig holds the Level of Detail configuration for performance optimization.
+	// If nil, DefaultLODConfig() is used.
+	LODConfig *LODConfig
+	// QualityConfig holds the rendering quality configuration.
+	// If nil, DefaultQualityConfig() is used.
+	QualityConfig *QualityConfig
+	// accessibilityConfig holds accessibility settings for rendering.
+	// If nil, DefaultAccessibilityConfig() is used.
+	accessibilityConfig *AccessibilityConfig
 }
 
 // NewRenderer creates a new raycasting renderer.
@@ -554,7 +575,12 @@ func NewRendererWithGenre(width, height int, genre string, seed int64) *Renderer
 		textureSeed:    seed,
 		ZBuffer:        make([]float64, width),
 		Framebuffer:    make([]byte, width*height*4),
-		visibleSprites: make([]*SpriteEntity, 0, 256), // Pre-allocate for typical entity count
+		visibleSprites: make([]*SpriteEntity, 0, 256),     // Pre-allocate for typical entity count
+		contextPool:    make([]*SpriteDrawContext, 0, 64), // Pre-allocate context pool
+	}
+	// Initialize context pool with reusable objects
+	for i := 0; i < 64; i++ {
+		r.contextPool = append(r.contextPool, &SpriteDrawContext{})
 	}
 	r.initTextures()
 	r.initSkybox(genre)
@@ -1172,4 +1198,97 @@ func (r *Renderer) GetZBufferAt(x int) float64 {
 		return MaxRayDistance
 	}
 	return r.ZBuffer[x]
+}
+
+// UpdateHighlightPulse advances the highlight pulse animation.
+// dt is the time delta in seconds since the last frame.
+// Call this once per frame to animate highlight effects.
+func (r *Renderer) UpdateHighlightPulse(dt float64) {
+	cfg := r.HighlightConfig
+	if cfg == nil {
+		cfg = DefaultHighlightConfig()
+	}
+	if cfg.PulseEnabled {
+		r.highlightPulsePhase += cfg.PulseSpeed * dt
+		// Wrap to prevent float overflow on long sessions
+		if r.highlightPulsePhase > 2*math.Pi*1000 {
+			r.highlightPulsePhase -= 2 * math.Pi * 1000
+		}
+	}
+}
+
+// SetHighlightConfig sets the highlight effect configuration.
+func (r *Renderer) SetHighlightConfig(cfg *HighlightConfig) {
+	r.HighlightConfig = cfg
+}
+
+// GetHighlightPulsePhase returns the current highlight pulse phase.
+// Useful for synchronizing other UI effects with the highlight pulse.
+func (r *Renderer) GetHighlightPulsePhase() float64 {
+	return r.highlightPulsePhase
+}
+
+// ResetContextPool resets the context pool index to 0.
+// Call this at the start of each frame before rendering sprites.
+func (r *Renderer) ResetContextPool() {
+	r.contextPoolIdx = 0
+}
+
+// getPooledContext returns a reusable SpriteDrawContext from the pool.
+// If the pool is exhausted, allocates a new context and adds it to the pool.
+func (r *Renderer) getPooledContext() *SpriteDrawContext {
+	if r.contextPoolIdx >= len(r.contextPool) {
+		// Pool exhausted, grow it
+		ctx := &SpriteDrawContext{}
+		r.contextPool = append(r.contextPool, ctx)
+	}
+	ctx := r.contextPool[r.contextPoolIdx]
+	r.contextPoolIdx++
+	return ctx
+}
+
+// GetLODConfig returns the LOD configuration, using the default if not set.
+func (r *Renderer) GetLODConfig() *LODConfig {
+	if r.LODConfig == nil {
+		return defaultLODConfig
+	}
+	return r.LODConfig
+}
+
+// SetLODConfig sets the LOD configuration.
+func (r *Renderer) SetLODConfig(cfg *LODConfig) {
+	r.LODConfig = cfg
+}
+
+// GetLODLevel returns the LOD level for a given distance.
+func (r *Renderer) GetLODLevel(distance float64) LODLevel {
+	return r.GetLODConfig().GetLODLevel(distance)
+}
+
+// GetLODRenderFlags returns the render flags for a given distance.
+func (r *Renderer) GetLODRenderFlags(distance float64) LODRenderFlags {
+	return r.GetLODConfig().GetRenderFlags(distance)
+}
+
+// GetQualityConfig returns the quality configuration, using the default if not set.
+func (r *Renderer) GetQualityConfig() *QualityConfig {
+	if r.QualityConfig == nil {
+		return DefaultQualityConfig()
+	}
+	return r.QualityConfig
+}
+
+// SetQualityConfig sets the rendering quality configuration.
+func (r *Renderer) SetQualityConfig(cfg *QualityConfig) {
+	r.QualityConfig = cfg
+	// Also update LOD config based on quality
+	if cfg != nil && r.LODConfig != nil {
+		cfg.ApplyToLODConfig(r.LODConfig)
+	}
+}
+
+// SetQualityPreset sets the rendering quality from a preset.
+func (r *Renderer) SetQualityPreset(preset QualityPreset) {
+	cfg := NewQualityConfig(preset)
+	r.SetQualityConfig(cfg)
 }

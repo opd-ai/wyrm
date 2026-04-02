@@ -163,15 +163,15 @@
 
 **Milestone:** Items, chests, doors render in world; interaction highlight visible.
 
-- [ ] Categorize environment objects: inventoriable, interactive, decorative
-- [ ] Extend `SpriteEntity` with interaction metadata (type, range, highlight state)
-- [ ] Implement scale-correct item rendering (items appear correctly sized)
-- [ ] Implement interaction highlight effect (glow outline for objects in range)
-- [ ] Implement interaction targeting system (raycast from crosshair to determine target)
-- [ ] Add `InteractionSystem` ECS system for proximity detection and feedback
-- [ ] Procedural item sprite generation matching inventory icons
-- [ ] Physics integration for pushable/swinging objects
-- [ ] Unit tests: item identification, highlight rendering, interaction raycasting
+- [x] Categorize environment objects: inventoriable, interactive, decorative
+- [x] Extend `SpriteEntity` with interaction metadata (type, range, highlight state)
+- [x] Implement scale-correct item rendering (items appear correctly sized)
+- [x] Implement interaction highlight effect (glow outline for objects in range)
+- [x] Implement interaction targeting system (raycast from crosshair to determine target)
+- [x] Add `InteractionSystem` ECS system for proximity detection and feedback
+- [x] Procedural item sprite generation matching inventory icons
+- [x] Physics integration for pushable/swinging objects
+- [x] Unit tests: item identification, highlight rendering, interaction raycasting
 
 ### Phase 6: Integration, Performance & Polish
 **Dependencies:** All previous phases  
@@ -179,14 +179,14 @@
 
 **Milestone:** 60 FPS maintained; all features integrated end-to-end.
 
-- [ ] Performance profiling and optimization pass
-- [ ] LOD system for barrier/object detail reduction at distance
-- [ ] Frustum culling for environment objects
-- [ ] Spatial hash for efficient object/barrier queries
-- [ ] Fallback rendering for low-end hardware (disable normal maps, reduce barrier detail)
-- [ ] Accessibility: high-contrast interaction highlights, colorblind-friendly item indicators
-- [ ] Full integration test suite
-- [ ] Benchmark suite for rendering hot paths
+- [x] Performance profiling and optimization pass
+- [x] LOD system for barrier/object detail reduction at distance
+- [x] Frustum culling for environment objects
+- [x] Spatial hash for efficient object/barrier queries
+- [x] Fallback rendering for low-end hardware (disable normal maps, reduce barrier detail)
+- [x] Accessibility: high-contrast interaction highlights, colorblind-friendly item indicators
+- [x] Full integration test suite
+- [x] Benchmark suite for rendering hot paths
 
 ### Phase Dependency Graph
 
@@ -255,9 +255,9 @@ For multi-story buildings: the `FloorH` and `CeilH` fields allow stacking (floor
 - **Wall rendering:** Additional multiplication per column for height scaling — negligible.
 
 #### Integration Points
-- [ ] `pkg/world/chunk/manager.go`: Extend chunk generation to produce `WallHeight` values from terrain type + noise
-- [ ] `pkg/world/chunk/chunk.go`: Add `WallHeights []float64` field (parallel to `HeightMap`)
-- [ ] `pkg/rendering/raycast/renderer.go`: `SetWorldMap()` converts chunk data to `MapCell` grid
+- [x] `pkg/world/chunk/manager.go`: Extend chunk generation to produce `WallHeight` values from terrain type + noise
+- [x] `pkg/world/chunk/chunk.go`: Add `WallHeights []float64` field (parallel to `HeightMap`)
+- [x] `pkg/rendering/raycast/renderer.go`: `SetWorldMap()` converts chunk data to `MapCell` grid
 
 #### Genre Variations
 | Genre | Height Characteristics |
@@ -311,29 +311,29 @@ type Barrier struct {
 
 Barriers use **shaped billboards** — sprites with alpha-mask silhouettes that are wider than a single grid cell. Unlike NPC billboards (always face camera), barrier billboards are rendered with perspective-correct width based on their `BarrierShape`.
 
-- [ ] During the entity sprite pass, barriers are sorted alongside NPCs by distance
-- [ ] For each barrier, compute screen bounds using `GetSpriteScreenBounds()` with the barrier's width/height
-- [ ] Sample the barrier's sprite with its alpha mask to produce the silhouette
-- [ ] The alpha mask is generated procedurally from the `ShapeType` and `Vertices` data
+- [x] During the entity sprite pass, barriers are sorted alongside NPCs by distance
+- [x] For each barrier, compute screen bounds using `GetSpriteScreenBounds()` with the barrier's width/height
+- [x] Sample the barrier's sprite with its alpha mask to produce the silhouette
+- [x] The alpha mask is generated procedurally from the `ShapeType` and `Vertices` data
 
 #### Algorithm: Polygon Collision Detection
 
 For irregular barrier shapes, collision uses a 2D polygon intersection test:
 
-- [ ] Each barrier's `Vertices` define a convex hull in world-space relative to the barrier's center
-- [ ] Player movement checks: for each movement vector, test line-segment vs polygon edge intersection
-- [ ] Use separating axis theorem (SAT) for convex polygon vs circle (player bounding circle) collision
-- [ ] Cylinder and box shapes use optimized fast-path checks (circle-circle, AABB)
+- [x] Each barrier's `Vertices` define a convex hull in world-space relative to the barrier's center
+- [x] Player movement checks: for each movement vector, test line-segment vs polygon edge intersection
+- [x] Use separating axis theorem (SAT) for convex polygon vs circle (player bounding circle) collision
+- [x] Cylinder and box shapes use optimized fast-path checks (circle-circle, AABB)
 
 #### Performance Impact
 - **Barrier rendering:** Same cost as NPC sprite rendering (billboard transform + column draw). With 50 barriers visible: ~50× sprite column cost. Mitigated by frustum culling and distance culling.
 - **Collision:** SAT test per barrier within player's cell neighborhood (3×3 grid). Typically <20 barriers in range. Sub-microsecond per test.
 
 #### Integration Points
-- [ ] `pkg/engine/components/definitions.go`: New `Barrier` component
-- [ ] `pkg/engine/systems/`: Barriers consumed by `WorldChunkSystem` (spawning) and collision system
-- [ ] `pkg/world/chunk/manager.go`: `DetailSpawn` extended with `BarrierShape` data for spawning
-- [ ] `pkg/rendering/sprite/generator.go`: New barrier sprite generation functions
+- [x] `pkg/engine/components/definitions.go`: New `Barrier` component
+- [x] `pkg/engine/systems/`: Barriers consumed by `WorldChunkSystem` (spawning) and collision system
+- [x] `pkg/world/chunk/manager.go`: `DetailSpawn` extended with `BarrierShape` data for spawning
+- [x] `pkg/rendering/sprite/generator.go`: New barrier sprite generation functions
 
 ---
 
@@ -369,10 +369,10 @@ type PartialBarrierProperties struct {
 
 For walls/barriers with `FlagTransparent` or `FlagSemiOpaque`:
 
-- [ ] During `renderWallStrip()`, after sampling the wall texture color, check `MapCell.Flags`
-- [ ] If transparent: apply `cell.Opacity` to the alpha channel. Blend with the sky/floor color behind
-- [ ] If semi-opaque with gap pattern: use a procedural gap mask (based on seed + position) to determine per-pixel opacity. Pixels in "gap" regions get alpha 0 (show through to background)
-- [ ] For lattice patterns: `texX % spacing < bar_width` creates vertical bars; combine with horizontal for lattice
+- [x] During `renderWallStrip()`, after sampling the wall texture color, check `MapCell.Flags`
+- [x] If transparent: apply `cell.Opacity` to the alpha channel. Blend with the sky/floor color behind
+- [x] If semi-opaque with gap pattern: use a procedural gap mask (based on seed + position) to determine per-pixel opacity. Pixels in "gap" regions get alpha 0 (show through to background)
+- [x] For lattice patterns: `texX % spacing < bar_width` creates vertical bars; combine with horizontal for lattice
 
 **Rendering order change:** Partial barriers require a **two-pass approach**:
 - Pass 1: Render all opaque walls (existing behavior, populates ZBuffer).
@@ -392,10 +392,10 @@ This reuses the `PlayerZ` field added for variable-height walls.
 #### Destructible Elements
 
 Destructible barriers have `HitPoints`. When attacked:
-- [ ] Reduce `HitPoints` by weapon damage
+- [x] Reduce `HitPoints` by weapon damage
 - [ ] Update `DamageOverlay` on the barrier's `Appearance` component
 - [ ] At 50% HP: switch sprite to "damaged" variant (cracks, gaps increase)
-- [ ] At 0 HP: remove barrier entity, spawn debris particles, play destruction sound
+- [x] At 0 HP: remove barrier entity, spawn debris particles, play destruction sound
 
 #### Performance Impact
 - **Two-pass walls:** The second pass only touches partial barriers (typically <10% of walls). Minimal overhead.

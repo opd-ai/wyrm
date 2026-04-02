@@ -630,20 +630,725 @@ func (g *Generator) generateObjectSheet(key SpriteCacheKey, rng *rand.Rand) *Spr
 	return g.generateSingleFrameSheet(width, height, key, rng, false, g.generateObjectFrame)
 }
 
-// generateObjectFrame creates an object sprite.
+// generateObjectFrame creates an object sprite based on BodyPlan (item type).
 func (g *Generator) generateObjectFrame(width, height int, key SpriteCacheKey, rng *rand.Rand) *Sprite {
 	sprite := NewSprite(width, height)
 	primary := unpackColor(key.PrimaryColor)
+	secondary := unpackColor(key.SecondaryColor)
 
-	// Simple rectangle for generic objects
-	margin := 2
-	for y := margin; y < height-margin; y++ {
-		for x := margin; x < width-margin; x++ {
-			sprite.SetPixel(x, y, primary)
+	// Route to specific item generators based on BodyPlan
+	switch key.BodyPlan {
+	case "potion", "health_potion", "mana_potion", "stamina_potion":
+		g.drawPotion(sprite, width, height, primary, secondary, rng)
+	case "sword", "dagger", "longsword":
+		g.drawSword(sprite, width, height, primary, secondary, rng)
+	case "axe", "battleaxe", "hatchet":
+		g.drawAxe(sprite, width, height, primary, secondary, rng)
+	case "bow", "crossbow", "longbow":
+		g.drawBow(sprite, width, height, primary, secondary, rng)
+	case "staff", "wand", "scepter":
+		g.drawMagicStaff(sprite, width, height, primary, secondary, rng)
+	case "helmet", "helm", "cap":
+		g.drawHelmetItem(sprite, width, height, primary, secondary, rng)
+	case "shield", "buckler":
+		g.drawShield(sprite, width, height, primary, secondary, rng)
+	case "armor", "chestplate", "robe":
+		g.drawArmor(sprite, width, height, primary, secondary, rng)
+	case "chest", "container", "crate":
+		g.drawChest(sprite, width, height, primary, secondary, rng)
+	case "barrel", "urn":
+		g.drawBarrel(sprite, width, height, primary, secondary, rng)
+	case "door", "gate":
+		g.drawDoor(sprite, width, height, primary, secondary, rng)
+	case "lever", "switch":
+		g.drawLever(sprite, width, height, primary, secondary, rng)
+	case "book", "scroll", "tome":
+		g.drawBook(sprite, width, height, primary, secondary, rng)
+	case "key", "lockpick":
+		g.drawKey(sprite, width, height, primary, secondary, rng)
+	case "coin", "gold", "gem":
+		g.drawCoin(sprite, width, height, primary, secondary, rng)
+	case "food", "bread", "meat", "apple":
+		g.drawFood(sprite, width, height, primary, secondary, rng)
+	default:
+		// Generic object: simple rectangle
+		margin := 2
+		for y := margin; y < height-margin; y++ {
+			for x := margin; x < width-margin; x++ {
+				sprite.SetPixel(x, y, primary)
+			}
 		}
 	}
 
 	return sprite
+}
+
+// drawPotion draws a potion bottle sprite.
+func (g *Generator) drawPotion(sprite *Sprite, width, height int, liquid, glass color.RGBA, rng *rand.Rand) {
+	centerX := width / 2
+
+	// Bottle neck (top ~20%)
+	neckTop := height / 10
+	neckBottom := height / 4
+	neckWidth := width / 6
+	for y := neckTop; y < neckBottom; y++ {
+		for x := centerX - neckWidth; x <= centerX+neckWidth; x++ {
+			if x >= 0 && x < width {
+				sprite.SetPixel(x, y, glass)
+			}
+		}
+	}
+
+	// Cork at very top
+	corkColor := color.RGBA{139, 90, 43, 255} // Brown cork
+	for y := 0; y < neckTop; y++ {
+		for x := centerX - neckWidth; x <= centerX+neckWidth; x++ {
+			if x >= 0 && x < width {
+				sprite.SetPixel(x, y, corkColor)
+			}
+		}
+	}
+
+	// Body (bottom ~75%)
+	bodyTop := neckBottom
+	bodyBottom := height - height/10
+	bodyWidth := width / 3
+	for y := bodyTop; y < bodyBottom; y++ {
+		// Bulge shape
+		progress := float64(y-bodyTop) / float64(bodyBottom-bodyTop)
+		bulge := math.Sin(progress * math.Pi)
+		currentWidth := int(float64(bodyWidth) * (0.7 + 0.3*bulge))
+		for x := centerX - currentWidth; x <= centerX+currentWidth; x++ {
+			if x >= 0 && x < width {
+				// Fill with liquid color, edge with glass highlight
+				if x == centerX-currentWidth || x == centerX+currentWidth {
+					sprite.SetPixel(x, y, glass)
+				} else {
+					sprite.SetPixel(x, y, liquid)
+				}
+			}
+		}
+	}
+
+	// Highlight on glass
+	highlightX := centerX - bodyWidth/2
+	for y := bodyTop + 2; y < bodyBottom-2; y++ {
+		if highlightX >= 0 && highlightX < width {
+			highlight := color.RGBA{255, 255, 255, 100}
+			sprite.SetPixel(highlightX, y, highlight)
+		}
+	}
+}
+
+// drawSword draws a sword sprite.
+func (g *Generator) drawSword(sprite *Sprite, width, height int, blade, hilt color.RGBA, rng *rand.Rand) {
+	centerX := width / 2
+
+	// Blade (top ~70%)
+	bladeTop := 0
+	bladeBottom := height * 7 / 10
+	bladeWidth := width / 8
+	for y := bladeTop; y < bladeBottom; y++ {
+		// Taper toward tip
+		progress := float64(y) / float64(bladeBottom)
+		currentWidth := int(float64(bladeWidth) * (1.0 - progress*0.5))
+		if currentWidth < 1 {
+			currentWidth = 1
+		}
+		for x := centerX - currentWidth; x <= centerX+currentWidth; x++ {
+			if x >= 0 && x < width {
+				sprite.SetPixel(x, y, blade)
+			}
+		}
+	}
+
+	// Point at bottom of blade
+	sprite.SetPixel(centerX, bladeBottom, blade)
+
+	// Crossguard
+	guardY := bladeBottom + 1
+	guardWidth := width / 3
+	for x := centerX - guardWidth; x <= centerX+guardWidth; x++ {
+		if x >= 0 && x < width && guardY < height {
+			sprite.SetPixel(x, guardY, hilt)
+		}
+	}
+
+	// Hilt
+	hiltTop := guardY + 1
+	hiltBottom := height - 2
+	hiltWidth := width / 10
+	for y := hiltTop; y < hiltBottom; y++ {
+		for x := centerX - hiltWidth; x <= centerX+hiltWidth; x++ {
+			if x >= 0 && x < width {
+				sprite.SetPixel(x, y, hilt)
+			}
+		}
+	}
+
+	// Pommel
+	pommelY := hiltBottom
+	pommelWidth := width / 8
+	for x := centerX - pommelWidth; x <= centerX+pommelWidth; x++ {
+		if x >= 0 && x < width && pommelY < height {
+			sprite.SetPixel(x, pommelY, hilt)
+		}
+	}
+}
+
+// drawAxe draws an axe sprite.
+func (g *Generator) drawAxe(sprite *Sprite, width, height int, head, handle color.RGBA, rng *rand.Rand) {
+	centerX := width / 2
+
+	// Handle (vertical, offset right)
+	handleX := centerX + width/6
+	handleWidth := width / 12
+	for y := height / 5; y < height-2; y++ {
+		for x := handleX - handleWidth; x <= handleX+handleWidth; x++ {
+			if x >= 0 && x < width {
+				sprite.SetPixel(x, y, handle)
+			}
+		}
+	}
+
+	// Axe head (curved blade on left side)
+	headTop := height / 8
+	headBottom := height / 2
+	for y := headTop; y < headBottom; y++ {
+		progress := float64(y-headTop) / float64(headBottom-headTop)
+		// Curved edge
+		curveOffset := int(math.Sin(progress*math.Pi) * float64(width/3))
+		for x := handleX - curveOffset - width/12; x < handleX; x++ {
+			if x >= 0 && x < width {
+				sprite.SetPixel(x, y, head)
+			}
+		}
+	}
+}
+
+// drawBow draws a bow sprite.
+func (g *Generator) drawBow(sprite *Sprite, width, height int, wood, string_ color.RGBA, rng *rand.Rand) {
+	// Bow curve (C-shape on left)
+	for y := height / 6; y < height*5/6; y++ {
+		progress := float64(y-height/6) / float64(height*4/6)
+		curveX := int(math.Sin(progress*math.Pi) * float64(width/3))
+		if curveX+width/4 >= 0 && curveX+width/4 < width {
+			sprite.SetPixel(curveX+width/4, y, wood)
+			sprite.SetPixel(curveX+width/4+1, y, wood)
+		}
+	}
+
+	// String (straight line)
+	stringX := width / 4
+	for y := height / 6; y < height*5/6; y++ {
+		if stringX >= 0 && stringX < width {
+			sprite.SetPixel(stringX, y, string_)
+		}
+	}
+}
+
+// drawMagicStaff draws a magic staff/wand sprite.
+func (g *Generator) drawMagicStaff(sprite *Sprite, width, height int, shaft, gem color.RGBA, rng *rand.Rand) {
+	centerX := width / 2
+
+	// Staff shaft
+	shaftWidth := width / 10
+	for y := height / 5; y < height-2; y++ {
+		for x := centerX - shaftWidth; x <= centerX+shaftWidth; x++ {
+			if x >= 0 && x < width {
+				sprite.SetPixel(x, y, shaft)
+			}
+		}
+	}
+
+	// Gem/orb at top
+	gemCenterY := height / 8
+	gemRadius := width / 5
+	for dy := -gemRadius; dy <= gemRadius; dy++ {
+		for dx := -gemRadius; dx <= gemRadius; dx++ {
+			if dx*dx+dy*dy <= gemRadius*gemRadius {
+				x := centerX + dx
+				y := gemCenterY + dy
+				if x >= 0 && x < width && y >= 0 && y < height {
+					sprite.SetPixel(x, y, gem)
+				}
+			}
+		}
+	}
+}
+
+// drawHelmetItem draws a helmet sprite (for inventory display).
+func (g *Generator) drawHelmetItem(sprite *Sprite, width, height int, metal, accent color.RGBA, rng *rand.Rand) {
+	centerX := width / 2
+	centerY := height / 2
+
+	// Dome shape
+	domeRadius := width / 3
+	for dy := -domeRadius; dy <= 0; dy++ {
+		for dx := -domeRadius; dx <= domeRadius; dx++ {
+			if dx*dx+dy*dy <= domeRadius*domeRadius {
+				x := centerX + dx
+				y := centerY + dy
+				if x >= 0 && x < width && y >= 0 && y < height {
+					sprite.SetPixel(x, y, metal)
+				}
+			}
+		}
+	}
+
+	// Brim
+	brimY := centerY
+	brimWidth := width * 2 / 5
+	for x := centerX - brimWidth; x <= centerX+brimWidth; x++ {
+		if x >= 0 && x < width && brimY < height {
+			sprite.SetPixel(x, brimY, metal)
+			if brimY+1 < height {
+				sprite.SetPixel(x, brimY+1, metal)
+			}
+		}
+	}
+
+	// Decorative stripe
+	for x := centerX - domeRadius/2; x <= centerX+domeRadius/2; x++ {
+		y := centerY - domeRadius/2
+		if x >= 0 && x < width && y >= 0 && y < height {
+			sprite.SetPixel(x, y, accent)
+		}
+	}
+}
+
+// drawShield draws a shield sprite.
+func (g *Generator) drawShield(sprite *Sprite, width, height int, face, rim color.RGBA, rng *rand.Rand) {
+	centerX := width / 2
+	centerY := height / 2
+
+	// Shield shape (kite or round)
+	for y := height / 6; y < height*5/6; y++ {
+		progress := float64(y-height/6) / float64(height*4/6)
+		// Taper toward bottom
+		shieldWidth := int(float64(width/3) * (1.0 - progress*0.4))
+		for x := centerX - shieldWidth; x <= centerX+shieldWidth; x++ {
+			if x >= 0 && x < width {
+				// Rim on edges
+				if x == centerX-shieldWidth || x == centerX+shieldWidth {
+					sprite.SetPixel(x, y, rim)
+				} else {
+					sprite.SetPixel(x, y, face)
+				}
+			}
+		}
+	}
+
+	// Top rim
+	for x := centerX - width/3; x <= centerX+width/3; x++ {
+		y := height / 6
+		if x >= 0 && x < width && y >= 0 {
+			sprite.SetPixel(x, y, rim)
+		}
+	}
+
+	// Central emblem (simple cross or circle)
+	emblemSize := width / 8
+	for dy := -emblemSize; dy <= emblemSize; dy++ {
+		x := centerX
+		y := centerY + dy
+		if x >= 0 && x < width && y >= 0 && y < height {
+			sprite.SetPixel(x, y, rim)
+		}
+	}
+	for dx := -emblemSize; dx <= emblemSize; dx++ {
+		x := centerX + dx
+		y := centerY
+		if x >= 0 && x < width && y >= 0 && y < height {
+			sprite.SetPixel(x, y, rim)
+		}
+	}
+}
+
+// drawArmor draws an armor/chestplate sprite.
+func (g *Generator) drawArmor(sprite *Sprite, width, height int, main, trim color.RGBA, rng *rand.Rand) {
+	centerX := width / 2
+
+	// Torso shape
+	for y := height / 6; y < height*4/5; y++ {
+		progress := float64(y-height/6) / float64(height*3/5)
+		// Hourglass shape
+		var bodyWidth int
+		if progress < 0.5 {
+			bodyWidth = int(float64(width/3) * (1.0 - progress*0.3))
+		} else {
+			bodyWidth = int(float64(width/3) * (0.85 + (progress-0.5)*0.3))
+		}
+		for x := centerX - bodyWidth; x <= centerX+bodyWidth; x++ {
+			if x >= 0 && x < width {
+				sprite.SetPixel(x, y, main)
+			}
+		}
+	}
+
+	// Shoulder pads
+	shoulderY := height / 6
+	for dx := -width / 3; dx <= -width/6; dx++ {
+		x := centerX + dx
+		for dy := 0; dy < height/8; dy++ {
+			if x >= 0 && x < width && shoulderY+dy < height {
+				sprite.SetPixel(x, shoulderY+dy, trim)
+			}
+		}
+	}
+	for dx := width / 6; dx <= width/3; dx++ {
+		x := centerX + dx
+		for dy := 0; dy < height/8; dy++ {
+			if x >= 0 && x < width && shoulderY+dy < height {
+				sprite.SetPixel(x, shoulderY+dy, trim)
+			}
+		}
+	}
+}
+
+// drawChest draws a treasure chest sprite.
+func (g *Generator) drawChest(sprite *Sprite, width, height int, wood, metal color.RGBA, rng *rand.Rand) {
+	// Main body (rectangle)
+	bodyTop := height / 3
+	bodyBottom := height - height/8
+	margin := width / 8
+	for y := bodyTop; y < bodyBottom; y++ {
+		for x := margin; x < width-margin; x++ {
+			sprite.SetPixel(x, y, wood)
+		}
+	}
+
+	// Lid (curved top)
+	lidTop := height / 6
+	for y := lidTop; y < bodyTop; y++ {
+		progress := float64(y-lidTop) / float64(bodyTop-lidTop)
+		lidWidth := int(float64(width/2-margin) * (0.8 + progress*0.2))
+		centerX := width / 2
+		for x := centerX - lidWidth; x <= centerX+lidWidth; x++ {
+			if x >= 0 && x < width {
+				sprite.SetPixel(x, y, wood)
+			}
+		}
+	}
+
+	// Metal bands
+	bandY1 := height / 4
+	bandY2 := height / 2
+	for x := margin; x < width-margin; x++ {
+		if bandY1 >= 0 && bandY1 < height {
+			sprite.SetPixel(x, bandY1, metal)
+		}
+		if bandY2 >= 0 && bandY2 < height {
+			sprite.SetPixel(x, bandY2, metal)
+		}
+	}
+
+	// Lock/clasp
+	lockX := width / 2
+	lockY := bodyTop
+	lockSize := width / 10
+	for dy := 0; dy < lockSize; dy++ {
+		for dx := -lockSize / 2; dx <= lockSize/2; dx++ {
+			x := lockX + dx
+			y := lockY + dy
+			if x >= 0 && x < width && y >= 0 && y < height {
+				sprite.SetPixel(x, y, metal)
+			}
+		}
+	}
+}
+
+// drawBarrel draws a barrel/urn sprite.
+func (g *Generator) drawBarrel(sprite *Sprite, width, height int, wood, band color.RGBA, rng *rand.Rand) {
+	centerX := width / 2
+
+	// Barrel body with bulge
+	for y := height / 8; y < height*7/8; y++ {
+		progress := float64(y-height/8) / float64(height*6/8)
+		// Bulge in middle
+		bulge := math.Sin(progress * math.Pi)
+		barrelWidth := int(float64(width/3) * (0.7 + 0.3*bulge))
+		for x := centerX - barrelWidth; x <= centerX+barrelWidth; x++ {
+			if x >= 0 && x < width {
+				sprite.SetPixel(x, y, wood)
+			}
+		}
+	}
+
+	// Metal bands
+	bandY1 := height / 4
+	bandY2 := height / 2
+	bandY3 := height * 3 / 4
+	for y, bandY := range []int{bandY1, bandY2, bandY3} {
+		progress := float64(y) / 3.0
+		bulge := math.Sin(progress * math.Pi)
+		barrelWidth := int(float64(width/3) * (0.7 + 0.3*bulge))
+		for x := centerX - barrelWidth - 1; x <= centerX+barrelWidth+1; x++ {
+			if x >= 0 && x < width && bandY >= 0 && bandY < height {
+				sprite.SetPixel(x, bandY, band)
+			}
+		}
+	}
+}
+
+// drawDoor draws a door sprite.
+func (g *Generator) drawDoor(sprite *Sprite, width, height int, wood, metal color.RGBA, rng *rand.Rand) {
+	margin := width / 10
+
+	// Door frame
+	for y := 0; y < height; y++ {
+		for x := margin; x < width-margin; x++ {
+			sprite.SetPixel(x, y, wood)
+		}
+	}
+
+	// Panels (darker indentations)
+	panelColor := color.RGBA{
+		R: uint8(float64(wood.R) * 0.7),
+		G: uint8(float64(wood.G) * 0.7),
+		B: uint8(float64(wood.B) * 0.7),
+		A: wood.A,
+	}
+	panelMargin := width / 6
+	panelTop1 := height / 8
+	panelBottom1 := height / 3
+	panelTop2 := height * 2 / 5
+	panelBottom2 := height * 4 / 5
+	for y := panelTop1; y < panelBottom1; y++ {
+		for x := panelMargin; x < width-panelMargin; x++ {
+			sprite.SetPixel(x, y, panelColor)
+		}
+	}
+	for y := panelTop2; y < panelBottom2; y++ {
+		for x := panelMargin; x < width-panelMargin; x++ {
+			sprite.SetPixel(x, y, panelColor)
+		}
+	}
+
+	// Door handle
+	handleX := width * 3 / 4
+	handleY := height / 2
+	handleSize := width / 12
+	for dy := -handleSize; dy <= handleSize; dy++ {
+		for dx := -handleSize / 2; dx <= handleSize/2; dx++ {
+			x := handleX + dx
+			y := handleY + dy
+			if x >= 0 && x < width && y >= 0 && y < height {
+				sprite.SetPixel(x, y, metal)
+			}
+		}
+	}
+}
+
+// drawLever draws a lever/switch sprite.
+func (g *Generator) drawLever(sprite *Sprite, width, height int, metal, base color.RGBA, rng *rand.Rand) {
+	centerX := width / 2
+
+	// Base plate
+	baseTop := height * 2 / 3
+	baseMargin := width / 4
+	for y := baseTop; y < height-2; y++ {
+		for x := baseMargin; x < width-baseMargin; x++ {
+			sprite.SetPixel(x, y, base)
+		}
+	}
+
+	// Lever arm (diagonal)
+	leverBottom := baseTop
+	leverTop := height / 6
+	leverWidth := width / 10
+	for y := leverTop; y < leverBottom; y++ {
+		progress := float64(y-leverTop) / float64(leverBottom-leverTop)
+		// Angled to the right
+		offsetX := int(progress * float64(width/4))
+		for dx := -leverWidth; dx <= leverWidth; dx++ {
+			x := centerX + offsetX + dx
+			if x >= 0 && x < width {
+				sprite.SetPixel(x, y, metal)
+			}
+		}
+	}
+
+	// Handle ball at top
+	handleRadius := width / 8
+	handleX := centerX
+	handleY := leverTop
+	for dy := -handleRadius; dy <= handleRadius; dy++ {
+		for dx := -handleRadius; dx <= handleRadius; dx++ {
+			if dx*dx+dy*dy <= handleRadius*handleRadius {
+				x := handleX + dx
+				y := handleY + dy
+				if x >= 0 && x < width && y >= 0 && y < height {
+					sprite.SetPixel(x, y, metal)
+				}
+			}
+		}
+	}
+}
+
+// drawBook draws a book/scroll/tome sprite.
+func (g *Generator) drawBook(sprite *Sprite, width, height int, cover, pages color.RGBA, rng *rand.Rand) {
+	margin := width / 8
+
+	// Book cover
+	for y := height / 6; y < height*5/6; y++ {
+		for x := margin; x < width-margin; x++ {
+			sprite.SetPixel(x, y, cover)
+		}
+	}
+
+	// Spine (darker left edge)
+	spineColor := color.RGBA{
+		R: uint8(float64(cover.R) * 0.6),
+		G: uint8(float64(cover.G) * 0.6),
+		B: uint8(float64(cover.B) * 0.6),
+		A: cover.A,
+	}
+	for y := height / 6; y < height*5/6; y++ {
+		for x := margin; x < margin+width/10; x++ {
+			sprite.SetPixel(x, y, spineColor)
+		}
+	}
+
+	// Pages (visible at bottom/right)
+	pageMargin := margin + width/10
+	for y := height/6 + 2; y < height*5/6-2; y++ {
+		for x := pageMargin; x < width-margin-2; x++ {
+			sprite.SetPixel(x, y, pages)
+		}
+	}
+
+	// Title decoration (horizontal line)
+	titleY := height / 3
+	for x := margin + width/6; x < width-margin-width/6; x++ {
+		if titleY >= 0 && titleY < height {
+			sprite.SetPixel(x, titleY, pages)
+		}
+	}
+}
+
+// drawKey draws a key/lockpick sprite.
+func (g *Generator) drawKey(sprite *Sprite, width, height int, metal, handle color.RGBA, rng *rand.Rand) {
+	centerX := width / 2
+
+	// Key bow (circular handle at top)
+	bowCenterY := height / 4
+	bowRadius := width / 4
+	bowHoleRadius := width / 8
+	for dy := -bowRadius; dy <= bowRadius; dy++ {
+		for dx := -bowRadius; dx <= bowRadius; dx++ {
+			dist := dx*dx + dy*dy
+			// Ring shape (outer - inner)
+			if dist <= bowRadius*bowRadius && dist >= bowHoleRadius*bowHoleRadius {
+				x := centerX + dx
+				y := bowCenterY + dy
+				if x >= 0 && x < width && y >= 0 && y < height {
+					sprite.SetPixel(x, y, handle)
+				}
+			}
+		}
+	}
+
+	// Key shaft
+	shaftTop := bowCenterY + bowRadius
+	shaftBottom := height * 4 / 5
+	shaftWidth := width / 12
+	for y := shaftTop; y < shaftBottom; y++ {
+		for x := centerX - shaftWidth; x <= centerX+shaftWidth; x++ {
+			if x >= 0 && x < width {
+				sprite.SetPixel(x, y, metal)
+			}
+		}
+	}
+
+	// Key teeth (at bottom, to the right)
+	teethTop := shaftBottom - height/8
+	teethWidth := width / 4
+	for y := teethTop; y < shaftBottom; y++ {
+		for x := centerX; x < centerX+teethWidth; x++ {
+			// Notched pattern
+			notch := (y-teethTop)%3 == 1
+			if !notch && x >= 0 && x < width {
+				sprite.SetPixel(x, y, metal)
+			}
+		}
+	}
+}
+
+// drawCoin draws a coin/gem sprite.
+func (g *Generator) drawCoin(sprite *Sprite, width, height int, main, shine color.RGBA, rng *rand.Rand) {
+	centerX := width / 2
+	centerY := height / 2
+	radius := min(width, height) / 3
+
+	// Coin circle
+	for dy := -radius; dy <= radius; dy++ {
+		for dx := -radius; dx <= radius; dx++ {
+			if dx*dx+dy*dy <= radius*radius {
+				x := centerX + dx
+				y := centerY + dy
+				if x >= 0 && x < width && y >= 0 && y < height {
+					sprite.SetPixel(x, y, main)
+				}
+			}
+		}
+	}
+
+	// Shine/highlight
+	highlightRadius := radius / 3
+	highlightX := centerX - radius/3
+	highlightY := centerY - radius/3
+	for dy := -highlightRadius; dy <= highlightRadius; dy++ {
+		for dx := -highlightRadius; dx <= highlightRadius; dx++ {
+			if dx*dx+dy*dy <= highlightRadius*highlightRadius {
+				x := highlightX + dx
+				y := highlightY + dy
+				if x >= 0 && x < width && y >= 0 && y < height {
+					sprite.SetPixel(x, y, shine)
+				}
+			}
+		}
+	}
+}
+
+// drawFood draws a food item sprite.
+func (g *Generator) drawFood(sprite *Sprite, width, height int, main, accent color.RGBA, rng *rand.Rand) {
+	centerX := width / 2
+	centerY := height / 2
+
+	// Generic food item: rounded rectangle (bread-like)
+	foodWidth := width / 3
+	foodHeight := height / 4
+
+	// Top curve
+	for y := centerY - foodHeight; y < centerY; y++ {
+		progress := float64(y-(centerY-foodHeight)) / float64(foodHeight)
+		currentWidth := int(float64(foodWidth) * (0.5 + 0.5*progress))
+		for x := centerX - currentWidth; x <= centerX+currentWidth; x++ {
+			if x >= 0 && x < width && y >= 0 && y < height {
+				sprite.SetPixel(x, y, main)
+			}
+		}
+	}
+
+	// Bottom (flat)
+	for y := centerY; y < centerY+foodHeight/2; y++ {
+		for x := centerX - foodWidth; x <= centerX+foodWidth; x++ {
+			if x >= 0 && x < width && y >= 0 && y < height {
+				sprite.SetPixel(x, y, main)
+			}
+		}
+	}
+
+	// Accent marks (seeds on bread, etc.)
+	numAccents := 3
+	for i := 0; i < numAccents; i++ {
+		ax := centerX - foodWidth/2 + rng.Intn(foodWidth)
+		ay := centerY - foodHeight/2 + rng.Intn(foodHeight/2)
+		if ax >= 0 && ax < width && ay >= 0 && ay < height {
+			sprite.SetPixel(ax, ay, accent)
+		}
+	}
 }
 
 // generateEffectSheet creates sprites for visual effects.

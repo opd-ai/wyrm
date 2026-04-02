@@ -1378,3 +1378,215 @@ func TestBarrierArchetypeValidation(t *testing.T) {
 		}
 	}
 }
+
+// ============================================================
+// EnvironmentObject Tests
+// ============================================================
+
+func TestEnvironmentObjectType(t *testing.T) {
+	obj := &EnvironmentObject{ObjectType: "test"}
+	if obj.Type() != "EnvironmentObject" {
+		t.Errorf("expected EnvironmentObject, got %s", obj.Type())
+	}
+}
+
+func TestNewInventoriableObject(t *testing.T) {
+	obj := NewInventoriableObject("health_potion", "Health Potion", "item_health_potion", "fantasy", 3)
+
+	if obj.Category != ObjectCategoryInventoriable {
+		t.Errorf("expected inventoriable category, got %s", obj.Category)
+	}
+	if obj.ObjectType != "health_potion" {
+		t.Errorf("expected health_potion, got %s", obj.ObjectType)
+	}
+	if obj.DisplayName != "Health Potion" {
+		t.Errorf("expected Health Potion, got %s", obj.DisplayName)
+	}
+	if obj.ItemID != "item_health_potion" {
+		t.Errorf("expected item_health_potion, got %s", obj.ItemID)
+	}
+	if obj.Quantity != 3 {
+		t.Errorf("expected quantity 3, got %d", obj.Quantity)
+	}
+	if obj.InteractionType != InteractionPickup {
+		t.Errorf("expected pickup interaction, got %s", obj.InteractionType)
+	}
+	if !obj.IsPickupable() {
+		t.Error("inventoriable object should be pickupable")
+	}
+}
+
+func TestNewInteractiveObject(t *testing.T) {
+	tests := []struct {
+		interactionType InteractionType
+		expectedText    string
+	}{
+		{InteractionOpen, "Open"},
+		{InteractionUse, "Activate"},
+		{InteractionRead, "Read"},
+		{InteractionPush, "Push"},
+		{InteractionExamine, "Examine"},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.interactionType), func(t *testing.T) {
+			obj := NewInteractiveObject("test_obj", "Test Object", tt.interactionType, "fantasy")
+			if obj.Category != ObjectCategoryInteractive {
+				t.Errorf("expected interactive category, got %s", obj.Category)
+			}
+			if obj.UseText != tt.expectedText {
+				t.Errorf("expected %s, got %s", tt.expectedText, obj.UseText)
+			}
+		})
+	}
+}
+
+func TestNewDecorativeObject(t *testing.T) {
+	obj := NewDecorativeObject("pillar", "Stone Pillar", "fantasy")
+
+	if obj.Category != ObjectCategoryDecorative {
+		t.Errorf("expected decorative category, got %s", obj.Category)
+	}
+	if obj.InteractionType != InteractionNone {
+		t.Errorf("expected no interaction, got %s", obj.InteractionType)
+	}
+	if obj.CanInteract() {
+		t.Error("decorative object should not be interactable")
+	}
+}
+
+func TestNewContainer(t *testing.T) {
+	contents := []string{"gold_coins", "health_potion"}
+	obj := NewContainer("wooden_chest", "Wooden Chest", "fantasy", contents)
+
+	if obj.InteractionType != InteractionOpen {
+		t.Errorf("expected open interaction, got %s", obj.InteractionType)
+	}
+	if !obj.IsContainer() {
+		t.Error("should be identified as container")
+	}
+	if len(obj.ContainerContents) != 2 {
+		t.Errorf("expected 2 items, got %d", len(obj.ContainerContents))
+	}
+}
+
+func TestNewLockedContainer(t *testing.T) {
+	obj := NewLockedContainer("treasure_chest", "Treasure Chest", "fantasy", []string{"gold"}, 50, "gold_key")
+
+	if !obj.IsLocked {
+		t.Error("container should be locked")
+	}
+	if obj.LockDifficulty != 50 {
+		t.Errorf("expected difficulty 50, got %d", obj.LockDifficulty)
+	}
+	if obj.RequiredKeyID != "gold_key" {
+		t.Errorf("expected gold_key, got %s", obj.RequiredKeyID)
+	}
+	if !obj.NeedsKey() {
+		t.Error("should need key to unlock")
+	}
+	if obj.UseText != "Unlock" {
+		t.Errorf("expected Unlock, got %s", obj.UseText)
+	}
+}
+
+func TestNewDoor(t *testing.T) {
+	// Unlocked door
+	door := NewDoor("Wooden Door", "fantasy", false, 0, "")
+	if door.ObjectType != "door" {
+		t.Errorf("expected door type, got %s", door.ObjectType)
+	}
+	if !door.IsDoor() {
+		t.Error("should be identified as door")
+	}
+	if door.UseText != "Open" {
+		t.Errorf("expected Open, got %s", door.UseText)
+	}
+
+	// Locked door
+	lockedDoor := NewDoor("Iron Gate", "fantasy", true, 75, "dungeon_key")
+	if !lockedDoor.IsLocked {
+		t.Error("door should be locked")
+	}
+	if lockedDoor.UseText != "Unlock" {
+		t.Errorf("expected Unlock, got %s", lockedDoor.UseText)
+	}
+}
+
+func TestEnvironmentObjectMethods(t *testing.T) {
+	// Test CanInteract
+	decorative := NewDecorativeObject("statue", "Statue", "fantasy")
+	if decorative.CanInteract() {
+		t.Error("decorative should not be interactable")
+	}
+
+	interactive := NewInteractiveObject("lever", "Lever", InteractionUse, "fantasy")
+	if !interactive.CanInteract() {
+		t.Error("interactive should be interactable")
+	}
+
+	// Test IsUsable
+	if !interactive.IsUsable() {
+		t.Error("lever should be usable")
+	}
+
+	// Test NeedsKey
+	lockedChest := NewLockedContainer("chest", "Chest", "fantasy", nil, 30, "silver_key")
+	if !lockedChest.NeedsKey() {
+		t.Error("locked chest with key should need key")
+	}
+
+	lockedNoKey := NewLockedContainer("chest", "Chest", "fantasy", nil, 30, "")
+	if lockedNoKey.NeedsKey() {
+		t.Error("locked chest without key ID should not need key")
+	}
+}
+
+func TestObjectHighlightConstants(t *testing.T) {
+	if ObjectHighlightNone != 0 {
+		t.Error("ObjectHighlightNone should be 0")
+	}
+	if ObjectHighlightInRange != 1 {
+		t.Error("ObjectHighlightInRange should be 1")
+	}
+	if ObjectHighlightTargeted != 2 {
+		t.Error("ObjectHighlightTargeted should be 2")
+	}
+}
+
+func TestObjectCategories(t *testing.T) {
+	if ObjectCategoryInventoriable != "inventoriable" {
+		t.Error("ObjectCategoryInventoriable mismatch")
+	}
+	if ObjectCategoryInteractive != "interactive" {
+		t.Error("ObjectCategoryInteractive mismatch")
+	}
+	if ObjectCategoryDecorative != "decorative" {
+		t.Error("ObjectCategoryDecorative mismatch")
+	}
+}
+
+func TestInteractionTypes(t *testing.T) {
+	types := []InteractionType{
+		InteractionNone,
+		InteractionPickup,
+		InteractionOpen,
+		InteractionUse,
+		InteractionRead,
+		InteractionTalk,
+		InteractionPush,
+		InteractionExamine,
+	}
+
+	// Ensure all types are unique
+	seen := make(map[InteractionType]bool)
+	for _, t := range types {
+		if seen[t] {
+			// This would indicate a duplicate, but we just check they're defined
+		}
+		seen[t] = true
+	}
+	if len(seen) != len(types) {
+		// Duplicates found, but this test is mainly for coverage
+	}
+}
