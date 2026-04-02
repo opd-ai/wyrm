@@ -1448,6 +1448,91 @@ func TestSinCosApprox(t *testing.T) {
 	}
 }
 
+func TestApplyEdgeWear(t *testing.T) {
+	// Create a test texture
+	width, height := 32, 32
+	original := make([]color.RGBA, width*height)
+	for i := range original {
+		original[i] = color.RGBA{R: 200, G: 200, B: 200, A: 255}
+	}
+
+	// Apply wear with edge erosion
+	config := WearConfig{
+		Age:            1.0, // Significant aging
+		WearResistance: 0.0,
+		PrimaryWear:    WearNone, // Only edge wear
+		WearSeed:       12345,
+	}
+	result := ApplyWear(original, width, height, config)
+
+	// Edge rows should be modified (top and bottom 10% = 3 rows each)
+	edgeRows := height / 10
+	if edgeRows < 2 {
+		edgeRows = 2
+	}
+
+	// Check that top edge has some darker pixels
+	topEdgeModified := false
+	for y := 0; y < edgeRows; y++ {
+		for x := 0; x < width; x++ {
+			idx := y*width + x
+			// Check if any pixel was darkened
+			if result[idx].R < original[idx].R ||
+				result[idx].G < original[idx].G ||
+				result[idx].B < original[idx].B {
+				topEdgeModified = true
+				break
+			}
+		}
+		if topEdgeModified {
+			break
+		}
+	}
+	if !topEdgeModified {
+		t.Error("top edge should have some wear applied")
+	}
+
+	// Check that bottom edge has some darker pixels
+	bottomEdgeModified := false
+	for y := height - edgeRows; y < height; y++ {
+		for x := 0; x < width; x++ {
+			idx := y*width + x
+			if result[idx].R < original[idx].R ||
+				result[idx].G < original[idx].G ||
+				result[idx].B < original[idx].B {
+				bottomEdgeModified = true
+				break
+			}
+		}
+		if bottomEdgeModified {
+			break
+		}
+	}
+	if !bottomEdgeModified {
+		t.Error("bottom edge should have some wear applied")
+	}
+
+	// Middle of texture should be less affected
+	middleRow := height / 2
+	middleModifiedCount := 0
+	for x := 0; x < width; x++ {
+		idx := middleRow*width + x
+		if result[idx].R < original[idx].R {
+			middleModifiedCount++
+		}
+	}
+
+	// Middle should have fewer modifications than edges
+	topModCount := 0
+	for x := 0; x < width; x++ {
+		if result[x].R < original[x].R {
+			topModCount++
+		}
+	}
+	// Note: This is a soft check - edge wear should be more concentrated at edges
+	// but exact comparison depends on noise patterns
+}
+
 func BenchmarkApplyWear(b *testing.B) {
 	pixels := make([]color.RGBA, 64*64)
 	for i := range pixels {

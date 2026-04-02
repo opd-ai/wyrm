@@ -1264,6 +1264,9 @@ func ApplyWear(pixels []color.RGBA, width, height int, config WearConfig) []colo
 		applyWearEffect(result, width, height, config.SecondaryWear, effectiveAge*0.4, config.WearSeed+1000)
 	}
 
+	// Apply edge wear (erosion at top/bottom rows of texture)
+	applyEdgeWear(result, width, height, effectiveAge, config.WearSeed+2000)
+
 	return result
 }
 
@@ -1454,6 +1457,49 @@ func blendColor(a, b color.RGBA, factor float64) color.RGBA {
 		G: uint8(float64(a.G)*invFactor + float64(b.G)*factor),
 		B: uint8(float64(a.B)*invFactor + float64(b.B)*factor),
 		A: a.A,
+	}
+}
+
+// applyEdgeWear applies increased wear at texture edges to simulate erosion.
+// The top and bottom rows of wall textures receive enhanced weathering.
+func applyEdgeWear(pixels []color.RGBA, width, height int, intensity float64, seed int64) {
+	if height < 4 || intensity <= 0 {
+		return
+	}
+
+	// Edge zone is the top and bottom 10% of texture height (min 2 rows)
+	edgeRows := height / 10
+	if edgeRows < 2 {
+		edgeRows = 2
+	}
+
+	// Edge erosion color (darkened, weathered)
+	erosionColor := color.RGBA{R: 60, G: 55, B: 50, A: 255}
+
+	for x := 0; x < width; x++ {
+		// Top edge wear
+		for y := 0; y < edgeRows; y++ {
+			// Wear intensity increases toward the very top
+			edgeFactor := float64(edgeRows-y) / float64(edgeRows)
+			n := noiseAt(float64(x)*0.15, float64(y)*0.15, seed)
+			wearAmount := intensity * edgeFactor * n * 0.4
+			if wearAmount > 0.01 {
+				idx := y*width + x
+				pixels[idx] = blendColor(pixels[idx], erosionColor, wearAmount)
+			}
+		}
+
+		// Bottom edge wear
+		for y := height - edgeRows; y < height; y++ {
+			// Wear intensity increases toward the very bottom
+			edgeFactor := float64(y-(height-edgeRows)) / float64(edgeRows)
+			n := noiseAt(float64(x)*0.15, float64(y)*0.15, seed+500)
+			wearAmount := intensity * edgeFactor * n * 0.4
+			if wearAmount > 0.01 {
+				idx := y*width + x
+				pixels[idx] = blendColor(pixels[idx], erosionColor, wearAmount)
+			}
+		}
 	}
 }
 

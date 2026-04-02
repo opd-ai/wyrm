@@ -477,10 +477,10 @@ This is a simplified Blinn-Phong model suitable for CPU-based per-pixel computat
 
 Surface wear is applied as a texture-space modification:
 
-- [ ] Generate a "wear noise" texture at material creation time (low-frequency Perlin noise)
-- [ ] `wearIntensity = WearFactor * AgeMultiplier * worldAge`
-- [ ] Where wear noise exceeds a threshold based on `wearIntensity`: darken the albedo, increase roughness, add color shift toward grey/brown
-- [ ] Edge wear: increase wear at texture edges (top/bottom rows of wall textures) to simulate erosion
+- [x] Generate a "wear noise" texture at material creation time (low-frequency Perlin noise)
+- [x] `wearIntensity = WearFactor * AgeMultiplier * worldAge`
+- [x] Where wear noise exceeds a threshold based on `wearIntensity`: darken the albedo, increase roughness, add color shift toward grey/brown
+- [x] Edge wear: increase wear at texture edges (top/bottom rows of wall textures) to simulate erosion
 
 #### Performance Impact
 - **Normal map sampling:** One additional texture lookup per pixel + dot product + multiply. Approximately 2× the per-pixel cost of albedo-only rendering. At 1280×720 with ~30% wall pixels: ~276K additional lookups per frame. At 1ns per lookup: ~0.3ms. Acceptable.
