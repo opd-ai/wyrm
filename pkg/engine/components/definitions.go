@@ -433,6 +433,30 @@ type WorldClock struct {
 // Type returns the component type identifier for WorldClock.
 func (wc *WorldClock) Type() string { return "WorldClock" }
 
+// Weather represents the current weather state for an area.
+// This is a singleton-style component typically attached to a world entity.
+type Weather struct {
+	WeatherType string  // Weather type: "clear", "overcast", "rain", "storm", "snow", "fog"
+	CloudCover  float64 // Cloud coverage amount (0.0-1.0)
+	Intensity   float64 // Weather intensity (0.0-1.0)
+	WindSpeed   float64 // Wind speed in units per second
+	WindAngle   float64 // Wind direction in radians
+}
+
+// Type returns the component type identifier for Weather.
+func (w *Weather) Type() string { return "Weather" }
+
+// NewWeather creates a new Weather component with default clear sky settings.
+func NewWeather() *Weather {
+	return &Weather{
+		WeatherType: "clear",
+		CloudCover:  0.0,
+		Intensity:   0.0,
+		WindSpeed:   0.0,
+		WindAngle:   0.0,
+	}
+}
+
 // Skills represents an entity's skill levels and experience.
 // Skills improve through use (Elder Scrolls-style progression).
 type Skills struct {
@@ -1678,6 +1702,36 @@ func NewAppearance(category, bodyPlan, genre string) *Appearance {
 		DamageOverlay:  0.0,
 		GenreID:        genre,
 	}
+}
+
+// NewObjectAppearance creates an Appearance for interactive objects like doors, crates, etc.
+// The bodyPlan should match the object type: "door", "crate", "chest", "lever", etc.
+func NewObjectAppearance(bodyPlan, genre string) *Appearance {
+	return NewAppearance("object", bodyPlan, genre)
+}
+
+// NewCreatureAppearance creates an Appearance for creatures and enemies.
+// The bodyPlan should match creature types: "wolf", "dragon", "spider", etc.
+func NewCreatureAppearance(bodyPlan, genre string) *Appearance {
+	return NewAppearance("creature", bodyPlan, genre)
+}
+
+// NewHumanoidAppearance creates an Appearance for humanoid NPCs.
+// The bodyPlan should match humanoid types: "warrior", "merchant", "mage", etc.
+func NewHumanoidAppearance(bodyPlan, genre string) *Appearance {
+	return NewAppearance("humanoid", bodyPlan, genre)
+}
+
+// NewVehicleAppearance creates an Appearance for vehicles.
+// The bodyPlan should match vehicle types: "horse", "buggy", "mech", etc.
+func NewVehicleAppearance(bodyPlan, genre string) *Appearance {
+	return NewAppearance("vehicle", bodyPlan, genre)
+}
+
+// NewEffectAppearance creates an Appearance for visual effects like explosions, magic, etc.
+// The bodyPlan should match effect types: "explosion", "fireball", "smoke", etc.
+func NewEffectAppearance(bodyPlan, genre string) *Appearance {
+	return NewAppearance("effect", bodyPlan, genre)
 }
 
 // BarrierShape defines the collision and visual profile of a barrier.

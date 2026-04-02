@@ -1,6 +1,7 @@
 package systems
 
 import (
+	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 )
 
@@ -533,6 +534,72 @@ func (s *WeatherSystem) Update(w *ecs.World, dt float64) {
 		pool := s.getWeatherPool()
 		s.weatherIndex = (s.weatherIndex + 1) % len(pool)
 		s.CurrentWeather = pool[s.weatherIndex]
+	}
+
+	// Update or create Weather component for rendering system
+	s.syncWeatherComponent(w)
+}
+
+// syncWeatherComponent updates the Weather ECS component for rendering sync.
+func (s *WeatherSystem) syncWeatherComponent(w *ecs.World) {
+	// Find existing weather entity or create one
+	weatherEntities := w.Entities("Weather")
+	var weatherEntity ecs.Entity
+
+	if len(weatherEntities) > 0 {
+		weatherEntity = weatherEntities[0]
+	} else {
+		// Create a weather entity if none exists
+		weatherEntity = w.CreateEntity()
+		w.AddComponent(weatherEntity, &components.Weather{})
+	}
+
+	// Get and update the component
+	weatherComp, ok := w.GetComponent(weatherEntity, "Weather")
+	if !ok {
+		return
+	}
+	weather := weatherComp.(*components.Weather)
+
+	// Update weather state
+	weather.WeatherType = s.CurrentWeather
+	weather.CloudCover = s.GetCloudCover()
+	weather.Intensity = s.GetIntensity()
+}
+
+// GetCloudCover returns cloud coverage for the current weather type.
+func (s *WeatherSystem) GetCloudCover() float64 {
+	switch s.CurrentWeather {
+	case "clear":
+		return 0.0
+	case "overcast":
+		return 0.8
+	case "rain", "storm":
+		return 1.0
+	case "snow":
+		return 0.9
+	case "fog":
+		return 0.6
+	default:
+		return 0.0
+	}
+}
+
+// GetIntensity returns intensity for the current weather type.
+func (s *WeatherSystem) GetIntensity() float64 {
+	switch s.CurrentWeather {
+	case "clear", "overcast":
+		return 0.0
+	case "rain":
+		return 0.5
+	case "storm":
+		return 1.0
+	case "snow":
+		return 0.6
+	case "fog":
+		return 0.4
+	default:
+		return 0.0
 	}
 }
 

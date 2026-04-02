@@ -452,3 +452,239 @@ func TestPhysicsBody_ApplyImpulse(t *testing.T) {
 		t.Errorf("VelocityZ = %f, expected 1.0", phys.VelocityZ)
 	}
 }
+
+// TestPhysicsSystem_PushSpeedLimit verifies pushable objects have limited speed.
+func TestPhysicsSystem_PushSpeedLimit(t *testing.T) {
+	world := ecs.NewWorld()
+	sys := NewPhysicsSystem()
+	sys.MaxPushSpeed = 3.0 // Limit to 3 units/sec
+
+	e := world.CreateEntity()
+	pos := &components.Position{X: 0, Y: 0, Z: 0}
+	phys := components.NewPushableBody(1.0, 0.0)
+	phys.VelocityX = 10.0 // Way over the limit
+	phys.VelocityY = 10.0
+	world.AddComponent(e, pos)
+	world.AddComponent(e, phys)
+
+	sys.Update(world, 0.016)
+
+	// Velocities should be clamped to MaxPushSpeed
+	if phys.VelocityX > sys.MaxPushSpeed {
+		t.Errorf("VelocityX = %f, should be clamped to %f", phys.VelocityX, sys.MaxPushSpeed)
+	}
+	if phys.VelocityY > sys.MaxPushSpeed {
+		t.Errorf("VelocityY = %f, should be clamped to %f", phys.VelocityY, sys.MaxPushSpeed)
+	}
+}
+
+// TestPhysicsSystem_BarrierCollision verifies collision with cylinder barriers.
+func TestPhysicsSystem_BarrierCollision(t *testing.T) {
+	world := ecs.NewWorld()
+	sys := NewPhysicsSystem()
+	sys.EnableBarrierCollision = true
+
+	// Create a pushable object
+	obj := world.CreateEntity()
+	objPos := &components.Position{X: 0, Y: 0, Z: 0}
+	objPhys := components.NewPushableBody(1.0, 0.0)
+	objPhys.VelocityX = 5.0 // Moving toward the barrier
+	world.AddComponent(obj, objPos)
+	world.AddComponent(obj, objPhys)
+
+	// Create a barrier at X=2
+	barrier := world.CreateEntity()
+	barrierPos := &components.Position{X: 2.0, Y: 0, Z: 0}
+	barrierComp := &components.Barrier{
+		Shape: components.BarrierShape{
+			ShapeType: "cylinder",
+			Radius:    0.5,
+		},
+		MaxHP:     100,
+		HitPoints: 100,
+	}
+	world.AddComponent(barrier, barrierPos)
+	world.AddComponent(barrier, barrierComp)
+
+	// Simulate until collision would occur
+	for i := 0; i < 30; i++ {
+		sys.Update(world, 0.016)
+	}
+
+	// Object should not have passed through the barrier
+	// Combined radius is 0.5 (phys) + 0.5 (barrier) = 1.0
+	// So object should stop around X=1.0 (barrier at 2.0 minus combined radius)
+	if objPos.X > 1.6 {
+		t.Errorf("Object passed through barrier: X = %f, expected < 1.6", objPos.X)
+	}
+}
+
+// TestPhysicsSystem_BoxBarrierCollision verifies collision with box barriers.
+func TestPhysicsSystem_BoxBarrierCollision(t *testing.T) {
+	world := ecs.NewWorld()
+	sys := NewPhysicsSystem()
+	sys.EnableBarrierCollision = true
+
+	// Create a pushable object
+	obj := world.CreateEntity()
+	objPos := &components.Position{X: 0, Y: 0, Z: 0}
+	objPhys := components.NewPushableBody(1.0, 0.0)
+	objPhys.VelocityX = 5.0
+	world.AddComponent(obj, objPos)
+	world.AddComponent(obj, objPhys)
+
+	// Create a box barrier at X=2
+	barrier := world.CreateEntity()
+	barrierPos := &components.Position{X: 2.5, Y: 0, Z: 0}
+	barrierComp := &components.Barrier{
+		Shape: components.BarrierShape{
+			ShapeType: "box",
+			Width:     1.0,
+			Depth:     1.0,
+		},
+		MaxHP:     100,
+		HitPoints: 100,
+	}
+	world.AddComponent(barrier, barrierPos)
+	world.AddComponent(barrier, barrierComp)
+
+	// Simulate
+	for i := 0; i < 30; i++ {
+		sys.Update(world, 0.016)
+	}
+
+	// Object should not have passed through the box barrier
+	if objPos.X > 1.6 {
+		t.Errorf("Object passed through box barrier: X = %f", objPos.X)
+	}
+}
+
+// TestPhysicsSystem_DestroyedBarrierNoCollision verifies destroyed barriers don't collide.
+func TestPhysicsSystem_DestroyedBarrierNoCollision(t *testing.T) {
+	world := ecs.NewWorld()
+	sys := NewPhysicsSystem()
+	sys.EnableBarrierCollision = true
+
+	// Create a pushable object
+	obj := world.CreateEntity()
+	objPos := &components.Position{X: 0, Y: 0, Z: 0}
+	objPhys := components.NewPushableBody(1.0, 0.0)
+	objPhys.VelocityX = 5.0
+	world.AddComponent(obj, objPos)
+	world.AddComponent(obj, objPhys)
+
+	// Create a destroyed barrier at X=2
+	barrier := world.CreateEntity()
+	barrierPos := &components.Position{X: 2.0, Y: 0, Z: 0}
+	barrierComp := &components.Barrier{
+		Shape: components.BarrierShape{
+			ShapeType: "cylinder",
+			Radius:    0.5,
+		},
+		Destructible: true, // Must be destructible for IsDestroyed() to return true
+		MaxHP:        100,
+		HitPoints:    0, // Destroyed!
+	}
+	world.AddComponent(barrier, barrierPos)
+	world.AddComponent(barrier, barrierComp)
+
+	// Simulate
+	for i := 0; i < 30; i++ {
+		sys.Update(world, 0.016)
+	}
+
+	// Object should pass through destroyed barrier
+	if objPos.X < 2.0 {
+		t.Errorf("Object stopped at destroyed barrier: X = %f, expected > 2.0", objPos.X)
+	}
+}
+
+// TestPhysicsSystem_DoorSwingCollision verifies that door collision polygon updates during swing.
+func TestPhysicsSystem_DoorSwingCollision(t *testing.T) {
+	world := ecs.NewWorld()
+	sys := NewPhysicsSystem()
+
+	// Create a swinging door entity
+	door := world.CreateEntity()
+	doorPos := &components.Position{X: 5.0, Y: 5.0, Z: 0.0, Angle: 0.0}
+	doorPhys := &components.PhysicsBody{
+		Mass:          50.0,
+		IsSwinging:    true,
+		SwingAngle:    0.0,
+		SwingVelocity: 3.5, // Radians/second (opening)
+		MaxSwingAngle: math.Pi / 2,
+		SwingDamping:  0.1,
+		PivotOffsetX:  0.0, // Hinge at edge
+		PivotOffsetY:  0.0,
+	}
+	doorBarrier := &components.Barrier{
+		Shape: components.BarrierShape{
+			ShapeType: "box",
+			Width:     1.0, // Door is 1 unit wide
+			Depth:     0.1, // Door is 0.1 units thick
+			Height:    2.0,
+		},
+		Genre: "fantasy",
+	}
+	world.AddComponent(door, doorPos)
+	world.AddComponent(door, doorPhys)
+	world.AddComponent(door, doorBarrier)
+
+	// Initial collision state - box shape
+	if doorBarrier.Shape.ShapeType != "box" {
+		t.Errorf("Initial shape should be box, got %s", doorBarrier.Shape.ShapeType)
+	}
+
+	// Simulate some time to make the door swing
+	for i := 0; i < 10; i++ {
+		sys.Update(world, 0.05) // 50ms per frame
+	}
+
+	// After swing, shape should be polygon
+	if doorBarrier.Shape.ShapeType != "polygon" {
+		t.Errorf("After swing, shape should be polygon, got %s", doorBarrier.Shape.ShapeType)
+	}
+
+	// Verify we have collision vertices
+	if len(doorBarrier.Shape.Vertices) != 8 {
+		t.Errorf("Expected 8 vertices (4 corners), got %d", len(doorBarrier.Shape.Vertices))
+	}
+
+	// Verify the door has rotated (angle should be significant after 500ms at 3.5 rad/s)
+	if math.Abs(doorPhys.SwingAngle) < 0.5 {
+		t.Errorf("Door should have swung significantly, angle: %f", doorPhys.SwingAngle)
+	}
+}
+
+// TestPhysicsSystem_DoorSwingMaxAngle verifies door stops at max swing angle.
+func TestPhysicsSystem_DoorSwingMaxAngle(t *testing.T) {
+	world := ecs.NewWorld()
+	sys := NewPhysicsSystem()
+
+	// Create a door that will hit its max angle quickly
+	door := world.CreateEntity()
+	doorPos := &components.Position{X: 0.0, Y: 0.0, Z: 0.0, Angle: 0.0}
+	doorPhys := &components.PhysicsBody{
+		IsSwinging:    true,
+		SwingAngle:    math.Pi/2 - 0.1, // Near max angle
+		SwingVelocity: 3.5,
+		MaxSwingAngle: math.Pi / 2,
+		SwingDamping:  4.0,
+	}
+	world.AddComponent(door, doorPos)
+	world.AddComponent(door, doorPhys)
+
+	// Update to hit max angle
+	sys.Update(world, 0.1)
+
+	// Door should not exceed max angle
+	if doorPhys.SwingAngle > doorPhys.MaxSwingAngle {
+		t.Errorf("Door angle %f exceeds max %f", doorPhys.SwingAngle, doorPhys.MaxSwingAngle)
+	}
+
+	// Door should bounce back (negative velocity after hitting limit)
+	// Note: The bounce is -0.5x the velocity, so it should be negative now
+	if doorPhys.SwingVelocity > 0 {
+		t.Logf("Swing velocity after hitting limit: %f", doorPhys.SwingVelocity)
+	}
+}

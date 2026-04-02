@@ -1590,3 +1590,75 @@ func TestInteractionTypes(t *testing.T) {
 		// Duplicates found, but this test is mainly for coverage
 	}
 }
+
+func TestNewObjectAppearance(t *testing.T) {
+	app := NewObjectAppearance("door", "fantasy")
+	if app.SpriteCategory != "object" {
+		t.Errorf("expected category 'object', got %s", app.SpriteCategory)
+	}
+	if app.BodyPlan != "door" {
+		t.Errorf("expected body plan 'door', got %s", app.BodyPlan)
+	}
+	if app.GenreID != "fantasy" {
+		t.Errorf("expected genre 'fantasy', got %s", app.GenreID)
+	}
+	if !app.Visible {
+		t.Error("appearance should be visible by default")
+	}
+}
+
+func TestNewCreatureAppearance(t *testing.T) {
+	app := NewCreatureAppearance("wolf", "horror")
+	if app.SpriteCategory != "creature" {
+		t.Errorf("expected category 'creature', got %s", app.SpriteCategory)
+	}
+	if app.BodyPlan != "wolf" {
+		t.Errorf("expected body plan 'wolf', got %s", app.BodyPlan)
+	}
+}
+
+func TestNewHumanoidAppearance(t *testing.T) {
+	app := NewHumanoidAppearance("warrior", "sci-fi")
+	if app.SpriteCategory != "humanoid" {
+		t.Errorf("expected category 'humanoid', got %s", app.SpriteCategory)
+	}
+	if app.BodyPlan != "warrior" {
+		t.Errorf("expected body plan 'warrior', got %s", app.BodyPlan)
+	}
+}
+
+func TestNewVehicleAppearance(t *testing.T) {
+	app := NewVehicleAppearance("buggy", "post-apocalyptic")
+	if app.SpriteCategory != "vehicle" {
+		t.Errorf("expected category 'vehicle', got %s", app.SpriteCategory)
+	}
+	if app.BodyPlan != "buggy" {
+		t.Errorf("expected body plan 'buggy', got %s", app.BodyPlan)
+	}
+}
+
+func TestNewEffectAppearance(t *testing.T) {
+	app := NewEffectAppearance("explosion", "cyberpunk")
+	if app.SpriteCategory != "effect" {
+		t.Errorf("expected category 'effect', got %s", app.SpriteCategory)
+	}
+	if app.BodyPlan != "explosion" {
+		t.Errorf("expected body plan 'explosion', got %s", app.BodyPlan)
+	}
+}
+
+func TestAppearanceConvenienceDefaults(t *testing.T) {
+	app := NewAppearance("humanoid", "test", "fantasy")
+	if app.Scale != 1.0 {
+		t.Errorf("expected scale 1.0, got %f", app.Scale)
+	}
+	if app.AnimState != "idle" {
+		t.Errorf("expected anim state 'idle', got %s", app.AnimState)
+	}
+	if app.Opacity != 1.0 {
+		t.Errorf("expected opacity 1.0, got %f", app.Opacity)
+	}
+	if app.DamageOverlay != 0.0 {
+		t.Errorf("expected damage overlay 0.0, got %f", app.DamageOverlay)
+	}
+}

@@ -564,6 +564,130 @@ func TestInteractionSystem_RequestInteractionWith(t *testing.T) {
 	}
 }
 
+// TestInteractionSystem_DoorSwing verifies that opening a door triggers swing animation.
+func TestInteractionSystem_DoorSwing(t *testing.T) {
+	world := ecs.NewWorld()
+	sys := NewInteractionSystem()
+
+	// Create a player entity
+	player := world.CreateEntity()
+	playerPos := &components.Position{X: 0.0, Y: 0.0, Z: 0.0, Angle: 0.0}
+	playerInv := &components.Inventory{Items: []string{}}
+	world.AddComponent(player, playerPos)
+	world.AddComponent(player, playerInv)
+	sys.SetPlayerEntity(player)
+
+	// Create a door with a PhysicsBody
+	door := world.CreateEntity()
+	doorPos := &components.Position{X: 1.0, Y: 0.0, Z: 0.0}
+	doorEnvObj := &components.EnvironmentObject{
+		Category:         components.ObjectCategoryInteractive,
+		ObjectType:       "door",
+		DisplayName:      "Swinging Door",
+		InteractionType:  components.InteractionOpen,
+		InteractionRange: 2.0,
+		IsLocked:         false,
+		IsOpen:           false,
+	}
+	doorPhys := &components.PhysicsBody{
+		Mass:          50.0,
+		IsKinematic:   false,
+		IsSwinging:    false, // Will be enabled when door opens
+		SwingAngle:    0.0,
+		SwingVelocity: 0.0,
+		MaxSwingAngle: 0.0, // Will be set to Pi/2
+		SwingDamping:  0.0, // Will be set
+	}
+	world.AddComponent(door, doorPos)
+	world.AddComponent(door, doorEnvObj)
+	world.AddComponent(door, doorPhys)
+
+	// Update to establish targeting
+	sys.Update(world, 0.016)
+
+	// Request interaction to open door
+	sys.RequestInteraction(1.0)
+
+	// Update to process interaction
+	sys.Update(world, 0.016)
+
+	// Verify door is now open
+	if !doorEnvObj.IsOpen {
+		t.Error("Door should be open after interaction")
+	}
+
+	// Verify swing animation was triggered
+	if !doorPhys.IsSwinging {
+		t.Error("Door physics should have IsSwinging=true after opening")
+	}
+	if doorPhys.MaxSwingAngle == 0.0 {
+		t.Error("Door should have MaxSwingAngle set for swing animation")
+	}
+	if doorPhys.SwingVelocity == 0.0 {
+		t.Error("Door should have non-zero SwingVelocity to animate")
+	}
+	if doorPhys.SwingVelocity <= 0.0 {
+		t.Error("Opening door should have positive SwingVelocity")
+	}
+
+	// Now close the door
+	sys.RequestInteraction(1.0)
+	sys.Update(world, 0.016)
+
+	// Verify door is now closed
+	if doorEnvObj.IsOpen {
+		t.Error("Door should be closed after second interaction")
+	}
+
+	// Verify swing animation for closing
+	if doorPhys.SwingVelocity >= 0.0 {
+		t.Error("Closing door should have negative SwingVelocity")
+	}
+}
+
+// TestInteractionSystem_DoorWithoutPhysicsBody verifies doors without PhysicsBody work.
+func TestInteractionSystem_DoorWithoutPhysicsBody(t *testing.T) {
+	world := ecs.NewWorld()
+	sys := NewInteractionSystem()
+
+	// Create a player entity
+	player := world.CreateEntity()
+	playerPos := &components.Position{X: 0.0, Y: 0.0, Z: 0.0, Angle: 0.0}
+	playerInv := &components.Inventory{Items: []string{}}
+	world.AddComponent(player, playerPos)
+	world.AddComponent(player, playerInv)
+	sys.SetPlayerEntity(player)
+
+	// Create a door WITHOUT PhysicsBody
+	door := world.CreateEntity()
+	doorPos := &components.Position{X: 1.0, Y: 0.0, Z: 0.0}
+	doorEnvObj := &components.EnvironmentObject{
+		Category:         components.ObjectCategoryInteractive,
+		ObjectType:       "door",
+		DisplayName:      "Simple Door",
+		InteractionType:  components.InteractionOpen,
+		InteractionRange: 2.0,
+		IsLocked:         false,
+		IsOpen:           false,
+	}
+	world.AddComponent(door, doorPos)
+	world.AddComponent(door, doorEnvObj)
+
+	// Update to establish targeting
+	sys.Update(world, 0.016)
+
+	// Request interaction to open door
+	sys.RequestInteraction(1.0)
+
+	// Update to process interaction
+	sys.Update(world, 0.016)
+
+	// Verify door is now open (no panic without PhysicsBody)
+	if !doorEnvObj.IsOpen {
+		t.Error("Door without PhysicsBody should still open")
+	}
+}
+
 // TestInteractionSystem_NoPlayer verifies system handles missing player gracefully.
 func TestInteractionSystem_NoPlayer(t *testing.T) {
 	world := ecs.NewWorld()

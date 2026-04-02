@@ -74,11 +74,42 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 	// Draw bounty/wanted status (below minimap)
 	g.drawWantedStatus(screen, screenWidth-80, 80)
 
+	// Draw crosshair (center of screen)
+	g.drawCrosshair(screen, screenWidth, screenHeight)
+
 	// Draw interaction prompt (bottom-center)
 	g.drawInteractionPrompt(screen)
 
 	// Draw debug info if enabled
 	g.drawDebugInfo(screen)
+}
+
+// drawCrosshair renders the crosshair at the center of the screen.
+// Highlights the crosshair when an interactable target is detected.
+func (g *Game) drawCrosshair(screen *ebiten.Image, screenWidth, screenHeight int) {
+	if g.crosshairImage == nil {
+		return
+	}
+
+	// Center position
+	crosshairSize := g.crosshairImage.Bounds().Dx()
+	centerX := float64(screenWidth-crosshairSize) / 2
+	centerY := float64(screenHeight-crosshairSize) / 2
+
+	// Draw crosshair with highlight if targeting an interactable object
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(centerX, centerY)
+
+	// Highlight crosshair if we have an interaction target
+	if g.interactionSys != nil {
+		target := g.interactionSys.GetCurrentTarget()
+		if target != nil && target.Prompt != "" {
+			// Yellow/gold highlight for interactable targets
+			op.ColorScale.Scale(1.2, 1.0, 0.5, 1.0)
+		}
+	}
+
+	screen.DrawImage(g.crosshairImage, op)
 }
 
 // drawWantedStatus renders the player's bounty and wanted status.

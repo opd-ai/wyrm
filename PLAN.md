@@ -569,21 +569,21 @@ The `Scale` field on `SpriteEntity` is set based on the item's category during p
 #### Physics Integration
 
 Pushable objects (crates, barrels):
-- [ ] On player collision with a pushable object: apply force in the player's movement direction
-- [ ] Move the object's `Position` component by `pushForce * dt` in the push direction
-- [ ] Check collision of the pushed object against walls and other barriers
-- [ ] Limit push speed to prevent objects from phasing through walls
+- [x] On player collision with a pushable object: apply force in the player's movement direction
+- [x] Move the object's `Position` component by `pushForce * dt` in the push direction
+- [x] Check collision of the pushed object against walls and other barriers
+- [x] Limit push speed to prevent objects from phasing through walls
 
 Swinging doors:
-- [ ] Doors have a `rotation` field in addition to position
-- [ ] On interaction: animate the rotation from 0° to 90° over 0.5 seconds
-- [ ] Update the door's collision polygon each frame during animation
-- [ ] After animation: the door remains in the open state until interacted with again
+- [x] Doors have a `rotation` field in addition to position
+- [x] On interaction: animate the rotation from 0° to 90° over 0.5 seconds
+- [x] Update the door's collision polygon each frame during animation
+- [x] After animation: the door remains in the open state until interacted with again
 
 #### Integration Points
-- [ ] `pkg/engine/components/definitions.go`: Configure existing `Appearance` component with `SpriteCategory = "object"` and `BodyPlan` for item type
-- [ ] `pkg/engine/systems/`: Extend `RenderSystem` with interaction targeting
-- [ ] `cmd/client/main.go`: Add crosshair rendering and interaction key binding
+- [x] `pkg/engine/components/definitions.go`: Configure existing `Appearance` component with `SpriteCategory = "object"` and `BodyPlan` for item type
+- [x] `pkg/engine/systems/`: Extend `RenderSystem` with interaction targeting
+- [x] `cmd/client/main.go`: Add crosshair rendering and interaction key binding
 
 ---
 
@@ -598,14 +598,14 @@ The `Skybox` struct in `pkg/rendering/raycast/skybox.go` is **fully implemented*
 - Weather effects (clear, overcast, rain, storm, snow, fog)
 - Indoor mode
 
-**Gap:** The skybox is not currently called from `Draw()`. The ceiling area renders as texture-mapped ceiling instead of sky.
+**Gap:** ~~The skybox is not currently called from `Draw()`. The ceiling area renders as texture-mapped ceiling instead of sky.~~ RESOLVED: Skybox is now called from `drawSky()` which is invoked in `Draw()`.
 
 #### Integration Plan
 
-- [ ] In `drawFloorCeiling()`: for rows above the horizon line (plus pitch offset), call `skybox.GetSkyColorAt(x, y)` instead of `GetCeilingTextureColor()`
-- [ ] When `skybox.IsIndoor()` is true: fall back to existing ceiling texture rendering
-- [ ] Connect `WeatherSystem` ECS output to `skybox.SetWeather()` each frame
-- [ ] Connect `WorldClockSystem` output to `skybox.SetTimeOfDay()` each frame
+- [x] In `drawFloorCeiling()`: for rows above the horizon line (plus pitch offset), call `skybox.GetSkyColorAt(x, y)` instead of `GetCeilingTextureColor()`
+- [x] When `skybox.IsIndoor()` is true: fall back to existing ceiling texture rendering
+- [x] Connect `WeatherSystem` ECS output to `skybox.SetWeather()` each frame
+- [x] Connect `WorldClockSystem` output to `skybox.SetTimeOfDay()` each frame
 
 #### Enhancements
 

@@ -497,6 +497,9 @@ func (g *Game) updateRenderingSubsystems(dt float64) {
 		g.lightingSystem.AdvanceTime(dt / 60.0)
 	}
 
+	// Sync skybox with ECS world state (weather and time of day)
+	g.syncSkyboxWithWorld()
+
 	// Update particle system
 	if g.particleSystem != nil {
 		g.particleSystem.Update(dt)
@@ -508,6 +511,43 @@ func (g *Game) updateRenderingSubsystems(dt float64) {
 		g.npcRenderer.UpdateAnimations(g.world, dt)
 		// Sync animation states with NPC schedules
 		g.npcRenderer.SyncAnimationWithSchedule(g.world)
+	}
+}
+
+// syncSkyboxWithWorld updates the renderer's skybox based on ECS weather and clock state.
+func (g *Game) syncSkyboxWithWorld() {
+	if g.renderer == nil || g.renderer.Skybox == nil {
+		return
+	}
+
+	skybox := g.renderer.Skybox
+
+	// Find Weather component and sync current weather
+	for _, e := range g.world.Entities("Weather") {
+		weatherComp, ok := g.world.GetComponent(e, "Weather")
+		if ok {
+			weather := weatherComp.(*components.Weather)
+			skybox.SetWeather(weather.WeatherType, weather.CloudCover)
+			break // Only need one weather entity
+		}
+	}
+
+	// Find WorldClock and sync time of day
+	for _, e := range g.world.Entities("WorldClock") {
+		clockComp, ok := g.world.GetComponent(e, "WorldClock")
+		if ok {
+			clock := clockComp.(*components.WorldClock)
+			// Convert hour (0-23) to normalized time (0.0-1.0)
+			// 0.0 = midnight, 0.5 = noon
+			// TimeAccum accumulates seconds toward next hour change
+			hourFraction := 0.0
+			if clock.HourLength > 0 {
+				hourFraction = clock.TimeAccum / clock.HourLength
+			}
+			timeOfDay := (float64(clock.Hour) + hourFraction) / 24.0
+			skybox.SetTimeOfDay(timeOfDay)
+			break
+		}
 	}
 }
 

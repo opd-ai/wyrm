@@ -323,6 +323,39 @@ func (s *InteractionSystem) handleOpen(w *ecs.World, target ecs.Entity, envObj *
 
 	// Toggle open state
 	envObj.IsOpen = !envObj.IsOpen
+
+	// If the door has a physics body, trigger swing animation
+	if envObj.IsDoor() {
+		s.triggerDoorSwing(w, target, envObj.IsOpen)
+	}
+}
+
+// triggerDoorSwing initiates swing animation for a door entity.
+// Opens doors swing to ~90° (pi/2), closing doors swing back to 0°.
+func (s *InteractionSystem) triggerDoorSwing(w *ecs.World, doorEntity ecs.Entity, opening bool) {
+	physComp, hasPhys := w.GetComponent(doorEntity, "PhysicsBody")
+	if !hasPhys {
+		return
+	}
+
+	phys := physComp.(*components.PhysicsBody)
+	if !phys.IsSwinging {
+		// Not a swinging door - enable swing physics
+		phys.IsSwinging = true
+		phys.MaxSwingAngle = math.Pi / 2 // 90 degrees
+		phys.SwingDamping = 4.0          // Dampen quickly for door feel
+	}
+
+	// Apply angular impulse to swing the door
+	// The swing velocity is set to achieve ~90° over ~0.5 seconds
+	swingSpeed := 3.5 // radians per second
+	if opening {
+		// Opening: swing to positive angle
+		phys.SwingVelocity = swingSpeed
+	} else {
+		// Closing: swing to negative/zero angle
+		phys.SwingVelocity = -swingSpeed
+	}
 }
 
 // handleUse processes using an interactive object.
