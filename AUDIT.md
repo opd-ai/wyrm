@@ -14,9 +14,80 @@ Generated: 2026-04-02T04:40:06Z
 
 ---
 
+## Completion Checklist
+
+Track issue resolution status below. Check off each item when the corresponding fix has been implemented and verified.
+
+### Critical Issues
+- [ ] [C-001] Division by Zero in Floor/Ceiling Rendering
+- [ ] [C-002] Division by Zero in Billboard Camera Transform
+- [ ] [C-003] Race Condition in ECS RegisterSystem
+- [ ] [C-004] Division by Zero in Vignette Post-Processing
+- [ ] [C-005] Goroutine Leak in Network Server sendWorldState
+
+### High Priority Issues
+- [ ] [H-001] Unsafe Component Access Pattern Across 11 System Files
+- [ ] [H-002] No Network Timeouts on Connections
+- [ ] [H-003] Managers Initialized But Unused (Housing, PvP, Dialog, Companion)
+- [ ] [H-004] FactionArcManager Created But Never Registered
+- [ ] [H-005] WorldMap Assumes Uniform Row Length
+- [ ] [H-006] uint8 Overflow in Subtitle Opacity
+- [ ] [H-007] Audio Player Resource Leak on Error Path
+- [ ] [H-008] No Configuration Value Validation
+
+### Medium Priority Issues
+- [ ] [M-001] Entities() Query Allocates on Every Call
+- [ ] [M-002] time.Sleep in Network Sync Code
+- [ ] [M-003] Server Tick Rate Division by Zero Risk
+- [ ] [M-004] Z-Fighting in Billboard Rendering
+- [ ] [M-005] Ceiling Rendering Row Asymmetry
+- [ ] [M-006] RenderSystem is an Empty Stub
+- [ ] [M-007] Magic Number 1.5708 (π/2) Used Directly
+- [ ] [M-008] isValidMapCellPosition Also Assumes Uniform Row Length
+- [ ] [M-009] Dialog System Returns Pointer to Slice Element
+- [ ] [M-010] Audio Player Has No Close/Cleanup Method
+- [ ] [M-011] Potential Integer Overflow in Subtitle Duration Division
+- [ ] [M-012] Unused Puzzle and Object Data in Server Init
+- [ ] [M-013] Large Texture Distortion Scale Causes Aliasing
+- [ ] [M-014] Framebuffer Index Safety with Zero Dimensions
+- [ ] [M-015] Particle Truncation Instead of Rounding
+
+### Low Priority Issues
+- [ ] [L-001] Stale Entity References After Destruction
+- [ ] [L-002] DestroyEntity Succeeds Silently for Non-Existent Entities
+- [ ] [L-003] Color Blending Precision in Skybox
+- [ ] [L-004] Particle Alpha Transition Sharp at Boundaries
+- [ ] [L-005] Type Assertion Without ok Check in Quest UI
+- [ ] [L-006] Unsafe Type Assertion in Trade Route System
+- [ ] [L-007] Lighting Direction Zero Vector
+- [ ] [L-008] Bloom Edge Artifacts
+
+### Performance Optimizations
+- [ ] [P-001] ECS Entities() Query Hot Path Allocation
+- [ ] [P-002] Sort on Every Entities() Call
+- [ ] [P-003] FOV Ray Directions Recalculated Per Row
+- [ ] [P-004] sendWorldState Copies All Player States Under Lock
+- [ ] [P-005] Redundant Map Lookups in ECS Component Access
+- [ ] [P-006] Auto-Save Creates Full World Snapshot Under Unknown Locking
+- [ ] [P-007] Particle Glow Uses sqrt for Distance
+
+### Code Quality
+- [ ] [Q-001] 20 Component Structs Missing Type() Method
+- [ ] [Q-002] Server System Count Hardcoded as String Literal
+- [ ] [Q-003] Unused Variable Suppression Pattern
+- [ ] [Q-004] Client Main File Exceeds 2,250 Lines
+- [ ] [Q-005] Inconsistent Error Handling in AddComponent Callers
+- [ ] [Q-006] Helper Functions for Trivial Math Operations
+- [ ] [Q-007] Magic Numbers in Movement and Physics
+- [ ] [Q-008] Computed Values in Systems Discarded with _ Assignment
+- [ ] [Q-009] Non-Component Helper Structs Mixed with Components
+
+---
+
 ## Critical Issues
 
 ### [C-001] Division by Zero in Floor/Ceiling Rendering
+- **Status**: Open
 - **Location**: `pkg/rendering/raycast/draw.go:155`
 - **Category**: Rendering
 - **Description**: `calculateRowDistance()` computes `posZ / float64(p)` where `p = y - halfHeight`. When `y == halfHeight` (the first iteration of the floor loop at line 132), `p == 0`, causing a division by zero that produces `+Inf`, which then propagates into texture coordinate calculations.
@@ -29,6 +100,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Start the loop at `y = halfHeight + 1`, or add a guard: `if p == 0 { continue }` before the division.
 
 ### [C-002] Division by Zero in Billboard Camera Transform
+- **Status**: Open
 - **Location**: `pkg/rendering/raycast/billboard.go:60`
 - **Category**: Rendering
 - **Description**: `invDet := 1.0 / (planeX*dirY - dirX*planeY)` computes the inverse of the camera matrix determinant. When the camera plane vector is parallel to the direction vector, the determinant is zero, causing division by zero.
@@ -41,6 +113,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Check `det := planeX*dirY - dirX*planeY; if math.Abs(det) < 1e-10 { return false }` before line 60.
 
 ### [C-003] Race Condition in ECS RegisterSystem
+- **Status**: Open
 - **Location**: `pkg/engine/ecs/world.go:115-116`
 - **Category**: State Management
 - **Description**: `RegisterSystem()` appends to `w.systems` without holding the mutex lock. Meanwhile, `Update()` (line 120-123) iterates over `w.systems` without any lock. If a system is registered while `Update()` is running (e.g., during late initialization or dynamic system registration), the append may cause a data race on the slice header.
@@ -53,6 +126,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Add `w.mu.Lock()` / `w.mu.Unlock()` around the append in `RegisterSystem()`.
 
 ### [C-004] Division by Zero in Vignette Post-Processing
+- **Status**: Open
 - **Location**: `pkg/rendering/postprocess/effects.go:282`
 - **Category**: Rendering
 - **Description**: `falloff := (dist - v.Radius) / (1.0 - v.Radius + v.Softness)` divides by zero when `v.Radius == 1.0` and `v.Softness == 0.0`, producing `+Inf` or `NaN`.
@@ -64,6 +138,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Add `denom := 1.0 - v.Radius + v.Softness; if denom <= 0 { denom = 0.001 }` before the division.
 
 ### [C-005] Goroutine Leak in Network Server sendWorldState
+- **Status**: Open
 - **Location**: `pkg/network/server.go:350`
 - **Category**: State Management / Performance
 - **Description**: `go s.sendWorldState(conn, entityID, input.SequenceNum)` spawns a goroutine for every player input message, but these goroutines are not tracked in the `sync.WaitGroup`. If a client disconnects while `sendWorldState` is writing to the connection (line 395), the goroutine may block indefinitely on the write since no write deadline is set.
@@ -81,6 +156,7 @@ Generated: 2026-04-02T04:40:06Z
 ## High Priority Issues
 
 ### [H-001] Unsafe Component Access Pattern Across 11 System Files
+- **Status**: Open
 - **Location**: `pkg/engine/systems/gossip.go:72,79,81,94,101`, `pkg/engine/systems/hazard.go:64,83,106,115,140,145,171,178,206,232,247,253,260`, `pkg/engine/systems/magic_combat.go:195,241,318`, `pkg/engine/systems/emotional_state.go:117`, `pkg/engine/systems/npc_memory.go:107`, `pkg/engine/systems/dialog_consequence.go:220`, `pkg/engine/systems/multi_npc_conversation.go:345,437`, `pkg/engine/systems/pardon.go:238`, `pkg/engine/systems/vehicle_physics.go:56-58`, `pkg/engine/systems/crime.go:799`, `pkg/engine/systems/city_buildings.go:242,368,380`
 - **Category**: State Management
 - **Description**: Over 40 instances of `comp, _ := w.GetComponent(e, "TypeName")` where the boolean ok value is discarded, followed by an unsafe type assertion `comp.(*components.SomeType)`. If `GetComponent` returns `(nil, false)`, the type assertion on nil causes a nil pointer dereference panic.
@@ -88,6 +164,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Always check `ok` before casting: `comp, ok := w.GetComponent(e, "X"); if !ok { continue }`. Or create a helper: `MustGetComponent[T](w, e, name) *T` that handles the check.
 
 ### [H-002] No Network Timeouts on Connections
+- **Status**: Open
 - **Location**: `pkg/network/server.go:86`, `pkg/network/server.go:375-398`
 - **Category**: Performance / State Management
 - **Description**: No `SetReadDeadline`, `SetWriteDeadline`, or `SetDeadline` calls anywhere in the network package. The `Accept()` call at line 86 blocks indefinitely. Client read loops have no timeout. Write operations in `sendWorldState` (line 395) block indefinitely if the peer stops reading.
@@ -95,6 +172,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Set `conn.SetDeadline(time.Now().Add(10*time.Second))` per the project's high-latency design mandate. Add idle connection detection via heartbeat absence.
 
 ### [H-003] Managers Initialized But Unused (Housing, PvP, Dialog, Companion)
+- **Status**: Open
 - **Location**: `cmd/server/main.go:95-106`
 - **Category**: Code Quality / State Management
 - **Description**: `initializeManagers()` creates HouseManager, ZoneManager, DialogManager, and CompanionManager, then immediately discards them with `_ = hm`, `_ = zm`, `_ = dm`, `_ = compMgr`. These managers are allocated, consume memory, and are never connected to any system.
@@ -102,6 +180,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Either pass these managers to systems that need them, or defer their initialization until they are actually integrated.
 
 ### [H-004] FactionArcManager Created But Never Registered
+- **Status**: Open
 - **Location**: `cmd/server/main.go:455-456`
 - **Category**: Code Quality / State Management
 - **Description**: `factionArcManager := systems.NewFactionArcManager(genre)` is created but immediately discarded with `_ = factionArcManager`. It is never registered as a system and never connected to the quest system.
@@ -109,6 +188,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Register the manager as a system, or pass it to the quest system.
 
 ### [H-005] WorldMap Assumes Uniform Row Length
+- **Status**: Open
 - **Location**: `pkg/rendering/raycast/renderer.go:390-392`
 - **Category**: Rendering
 - **Description**: `isValidMapPosition(x, y)` checks `y < len(r.WorldMap[0])` using the first row's length. If any row has a different length, accessing `r.WorldMap[x][y]` could panic with index out of range.
@@ -116,6 +196,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Check `y < len(r.WorldMap[x])` instead of `y < len(r.WorldMap[0])` after validating `x`.
 
 ### [H-006] uint8 Overflow in Subtitle Opacity
+- **Status**: Open
 - **Location**: `pkg/rendering/subtitles/renderer.go:344`
 - **Category**: Rendering
 - **Description**: `ss.style.BackgroundColor[3] = uint8(opacity * 255)` converts a `float64` to `uint8`. If `opacity > 1.0` (no clamping at call site), the result exceeds 255 and wraps around due to Go's uint8 truncation. E.g., `opacity = 1.1` → `280.5` → `uint8(280) = 24`.
@@ -123,6 +204,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Clamp opacity: `if opacity > 1.0 { opacity = 1.0 } else if opacity < 0 { opacity = 0 }`.
 
 ### [H-007] Audio Player Resource Leak on Error Path
+- **Status**: Open
 - **Location**: `pkg/audio/player.go:31-38`
 - **Category**: Assets / State Management
 - **Description**: `NewPlayer()` calls `audio.NewContext(AudioSampleRate)` at line 32, then `ctx.NewPlayer(stream)` at line 35. If `NewPlayer` fails, the function returns the error but never closes the `audio.Context`. The context is leaked.
@@ -130,6 +212,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: On error, clean up the context before returning.
 
 ### [H-008] No Configuration Value Validation
+- **Status**: Open
 - **Location**: `config/load.go:246-257`
 - **Category**: State Management
 - **Description**: After unmarshaling config, no validation is performed. Values like `Server.TickRate = 0` would cause division by zero at `cmd/server/main.go:527` (`time.Second / time.Duration(0)`). Negative multipliers, zero window dimensions, and invalid port numbers are all accepted silently.
@@ -141,6 +224,7 @@ Generated: 2026-04-02T04:40:06Z
 ## Medium Priority Issues
 
 ### [M-001] Entities() Query Allocates on Every Call
+- **Status**: Open
 - **Location**: `pkg/engine/ecs/world.go:97`
 - **Category**: Performance
 - **Description**: `var result []Entity` in `Entities()` creates a nil slice that grows via `append`. This method is called by every system on every tick for every component query. The `sort.Slice` at line 110 also allocates internally.
@@ -148,6 +232,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Pre-allocate with `result := make([]Entity, 0, len(w.components))` as a capacity hint.
 
 ### [M-002] time.Sleep in Network Sync Code
+- **Status**: Open
 - **Location**: `cmd/client/sync.go:70,77`
 - **Category**: Performance
 - **Description**: `time.Sleep(100 * time.Millisecond)` used in the network synchronization polling loop. This blocks the goroutine for a fixed duration regardless of actual network conditions.
@@ -155,6 +240,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Use `time.NewTicker` or channel-based signaling instead of sleep-polling.
 
 ### [M-003] Server Tick Rate Division by Zero Risk
+- **Status**: Open
 - **Location**: `cmd/server/main.go:527`
 - **Category**: Logic
 - **Description**: `tickInterval := time.Second / time.Duration(cfg.Server.TickRate)` panics if `TickRate` is 0. No validation prevents this.
@@ -162,6 +248,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Validate `cfg.Server.TickRate > 0` in config validation, or add a guard: `if cfg.Server.TickRate == 0 { cfg.Server.TickRate = 20 }`.
 
 ### [M-004] Z-Fighting in Billboard Rendering
+- **Status**: Open
 - **Location**: `pkg/rendering/raycast/billboard.go:84`
 - **Category**: Rendering
 - **Description**: `if ctx.Distance >= r.GetZBufferAt(screenX)` uses `>=` for the depth test. Sprites at exactly the same distance as a wall are culled. This can cause sprites to flicker between visible and hidden when aligned with walls.
@@ -169,6 +256,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Use `>` instead of `>=` to render sprites at equal distance, or add a small epsilon bias.
 
 ### [M-005] Ceiling Rendering Row Asymmetry
+- **Status**: Open
 - **Location**: `pkg/rendering/raycast/draw.go:130-132`
 - **Category**: Rendering
 - **Description**: `halfHeight := r.Height / 2` uses integer division. For odd heights (e.g., 721), `halfHeight = 360`. The floor loop runs for rows 360-720 (361 rows), but ceiling mirroring via `ceilY = Height - y - 1` maps to rows 0-360 (361 rows). Row 360 is rendered twice (once as floor, once as ceiling), causing a 1-pixel overlap at the horizon.
@@ -176,6 +264,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Use `halfHeight + 1` as the floor loop start, or handle the center row explicitly.
 
 ### [M-006] RenderSystem is an Empty Stub
+- **Status**: Open
 - **Location**: `pkg/engine/systems/render.go:15-18`
 - **Category**: Code Quality
 - **Description**: `RenderSystem.Update()` body contains only `_ = w` to suppress the unused variable warning. The system is registered but does nothing. The actual rendering is handled directly by the client's `Draw()` method.
@@ -183,6 +272,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Either implement render preparation logic (culling, LOD selection) or remove the system registration.
 
 ### [M-007] Magic Number 1.5708 (π/2) Used Directly
+- **Status**: Open
 - **Location**: `pkg/network/server.go:342-343`, `cmd/client/main.go:411`
 - **Category**: Code Quality
 - **Description**: The value `1.5708` appears as a magic number for π/2 radians in movement calculations and door animations. It's an approximation (actual π/2 = 1.5707963...) with ~0.00002 error.
@@ -190,6 +280,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Use `math.Pi / 2` for exact precision and readability.
 
 ### [M-008] isValidMapCellPosition Also Assumes Uniform Row Length
+- **Status**: Open
 - **Location**: `pkg/rendering/raycast/renderer.go:394-400`
 - **Category**: Rendering
 - **Description**: Same issue as H-005 but for `WorldMapCells`: checks `y < len(r.WorldMapCells[0])` instead of `y < len(r.WorldMapCells[x])`.
@@ -197,6 +288,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Same as H-005—check the specific row length.
 
 ### [M-009] Dialog System Returns Pointer to Slice Element
+- **Status**: Open
 - **Location**: `pkg/dialog/system.go:125`
 - **Category**: State Management
 - **Description**: `GetLastTopic()` returns `&memory.Topics[len(memory.Topics)-1]`, a pointer to the last element in the internal slice. If the slice is modified later (topics appended or trimmed), the pointer may reference stale or relocated data.
@@ -204,6 +296,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Return a copy: `t := memory.Topics[len(memory.Topics)-1]; return &t`.
 
 ### [M-010] Audio Player Has No Close/Cleanup Method
+- **Status**: Open
 - **Location**: `pkg/audio/player.go:22-28`
 - **Category**: Assets
 - **Description**: The `Player` struct holds an `*audio.Context` and `*audio.Player` but provides no `Close()` method. When a Player is discarded, these Ebitengine resources are not explicitly released.
@@ -211,6 +304,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Add a `Close()` method that calls `p.player.Close()`.
 
 ### [M-011] Potential Integer Overflow in Subtitle Duration Division
+- **Status**: Open
 - **Location**: `pkg/rendering/subtitles/renderer.go:448`
 - **Category**: Logic
 - **Description**: `RemainingFraction: float64(sub.RemainingTime(time.Now())) / float64(sub.Duration)` divides by `sub.Duration`. If a subtitle is created with `Duration = 0` (bypassing the `Add()` method which enforces `minDisplayTime`), this is division by zero.
@@ -218,6 +312,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Guard with `if sub.Duration == 0 { return 0 }`.
 
 ### [M-012] Unused Puzzle and Object Data in Server Init
+- **Status**: Open
 - **Location**: `cmd/server/init.go:344,401,420`
 - **Category**: Code Quality
 - **Description**: Puzzle data, object data, and zone seeds are generated during initialization then immediately discarded: `_ = puzzle`, `_ = obj`, `_ = seed`.
@@ -225,6 +320,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Defer generation until actually needed, or wire the data into the systems that will consume it.
 
 ### [M-013] Large Texture Distortion Scale Causes Aliasing
+- **Status**: Open
 - **Location**: `pkg/rendering/texture/patterns.go:219-220`
 - **Category**: Rendering
 - **Description**: Distortion pattern uses `distortX := noise.Noise2D(...) * 10.0` with a 10-pixel distortion amplitude. Combined with `NoiseScale`, this produces large jumps in noise space (±1.0), causing visible banding and aliasing in procedural textures.
@@ -232,6 +328,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Reduce distortion amplitude or add anti-aliasing (bilinear sampling of the displaced coordinate).
 
 ### [M-014] Framebuffer Index Safety with Zero Dimensions
+- **Status**: Open
 - **Location**: `pkg/rendering/raycast/renderer.go:244-252`
 - **Category**: Rendering
 - **Description**: `SetPixel()` checks `x < r.Width && y < r.Height` but if `r.Width` or `r.Height` is 0, the `Framebuffer` slice is empty. While the bounds check prevents out-of-range x/y, the idx calculation `(y*Width + x) * 4` could be 0, but `r.Framebuffer[0]` on an empty slice would panic. This only occurs if the renderer is initialized with zero dimensions.
@@ -239,6 +336,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Validate `Width > 0 && Height > 0` in `NewRenderer()`.
 
 ### [M-015] Particle Truncation Instead of Rounding
+- **Status**: Open
 - **Location**: `pkg/rendering/particles/renderer.go:46`
 - **Category**: Rendering
 - **Description**: `screenX := int(p.X * float64(r.width))` truncates instead of rounding. A particle at `p.X = 0.999` with `width = 1280` produces `screenX = 1279` instead of `1280`. This creates a systematic 0.5-pixel leftward/upward bias for all particles.
@@ -250,6 +348,7 @@ Generated: 2026-04-02T04:40:06Z
 ## Low Priority Issues
 
 ### [L-001] Stale Entity References After Destruction
+- **Status**: Open
 - **Location**: `pkg/engine/ecs/world.go:53-57,94-112`
 - **Category**: State Management
 - **Description**: `DestroyEntity()` removes an entity from the components map, but any system that cached the entity ID from a previous `Entities()` call still holds a stale reference. Subsequent `GetComponent()` calls return `(nil, false)` but callers often ignore the boolean (see H-001).
@@ -257,6 +356,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Document the stale-reference risk in `Entities()` godoc. Long-term: add entity generation numbers.
 
 ### [L-002] DestroyEntity Succeeds Silently for Non-Existent Entities
+- **Status**: Open
 - **Location**: `pkg/engine/ecs/world.go:53-57`
 - **Category**: State Management
 - **Description**: `DestroyEntity()` calls `delete(w.components, e)` without checking if the entity exists. Deleting a non-existent key is a no-op in Go, so this silently succeeds.
@@ -264,6 +364,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Optionally return `error` or `bool` to indicate if the entity existed.
 
 ### [L-003] Color Blending Precision in Skybox
+- **Status**: Open
 - **Location**: `pkg/rendering/raycast/skybox.go:269`
 - **Category**: Rendering
 - **Description**: Color interpolation `uint8(float64(a.R)*(1-t) + float64(b.R)*t)` can lose ±1 LSB due to float64→uint8 truncation.
@@ -271,6 +372,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Use `math.Round()` before uint8 conversion for perfectionism.
 
 ### [L-004] Particle Alpha Transition Sharp at Boundaries
+- **Status**: Open
 - **Location**: `pkg/rendering/particles/emitter.go:411-418`
 - **Category**: Rendering
 - **Description**: Fade-in at `lifeRatio > 0.9` and fade-out at `lifeRatio < 0.3` use linear ramps. At the boundary values (0.9 and 0.3 exactly), the transition has a sharp discontinuity in the derivative (C0 continuity but not C1).
@@ -278,6 +380,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Use smoothstep instead of linear interpolation for smoother transitions.
 
 ### [L-005] Type Assertion Without ok Check in Quest UI
+- **Status**: Open
 - **Location**: `cmd/client/quest_ui.go:412-413`
 - **Category**: State Management
 - **Description**: `bgColor := q.getBackgroundColor().(color.RGBA)` performs a bare type assertion. If `getBackgroundColor()` returns a different `color.Color` implementation, this panics.
@@ -285,6 +388,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Use `bgColor, ok := q.getBackgroundColor().(color.RGBA); if !ok { ... }`.
 
 ### [L-006] Unsafe Type Assertion in Trade Route System
+- **Status**: Open
 - **Location**: `pkg/engine/systems/trade_route.go:480`
 - **Category**: State Management
 - **Description**: `dest := destComp.(interface{ GetPrice(string) float64 })` asserts a structural interface on a component. If the component doesn't have a `GetPrice` method, this panics.
@@ -292,6 +396,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Use comma-ok assertion: `dest, ok := destComp.(interface{ GetPrice(string) float64 })`.
 
 ### [L-007] Lighting Direction Zero Vector
+- **Status**: Open
 - **Location**: `pkg/rendering/lighting/system.go:66-70`
 - **Category**: Rendering
 - **Description**: If all direction components (dirX, dirY, dirZ) are zero, normalization is skipped, leaving a zero-length direction vector. Downstream dot-product lighting calculations produce zero illumination regardless of surface orientation.
@@ -299,6 +404,7 @@ Generated: 2026-04-02T04:40:06Z
 - **Suggested Fix**: Log a warning when a zero-direction light is encountered.
 
 ### [L-008] Bloom Edge Artifacts
+- **Status**: Open
 - **Location**: `pkg/rendering/postprocess/effects.go:365-366`
 - **Category**: Rendering
 - **Description**: The bloom blur loop starts at `Min + blurRadius` and ends at `Max - blurRadius`, leaving a `blurRadius`-wide border unblurred. If the blur radius is large relative to the image size, significant portions of the edges receive no bloom.
@@ -310,42 +416,49 @@ Generated: 2026-04-02T04:40:06Z
 ## Performance Optimization Opportunities
 
 ### [P-001] ECS Entities() Query Hot Path Allocation
+- **Status**: Open
 - **Location**: `pkg/engine/ecs/world.go:94-112`
 - **Current Impact**: 1,200+ allocations/second from system queries. Each allocation grows the result slice via append, then sort allocates internally.
 - **Optimization**: Pre-allocate result slice with estimated capacity. Consider caching query results per frame (invalidated on entity create/destroy).
 - **Expected Improvement**: 50-80% reduction in query-related GC pressure.
 
 ### [P-002] Sort on Every Entities() Call
+- **Status**: Open
 - **Location**: `pkg/engine/ecs/world.go:110`
 - **Current Impact**: `sort.Slice` runs O(n log n) on every component query for determinism. With 200 NPCs, each query sorts ~200 entities.
 - **Optimization**: Maintain a sorted entity index that's updated on create/destroy, avoiding per-query sorts.
 - **Expected Improvement**: ~70% reduction in Entities() CPU time for large entity counts.
 
 ### [P-003] FOV Ray Directions Recalculated Per Row
+- **Status**: Open
 - **Location**: `pkg/rendering/raycast/draw.go:133`
 - **Current Impact**: `calculateFOVRayDirections()` is called once per row in the floor/ceiling loop (lines 132-139). The result depends only on `PlayerA` and `FOV`, which are constant for the entire frame.
 - **Optimization**: Hoist the call above the loop—compute once, reuse for all rows.
 - **Expected Improvement**: Removes ~360 redundant trig calls per frame (2 cos + 2 sin per call).
 
 ### [P-004] sendWorldState Copies All Player States Under Lock
+- **Status**: Open
 - **Location**: `pkg/network/server.go:376-388`
 - **Current Impact**: The server holds the mutex while iterating and copying all player states for every world state send. With 32 players, this copies 32 EntityState structs while blocking all other operations.
 - **Optimization**: Use a lock-free snapshot mechanism (copy-on-write) or a ring buffer of pre-serialized states.
 - **Expected Improvement**: Reduced lock contention under high player counts.
 
 ### [P-005] Redundant Map Lookups in ECS Component Access
+- **Status**: Open
 - **Location**: `pkg/engine/ecs/world.go:72-80`
 - **Current Impact**: `GetComponent()` acquires RLock, looks up entity in map, looks up component in nested map, releases lock. For systems accessing multiple components on the same entity, this acquires/releases the lock N times.
 - **Optimization**: Add a batch accessor: `GetComponents(e Entity, types ...string) (map[string]Component, bool)` that does one lock acquisition.
 - **Expected Improvement**: ~30% reduction in lock overhead for multi-component systems.
 
 ### [P-006] Auto-Save Creates Full World Snapshot Under Unknown Locking
+- **Status**: Open
 - **Location**: `cmd/server/main.go:531`
 - **Current Impact**: Auto-save every 5 minutes creates a snapshot of the entire world. If this blocks the tick loop, it introduces a latency spike.
 - **Optimization**: Perform snapshot in a background goroutine with a copy-on-write mechanism.
 - **Expected Improvement**: Eliminates save-related latency spikes.
 
 ### [P-007] Particle Glow Uses sqrt for Distance
+- **Status**: Open
 - **Location**: `pkg/rendering/particles/renderer.go:151`
 - **Current Impact**: Each glow pixel computes `math.Sqrt(dx*dx + dy*dy)` for distance. For a glow radius of R, this is R² sqrt operations per particle per frame.
 - **Optimization**: Use squared distance for comparisons (`dx*dx + dy*dy < radius*radius`), avoiding sqrt entirely.
@@ -356,46 +469,55 @@ Generated: 2026-04-02T04:40:06Z
 ## Code Quality Observations
 
 ### [Q-001] 20 Component Structs Missing Type() Method
+- **Status**: Open
 - **Location**: `pkg/engine/components/definitions.go` — `ActivityLocation` (line 151), `CityEventEffects` (line 1356), `CityEventRequirements` (line 1372), `DialogConsequences` (line 1492), `DialogExchange` (line 1526), `DialogMemoryEvent` (line 1561), `DialogOption` (line 1458), `DialogPromise` (line 1573), `DialogRequirements` (line 1476), `EquipmentSlot` (line 750), `FactionMemberInfo` (line 37), `GossipItem` (line 1092), `MemoryEvent` (line 912), `OccupationItem` (line 1427), `Point2D` (line 91), `Relationship` (line 941), `Room` (line 995), `SkillSchool` (line 446), `VehicleArchetype` (line 274), `Waypoint` (line 157)
 - **Issue**: These structs are in the components package but don't implement the `Component` interface. If mistakenly passed to `AddComponent()`, the `c.Type()` call at `world.go:67` will panic on nil method.
 - **Suggestion**: Either add `Type()` methods or move them to a separate `types` sub-package to clarify they are not ECS components.
 
 ### [Q-002] Server System Count Hardcoded as String Literal
+- **Status**: Open
 - **Location**: `cmd/server/main.go:522`
 - **Issue**: `log.Printf("registered %d server systems", 60)` hardcodes the count as 60 instead of counting actual registrations. If systems are added or removed, this log message becomes inaccurate.
 - **Suggestion**: Track registration count dynamically: `count := len(world.systems)` or increment a counter.
 
 ### [Q-003] Unused Variable Suppression Pattern
+- **Status**: Open
 - **Location**: `cmd/server/main.go:102-105,456`, `cmd/server/init.go:344,401,420`
 - **Issue**: Seven instances of `_ = variable` to suppress "unused variable" warnings. These represent initialized but unwired features (housing, PvP, dialog, companion managers; faction arcs; puzzles; zone seeds).
 - **Suggestion**: Remove unused initializations or wire them into the game loop. Each represents a dangling feature per the project's integration mandate.
 
 ### [Q-004] Client Main File Exceeds 2,250 Lines
+- **Status**: Open
 - **Location**: `cmd/client/main.go` (2,259 lines)
 - **Issue**: A single file containing game initialization, Update loop, Draw loop, gameplay logic, UI rendering, input handling, NPC rendering, vehicle logic, combat feedback, minimap, HUD, and debug display. This makes navigation and maintenance difficult.
 - **Suggestion**: Extract logical sections into separate files: `cmd/client/update.go`, `cmd/client/draw.go`, `cmd/client/hud.go`, `cmd/client/combat.go`, etc.
 
 ### [Q-005] Inconsistent Error Handling in AddComponent Callers
+- **Status**: Open
 - **Location**: `cmd/client/sync.go:164,170`
 - **Issue**: `_ = s.world.AddComponent(localEntity, ...)` discards the error return from `AddComponent`. If the entity doesn't exist, the component is silently not added.
 - **Suggestion**: Check and handle the error, or at minimum log it.
 
 ### [Q-006] Helper Functions for Trivial Math Operations
+- **Status**: Open
 - **Location**: `pkg/network/server.go:364-372`
 - **Issue**: `cos64()` and `sin64()` are single-line wrappers around `math.Cos()` and `math.Sin()` that add indirection without any value. They accept and return `float64`, which is what `math.Cos/Sin` already do.
 - **Suggestion**: Call `math.Cos()` and `math.Sin()` directly.
 
 ### [Q-007] Magic Numbers in Movement and Physics
+- **Status**: Open
 - **Location**: `cmd/client/main.go:49-51,138,411-413,483`, `cmd/server/main.go:342-343`
 - **Issue**: Numerous magic numbers (3.0, 2.0, 0.3, 1.5708, 0.785398, 60.0, etc.) used throughout movement, physics, and animation code. While some are defined as constants (lines 49-51), others appear inline.
 - **Suggestion**: Define all physics/animation constants in a single constants block or config values.
 
 ### [Q-008] Computed Values in Systems Discarded with _ Assignment
+- **Status**: Open
 - **Location**: `pkg/engine/systems/npc_occupation.go:191,305`, `pkg/engine/systems/audio.go:179`
 - **Issue**: Computed values like `occ.GoldPerHour * (occ.TaskDuration / 3600.0) * ...` and `source.Volume * attenuation` are calculated then discarded with `_ =`. This wastes CPU and confuses readers about the computation's purpose.
 - **Suggestion**: Remove the computations or use the results. These appear to be placeholders for future functionality.
 
 ### [Q-009] Non-Component Helper Structs Mixed with Components
+- **Status**: Open
 - **Location**: `pkg/engine/components/definitions.go`
 - **Issue**: The definitions file contains 85 structs, of which 20 are helper/nested types (Point2D, Waypoint, EquipmentSlot, etc.) mixed with 65 actual Component types. No organizational separation distinguishes them.
 - **Suggestion**: Use comments or separate files to group components vs. helper types (e.g., `components_helpers.go`).
@@ -405,32 +527,32 @@ Generated: 2026-04-02T04:40:06Z
 ## Recommendations by Priority
 
 ### 1. Immediate Action Required
-- **[C-001]**: Fix division by zero in floor rendering (start loop at `halfHeight + 1`)
-- **[C-002]**: Add determinant guard in billboard camera transform
-- **[C-003]**: Add mutex lock to `RegisterSystem()`
-- **[C-004]**: Guard vignette falloff denominator
-- **[C-005]**: Track sendWorldState goroutines in WaitGroup and set write deadlines
+- [ ] **[C-001]**: Fix division by zero in floor rendering (start loop at `halfHeight + 1`)
+- [ ] **[C-002]**: Add determinant guard in billboard camera transform
+- [ ] **[C-003]**: Add mutex lock to `RegisterSystem()`
+- [ ] **[C-004]**: Guard vignette falloff denominator
+- [ ] **[C-005]**: Track sendWorldState goroutines in WaitGroup and set write deadlines
 
 ### 2. High Priority (Next Sprint)
-- **[H-001]**: Add ok-check to all 40+ GetComponent calls across 11 system files
-- **[H-002]**: Add read/write deadlines to all network connections
-- **[H-003]**: Wire or remove unused managers (housing, PvP, dialog, companion)
-- **[H-006]**: Clamp subtitle opacity to [0, 1]
-- **[H-008]**: Add configuration validation after unmarshal
+- [ ] **[H-001]**: Add ok-check to all 40+ GetComponent calls across 11 system files
+- [ ] **[H-002]**: Add read/write deadlines to all network connections
+- [ ] **[H-003]**: Wire or remove unused managers (housing, PvP, dialog, companion)
+- [ ] **[H-006]**: Clamp subtitle opacity to [0, 1]
+- [ ] **[H-008]**: Add configuration validation after unmarshal
 
 ### 3. Medium Priority (Backlog)
-- **[M-001]**: Pre-allocate Entities() result slice
-- **[M-003]**: Validate TickRate > 0 before division
-- **[M-004]**: Fix Z-fighting comparison in billboard rendering
-- **[M-006]**: Implement or remove empty RenderSystem stub
-- **[M-007]**: Replace magic number 1.5708 with math.Pi/2
-- **[P-003]**: Hoist FOV ray direction calculation out of floor loop
+- [ ] **[M-001]**: Pre-allocate Entities() result slice
+- [ ] **[M-003]**: Validate TickRate > 0 before division
+- [ ] **[M-004]**: Fix Z-fighting comparison in billboard rendering
+- [ ] **[M-006]**: Implement or remove empty RenderSystem stub
+- [ ] **[M-007]**: Replace magic number 1.5708 with math.Pi/2
+- [ ] **[P-003]**: Hoist FOV ray direction calculation out of floor loop
 
 ### 4. Technical Debt
-- **[Q-001]**: Clarify non-Component helper structs (20 types missing Type())
-- **[Q-003]**: Eliminate `_ = variable` suppression pattern (7 instances)
-- **[Q-004]**: Split 2,259-line client main.go into logical modules
-- **[Q-008]**: Remove or use computed-then-discarded values
+- [ ] **[Q-001]**: Clarify non-Component helper structs (20 types missing Type())
+- [ ] **[Q-003]**: Eliminate `_ = variable` suppression pattern (7 instances)
+- [ ] **[Q-004]**: Split 2,259-line client main.go into logical modules
+- [ ] **[Q-008]**: Remove or use computed-then-discarded values
 
 ---
 
