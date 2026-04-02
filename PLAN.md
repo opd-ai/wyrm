@@ -533,10 +533,10 @@ type InteractionTarget struct {
 
 Each frame, cast a ray from the screen center (crosshair) into the world:
 
-- [ ] Use the same DDA algorithm as wall rendering, but for the center column only
-- [ ] After the ray completes, check all `EnvironmentObject` entities within the ray path
-- [ ] For each object: test if the ray passes within `object.Radius` of the object's world position
-- [ ] Return the closest intersecting object within `InteractRange`
+- [x] Use the same DDA algorithm as wall rendering, but for the center column only
+- [x] After the ray completes, check all `EnvironmentObject` entities within the ray path
+- [x] For each object: test if the ray passes within `object.Radius` of the object's world position
+- [x] Return the closest intersecting object within `InteractRange`
 
 This is a single additional ray cast per frame — negligible cost.
 
@@ -544,10 +544,10 @@ This is a single additional ray cast per frame — negligible cost.
 
 For objects with `HighlightState > 0`:
 
-- [ ] After drawing the object's sprite to the framebuffer, perform an edge-detection pass on the sprite's screen region
-- [ ] For each pixel on the sprite's boundary (where alpha transitions from >0 to 0): write a highlight color
-- [ ] The highlight color uses the genre's accent color (gold for fantasy, cyan for sci-fi, red for horror, neon pink for cyberpunk, orange for post-apoc)
-- [ ] Pulse the highlight intensity using `sin(time * 3.0) * 0.3 + 0.7` for a subtle breathing effect
+- [x] After drawing the object's sprite to the framebuffer, perform an edge-detection pass on the sprite's screen region
+- [x] For each pixel on the sprite's boundary (where alpha transitions from >0 to 0): write a highlight color
+- [x] The highlight color uses the genre's accent color (gold for fantasy, cyan for sci-fi, red for horror, neon pink for cyberpunk, orange for post-apoc)
+- [x] Pulse the highlight intensity using `sin(time * 3.0) * 0.3 + 0.7` for a subtle breathing effect
 
 **Optimization:** Only compute highlight for the one currently-targeted object, not all interactive objects.
 
