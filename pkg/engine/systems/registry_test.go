@@ -1159,7 +1159,10 @@ func TestWorldChunkSystemBarrierEntityCreation(t *testing.T) {
 	loader := newMockChunkLoaderWithBarriers()
 	sys := NewWorldChunkSystemWithGenre(loader, 16, "fantasy")
 
-	// Pre-populate a chunk with known barrier data
+	// Pre-populate only the chunk at (0,0) with known barrier data
+	// Clear the loader's chunks first to avoid random barriers from other chunks
+	loader.chunks = make(map[[2]int]*chunk.Chunk)
+
 	testChunk := &chunk.Chunk{
 		X:    0,
 		Y:    0,
@@ -1180,7 +1183,22 @@ func TestWorldChunkSystemBarrierEntityCreation(t *testing.T) {
 			},
 		},
 	}
-	loader.chunks[[2]int{0, 0}] = testChunk
+	// Pre-populate all chunks in 3x3 window with empty chunks except (0,0)
+	for dx := -1; dx <= 1; dx++ {
+		for dy := -1; dy <= 1; dy++ {
+			if dx == 0 && dy == 0 {
+				loader.chunks[[2]int{0, 0}] = testChunk
+			} else {
+				// Empty chunks with no barriers
+				loader.chunks[[2]int{dx, dy}] = &chunk.Chunk{
+					X:            dx,
+					Y:            dy,
+					Size:         16,
+					DetailSpawns: nil,
+				}
+			}
+		}
+	}
 
 	w.RegisterSystem(sys)
 
@@ -1191,10 +1209,10 @@ func TestWorldChunkSystemBarrierEntityCreation(t *testing.T) {
 	// Run update
 	w.Update(0.016)
 
-	// Check that barrier entities were created
+	// Check that exactly one barrier entity was created
 	barrierEntities := w.Entities("Barrier")
-	if len(barrierEntities) == 0 {
-		t.Error("expected barrier entities to be created")
+	if len(barrierEntities) != 1 {
+		t.Errorf("expected 1 barrier entity, got %d", len(barrierEntities))
 	}
 
 	// Verify barrier has correct position
@@ -1205,9 +1223,9 @@ func TestWorldChunkSystemBarrierEntityCreation(t *testing.T) {
 			continue
 		}
 		pos := posComp.(*components.Position)
-		// Position should be world-space (chunk offset + local)
-		if pos.X < 0 || pos.Y < 0 {
-			t.Errorf("unexpected barrier position: %f, %f", pos.X, pos.Y)
+		// Position should be chunk (0,0) offset (0*16=0) + local (5,5) = (5,5)
+		if pos.X != 5.0 || pos.Y != 5.0 {
+			t.Errorf("expected barrier position (5.0, 5.0), got (%f, %f)", pos.X, pos.Y)
 		}
 
 		barrierComp, ok := w.GetComponent(be, "Barrier")
@@ -1273,7 +1291,10 @@ func TestWorldChunkSystemDuplicateLoadPrevented(t *testing.T) {
 	loader := newMockChunkLoaderWithBarriers()
 	sys := NewWorldChunkSystemWithGenre(loader, 16, "fantasy")
 
-	// Pre-populate a chunk with a barrier
+	// Clear the loader and pre-populate all chunks with controlled data
+	loader.chunks = make(map[[2]int]*chunk.Chunk)
+
+	// Pre-populate chunk (0,0) with a barrier
 	testChunk := &chunk.Chunk{
 		X:    0,
 		Y:    0,
@@ -1292,7 +1313,23 @@ func TestWorldChunkSystemDuplicateLoadPrevented(t *testing.T) {
 			},
 		},
 	}
-	loader.chunks[[2]int{0, 0}] = testChunk
+
+	// Pre-populate all chunks in 3x3 window
+	for dx := -1; dx <= 1; dx++ {
+		for dy := -1; dy <= 1; dy++ {
+			if dx == 0 && dy == 0 {
+				loader.chunks[[2]int{0, 0}] = testChunk
+			} else {
+				// Empty chunks
+				loader.chunks[[2]int{dx, dy}] = &chunk.Chunk{
+					X:            dx,
+					Y:            dy,
+					Size:         16,
+					DetailSpawns: nil,
+				}
+			}
+		}
+	}
 
 	w.RegisterSystem(sys)
 
@@ -1313,6 +1350,11 @@ func TestWorldChunkSystemDuplicateLoadPrevented(t *testing.T) {
 	// Barrier count should stay constant (no duplicates)
 	if barriers1 != barriers2 || barriers2 != barriers3 {
 		t.Errorf("barrier count changed across updates: %d -> %d -> %d", barriers1, barriers2, barriers3)
+	}
+
+	// Should have exactly 1 barrier
+	if barriers1 != 1 {
+		t.Errorf("expected 1 barrier, got %d", barriers1)
 	}
 }
 

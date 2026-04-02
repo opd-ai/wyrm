@@ -138,8 +138,8 @@
 - [x] Implement polygon-based collision for irregular barrier shapes
 - [x] Add barrier spawn data to chunk `DetailSpawn` system
 - [x] Procedural barrier sprite generation in `pkg/rendering/sprite/`
-- [ ] Integration with existing `WorldChunkSystem`
-- [ ] Unit tests: collision detection, barrier sprite generation, genre variations
+- [x] Integration with existing `WorldChunkSystem`
+- [x] Unit tests: collision detection, barrier sprite generation, genre variations
 
 ### Phase 4: Partial Barriers & Enhanced Materials
 **Dependencies:** Phase 3 (barrier system), Phase 1 (MapCell)  
