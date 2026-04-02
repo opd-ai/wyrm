@@ -428,3 +428,213 @@ func BenchmarkBarrierCollision_Polygon(b *testing.B) {
 		sys.CheckCollision(5.5, 5.5, 0.25, barrier, barrierPos)
 	}
 }
+
+// ============================================================
+// BarrierDestructionSystem Tests
+// ============================================================
+
+func TestNewBarrierDestructionSystem(t *testing.T) {
+	sys := NewBarrierDestructionSystem()
+	if sys == nil {
+		t.Fatal("expected non-nil system")
+	}
+	if sys.DebrisParticlesPerBarrier != 8 {
+		t.Errorf("expected DebrisParticlesPerBarrier 8, got %d", sys.DebrisParticlesPerBarrier)
+	}
+	if sys.DebrisVelocityMax != 5.0 {
+		t.Errorf("expected DebrisVelocityMax 5.0, got %f", sys.DebrisVelocityMax)
+	}
+	if sys.DebrisLifetime != 2.0 {
+		t.Errorf("expected DebrisLifetime 2.0, got %f", sys.DebrisLifetime)
+	}
+	if !sys.RemoveDestroyedEntities {
+		t.Error("expected RemoveDestroyedEntities to be true by default")
+	}
+}
+
+func TestBarrierDestructionSystem_NoDestroyedBarriers(t *testing.T) {
+	sys := NewBarrierDestructionSystem()
+	w := ecs.NewWorld()
+
+	// Create a non-destructible barrier
+	barrier1 := w.CreateEntity()
+	w.AddComponent(barrier1, &components.Barrier{
+		Destructible: false,
+		HitPoints:    100,
+		MaxHP:        100,
+	})
+	w.AddComponent(barrier1, &components.Position{X: 1, Y: 1})
+
+	// Create a destructible barrier with health remaining
+	barrier2 := w.CreateEntity()
+	w.AddComponent(barrier2, &components.Barrier{
+		Destructible: true,
+		HitPoints:    50,
+		MaxHP:        100,
+	})
+	w.AddComponent(barrier2, &components.Position{X: 2, Y: 2})
+
+	sys.Update(w, 0.016)
+
+	// No barriers should be destroyed
+	if len(sys.NewlyDestroyed) != 0 {
+		t.Errorf("expected 0 destroyed, got %d", len(sys.NewlyDestroyed))
+	}
+}
+
+func TestBarrierDestructionSystem_DestroyedBarrier(t *testing.T) {
+	sys := NewBarrierDestructionSystem()
+	sys.RemoveDestroyedEntities = false // Don't remove so we can check state
+	w := ecs.NewWorld()
+
+	// Create a destroyed barrier
+	barrier := w.CreateEntity()
+	w.AddComponent(barrier, &components.Barrier{
+		Destructible: true,
+		HitPoints:    0, // Destroyed
+		MaxHP:        100,
+		MaterialType: "wood",
+	})
+	w.AddComponent(barrier, &components.Position{X: 5, Y: 5, Z: 0})
+
+	sys.Update(w, 0.016)
+
+	// Barrier should be marked as destroyed
+	if len(sys.NewlyDestroyed) != 1 {
+		t.Fatalf("expected 1 destroyed, got %d", len(sys.NewlyDestroyed))
+	}
+
+	// Check that debris particles were created
+	particles := w.Entities("Particle")
+	if len(particles) < 1 {
+		t.Error("expected debris particles to be created")
+	}
+
+	// Check that sound event was created
+	sounds := w.Entities("SoundEvent")
+	if len(sounds) != 1 {
+		t.Errorf("expected 1 sound event, got %d", len(sounds))
+	}
+}
+
+func TestBarrierDestructionSystem_ProcessedNotReprocessed(t *testing.T) {
+	sys := NewBarrierDestructionSystem()
+	sys.RemoveDestroyedEntities = false
+	w := ecs.NewWorld()
+
+	// Create an already-processed destroyed barrier
+	barrier := w.CreateEntity()
+	w.AddComponent(barrier, &components.Barrier{
+		Destructible:         true,
+		HitPoints:            0,
+		MaxHP:                100,
+		DestructionProcessed: true, // Already processed
+	})
+	w.AddComponent(barrier, &components.Position{X: 5, Y: 5})
+
+	sys.Update(w, 0.016)
+
+	// Should not be processed again
+	if len(sys.NewlyDestroyed) != 0 {
+		t.Errorf("expected 0 destroyed (already processed), got %d", len(sys.NewlyDestroyed))
+	}
+}
+
+func TestBarrierDestructionSystem_GetDebrisColor(t *testing.T) {
+	sys := NewBarrierDestructionSystem()
+
+	tests := []struct {
+		material string
+		expected [4]uint8
+	}{
+		{"wood", [4]uint8{139, 90, 43, 255}},
+		{"stone", [4]uint8{128, 128, 128, 255}},
+		{"metal", [4]uint8{100, 100, 100, 255}},
+		{"glass", [4]uint8{200, 230, 255, 200}},
+		{"ice", [4]uint8{200, 240, 255, 220}},
+		{"unknown", [4]uint8{128, 128, 128, 255}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.material, func(t *testing.T) {
+			barrier := &components.Barrier{MaterialType: tc.material}
+			color := sys.getDebrisColor(barrier)
+			if color != tc.expected {
+				t.Errorf("expected %v, got %v", tc.expected, color)
+			}
+		})
+	}
+}
+
+func TestBarrierDestructionSystem_EntityRemoval(t *testing.T) {
+	sys := NewBarrierDestructionSystem()
+	sys.RemoveDestroyedEntities = true
+	w := ecs.NewWorld()
+
+	// Create a destroyed barrier
+	barrier := w.CreateEntity()
+	w.AddComponent(barrier, &components.Barrier{
+		Destructible: true,
+		HitPoints:    0,
+		MaxHP:        100,
+	})
+	w.AddComponent(barrier, &components.Position{X: 5, Y: 5})
+
+	// Count entities before
+	entitiesBefore := len(w.Entities("Barrier"))
+
+	sys.Update(w, 0.016)
+
+	// Barrier should be removed
+	entitiesAfter := len(w.Entities("Barrier"))
+	if entitiesAfter >= entitiesBefore {
+		t.Error("expected barrier entity to be removed")
+	}
+}
+
+func TestBarrierDestructionSystem_DeterministicDebris(t *testing.T) {
+	sys := NewBarrierDestructionSystem()
+	sys.RemoveDestroyedEntities = false
+
+	// Run twice with identical setup
+	var particlePositions1, particlePositions2 [][3]float64
+
+	for run := 0; run < 2; run++ {
+		w := ecs.NewWorld()
+
+		barrier := w.CreateEntity()
+		w.AddComponent(barrier, &components.Barrier{
+			Destructible: true,
+			HitPoints:    0,
+			MaxHP:        100,
+		})
+		w.AddComponent(barrier, &components.Position{X: 10, Y: 20, Z: 5})
+
+		sys.Update(w, 0.016)
+
+		particles := w.Entities("Particle", "Position")
+		positions := make([][3]float64, len(particles))
+		for i, p := range particles {
+			posComp, _ := w.GetComponent(p, "Position")
+			pos := posComp.(*components.Position)
+			positions[i] = [3]float64{pos.X, pos.Y, pos.Z}
+		}
+
+		if run == 0 {
+			particlePositions1 = positions
+		} else {
+			particlePositions2 = positions
+		}
+	}
+
+	// Positions should be identical due to deterministic seeding
+	if len(particlePositions1) != len(particlePositions2) {
+		t.Fatalf("particle counts differ: %d vs %d", len(particlePositions1), len(particlePositions2))
+	}
+
+	for i := range particlePositions1 {
+		if particlePositions1[i] != particlePositions2[i] {
+			t.Errorf("particle %d positions differ: %v vs %v", i, particlePositions1[i], particlePositions2[i])
+		}
+	}
+}

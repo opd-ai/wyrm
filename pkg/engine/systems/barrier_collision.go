@@ -398,3 +398,204 @@ func (s *BarrierDamageSystem) DamageBarrier(w *ecs.World, barrierEntity ecs.Enti
 
 	return barrier.IsDestroyed()
 }
+
+// ============================================================
+// BarrierDestructionSystem
+// ============================================================
+
+// BarrierDestructionSystem processes destroyed barriers, spawns debris particles,
+// and removes barrier entities from the world. This system runs after damage is
+// applied (e.g., by CombatSystem) and handles the visual/audio feedback of destruction.
+type BarrierDestructionSystem struct {
+	// DebrisParticlesPerBarrier is the number of debris particles to spawn per destroyed barrier.
+	DebrisParticlesPerBarrier int
+	// DebrisVelocityMax is the maximum velocity for debris particles.
+	DebrisVelocityMax float64
+	// DebrisLifetime is how long debris particles exist before despawning.
+	DebrisLifetime float64
+	// RemoveDestroyedEntities determines whether to remove entities or just mark them.
+	RemoveDestroyedEntities bool
+	// DestructionSound is the default sound to play on destruction.
+	DestructionSound string
+	// pendingRemovals tracks entities to remove after the update loop.
+	pendingRemovals []ecs.Entity
+	// NewlyDestroyed is the list of barriers destroyed this frame (for other systems).
+	NewlyDestroyed []ecs.Entity
+}
+
+// NewBarrierDestructionSystem creates a new barrier destruction system with defaults.
+func NewBarrierDestructionSystem() *BarrierDestructionSystem {
+	return &BarrierDestructionSystem{
+		DebrisParticlesPerBarrier: 8,
+		DebrisVelocityMax:         5.0,
+		DebrisLifetime:            2.0,
+		RemoveDestroyedEntities:   true,
+		DestructionSound:          "destruction_debris",
+		pendingRemovals:           make([]ecs.Entity, 0),
+		NewlyDestroyed:            make([]ecs.Entity, 0),
+	}
+}
+
+// Update processes all barriers and handles destruction for those with zero health.
+func (s *BarrierDestructionSystem) Update(w *ecs.World, dt float64) {
+	// Clear previous frame's data
+	s.pendingRemovals = s.pendingRemovals[:0]
+	s.NewlyDestroyed = s.NewlyDestroyed[:0]
+
+	barriers := w.Entities("Barrier", "Position")
+
+	for _, e := range barriers {
+		barrierComp, ok := w.GetComponent(e, "Barrier")
+		if !ok {
+			continue
+		}
+		barrier := barrierComp.(*components.Barrier)
+
+		// Skip non-destructible or already processed barriers
+		if !barrier.Destructible {
+			continue
+		}
+
+		// Check if barrier should be destroyed
+		if barrier.IsDestroyed() && !barrier.DestructionProcessed {
+			s.processDestruction(w, e, barrier)
+		}
+	}
+
+	// Remove entities after iteration to avoid modifying collection during loop
+	if s.RemoveDestroyedEntities {
+		for _, e := range s.pendingRemovals {
+			w.DestroyEntity(e)
+		}
+	}
+}
+
+// processDestruction handles the destruction of a single barrier.
+func (s *BarrierDestructionSystem) processDestruction(w *ecs.World, entity ecs.Entity, barrier *components.Barrier) {
+	// Mark as processed to prevent duplicate processing
+	barrier.DestructionProcessed = true
+
+	// Get position for particle spawning
+	posComp, ok := w.GetComponent(entity, "Position")
+	if !ok {
+		// No position, just mark for removal
+		s.pendingRemovals = append(s.pendingRemovals, entity)
+		s.NewlyDestroyed = append(s.NewlyDestroyed, entity)
+		return
+	}
+	pos := posComp.(*components.Position)
+
+	// Spawn debris particles
+	s.spawnDebrisParticles(w, pos, barrier)
+
+	// Trigger destruction sound (via audio system event)
+	s.triggerDestructionSound(w, entity, pos, barrier)
+
+	// Track for removal and notification
+	s.pendingRemovals = append(s.pendingRemovals, entity)
+	s.NewlyDestroyed = append(s.NewlyDestroyed, entity)
+}
+
+// spawnDebrisParticles creates debris particle entities at the barrier location.
+func (s *BarrierDestructionSystem) spawnDebrisParticles(w *ecs.World, pos *components.Position, barrier *components.Barrier) {
+	// Use deterministic seed based on barrier position for consistent debris
+	seed := int64(pos.X*1000) ^ int64(pos.Y*1000) ^ int64(pos.Z*1000)
+	rng := NewPseudoRandom(seed)
+
+	// Determine debris color based on barrier material
+	debrisColor := s.getDebrisColor(barrier)
+
+	for i := 0; i < s.DebrisParticlesPerBarrier; i++ {
+		// Create debris entity
+		debris := w.CreateEntity()
+
+		// Random velocity in all directions
+		vx := (rng.Float64()*2 - 1) * s.DebrisVelocityMax
+		vy := (rng.Float64()*2 - 1) * s.DebrisVelocityMax
+		vz := rng.Float64() * s.DebrisVelocityMax * 0.5 // Bias upward
+
+		// Add position component (slightly offset from center)
+		offsetX := (rng.Float64()*2 - 1) * 0.3
+		offsetY := (rng.Float64()*2 - 1) * 0.3
+		offsetZ := rng.Float64() * 0.3
+		w.AddComponent(debris, &components.Position{
+			X: pos.X + offsetX,
+			Y: pos.Y + offsetY,
+			Z: pos.Z + offsetZ,
+		})
+
+		// Add physics for debris movement
+		w.AddComponent(debris, &components.PhysicsBody{
+			VelocityX:       vx,
+			VelocityY:       vy,
+			VelocityZ:       vz,
+			Mass:            0.5,
+			Friction:        0.8,
+			Bounciness:      0.3,
+			CollisionRadius: 0.1,
+		})
+
+		// Add particle component for rendering and lifetime
+		w.AddComponent(debris, &components.Particle{
+			Color:      debrisColor,
+			Size:       0.1 + rng.Float64()*0.1,
+			Lifetime:   s.DebrisLifetime,
+			Age:        0,
+			FadeOut:    true,
+			ParticleID: "debris",
+		})
+	}
+}
+
+// getDebrisColor returns an appropriate debris color based on barrier material.
+func (s *BarrierDestructionSystem) getDebrisColor(barrier *components.Barrier) [4]uint8 {
+	switch barrier.MaterialType {
+	case "wood":
+		return [4]uint8{139, 90, 43, 255} // Brown
+	case "stone":
+		return [4]uint8{128, 128, 128, 255} // Gray
+	case "metal":
+		return [4]uint8{100, 100, 100, 255} // Dark gray
+	case "glass":
+		return [4]uint8{200, 230, 255, 200} // Light blue, semi-transparent
+	case "ice":
+		return [4]uint8{200, 240, 255, 220} // Cyan-tinted white
+	default:
+		return [4]uint8{128, 128, 128, 255} // Default gray
+	}
+}
+
+// triggerDestructionSound notifies the audio system to play destruction sound.
+func (s *BarrierDestructionSystem) triggerDestructionSound(w *ecs.World, entity ecs.Entity, pos *components.Position, barrier *components.Barrier) {
+	// Create a sound event entity that the audio system will pick up
+	soundEntity := w.CreateEntity()
+
+	soundName := s.DestructionSound
+	switch barrier.MaterialType {
+	case "wood":
+		soundName = "destruction_wood"
+	case "stone":
+		soundName = "destruction_stone"
+	case "metal":
+		soundName = "destruction_metal"
+	case "glass":
+		soundName = "destruction_glass"
+	}
+
+	w.AddComponent(soundEntity, &components.SoundEvent{
+		SoundID:   soundName,
+		X:         pos.X,
+		Y:         pos.Y,
+		Z:         pos.Z,
+		Volume:    1.0,
+		Radius:    20.0,
+		OneShot:   true,
+		Processed: false,
+	})
+}
+
+// GetNewlyDestroyed returns the list of barriers destroyed this frame.
+// Other systems can use this to react to destruction events.
+func (s *BarrierDestructionSystem) GetNewlyDestroyed() []ecs.Entity {
+	return s.NewlyDestroyed
+}

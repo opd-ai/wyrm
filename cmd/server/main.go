@@ -521,6 +521,10 @@ func registerServerSystems(world *ecs.World, cm *chunk.Manager, cfg *config.Conf
 	}
 	world.RegisterSystem(systems.NewDeathPenaltySystem(deathPenaltyConfig))
 
+	// Physics and destruction systems
+	world.RegisterSystem(systems.NewPhysicsSystem())
+	world.RegisterSystem(systems.NewBarrierDestructionSystem())
+
 	log.Printf("registered %d server systems", world.SystemCount())
 }
 

@@ -1770,6 +1770,10 @@ type Barrier struct {
 	HitPoints float64
 	// MaxHP is the maximum health for destructible barriers.
 	MaxHP float64
+	// MaterialType describes the barrier's material (wood, stone, metal, glass, ice).
+	MaterialType string
+	// DestructionProcessed tracks if the destruction has been handled by the system.
+	DestructionProcessed bool
 }
 
 // Type returns the component type identifier for Barrier.
@@ -2611,5 +2615,218 @@ func NewOwnedDrop(itemID string, quantity int, ownerID uint64, ownershipDuration
 		OwnerExpiry: currentTime + ownershipDuration,
 		StackLimit:  99,
 		Rarity:      "common",
+	}
+}
+
+// ============================================================
+// Particle Component
+// ============================================================
+
+// Particle represents a visual particle for effects like debris, sparks, smoke, etc.
+// Particles are typically short-lived entities managed by a particle system.
+type Particle struct {
+	// ParticleID identifies the particle type for rendering/pooling.
+	ParticleID string
+
+	// Color is the RGBA color of the particle.
+	Color [4]uint8
+
+	// Size is the current size of the particle (may change over lifetime).
+	Size float64
+
+	// InitialSize is the size at spawn (for scaling effects).
+	InitialSize float64
+
+	// Lifetime is the total duration this particle will exist (seconds).
+	Lifetime float64
+
+	// Age is how long this particle has existed (seconds).
+	Age float64
+
+	// FadeOut indicates whether the particle should fade as it ages.
+	FadeOut bool
+
+	// ShrinkOut indicates whether the particle should shrink as it ages.
+	ShrinkOut bool
+
+	// GrowOut indicates whether the particle should grow as it ages.
+	GrowOut bool
+
+	// RotationSpeed is the angular velocity in radians/second.
+	RotationSpeed float64
+
+	// Rotation is the current rotation angle in radians.
+	Rotation float64
+
+	// EmitterID links to the emitter that spawned this particle.
+	EmitterID uint64
+
+	// TextureKey is an optional texture to render instead of a simple shape.
+	TextureKey string
+
+	// BlendMode controls how the particle blends with the background.
+	// 0 = normal, 1 = additive, 2 = multiply
+	BlendMode int
+}
+
+// Type returns the component type identifier for Particle.
+func (p *Particle) Type() string { return "Particle" }
+
+// IsExpired returns true if the particle has exceeded its lifetime.
+func (p *Particle) IsExpired() bool {
+	return p.Age >= p.Lifetime
+}
+
+// LifetimeRatio returns a value from 0.0 (just spawned) to 1.0 (about to expire).
+func (p *Particle) LifetimeRatio() float64 {
+	if p.Lifetime <= 0 {
+		return 1.0
+	}
+	ratio := p.Age / p.Lifetime
+	if ratio > 1.0 {
+		return 1.0
+	}
+	return ratio
+}
+
+// CurrentAlpha returns the current alpha based on fade settings.
+func (p *Particle) CurrentAlpha() uint8 {
+	if !p.FadeOut {
+		return p.Color[3]
+	}
+	alpha := float64(p.Color[3]) * (1.0 - p.LifetimeRatio())
+	if alpha < 0 {
+		alpha = 0
+	}
+	return uint8(alpha)
+}
+
+// CurrentSize returns the current size based on shrink/grow settings.
+func (p *Particle) CurrentSize() float64 {
+	ratio := p.LifetimeRatio()
+	if p.ShrinkOut {
+		return p.InitialSize * (1.0 - ratio)
+	}
+	if p.GrowOut {
+		return p.InitialSize * (1.0 + ratio)
+	}
+	return p.Size
+}
+
+// NewParticle creates a basic particle with common defaults.
+func NewParticle(id string, color [4]uint8, size, lifetime float64) *Particle {
+	return &Particle{
+		ParticleID:  id,
+		Color:       color,
+		Size:        size,
+		InitialSize: size,
+		Lifetime:    lifetime,
+		Age:         0,
+		FadeOut:     true,
+	}
+}
+
+// NewDebrisParticle creates a debris particle with physics-friendly defaults.
+func NewDebrisParticle(color [4]uint8, size, lifetime float64) *Particle {
+	return &Particle{
+		ParticleID:  "debris",
+		Color:       color,
+		Size:        size,
+		InitialSize: size,
+		Lifetime:    lifetime,
+		Age:         0,
+		FadeOut:     true,
+		ShrinkOut:   true,
+	}
+}
+
+// ============================================================
+// SoundEvent Component
+// ============================================================
+
+// SoundEvent represents a one-shot or continuous sound effect to be played.
+// The audio system processes these and plays the appropriate sounds.
+type SoundEvent struct {
+	// SoundID is the identifier for the sound to play.
+	SoundID string
+
+	// X, Y, Z are the world position where the sound originates.
+	X, Y, Z float64
+
+	// Volume is the base volume (0.0 to 1.0).
+	Volume float64
+
+	// Radius is the distance at which the sound is no longer audible.
+	Radius float64
+
+	// Pitch is the pitch multiplier (1.0 = normal).
+	Pitch float64
+
+	// OneShot indicates the sound plays once then the event is removed.
+	OneShot bool
+
+	// Loop indicates the sound should loop until stopped.
+	Loop bool
+
+	// Processed indicates the audio system has handled this event.
+	Processed bool
+
+	// Priority affects which sounds play when too many are active.
+	Priority int
+
+	// OwnerEntity is the entity this sound is attached to (for moving sounds).
+	OwnerEntity uint64
+
+	// FollowOwner indicates the sound position should track the owner entity.
+	FollowOwner bool
+
+	// FadeInTime is the duration to fade in (seconds).
+	FadeInTime float64
+
+	// FadeOutTime is the duration to fade out when stopping (seconds).
+	FadeOutTime float64
+}
+
+// Type returns the component type identifier for SoundEvent.
+func (s *SoundEvent) Type() string { return "SoundEvent" }
+
+// NewSoundEvent creates a basic one-shot sound event.
+func NewSoundEvent(soundID string, x, y, z, volume, radius float64) *SoundEvent {
+	return &SoundEvent{
+		SoundID: soundID,
+		X:       x,
+		Y:       y,
+		Z:       z,
+		Volume:  volume,
+		Radius:  radius,
+		Pitch:   1.0,
+		OneShot: true,
+	}
+}
+
+// NewPositionalSound creates a sound attached to an entity.
+func NewPositionalSound(soundID string, owner uint64, volume, radius float64) *SoundEvent {
+	return &SoundEvent{
+		SoundID:     soundID,
+		Volume:      volume,
+		Radius:      radius,
+		Pitch:       1.0,
+		OneShot:     true,
+		OwnerEntity: owner,
+		FollowOwner: true,
+	}
+}
+
+// NewAmbientLoop creates a looping ambient sound at a position.
+func NewAmbientLoop(soundID string, x, y, z, volume, radius float64) *SoundEvent {
+	return &SoundEvent{
+		SoundID: soundID,
+		X:       x,
+		Y:       y,
+		Z:       z,
+		Volume:  volume,
+		Radius:  radius,
+		Pitch:   1.0,
+		Loop:    true,
 	}
 }

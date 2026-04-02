@@ -863,15 +863,15 @@ This does NOT move the camera — only the interaction target selection is assis
 
 #### New Systems
 - [x] `BarrierCollisionSystem` (consumes Position + Barrier → produces clamped Position)
-- [ ] `InteractionTargetSystem` (consumes Position + Interactable + WorldItem → produces InteractionTarget)
-- [ ] `BarrierDestructionSystem` (consumes Barrier + Health → produces particle spawn + entity removal)
-- [ ] `ObjectPhysicsSystem` (consumes PhysicsBody + Position + Barrier → produces updated Position)
+- [x] `InteractionTargetSystem` (consumes Position + Interactable + WorldItem → produces InteractionTarget; implemented as InteractionSystem)
+- [x] `BarrierDestructionSystem` (consumes Barrier + Health → produces particle spawn + entity removal)
+- [x] `ObjectPhysicsSystem` (consumes PhysicsBody + Position + Barrier → produces updated Position; implemented as PhysicsSystem)
 
 #### System Registration
 - [x] Register `BarrierCollisionSystem` in `cmd/server/main.go` and `cmd/client/main.go`
 - [ ] Register `BarrierDestructionSystem` in `cmd/server/main.go` and `cmd/client/main.go`
-- [ ] Register `ObjectPhysicsSystem` in `cmd/server/main.go` and `cmd/client/main.go`
-- [ ] Register `InteractionTargetSystem` in `cmd/client/main.go` (client only)
+- [ ] Register `PhysicsSystem` in `cmd/server/main.go` and `cmd/client/main.go`
+- [x] Register `InteractionTargetSystem` in `cmd/client/main.go` (client only; registered as InteractionSystem)
 
 ### Details
 

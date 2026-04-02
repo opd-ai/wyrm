@@ -1965,3 +1965,188 @@ func TestNewOwnedDrop(t *testing.T) {
 		t.Errorf("expected SpawnTime 1000.0, got %f", w.SpawnTime)
 	}
 }
+
+// ============================================================
+// Particle Component Tests
+// ============================================================
+
+func TestParticleType(t *testing.T) {
+	p := &Particle{ParticleID: "spark", Size: 0.5}
+	if p.Type() != "Particle" {
+		t.Errorf("expected Particle, got %s", p.Type())
+	}
+}
+
+func TestParticleIsExpired(t *testing.T) {
+	p := &Particle{Lifetime: 1.0, Age: 0.5}
+	if p.IsExpired() {
+		t.Error("expected not expired when Age < Lifetime")
+	}
+
+	p.Age = 1.0
+	if !p.IsExpired() {
+		t.Error("expected expired when Age >= Lifetime")
+	}
+
+	p.Age = 1.5
+	if !p.IsExpired() {
+		t.Error("expected expired when Age > Lifetime")
+	}
+}
+
+func TestParticleLifetimeRatio(t *testing.T) {
+	tests := []struct {
+		lifetime float64
+		age      float64
+		expected float64
+	}{
+		{1.0, 0.0, 0.0},
+		{1.0, 0.5, 0.5},
+		{1.0, 1.0, 1.0},
+		{1.0, 1.5, 1.0}, // Clamped at 1.0
+		{0.0, 0.5, 1.0}, // Zero lifetime = immediate expire
+	}
+
+	for _, tc := range tests {
+		p := &Particle{Lifetime: tc.lifetime, Age: tc.age}
+		ratio := p.LifetimeRatio()
+		if ratio != tc.expected {
+			t.Errorf("lifetime=%.1f, age=%.1f: expected %.2f, got %.2f", tc.lifetime, tc.age, tc.expected, ratio)
+		}
+	}
+}
+
+func TestParticleCurrentAlpha(t *testing.T) {
+	// Non-fading particle
+	p1 := &Particle{Color: [4]uint8{255, 255, 255, 200}, FadeOut: false, Lifetime: 1.0, Age: 0.5}
+	if p1.CurrentAlpha() != 200 {
+		t.Errorf("expected alpha 200 (no fade), got %d", p1.CurrentAlpha())
+	}
+
+	// Fading particle at 50%
+	p2 := &Particle{Color: [4]uint8{255, 255, 255, 200}, FadeOut: true, Lifetime: 1.0, Age: 0.5}
+	alpha := p2.CurrentAlpha()
+	if alpha != 100 {
+		t.Errorf("expected alpha ~100 (50%% fade), got %d", alpha)
+	}
+
+	// Fading particle at 100%
+	p3 := &Particle{Color: [4]uint8{255, 255, 255, 200}, FadeOut: true, Lifetime: 1.0, Age: 1.0}
+	if p3.CurrentAlpha() != 0 {
+		t.Errorf("expected alpha 0 (100%% fade), got %d", p3.CurrentAlpha())
+	}
+}
+
+func TestParticleCurrentSize(t *testing.T) {
+	// Non-shrinking/growing particle
+	p1 := &Particle{Size: 1.0, InitialSize: 1.0, Lifetime: 1.0, Age: 0.5}
+	if p1.CurrentSize() != 1.0 {
+		t.Errorf("expected size 1.0, got %f", p1.CurrentSize())
+	}
+
+	// Shrinking particle at 50%
+	p2 := &Particle{Size: 1.0, InitialSize: 1.0, ShrinkOut: true, Lifetime: 1.0, Age: 0.5}
+	size := p2.CurrentSize()
+	if size != 0.5 {
+		t.Errorf("expected size 0.5 (50%% shrink), got %f", size)
+	}
+
+	// Growing particle at 50%
+	p3 := &Particle{Size: 1.0, InitialSize: 1.0, GrowOut: true, Lifetime: 1.0, Age: 0.5}
+	size = p3.CurrentSize()
+	if size != 1.5 {
+		t.Errorf("expected size 1.5 (50%% grow), got %f", size)
+	}
+}
+
+func TestNewParticle(t *testing.T) {
+	color := [4]uint8{255, 128, 64, 200}
+	p := NewParticle("spark", color, 0.5, 2.0)
+
+	if p.ParticleID != "spark" {
+		t.Errorf("expected ParticleID 'spark', got %s", p.ParticleID)
+	}
+	if p.Size != 0.5 {
+		t.Errorf("expected Size 0.5, got %f", p.Size)
+	}
+	if p.Lifetime != 2.0 {
+		t.Errorf("expected Lifetime 2.0, got %f", p.Lifetime)
+	}
+	if !p.FadeOut {
+		t.Error("expected FadeOut to be true by default")
+	}
+}
+
+func TestNewDebrisParticle(t *testing.T) {
+	color := [4]uint8{100, 100, 100, 255}
+	p := NewDebrisParticle(color, 0.3, 1.5)
+
+	if p.ParticleID != "debris" {
+		t.Errorf("expected ParticleID 'debris', got %s", p.ParticleID)
+	}
+	if !p.FadeOut {
+		t.Error("expected FadeOut to be true")
+	}
+	if !p.ShrinkOut {
+		t.Error("expected ShrinkOut to be true for debris")
+	}
+}
+
+// ============================================================
+// SoundEvent Component Tests
+// ============================================================
+
+func TestSoundEventType(t *testing.T) {
+	s := &SoundEvent{SoundID: "explosion"}
+	if s.Type() != "SoundEvent" {
+		t.Errorf("expected SoundEvent, got %s", s.Type())
+	}
+}
+
+func TestNewSoundEvent(t *testing.T) {
+	s := NewSoundEvent("explosion", 10.0, 20.0, 5.0, 0.8, 15.0)
+
+	if s.SoundID != "explosion" {
+		t.Errorf("expected SoundID 'explosion', got %s", s.SoundID)
+	}
+	if s.X != 10.0 || s.Y != 20.0 || s.Z != 5.0 {
+		t.Errorf("expected position (10, 20, 5), got (%f, %f, %f)", s.X, s.Y, s.Z)
+	}
+	if s.Volume != 0.8 {
+		t.Errorf("expected Volume 0.8, got %f", s.Volume)
+	}
+	if s.Radius != 15.0 {
+		t.Errorf("expected Radius 15.0, got %f", s.Radius)
+	}
+	if !s.OneShot {
+		t.Error("expected OneShot to be true")
+	}
+	if s.Pitch != 1.0 {
+		t.Errorf("expected Pitch 1.0, got %f", s.Pitch)
+	}
+}
+
+func TestNewPositionalSound(t *testing.T) {
+	s := NewPositionalSound("footstep", 42, 0.5, 10.0)
+
+	if s.SoundID != "footstep" {
+		t.Errorf("expected SoundID 'footstep', got %s", s.SoundID)
+	}
+	if s.OwnerEntity != 42 {
+		t.Errorf("expected OwnerEntity 42, got %d", s.OwnerEntity)
+	}
+	if !s.FollowOwner {
+		t.Error("expected FollowOwner to be true")
+	}
+}
+
+func TestNewAmbientLoop(t *testing.T) {
+	s := NewAmbientLoop("wind", 0, 0, 0, 0.3, 50.0)
+
+	if !s.Loop {
+		t.Error("expected Loop to be true")
+	}
+	if s.OneShot {
+		t.Error("expected OneShot to be false for ambient loop")
+	}
+}
