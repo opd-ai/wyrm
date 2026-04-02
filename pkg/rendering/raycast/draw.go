@@ -269,7 +269,7 @@ func (r *Renderer) drawWallColumn(x int) {
 	rayDirX := math.Cos(rayAngle)
 	rayDirY := math.Sin(rayAngle)
 
-	distance, wallType, wallX, side, cellWallHeight := r.castRayWithTexCoord(rayDirX, rayDirY)
+	distance, wallType, wallX, side, cellWallHeight, cellFlags := r.castRayWithTexCoordAndFlags(rayDirX, rayDirY)
 	distance *= math.Cos(cameraX * (r.FOV / 2)) // Fix fisheye
 	distance = clampDistance(distance)
 
@@ -283,7 +283,15 @@ func (r *Renderer) drawWallColumn(x int) {
 	// Texture X coordinate (0-1 range)
 	texX := wallX - math.Floor(wallX)
 
-	r.renderWallStrip(x, drawStart, drawEnd, wallHeight, wallType, texX, distance, side)
+	// Check if wall is transparent
+	isTransparent := cellFlags&FlagTransparent != 0
+	isSemiOpaque := cellFlags&FlagSemiOpaque != 0
+
+	if isTransparent || isSemiOpaque {
+		r.renderTransparentWallStrip(x, drawStart, drawEnd, wallHeight, wallType, texX, distance, side, cellFlags)
+	} else {
+		r.renderWallStrip(x, drawStart, drawEnd, wallHeight, wallType, texX, distance, side)
+	}
 }
 
 // clampDistance ensures distance is within valid range.
@@ -345,6 +353,62 @@ func (r *Renderer) renderWallStrip(x, drawStart, drawEnd, wallHeight, wallType i
 	}
 }
 
+// renderTransparentWallStrip draws a vertical wall strip with alpha blending.
+// Used for transparent barriers like fences, glass, or partially destroyed walls.
+func (r *Renderer) renderTransparentWallStrip(x, drawStart, drawEnd, wallHeight, wallType int, texX, distance float64, side int, flags CellFlags) {
+	sideDarken := getSideDarkenFactor(side)
+
+	// Determine transparency level based on flags
+	transparency := getTransparencyForFlags(flags)
+
+	for y := drawStart; y < drawEnd; y++ {
+		if y < 0 || y >= r.Height {
+			continue
+		}
+		texY := float64(y-drawStart) / float64(wallHeight)
+
+		// For semi-opaque walls (like fences), check if pixel should be solid
+		if flags&FlagSemiOpaque != 0 {
+			if isSemiOpaqueGap(texX, texY) {
+				continue // Skip this pixel, leaving background visible
+			}
+		}
+
+		wallColor := r.GetWallTextureColor(wallType, texX, texY, distance)
+		wallColor = applySideDarkening(wallColor, sideDarken)
+
+		// Apply transparency
+		wallColor.A = uint8(float64(255) * transparency)
+
+		// Use alpha blending
+		r.BlendPixelColor(x, y, wallColor)
+	}
+}
+
+// getTransparencyForFlags returns the opacity (0.0-1.0) for the given cell flags.
+func getTransparencyForFlags(flags CellFlags) float64 {
+	if flags&FlagTransparent != 0 {
+		return 0.5 // 50% transparent
+	}
+	if flags&FlagSemiOpaque != 0 {
+		return 0.9 // 90% opaque (slight transparency)
+	}
+	return 1.0 // Fully opaque
+}
+
+// isSemiOpaqueGap determines if a texture coordinate should be transparent
+// for semi-opaque barriers like fences or grates.
+// Creates a regular pattern of gaps in the wall texture.
+func isSemiOpaqueGap(texX, texY float64) bool {
+	// Create a 4x4 grid pattern where some cells are gaps
+	gridX := int(texX * 8)
+	gridY := int(texY * 8)
+
+	// Gaps every other cell in a checkerboard pattern offset
+	// This creates a fence-like or grate-like appearance
+	return (gridX+gridY)%4 == 0
+}
+
 // getSideDarkenFactor returns the darkening factor for a wall side.
 func getSideDarkenFactor(side int) float64 {
 	if side == 1 {
@@ -369,6 +433,13 @@ func applySideDarkening(c color.RGBA, factor float64) color.RGBA {
 // castRayWithTexCoord performs DDA raycasting and returns texture coordinate info.
 // Returns: (perpWallDist, wallType, wallX, side, wallHeight)
 func (r *Renderer) castRayWithTexCoord(rayDirX, rayDirY float64) (float64, int, float64, int, float64) {
+	dist, wallType, wallX, side, height, _ := r.castRayWithTexCoordAndFlags(rayDirX, rayDirY)
+	return dist, wallType, wallX, side, height
+}
+
+// castRayWithTexCoordAndFlags performs DDA raycasting and returns texture coordinate info plus flags.
+// Returns: (perpWallDist, wallType, wallX, side, wallHeight, cellFlags)
+func (r *Renderer) castRayWithTexCoordAndFlags(rayDirX, rayDirY float64) (float64, int, float64, int, float64, CellFlags) {
 	mapX := int(r.PlayerX)
 	mapY := int(r.PlayerY)
 
@@ -381,7 +452,7 @@ func (r *Renderer) castRayWithTexCoord(rayDirX, rayDirY float64) (float64, int, 
 	hit, side, sideDistX, sideDistY, mapX, mapY := r.performDDA(sideDistX, sideDistY, deltaDistX, deltaDistY, stepX, stepY, mapX, mapY)
 
 	if !hit {
-		return MaxRayDistance, 0, 0.0, 0, DefaultWallHeight
+		return MaxRayDistance, 0, 0.0, 0, DefaultWallHeight, 0
 	}
 
 	// Calculate perpendicular wall distance
@@ -400,8 +471,8 @@ func (r *Renderer) castRayWithTexCoord(rayDirX, rayDirY float64) (float64, int, 
 		wallX = r.PlayerX + perpWallDist*rayDirX
 	}
 
-	// Get cell data including wall height
+	// Get cell data including wall height and flags
 	cell := r.GetMapCell(mapX, mapY)
 
-	return perpWallDist, cell.WallType, wallX, side, cell.WallHeight
+	return perpWallDist, cell.WallType, wallX, side, cell.WallHeight, cell.Flags
 }
