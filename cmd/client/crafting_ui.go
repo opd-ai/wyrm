@@ -63,14 +63,17 @@ func (ui *CraftingUI) Update(world *ecs.World) {
 	if !ui.isOpen {
 		return
 	}
-
-	// Check for cancel/close
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 		ui.Close()
 		return
 	}
+	ui.handleRecipeNavigation()
+	ui.handleCategoryNavigation()
+	ui.handleCraftAction(world)
+}
 
-	// Navigation (use arrow keys)
+// handleRecipeNavigation processes up/down navigation through recipes.
+func (ui *CraftingUI) handleRecipeNavigation() {
 	if inpututil.IsKeyJustPressed(ebiten.KeyUp) || inpututil.IsKeyJustPressed(ebiten.KeyW) {
 		ui.selectedRecipe--
 		if ui.selectedRecipe < 0 {
@@ -82,26 +85,34 @@ func (ui *CraftingUI) Update(world *ecs.World) {
 		ui.selectedRecipe++
 		ui.adjustScroll()
 	}
+}
 
-	// Category switching with left/right
+// handleCategoryNavigation processes left/right navigation between categories.
+func (ui *CraftingUI) handleCategoryNavigation() {
 	if inpututil.IsKeyJustPressed(ebiten.KeyLeft) || inpututil.IsKeyJustPressed(ebiten.KeyA) {
 		ui.selectedCategory--
 		if ui.selectedCategory < 0 {
 			ui.selectedCategory = len(ui.categories) - 1
 		}
-		ui.selectedRecipe = 0
-		ui.scrollOffset = 0
+		ui.resetRecipeSelection()
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyRight) || inpututil.IsKeyJustPressed(ebiten.KeyD) {
 		ui.selectedCategory++
 		if ui.selectedCategory >= len(ui.categories) {
 			ui.selectedCategory = 0
 		}
-		ui.selectedRecipe = 0
-		ui.scrollOffset = 0
+		ui.resetRecipeSelection()
 	}
+}
 
-	// Craft action
+// resetRecipeSelection resets recipe selection when changing categories.
+func (ui *CraftingUI) resetRecipeSelection() {
+	ui.selectedRecipe = 0
+	ui.scrollOffset = 0
+}
+
+// handleCraftAction initiates crafting when action key is pressed.
+func (ui *CraftingUI) handleCraftAction(world *ecs.World) {
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsKeyJustPressed(ebiten.KeyE) {
 		ui.startCraft(world)
 	}

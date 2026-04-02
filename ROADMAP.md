@@ -194,11 +194,11 @@ The core raycaster was successfully migrated to `WritePixels()` framebuffer rend
 
 **Required changes:**
 
-- [ ] Migrate minimap rendering to use shared framebuffer or `DrawImage()` with pre-rendered tiles
-- [ ] Migrate combat effect overlays to particle system or framebuffer writes
-- [ ] Replace UI background `Set()` loops with `Fill()` + `DrawImage()` compositing
-- [ ] Use `DrawImage()` with `ColorM` for colored UI elements instead of per-pixel `Set()`
-- [ ] **Validation**: Profile frame time with all UI panels open; target <16ms total
+- [x] Migrate minimap rendering to use shared framebuffer or `DrawImage()` with pre-rendered tiles
+- [x] Migrate combat effect overlays to particle system or framebuffer writes
+- [x] Replace UI background `Set()` loops with `Fill()` + `DrawImage()` compositing
+- [x] Use `DrawImage()` with `ColorM` for colored UI elements instead of per-pixel `Set()`
+- [x] **Validation**: Profile frame time with all UI panels open; target <16ms total
 
 ### Priority 2 (MEDIUM): Reduce High-Complexity Functions (9 functions > complexity 10)
 
@@ -218,8 +218,8 @@ The core raycaster was successfully migrated to `WritePixels()` framebuffer rend
 | `updateSkillAllocation` (15.3) | 11 | Extract skill point validation |
 | `Encode` (14.8) | 11 | Use message type lookup table |
 
-- [ ] Refactor each function to cyclomatic complexity ≤10
-- [ ] **Validation**: `go-stats-generator analyze . --skip-tests | grep "High Complexity"` shows 0 functions
+- [x] Refactor each function to cyclomatic complexity ≤10
+- [x] **Validation**: `go-stats-generator analyze . --skip-tests | grep "High Complexity"` shows 0 functions
 
 ### Priority 3 (MEDIUM): Per-Frame Buffer Allocation Reduction
 
@@ -235,10 +235,10 @@ Per GAPS.md §9.2, several allocations occur each frame:
 | Particle buffer | `make([]byte, w×h×4)` per frame | Pre-allocate, clear with loop |
 | Sprite sort slice | `make()` per frame | Use `[:0]` reuse pattern |
 
-- [ ] Pre-allocate persistent `image.RGBA` buffers for post-processing pipeline
-- [ ] Pre-allocate particle pixel buffer in particle renderer struct
-- [ ] Verify sprite sort slice uses `[:0]` pattern (already done in raycast)
-- [ ] **Validation**: `go test -bench=. -benchmem` shows ≥80% allocation reduction
+- [x] Pre-allocate persistent `image.RGBA` buffers for post-processing pipeline
+- [x] Pre-allocate particle pixel buffer in particle renderer struct
+- [x] Verify sprite sort slice uses `[:0]` pattern (already done in raycast)
+- [x] **Validation**: `go test -bench=. -benchmem` shows ≥80% allocation reduction
 
 ### Priority 4 (LOW): Add Runtime Profiling Infrastructure
 

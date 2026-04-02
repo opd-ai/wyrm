@@ -483,30 +483,61 @@ func (m *DeltaEntityUpdate) Encode(w io.Writer) error {
 
 // encodeConditionalFields writes only the fields that have changed based on FieldMask.
 func (m *DeltaEntityUpdate) encodeConditionalFields(w io.Writer) error {
-	if m.FieldMask&FieldPosition != 0 {
-		if err := encodePosition(w, m.X, m.Y, m.Z); err != nil {
-			return err
-		}
+	if err := m.encodePositionIfSet(w); err != nil {
+		return err
 	}
-	if m.FieldMask&FieldAngle != 0 {
-		if err := encodeAngle(w, m.Angle); err != nil {
-			return err
-		}
+	if err := m.encodeAngleIfSet(w); err != nil {
+		return err
 	}
-	if m.FieldMask&FieldHealth != 0 {
-		if err := binary.Write(w, binary.LittleEndian, m.Health); err != nil {
-			return fmt.Errorf("encode Health: %w", err)
-		}
+	if err := m.encodeHealthIfSet(w); err != nil {
+		return err
 	}
-	if m.FieldMask&FieldVelocity != 0 {
-		if err := binary.Write(w, binary.LittleEndian, m.Velocity); err != nil {
-			return fmt.Errorf("encode Velocity: %w", err)
-		}
+	if err := m.encodeVelocityIfSet(w); err != nil {
+		return err
 	}
-	if m.FieldMask&FieldState != 0 {
-		if err := binary.Write(w, binary.LittleEndian, m.State); err != nil {
-			return fmt.Errorf("encode State: %w", err)
-		}
+	return m.encodeStateIfSet(w)
+}
+
+func (m *DeltaEntityUpdate) encodePositionIfSet(w io.Writer) error {
+	if m.FieldMask&FieldPosition == 0 {
+		return nil
+	}
+	return encodePosition(w, m.X, m.Y, m.Z)
+}
+
+func (m *DeltaEntityUpdate) encodeAngleIfSet(w io.Writer) error {
+	if m.FieldMask&FieldAngle == 0 {
+		return nil
+	}
+	return encodeAngle(w, m.Angle)
+}
+
+func (m *DeltaEntityUpdate) encodeHealthIfSet(w io.Writer) error {
+	if m.FieldMask&FieldHealth == 0 {
+		return nil
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.Health); err != nil {
+		return fmt.Errorf("encode Health: %w", err)
+	}
+	return nil
+}
+
+func (m *DeltaEntityUpdate) encodeVelocityIfSet(w io.Writer) error {
+	if m.FieldMask&FieldVelocity == 0 {
+		return nil
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.Velocity); err != nil {
+		return fmt.Errorf("encode Velocity: %w", err)
+	}
+	return nil
+}
+
+func (m *DeltaEntityUpdate) encodeStateIfSet(w io.Writer) error {
+	if m.FieldMask&FieldState == 0 {
+		return nil
+	}
+	if err := binary.Write(w, binary.LittleEndian, m.State); err != nil {
+		return fmt.Errorf("encode State: %w", err)
 	}
 	return nil
 }
@@ -533,34 +564,71 @@ func DecodeDeltaEntityUpdate(r io.Reader) (*DeltaEntityUpdate, error) {
 
 // decodeConditionalFields reads only the fields present based on FieldMask.
 func (m *DeltaEntityUpdate) decodeConditionalFields(r io.Reader) error {
-	if m.FieldMask&FieldPosition != 0 {
-		x, y, z, err := decodePosition(r)
-		if err != nil {
-			return err
-		}
-		m.X, m.Y, m.Z = x, y, z
+	if err := m.decodePositionIfSet(r); err != nil {
+		return err
 	}
-	if m.FieldMask&FieldAngle != 0 {
-		angle, err := decodeAngle(r)
-		if err != nil {
-			return err
-		}
-		m.Angle = angle
+	if err := m.decodeAngleIfSet(r); err != nil {
+		return err
 	}
-	if m.FieldMask&FieldHealth != 0 {
-		if err := binary.Read(r, binary.LittleEndian, &m.Health); err != nil {
-			return fmt.Errorf("decode Health: %w", err)
-		}
+	if err := m.decodeHealthIfSet(r); err != nil {
+		return err
 	}
-	if m.FieldMask&FieldVelocity != 0 {
-		if err := binary.Read(r, binary.LittleEndian, &m.Velocity); err != nil {
-			return fmt.Errorf("decode Velocity: %w", err)
-		}
+	if err := m.decodeVelocityIfSet(r); err != nil {
+		return err
 	}
-	if m.FieldMask&FieldState != 0 {
-		if err := binary.Read(r, binary.LittleEndian, &m.State); err != nil {
-			return fmt.Errorf("decode State: %w", err)
-		}
+	return m.decodeStateIfSet(r)
+}
+
+func (m *DeltaEntityUpdate) decodePositionIfSet(r io.Reader) error {
+	if m.FieldMask&FieldPosition == 0 {
+		return nil
+	}
+	x, y, z, err := decodePosition(r)
+	if err != nil {
+		return err
+	}
+	m.X, m.Y, m.Z = x, y, z
+	return nil
+}
+
+func (m *DeltaEntityUpdate) decodeAngleIfSet(r io.Reader) error {
+	if m.FieldMask&FieldAngle == 0 {
+		return nil
+	}
+	angle, err := decodeAngle(r)
+	if err != nil {
+		return err
+	}
+	m.Angle = angle
+	return nil
+}
+
+func (m *DeltaEntityUpdate) decodeHealthIfSet(r io.Reader) error {
+	if m.FieldMask&FieldHealth == 0 {
+		return nil
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.Health); err != nil {
+		return fmt.Errorf("decode Health: %w", err)
+	}
+	return nil
+}
+
+func (m *DeltaEntityUpdate) decodeVelocityIfSet(r io.Reader) error {
+	if m.FieldMask&FieldVelocity == 0 {
+		return nil
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.Velocity); err != nil {
+		return fmt.Errorf("decode Velocity: %w", err)
+	}
+	return nil
+}
+
+func (m *DeltaEntityUpdate) decodeStateIfSet(r io.Reader) error {
+	if m.FieldMask&FieldState == 0 {
+		return nil
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.State); err != nil {
+		return fmt.Errorf("decode State: %w", err)
 	}
 	return nil
 }

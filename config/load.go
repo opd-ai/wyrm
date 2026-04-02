@@ -17,7 +17,17 @@ type Config struct {
 	Accessibility AccessibilityConfig `mapstructure:"accessibility"`
 	Difficulty    DifficultyConfig    `mapstructure:"difficulty"`
 	KeyBindings   KeyBindingsConfig   `mapstructure:"keybindings"`
+	Debug         DebugConfig         `mapstructure:"debug"`
 	Genre         string              `mapstructure:"genre"`
+}
+
+// DebugConfig holds debugging and profiling settings.
+type DebugConfig struct {
+	ProfilingEnabled bool `mapstructure:"profiling_enabled"`
+	ProfilingPort    int  `mapstructure:"profiling_port"`
+	ShowFrameTime    bool `mapstructure:"show_frame_time"`
+	ShowMemStats     bool `mapstructure:"show_mem_stats"`
+	ShowEntityCount  bool `mapstructure:"show_entity_count"`
 }
 
 // WindowConfig holds display settings.
@@ -335,6 +345,13 @@ func setDefaults() {
 	viper.SetDefault("keybindings.chat_window", "Enter")
 	viper.SetDefault("keybindings.social_menu", "O")
 	viper.SetDefault("keybindings.trade_window", "Y")
+
+	// Debug/profiling defaults
+	viper.SetDefault("debug.profiling_enabled", false)
+	viper.SetDefault("debug.profiling_port", 6060)
+	viper.SetDefault("debug.show_frame_time", false)
+	viper.SetDefault("debug.show_mem_stats", false)
+	viper.SetDefault("debug.show_entity_count", false)
 
 	viper.SetDefault("genre", "fantasy")
 }

@@ -235,6 +235,13 @@ func (cc *CharacterCreation) updateNameInput() {
 
 // updateSkillAllocation handles skill point allocation.
 func (cc *CharacterCreation) updateSkillAllocation() {
+	cc.handleSkillNavigation()
+	cc.handleSkillPointAdjustment()
+	cc.handleSkillAllocationConfirm()
+}
+
+// handleSkillNavigation processes up/down navigation through skill schools.
+func (cc *CharacterCreation) handleSkillNavigation() {
 	if inpututil.IsKeyJustPressed(ebiten.KeyUp) || inpututil.IsKeyJustPressed(ebiten.KeyW) {
 		cc.selectedIndex--
 		if cc.selectedIndex < 0 {
@@ -247,30 +254,30 @@ func (cc *CharacterCreation) updateSkillAllocation() {
 			cc.selectedIndex = 0
 		}
 	}
+}
 
-	// Add point with Right/D
+// handleSkillPointAdjustment processes adding/removing skill points.
+func (cc *CharacterCreation) handleSkillPointAdjustment() {
 	if inpututil.IsKeyJustPressed(ebiten.KeyRight) || inpututil.IsKeyJustPressed(ebiten.KeyD) {
 		if cc.remainingPoints > 0 && cc.skillSchools[cc.selectedIndex].Points < 5 {
 			cc.skillSchools[cc.selectedIndex].Points++
 			cc.remainingPoints--
 		}
 	}
-
-	// Remove point with Left/A
 	if inpututil.IsKeyJustPressed(ebiten.KeyLeft) || inpututil.IsKeyJustPressed(ebiten.KeyA) {
 		if cc.skillSchools[cc.selectedIndex].Points > 0 {
 			cc.skillSchools[cc.selectedIndex].Points--
 			cc.remainingPoints++
 		}
 	}
+}
 
-	// Confirm with Enter
+// handleSkillAllocationConfirm processes confirm and back actions.
+func (cc *CharacterCreation) handleSkillAllocationConfirm() {
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) || inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 		cc.state = CCStateEquipmentChoice
 		cc.selectedIndex = 0
 	}
-
-	// Go back with Escape
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 		cc.state = CCStateNameInput
 	}

@@ -249,59 +249,70 @@ func (ui *HousingUI) updateMyHousesMode() {
 
 // updateFurnitureMode handles furniture placement.
 func (ui *HousingUI) updateFurnitureMode() {
-	// Navigate furniture types
-	if inpututil.IsKeyJustPressed(ebiten.KeyLeft) {
-		if ui.furnitureIndex > 0 {
-			ui.furnitureIndex--
-		}
-		ui.furniturePlacement.StartPlaceMode(
-			ui.furniturePlacement.GetCurrentHouse(),
-			ui.furnitureTypes[ui.furnitureIndex],
-		)
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyRight) {
-		if ui.furnitureIndex < len(ui.furnitureTypes)-1 {
-			ui.furnitureIndex++
-		}
-		ui.furniturePlacement.StartPlaceMode(
-			ui.furniturePlacement.GetCurrentHouse(),
-			ui.furnitureTypes[ui.furnitureIndex],
-		)
-	}
+	ui.handleFurnitureNavigation()
+	ui.handleFurnitureActions()
+}
 
-	// Rotate furniture
+// handleFurnitureNavigation processes left/right navigation between furniture types.
+func (ui *HousingUI) handleFurnitureNavigation() {
+	navigated := false
+	if inpututil.IsKeyJustPressed(ebiten.KeyLeft) && ui.furnitureIndex > 0 {
+		ui.furnitureIndex--
+		navigated = true
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyRight) && ui.furnitureIndex < len(ui.furnitureTypes)-1 {
+		ui.furnitureIndex++
+		navigated = true
+	}
+	if navigated {
+		ui.furniturePlacement.StartPlaceMode(
+			ui.furniturePlacement.GetCurrentHouse(),
+			ui.furnitureTypes[ui.furnitureIndex],
+		)
+	}
+}
+
+// handleFurnitureActions processes furniture rotation, grid snap, placement, and exit.
+func (ui *HousingUI) handleFurnitureActions() {
 	if inpututil.IsKeyJustPressed(ebiten.KeyR) {
 		ui.furniturePlacement.RotatePreview(0.785) // 45 degrees
 	}
-
-	// Toggle grid snap
 	if inpututil.IsKeyJustPressed(ebiten.KeyG) {
-		mode, _, _, _, _, _ := ui.furniturePlacement.GetPreviewState()
-		if mode != housing.PlacementModeNone {
-			// Toggle snap
-			ui.furniturePlacement.SetGridSnap(true, 0.5)
-		}
+		ui.toggleGridSnap()
 	}
-
-	// Confirm placement
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
-		newID := fmt.Sprintf("furn-%d", ui.currentDay)
-		err := ui.furniturePlacement.ConfirmPlacement(ui.houseManager, newID)
-		if err == nil {
-			// Continue placing more furniture of same type
-			ui.furniturePlacement.StartPlaceMode(
-				ui.furniturePlacement.GetCurrentHouse(),
-				ui.furnitureTypes[ui.furnitureIndex],
-			)
-		}
+		ui.confirmFurniturePlacement()
 	}
-
-	// Exit furniture mode
 	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
-		ui.mode = HousingModeMyHouses
-		ui.furniturePlacement.ExitMode()
-		ui.refreshPlayerHouses()
+		ui.exitFurnitureMode()
 	}
+}
+
+// toggleGridSnap enables grid snapping if placement mode is active.
+func (ui *HousingUI) toggleGridSnap() {
+	mode, _, _, _, _, _ := ui.furniturePlacement.GetPreviewState()
+	if mode != housing.PlacementModeNone {
+		ui.furniturePlacement.SetGridSnap(true, 0.5)
+	}
+}
+
+// confirmFurniturePlacement places the furniture and restarts placement mode.
+func (ui *HousingUI) confirmFurniturePlacement() {
+	newID := fmt.Sprintf("furn-%d", ui.currentDay)
+	err := ui.furniturePlacement.ConfirmPlacement(ui.houseManager, newID)
+	if err == nil {
+		ui.furniturePlacement.StartPlaceMode(
+			ui.furniturePlacement.GetCurrentHouse(),
+			ui.furnitureTypes[ui.furnitureIndex],
+		)
+	}
+}
+
+// exitFurnitureMode returns to house view and refreshes the house list.
+func (ui *HousingUI) exitFurnitureMode() {
+	ui.mode = HousingModeMyHouses
+	ui.furniturePlacement.ExitMode()
+	ui.refreshPlayerHouses()
 }
 
 // updateGuildMode handles guild territory management.

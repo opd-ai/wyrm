@@ -9,7 +9,10 @@ import (
 	"image/color"
 	"log"
 	"math"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
+	"runtime"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -114,6 +117,10 @@ type Game struct {
 	stateSync *StateSynchronizer
 	// NPC rendering
 	npcRenderer *NPCRenderer
+	// Debug/profiling fields
+	frameTimeHistory []float64 // Ring buffer of recent frame times
+	frameTimeIndex   int       // Current index in frame time history
+	lastMemStats     runtime.MemStats
 }
 
 // Update advances game state by one tick, processing player input and ECS systems.
@@ -1693,10 +1700,26 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return g.cfg.Window.Width, g.cfg.Window.Height
 }
 
+// startProfileServer starts the pprof HTTP server for runtime profiling.
+func startProfileServer(port int) {
+	addr := fmt.Sprintf("localhost:%d", port)
+	log.Printf("Starting pprof server at http://%s/debug/pprof/", addr)
+	go func() {
+		if err := http.ListenAndServe(addr, nil); err != nil {
+			log.Printf("pprof server error: %v", err)
+		}
+	}()
+}
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("config: %v", err)
+	}
+
+	// Start profiling server if enabled
+	if cfg.Debug.ProfilingEnabled {
+		startProfileServer(cfg.Debug.ProfilingPort)
 	}
 
 	world := ecs.NewWorld()
