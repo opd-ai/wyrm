@@ -581,7 +581,7 @@ Swinging doors:
 - [ ] After animation: the door remains in the open state until interacted with again
 
 #### Integration Points
-- [ ] `pkg/engine/components/definitions.go`: Extend or use existing `Appearance` component (`SpriteCategory = "object"` with `BodyPlan` for item type)
+- [ ] `pkg/engine/components/definitions.go`: Configure existing `Appearance` component with `SpriteCategory = "object"` and `BodyPlan` for item type
 - [ ] `pkg/engine/systems/`: Extend `RenderSystem` with interaction targeting
 - [ ] `cmd/client/main.go`: Add crosshair rendering and interaction key binding
 
@@ -660,7 +660,8 @@ Ebitengine provides `ebiten.CursorPosition()` for cursor position and `ebiten.Se
 - [ ] Apply sensitivity: `yawDelta = dx * sensitivity`, `pitchDelta = dy * sensitivity * (invertY ? -1 : 1)`
 - [ ] Apply optional acceleration: `if |dx| > threshold: yawDelta *= 1.0 + acceleration * (|dx| / maxDelta)`
 - [ ] Apply smoothing: average the last N frame deltas
-- [ ] Update player angle: `PlayerA += yawDelta` (wrap to 0–2π). Note: `PlayerA` is the existing field name in `Renderer` (renderer.go:39). Consider renaming to `PlayerYaw` for consistency with the new `PlayerPitch`, but this is a separate refactoring task
+- [ ] Update player angle: `PlayerA += yawDelta` (wrap to 0–2π)
+- [ ] *(Future)* Consider renaming `PlayerA` to `PlayerYaw` for consistency with `PlayerPitch`
 - [ ] Update player pitch: `PlayerPitch = clamp(PlayerPitch + pitchDelta, -pitchLimit, +pitchLimit)`
 - [ ] Reset cursor to screen center: use `ebiten.SetCursorMode(ebiten.CursorModeCaptured)` which automatically captures the cursor
 
