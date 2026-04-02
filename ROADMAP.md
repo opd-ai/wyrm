@@ -274,9 +274,9 @@ Four LOD levels (`LODFull`, `LODHalf`, `LODQuarter`, `LODEighth`) are defined in
 
 Per GAPS.md §8.1, background chunk generation with placeholder chunks was implemented but needs verification.
 
-- [ ] Verify background chunk generation goroutine is operational
-- [ ] Verify placeholder chunk is returned while generation completes
-- [ ] **Validation**: No frame stutter when crossing chunk boundaries
+- [x] Verify background chunk generation goroutine is operational
+- [x] Verify placeholder chunk is returned while generation completes
+- [x] **Validation**: No frame stutter when crossing chunk boundaries
 
 ---
 

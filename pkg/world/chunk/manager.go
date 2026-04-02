@@ -1699,6 +1699,24 @@ func (lm *LODManager) GetChunkLOD(chunkX, chunkY int) *LODChunk {
 	return lm.cache.GetLOD(chunk, level)
 }
 
+// GetChunkLODAsync returns a chunk at the appropriate LOD, using placeholder if not yet loaded.
+// Returns the LODChunk and a boolean indicating if it's a real chunk (true) or placeholder (false).
+func (lm *LODManager) GetChunkLODAsync(chunkX, chunkY int) (*LODChunk, bool) {
+	chunk, isReal := lm.manager.GetChunkOrPlaceholder(chunkX, chunkY)
+
+	// Calculate chunk center in world coordinates
+	chunkCenterX := float64(chunkX*lm.chunkSize) + float64(lm.chunkSize)/2
+	chunkCenterY := float64(chunkY*lm.chunkSize) + float64(lm.chunkSize)/2
+
+	// Distance squared from viewpoint to chunk center
+	dx := chunkCenterX - lm.viewX
+	dy := chunkCenterY - lm.viewY
+	distSq := dx*dx + dy*dy
+
+	level := CalculateLODLevel(distSq)
+	return lm.cache.GetLOD(chunk, level), isReal
+}
+
 // GetChunksInView returns all chunks visible from the viewpoint with appropriate LOD.
 func (lm *LODManager) GetChunksInView(viewRadius int) []*LODChunk {
 	centerChunkX := int(lm.viewX) / lm.chunkSize

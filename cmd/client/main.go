@@ -727,7 +727,7 @@ func (g *Game) updateChunkMap() {
 }
 
 // rebuildWorldMap constructs the local world map from surrounding chunks.
-// Uses LOD system for distant chunks to reduce memory usage.
+// Uses LOD system for distant chunks and async generation to avoid frame stutter.
 func (g *Game) rebuildWorldMap(centerChunkX, centerChunkY int) {
 	worldMap := make([][]int, g.mapSize)
 	for i := range worldMap {
@@ -740,13 +740,13 @@ func (g *Game) rebuildWorldMap(centerChunkX, centerChunkY int) {
 	viewY := float64(centerChunkY*chunkSize) + float64(chunkSize)/2
 	g.lodManager.SetViewpoint(viewX, viewY)
 
-	// Load 3x3 chunk window using LOD-based selection
+	// Load 3x3 chunk window using LOD-based selection with async generation
 	for dy := -1; dy <= 1; dy++ {
 		for dx := -1; dx <= 1; dx++ {
 			chunkX := centerChunkX + dx
 			chunkY := centerChunkY + dy
-			// LODManager automatically selects appropriate LOD based on distance
-			lodChunk := g.lodManager.GetChunkLOD(chunkX, chunkY)
+			// GetChunkLODAsync returns placeholder while chunk generates in background
+			lodChunk, _ := g.lodManager.GetChunkLODAsync(chunkX, chunkY)
 			g.sampleLODChunkIntoMap(worldMap, lodChunk, dx, dy, chunkSize)
 		}
 	}
@@ -1828,6 +1828,7 @@ func main() {
 	// Register client systems; in offline mode (!connected), also register game logic systems
 	registerClientSystems(world, player, cfg, !connected)
 	chunkMgr := chunk.NewManager(cfg.World.ChunkSize, cfg.World.Seed)
+	chunkMgr.EnableAsyncGeneration(4) // Enable background chunk generation with 4 workers
 	lodMgr := chunk.NewLODManager(chunkMgr)
 
 	// Initialize input manager with config bindings
