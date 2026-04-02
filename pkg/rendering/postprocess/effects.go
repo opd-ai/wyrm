@@ -279,7 +279,12 @@ func (v *Vignette) ApplyTo(src, dst *image.RGBA) {
 			// Calculate vignette factor
 			vignetteFactor := 1.0
 			if dist > v.Radius {
-				falloff := (dist - v.Radius) / (1.0 - v.Radius + v.Softness)
+				// Guard against division by zero when Radius == 1.0 and Softness == 0.0
+				denom := 1.0 - v.Radius + v.Softness
+				if denom <= 0 {
+					denom = 0.001
+				}
+				falloff := (dist - v.Radius) / denom
 				vignetteFactor = 1.0 - math.Min(1.0, falloff)
 			}
 

@@ -180,6 +180,10 @@ func (r *Renderer) calculateFOVRayDirections() (rayDirX0, rayDirY0, rayDirX1, ra
 // calculateRowDistance computes the horizontal distance from camera to floor for a row.
 func (r *Renderer) calculateRowDistance(y, halfHeight int) float64 {
 	p := y - halfHeight
+	// Guard against division by zero when y equals halfHeight (horizon line)
+	if p == 0 {
+		return FogDistance * 2 // Return maximum distance for horizon row
+	}
 	posZ := 0.5 * float64(r.Height)
 	rowDistance := posZ / float64(p)
 	if rowDistance < 0 {

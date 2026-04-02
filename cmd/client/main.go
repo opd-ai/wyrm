@@ -639,13 +639,17 @@ func (g *Game) syncInputState() {
 }
 
 // handlePauseToggle checks for pause action and toggles the menu.
+// Also toggles mouse capture state - captured during gameplay, released for menus.
 func (g *Game) handlePauseToggle() {
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 		if g.menu != nil {
 			g.menu.Toggle()
 			g.paused = g.menu.IsOpen()
+			// Release mouse when pausing, capture when resuming
+			g.setMouseCaptured(!g.paused)
 		} else {
 			g.paused = !g.paused
+			g.setMouseCaptured(!g.paused)
 		}
 	}
 }

@@ -112,13 +112,23 @@ func (w *World) Entities(types ...string) []Entity {
 }
 
 // RegisterSystem adds a system to the world.
+// Thread-safe: acquires write lock to prevent race conditions with Update.
 func (w *World) RegisterSystem(s System) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.systems = append(w.systems, s)
 }
 
 // Update runs all registered systems with the given delta time.
+// Note: Systems are expected to be registered before the game loop starts.
+// If dynamic registration is needed during Update, RegisterSystem is thread-safe.
 func (w *World) Update(dt float64) {
-	for _, s := range w.systems {
+	w.mu.RLock()
+	systems := make([]System, len(w.systems))
+	copy(systems, w.systems)
+	w.mu.RUnlock()
+
+	for _, s := range systems {
 		s.Update(w, dt)
 	}
 }

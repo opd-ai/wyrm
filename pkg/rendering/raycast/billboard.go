@@ -57,7 +57,12 @@ func (r *Renderer) TransformEntityToScreen(entity *SpriteEntity) bool {
 	planeY := dirX * planeMult
 
 	// Transform into camera space using inverse camera matrix
-	invDet := 1.0 / (planeX*dirY - dirX*planeY)
+	det := planeX*dirY - dirX*planeY
+	// Guard against division by zero (occurs with zero FOV or zero-length direction)
+	if math.Abs(det) < 1e-10 {
+		return false
+	}
+	invDet := 1.0 / det
 	entity.TransformX = invDet * (dirY*dx - dirX*dy)
 	entity.TransformY = invDet * (-planeY*dx + planeX*dy)
 
