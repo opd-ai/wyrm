@@ -44,6 +44,13 @@ const (
 	GameStatePlaying
 )
 
+// Movement constants for player physics.
+const (
+	playerMoveSpeed = 3.0 // units per second
+	playerTurnSpeed = 2.0 // radians per second
+	playerRadius    = 0.3 // collision radius
+)
+
 // Game implements the ebiten.Game interface.
 type Game struct {
 	cfg           *config.Config
@@ -849,7 +856,6 @@ func (g *Game) canMoveTo(x, y float64) bool {
 	if g.worldMap == nil || len(g.worldMap) == 0 {
 		return true // No map loaded yet, allow movement
 	}
-	const playerRadius = 0.3
 
 	// Check multiple points around player position for collision
 	for _, offset := range [][2]float64{{0, 0}, {playerRadius, 0}, {-playerRadius, 0}, {0, playerRadius}, {0, -playerRadius}} {
@@ -900,9 +906,6 @@ func (g *Game) tryMove(pos *components.Position, dx, dy float64) {
 
 // processMovementInput handles forward/back movement and turning.
 func (g *Game) processMovementInput(pos *components.Position, dt float64) {
-	const moveSpeed = 3.0 // units per second
-	const turnSpeed = 2.0 // radians per second
-
 	// Use input manager if available, fallback to direct key checks
 	moveForward := g.isActionOrKeyPressed(input.ActionMoveForward, ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyUp)
 	moveBackward := g.isActionOrKeyPressed(input.ActionMoveBackward, ebiten.KeyS) || ebiten.IsKeyPressed(ebiten.KeyDown)
@@ -910,34 +913,33 @@ func (g *Game) processMovementInput(pos *components.Position, dt float64) {
 	turnRight := g.isActionOrKeyPressed(input.ActionMoveRight, ebiten.KeyD) || ebiten.IsKeyPressed(ebiten.KeyRight)
 
 	if moveForward {
-		dx := math.Cos(pos.Angle) * moveSpeed * dt
-		dy := math.Sin(pos.Angle) * moveSpeed * dt
+		dx := math.Cos(pos.Angle) * playerMoveSpeed * dt
+		dy := math.Sin(pos.Angle) * playerMoveSpeed * dt
 		g.tryMove(pos, dx, dy)
 	}
 	if moveBackward {
-		dx := -math.Cos(pos.Angle) * moveSpeed * dt
-		dy := -math.Sin(pos.Angle) * moveSpeed * dt
+		dx := -math.Cos(pos.Angle) * playerMoveSpeed * dt
+		dy := -math.Sin(pos.Angle) * playerMoveSpeed * dt
 		g.tryMove(pos, dx, dy)
 	}
 	if turnLeft {
-		pos.Angle -= turnSpeed * dt
+		pos.Angle -= playerTurnSpeed * dt
 	}
 	if turnRight {
-		pos.Angle += turnSpeed * dt
+		pos.Angle += playerTurnSpeed * dt
 	}
 }
 
 // processStrafeInput handles left/right strafe movement.
 func (g *Game) processStrafeInput(pos *components.Position, dt float64) {
-	const moveSpeed = 3.0
 	if g.isActionOrKeyPressed(input.ActionStrafeLeft, ebiten.KeyQ) {
-		dx := math.Cos(pos.Angle-math.Pi/2) * moveSpeed * dt
-		dy := math.Sin(pos.Angle-math.Pi/2) * moveSpeed * dt
+		dx := math.Cos(pos.Angle-math.Pi/2) * playerMoveSpeed * dt
+		dy := math.Sin(pos.Angle-math.Pi/2) * playerMoveSpeed * dt
 		g.tryMove(pos, dx, dy)
 	}
 	if g.isActionOrKeyPressed(input.ActionStrafeRight, ebiten.KeyE) {
-		dx := math.Cos(pos.Angle+math.Pi/2) * moveSpeed * dt
-		dy := math.Sin(pos.Angle+math.Pi/2) * moveSpeed * dt
+		dx := math.Cos(pos.Angle+math.Pi/2) * playerMoveSpeed * dt
+		dy := math.Sin(pos.Angle+math.Pi/2) * playerMoveSpeed * dt
 		g.tryMove(pos, dx, dy)
 	}
 }
