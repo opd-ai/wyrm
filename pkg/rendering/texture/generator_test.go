@@ -1131,3 +1131,339 @@ func BenchmarkGenerateWithNormalMap(b *testing.B) {
 		_ = GenerateWithNormalMap(64, 64, int64(i), "fantasy", 1.0)
 	}
 }
+
+// ============================================================
+// Surface Wear/Aging Tests
+// ============================================================
+
+func TestWearType(t *testing.T) {
+	// Test wear type constants exist
+	types := []WearType{WearNone, WearScratches, WearRust, WearDirt, WearFade, WearChip, WearMoss, WearStain}
+	for i, wt := range types {
+		if int(wt) != i {
+			t.Errorf("wear type %d should have value %d", wt, i)
+		}
+	}
+}
+
+func TestGetWearConfigForMaterial(t *testing.T) {
+	tests := []struct {
+		material     MaterialID
+		expectedWear WearType
+	}{
+		{MaterialMetal, WearRust},
+		{MaterialWood, WearFade},
+		{MaterialStone, WearChip},
+		{MaterialDirt, WearDirt},
+		{MaterialNeon, WearFade},
+	}
+
+	for _, tt := range tests {
+		name := DefaultMaterialRegistry.Get(tt.material).Name
+		t.Run(name, func(t *testing.T) {
+			config := GetWearConfigForMaterial(tt.material, 0.5, 12345)
+			if config.PrimaryWear != tt.expectedWear {
+				t.Errorf("expected primary wear %d, got %d", tt.expectedWear, config.PrimaryWear)
+			}
+			if config.Age != 0.5 {
+				t.Errorf("expected age 0.5, got %f", config.Age)
+			}
+		})
+	}
+}
+
+func TestGetWearConfigForUnknownMaterial(t *testing.T) {
+	config := GetWearConfigForMaterial(9999, 0.5, 12345)
+	// Should return default config with dirt wear
+	if config.PrimaryWear != WearDirt {
+		t.Errorf("unknown material should default to WearDirt, got %d", config.PrimaryWear)
+	}
+}
+
+func TestApplyWear(t *testing.T) {
+	// Create a simple test texture
+	pixels := make([]color.RGBA, 16*16)
+	for i := range pixels {
+		pixels[i] = color.RGBA{R: 150, G: 150, B: 150, A: 255}
+	}
+
+	config := WearConfig{
+		Age:            0.5,
+		WearResistance: 0.3,
+		PrimaryWear:    WearRust,
+		SecondaryWear:  WearScratches,
+		WearSeed:       12345,
+	}
+
+	result := ApplyWear(pixels, 16, 16, config)
+	if len(result) != len(pixels) {
+		t.Errorf("result should have same length as input")
+	}
+
+	// Check that some pixels were modified
+	modified := false
+	for i := range result {
+		if result[i] != pixels[i] {
+			modified = true
+			break
+		}
+	}
+	if !modified {
+		t.Error("wear should modify at least some pixels")
+	}
+}
+
+func TestApplyWearZeroAge(t *testing.T) {
+	pixels := make([]color.RGBA, 16*16)
+	for i := range pixels {
+		pixels[i] = color.RGBA{R: 100, G: 100, B: 100, A: 255}
+	}
+
+	config := WearConfig{
+		Age:         0.0,
+		PrimaryWear: WearRust,
+		WearSeed:    12345,
+	}
+
+	result := ApplyWear(pixels, 16, 16, config)
+
+	// With zero age, pixels should be unchanged
+	for i := range result {
+		if result[i] != pixels[i] {
+			t.Error("zero age should not modify pixels")
+			break
+		}
+	}
+}
+
+func TestApplyWearHighAge(t *testing.T) {
+	pixels := make([]color.RGBA, 16*16)
+	for i := range pixels {
+		pixels[i] = color.RGBA{R: 200, G: 200, B: 200, A: 255}
+	}
+
+	config := WearConfig{
+		Age:            2.0, // Very old
+		WearResistance: 0.0, // No resistance
+		PrimaryWear:    WearDirt,
+		WearSeed:       12345,
+	}
+
+	result := ApplyWear(pixels, 16, 16, config)
+
+	// High age should significantly modify pixels
+	totalDiff := 0
+	for i := range result {
+		totalDiff += abs(int(result[i].R) - int(pixels[i].R))
+		totalDiff += abs(int(result[i].G) - int(pixels[i].G))
+		totalDiff += abs(int(result[i].B) - int(pixels[i].B))
+	}
+
+	if totalDiff < 100 {
+		t.Error("high age should significantly modify texture")
+	}
+}
+
+func TestApplyWearEmptyPixels(t *testing.T) {
+	config := WearConfig{Age: 0.5, PrimaryWear: WearRust}
+	result := ApplyWear(nil, 0, 0, config)
+	if result != nil {
+		t.Error("empty input should return nil")
+	}
+
+	result = ApplyWear([]color.RGBA{}, 16, 16, config)
+	if len(result) != 0 {
+		t.Error("empty slice should return empty")
+	}
+}
+
+func TestApplyWearDeterminism(t *testing.T) {
+	pixels := make([]color.RGBA, 32*32)
+	for i := range pixels {
+		pixels[i] = color.RGBA{R: 128, G: 128, B: 128, A: 255}
+	}
+
+	config := WearConfig{
+		Age:         0.7,
+		PrimaryWear: WearRust,
+		WearSeed:    54321,
+	}
+
+	result1 := ApplyWear(pixels, 32, 32, config)
+	result2 := ApplyWear(pixels, 32, 32, config)
+
+	// Same config should produce identical results
+	for i := range result1 {
+		if result1[i] != result2[i] {
+			t.Errorf("wear should be deterministic: pixel %d differs", i)
+			break
+		}
+	}
+}
+
+func TestWearEffectTypes(t *testing.T) {
+	// Use larger texture to ensure all wear types have room to work
+	width, height := 32, 32
+
+	wearTypes := []WearType{WearScratches, WearRust, WearDirt, WearFade, WearChip, WearMoss, WearStain}
+
+	for _, wt := range wearTypes {
+		t.Run(string(rune('A'+int(wt))), func(t *testing.T) {
+			// Use colored pixels for fade test, gray for others
+			var baseColor color.RGBA
+			if wt == WearFade {
+				// WearFade needs a saturated color to show effect
+				baseColor = color.RGBA{R: 200, G: 100, B: 50, A: 255}
+			} else {
+				baseColor = color.RGBA{R: 150, G: 150, B: 150, A: 255}
+			}
+
+			basePixels := make([]color.RGBA, width*height)
+			for i := range basePixels {
+				basePixels[i] = baseColor
+			}
+
+			pixels := make([]color.RGBA, len(basePixels))
+			copy(pixels, basePixels)
+
+			config := WearConfig{
+				Age:         1.0, // Maximum age for best coverage
+				PrimaryWear: wt,
+				WearSeed:    12345,
+			}
+
+			result := ApplyWear(pixels, width, height, config)
+
+			// Each wear type should produce some modification
+			modified := false
+			for i := range result {
+				if result[i] != basePixels[i] {
+					modified = true
+					break
+				}
+			}
+			if !modified {
+				t.Errorf("wear type %d should modify pixels", wt)
+			}
+		})
+	}
+}
+
+func TestBlendColor(t *testing.T) {
+	a := color.RGBA{R: 100, G: 100, B: 100, A: 255}
+	b := color.RGBA{R: 200, G: 200, B: 200, A: 255}
+
+	// 0% blend = a
+	result := blendColor(a, b, 0.0)
+	if result != a {
+		t.Error("0% blend should return a")
+	}
+
+	// 100% blend = b
+	result = blendColor(a, b, 1.0)
+	if result != b {
+		t.Error("100% blend should return b")
+	}
+
+	// 50% blend
+	result = blendColor(a, b, 0.5)
+	if result.R != 150 || result.G != 150 || result.B != 150 {
+		t.Errorf("50%% blend should be midpoint, got (%d,%d,%d)", result.R, result.G, result.B)
+	}
+
+	// Alpha preserved
+	if result.A != a.A {
+		t.Error("alpha should be preserved from source")
+	}
+}
+
+func TestNoiseAt(t *testing.T) {
+	// Test determinism
+	n1 := noiseAt(1.5, 2.5, 12345)
+	n2 := noiseAt(1.5, 2.5, 12345)
+	if n1 != n2 {
+		t.Error("noise should be deterministic")
+	}
+
+	// Test range [0, 1]
+	for i := 0; i < 100; i++ {
+		n := noiseAt(float64(i)*0.1, float64(i)*0.15, 12345)
+		if n < 0 || n > 1 {
+			t.Errorf("noise out of range: %f", n)
+		}
+	}
+
+	// Different seeds produce different values
+	n3 := noiseAt(1.5, 2.5, 12346)
+	if n1 == n3 {
+		t.Error("different seeds should produce different noise")
+	}
+}
+
+func TestSimpleRng(t *testing.T) {
+	rng := seedRng(12345)
+
+	// Test Intn range
+	for i := 0; i < 100; i++ {
+		v := rng.Intn(10)
+		if v < 0 || v >= 10 {
+			t.Errorf("Intn(10) out of range: %d", v)
+		}
+	}
+
+	// Test Float64 range
+	rng = seedRng(12345)
+	for i := 0; i < 100; i++ {
+		f := rng.Float64()
+		if f < 0 || f >= 1 {
+			t.Errorf("Float64() out of range: %f", f)
+		}
+	}
+
+	// Test determinism
+	rng1 := seedRng(54321)
+	rng2 := seedRng(54321)
+	for i := 0; i < 10; i++ {
+		if rng1.Intn(100) != rng2.Intn(100) {
+			t.Error("RNG should be deterministic")
+		}
+	}
+}
+
+func TestSinCosApprox(t *testing.T) {
+	// Test basic values
+	if absFloat(sinApprox(0)) > 0.01 {
+		t.Error("sin(0) should be 0")
+	}
+	if absFloat(cosApprox(0)-1) > 0.01 {
+		t.Error("cos(0) should be 1")
+	}
+
+	// Test at π/2
+	if absFloat(sinApprox(1.5708)-1) > 0.05 {
+		t.Errorf("sin(π/2) should be ~1, got %f", sinApprox(1.5708))
+	}
+	if absFloat(cosApprox(1.5708)) > 0.05 {
+		t.Errorf("cos(π/2) should be ~0, got %f", cosApprox(1.5708))
+	}
+}
+
+func BenchmarkApplyWear(b *testing.B) {
+	pixels := make([]color.RGBA, 64*64)
+	for i := range pixels {
+		pixels[i] = color.RGBA{R: 128, G: 128, B: 128, A: 255}
+	}
+
+	config := WearConfig{
+		Age:            0.5,
+		WearResistance: 0.3,
+		PrimaryWear:    WearRust,
+		SecondaryWear:  WearDirt,
+		WearSeed:       12345,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = ApplyWear(pixels, 64, 64, config)
+	}
+}

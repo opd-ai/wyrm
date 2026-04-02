@@ -754,3 +754,362 @@ func (r *MaterialRegistry) registerDefaultMaterials() {
 
 // DefaultMaterialRegistry is the global material registry instance.
 var DefaultMaterialRegistry = NewMaterialRegistry()
+
+// ============================================================
+// Surface Wear/Aging System
+// ============================================================
+
+// WearType describes the kind of wear effect to apply.
+type WearType int
+
+const (
+	WearNone      WearType = iota
+	WearScratches          // Surface scratches and abrasions
+	WearRust               // Oxidation/corrosion
+	WearDirt               // Accumulated dirt/grime
+	WearFade               // Color fading from UV exposure
+	WearChip               // Chipped edges and damage
+	WearMoss               // Organic growth (moss, lichen)
+	WearStain              // Stains and discoloration
+)
+
+// WearConfig describes wear parameters for texture aging.
+type WearConfig struct {
+	// Age represents the surface age in arbitrary units (0.0 = new, 1.0+ = very old)
+	Age float64
+
+	// WearResistance determines how well the material resists wear (0.0-1.0)
+	// Higher values mean slower aging
+	WearResistance float64
+
+	// ExposureType indicates the environment (indoor, outdoor, underwater, etc.)
+	ExposureType string
+
+	// PrimaryWear is the dominant wear type for this material
+	PrimaryWear WearType
+
+	// SecondaryWear is a secondary wear effect (can be WearNone)
+	SecondaryWear WearType
+
+	// WearSeed for deterministic wear pattern generation
+	WearSeed int64
+}
+
+// GetWearConfigForMaterial returns appropriate wear settings for a material.
+func GetWearConfigForMaterial(materialID MaterialID, age float64, seed int64) WearConfig {
+	material := DefaultMaterialRegistry.Get(materialID)
+	if material == nil {
+		return WearConfig{Age: age, WearSeed: seed, PrimaryWear: WearDirt}
+	}
+
+	config := WearConfig{
+		Age:            age,
+		WearSeed:       seed,
+		WearResistance: 0.5,
+		ExposureType:   "outdoor",
+	}
+
+	// Assign wear types based on material category
+	switch material.Category {
+	case "metal":
+		config.PrimaryWear = WearRust
+		config.SecondaryWear = WearScratches
+		config.WearResistance = 0.6
+	case "organic":
+		config.PrimaryWear = WearFade
+		config.SecondaryWear = WearMoss
+		config.WearResistance = 0.3
+	case "mineral":
+		config.PrimaryWear = WearChip
+		config.SecondaryWear = WearMoss
+		config.WearResistance = 0.8
+	case "natural":
+		config.PrimaryWear = WearDirt
+		config.SecondaryWear = WearMoss
+		config.WearResistance = 0.2
+	case "synthetic":
+		config.PrimaryWear = WearFade
+		config.SecondaryWear = WearStain
+		config.WearResistance = 0.7
+	}
+
+	return config
+}
+
+// ApplyWear applies wear effects to a texture based on age and material properties.
+// Returns a new slice of pixels with wear applied.
+func ApplyWear(pixels []color.RGBA, width, height int, config WearConfig) []color.RGBA {
+	if len(pixels) == 0 || width <= 0 || height <= 0 {
+		return pixels
+	}
+
+	// Calculate effective wear amount
+	effectiveAge := config.Age * (1.0 - config.WearResistance*0.7)
+	if effectiveAge <= 0 {
+		return pixels
+	}
+	if effectiveAge > 2.0 {
+		effectiveAge = 2.0 // Cap at maximum wear
+	}
+
+	result := make([]color.RGBA, len(pixels))
+	copy(result, pixels)
+
+	// Apply primary wear
+	applyWearEffect(result, width, height, config.PrimaryWear, effectiveAge, config.WearSeed)
+
+	// Apply secondary wear at reduced intensity
+	if config.SecondaryWear != WearNone {
+		applyWearEffect(result, width, height, config.SecondaryWear, effectiveAge*0.4, config.WearSeed+1000)
+	}
+
+	return result
+}
+
+// applyWearEffect applies a specific wear type to pixels.
+func applyWearEffect(pixels []color.RGBA, width, height int, wearType WearType, intensity float64, seed int64) {
+	switch wearType {
+	case WearScratches:
+		applyScratchWear(pixels, width, height, intensity, seed)
+	case WearRust:
+		applyRustWear(pixels, width, height, intensity, seed)
+	case WearDirt:
+		applyDirtWear(pixels, width, height, intensity, seed)
+	case WearFade:
+		applyFadeWear(pixels, width, height, intensity, seed)
+	case WearChip:
+		applyChipWear(pixels, width, height, intensity, seed)
+	case WearMoss:
+		applyMossWear(pixels, width, height, intensity, seed)
+	case WearStain:
+		applyStainWear(pixels, width, height, intensity, seed)
+	}
+}
+
+// applyScratchWear adds linear scratch marks to the surface.
+func applyScratchWear(pixels []color.RGBA, width, height int, intensity float64, seed int64) {
+	numScratches := int(intensity * 20)
+	rng := seedRng(seed)
+
+	for s := 0; s < numScratches; s++ {
+		// Random scratch line
+		x1 := rng.Intn(width)
+		y1 := rng.Intn(height)
+		length := rng.Intn(width/4) + 5
+		angle := rng.Float64() * 3.14159
+
+		for i := 0; i < length; i++ {
+			x := x1 + int(float64(i)*cosApprox(angle))
+			y := y1 + int(float64(i)*sinApprox(angle))
+			if x >= 0 && x < width && y >= 0 && y < height {
+				idx := y*width + x
+				// Lighten (expose metal beneath)
+				pixels[idx] = blendColor(pixels[idx], color.RGBA{R: 180, G: 180, B: 180, A: 255}, intensity*0.3)
+			}
+		}
+	}
+}
+
+// applyRustWear adds rust/oxidation patches.
+func applyRustWear(pixels []color.RGBA, width, height int, intensity float64, seed int64) {
+	rustColor := color.RGBA{R: 139, G: 69, B: 19, A: 255}
+	darkRust := color.RGBA{R: 101, G: 67, B: 33, A: 255}
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			// Noise-based rust pattern
+			n := noiseAt(float64(x)*0.1, float64(y)*0.1, seed)
+			threshold := 1.0 - intensity*0.5
+			if n > threshold {
+				idx := y*width + x
+				rustAmount := (n - threshold) / (1.0 - threshold) * intensity
+				// Choose between light and dark rust
+				if noiseAt(float64(x)*0.3, float64(y)*0.3, seed+100) > 0.5 {
+					pixels[idx] = blendColor(pixels[idx], rustColor, rustAmount)
+				} else {
+					pixels[idx] = blendColor(pixels[idx], darkRust, rustAmount)
+				}
+			}
+		}
+	}
+}
+
+// applyDirtWear adds accumulated dirt/grime.
+func applyDirtWear(pixels []color.RGBA, width, height int, intensity float64, seed int64) {
+	dirtColor := color.RGBA{R: 80, G: 70, B: 55, A: 255}
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			// Dirt accumulates in crevices (low-frequency areas)
+			n := noiseAt(float64(x)*0.05, float64(y)*0.05, seed)
+			detail := noiseAt(float64(x)*0.2, float64(y)*0.2, seed+50)
+
+			// Combine noises for natural-looking dirt
+			dirtAmount := n*0.7 + detail*0.3
+			dirtAmount *= intensity * 0.6
+
+			if dirtAmount > 0.1 {
+				idx := y*width + x
+				pixels[idx] = blendColor(pixels[idx], dirtColor, dirtAmount)
+			}
+		}
+	}
+}
+
+// applyFadeWear reduces color saturation and brightness.
+func applyFadeWear(pixels []color.RGBA, width, height int, intensity float64, seed int64) {
+	fadeFactor := 1.0 - intensity*0.4
+
+	for i := range pixels {
+		p := pixels[i]
+		// Reduce saturation
+		gray := uint8(0.299*float64(p.R) + 0.587*float64(p.G) + 0.114*float64(p.B))
+		pixels[i] = color.RGBA{
+			R: uint8(float64(p.R)*fadeFactor + float64(gray)*(1-fadeFactor)),
+			G: uint8(float64(p.G)*fadeFactor + float64(gray)*(1-fadeFactor)),
+			B: uint8(float64(p.B)*fadeFactor + float64(gray)*(1-fadeFactor)),
+			A: p.A,
+		}
+	}
+}
+
+// applyChipWear adds chipped edges and damage.
+func applyChipWear(pixels []color.RGBA, width, height int, intensity float64, seed int64) {
+	chipColor := color.RGBA{R: 100, G: 100, B: 100, A: 255}
+	numChips := int(intensity * 15)
+	rng := seedRng(seed)
+
+	for c := 0; c < numChips; c++ {
+		cx := rng.Intn(width)
+		cy := rng.Intn(height)
+		size := rng.Intn(5) + 2
+
+		// Irregular chip shape
+		for dy := -size; dy <= size; dy++ {
+			for dx := -size; dx <= size; dx++ {
+				x, y := cx+dx, cy+dy
+				if x >= 0 && x < width && y >= 0 && y < height {
+					dist := float64(dx*dx + dy*dy)
+					if dist < float64(size*size) && rng.Float64() > 0.3 {
+						idx := y*width + x
+						pixels[idx] = blendColor(pixels[idx], chipColor, intensity*0.5)
+					}
+				}
+			}
+		}
+	}
+}
+
+// applyMossWear adds organic growth (moss, lichen).
+func applyMossWear(pixels []color.RGBA, width, height int, intensity float64, seed int64) {
+	mossColor := color.RGBA{R: 50, G: 80, B: 40, A: 255}
+	lichenColor := color.RGBA{R: 120, G: 120, B: 80, A: 255}
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			n := noiseAt(float64(x)*0.08, float64(y)*0.08, seed)
+			if n > 0.7-intensity*0.3 {
+				idx := y*width + x
+				mossAmount := (n - 0.5) * intensity
+				// Choose between moss and lichen
+				if noiseAt(float64(x)*0.2, float64(y)*0.2, seed+200) > 0.5 {
+					pixels[idx] = blendColor(pixels[idx], mossColor, mossAmount)
+				} else {
+					pixels[idx] = blendColor(pixels[idx], lichenColor, mossAmount*0.7)
+				}
+			}
+		}
+	}
+}
+
+// applyStainWear adds water stains and discoloration.
+func applyStainWear(pixels []color.RGBA, width, height int, intensity float64, seed int64) {
+	stainColor := color.RGBA{R: 90, G: 85, B: 70, A: 255}
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			// Stains flow downward
+			n := noiseAt(float64(x)*0.1, float64(y)*0.03, seed) // Elongated vertically
+			if n > 0.6 {
+				idx := y*width + x
+				stainAmount := (n - 0.6) * 2.5 * intensity
+				pixels[idx] = blendColor(pixels[idx], stainColor, stainAmount*0.4)
+			}
+		}
+	}
+}
+
+// blendColor blends two colors with the given factor (0.0=a, 1.0=b).
+func blendColor(a, b color.RGBA, factor float64) color.RGBA {
+	if factor <= 0 {
+		return a
+	}
+	if factor >= 1 {
+		return b
+	}
+	invFactor := 1.0 - factor
+	return color.RGBA{
+		R: uint8(float64(a.R)*invFactor + float64(b.R)*factor),
+		G: uint8(float64(a.G)*invFactor + float64(b.G)*factor),
+		B: uint8(float64(a.B)*invFactor + float64(b.B)*factor),
+		A: a.A,
+	}
+}
+
+// noiseAt is a simplified noise lookup for wear patterns.
+func noiseAt(x, y float64, seed int64) float64 {
+	// Simple hash-based noise
+	ix := int(x * 100)
+	iy := int(y * 100)
+	h := uint64(seed) ^ uint64(ix*374761393) ^ uint64(iy*668265263)
+	h ^= h >> 13
+	h *= 1274126177
+	h ^= h >> 16
+	return float64(h&0xFFFFFF) / float64(0xFFFFFF)
+}
+
+// seedRng creates a simple deterministic random generator.
+type simpleRng struct {
+	state uint64
+}
+
+func seedRng(seed int64) *simpleRng {
+	return &simpleRng{state: uint64(seed)}
+}
+
+func (r *simpleRng) Intn(n int) int {
+	r.state = r.state*6364136223846793005 + 1442695040888963407
+	return int((r.state >> 33) % uint64(n))
+}
+
+func (r *simpleRng) Float64() float64 {
+	r.state = r.state*6364136223846793005 + 1442695040888963407
+	return float64(r.state>>11) / float64(1<<53)
+}
+
+// sinApprox and cosApprox are simple trig approximations for wear patterns.
+func sinApprox(x float64) float64 {
+	// Normalize to [0, 2π]
+	pi2 := 6.28318530718
+	for x < 0 {
+		x += pi2
+	}
+	for x >= pi2 {
+		x -= pi2
+	}
+	// Taylor series (good enough for wear patterns)
+	if x > 3.14159 {
+		x -= 3.14159
+		return -sinApproxInner(x)
+	}
+	return sinApproxInner(x)
+}
+
+func sinApproxInner(x float64) float64 {
+	x2 := x * x
+	return x * (1 - x2/6 + x2*x2/120)
+}
+
+func cosApprox(x float64) float64 {
+	return sinApprox(x + 1.5708)
+}
