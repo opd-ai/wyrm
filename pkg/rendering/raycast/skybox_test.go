@@ -702,3 +702,111 @@ func BenchmarkGetNightIntensity(b *testing.B) {
 		_ = GetNightIntensity(float64(i % 24))
 	}
 }
+
+// TestDeterministicStarField validates that the same seed produces identical star positions.
+// This is critical for networked multiplayer - all clients must render identical night skies.
+func TestDeterministicStarField(t *testing.T) {
+	seed := int64(77889900)
+	starCount := 200
+	genre := "fantasy"
+
+	// Generate star fields twice with the same parameters
+	sf1 := NewStarField(seed, starCount, genre)
+	sf2 := NewStarField(seed, starCount, genre)
+
+	if sf1 == nil || sf2 == nil {
+		t.Fatal("NewStarField returned nil")
+	}
+
+	// Star count must match
+	if len(sf1.Stars) != len(sf2.Stars) {
+		t.Fatalf("star count mismatch: %d vs %d", len(sf1.Stars), len(sf2.Stars))
+	}
+
+	// Every star position must be identical
+	for i := range sf1.Stars {
+		s1, s2 := sf1.Stars[i], sf2.Stars[i]
+
+		if s1.X != s2.X || s1.Y != s2.Y {
+			t.Errorf("star %d position mismatch: (%f,%f) vs (%f,%f)",
+				i, s1.X, s1.Y, s2.X, s2.Y)
+		}
+
+		if s1.Color != s2.Color {
+			t.Errorf("star %d color mismatch: %v vs %v", i, s1.Color, s2.Color)
+		}
+
+		if s1.Brightness != s2.Brightness {
+			t.Errorf("star %d brightness mismatch: %f vs %f", i, s1.Brightness, s2.Brightness)
+		}
+
+		if s1.TwinklePhase != s2.TwinklePhase {
+			t.Errorf("star %d twinkle phase mismatch: %f vs %f", i, s1.TwinklePhase, s2.TwinklePhase)
+		}
+	}
+
+	// Star colors at same position must be identical
+	testPoints := []struct{ x, y float64 }{
+		{0.1, 0.1},
+		{0.5, 0.3},
+		{0.9, 0.2},
+		{0.25, 0.45},
+	}
+
+	for _, pt := range testPoints {
+		c1 := sf1.GetStarColorAt(pt.x, pt.y, 0.0, 1.0)
+		c2 := sf2.GetStarColorAt(pt.x, pt.y, 0.0, 1.0)
+
+		if c1 != c2 {
+			t.Errorf("star color at (%f,%f) mismatch: %v vs %v", pt.x, pt.y, c1, c2)
+		}
+	}
+
+	// Different seed should produce different star positions
+	sf3 := NewStarField(seed+1, starCount, genre)
+	if sf3 == nil {
+		t.Fatal("NewStarField returned nil for different seed")
+	}
+
+	// At least one star should be at a different position
+	allSame := true
+	for i := range sf1.Stars {
+		if sf1.Stars[i].X != sf3.Stars[i].X || sf1.Stars[i].Y != sf3.Stars[i].Y {
+			allSame = false
+			break
+		}
+	}
+	if allSame {
+		t.Error("different seeds should produce different star positions")
+	}
+}
+
+// TestDeterministicStarFieldAcrossGenres validates determinism is maintained across genres.
+func TestDeterministicStarFieldAcrossGenres(t *testing.T) {
+	seed := int64(11122233)
+	starCount := 100
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+
+	for _, genre := range genres {
+		t.Run(genre, func(t *testing.T) {
+			sf1 := NewStarField(seed, starCount, genre)
+			sf2 := NewStarField(seed, starCount, genre)
+
+			if sf1 == nil || sf2 == nil {
+				t.Fatal("NewStarField returned nil")
+			}
+
+			if len(sf1.Stars) != len(sf2.Stars) {
+				t.Fatalf("star count mismatch for %s: %d vs %d",
+					genre, len(sf1.Stars), len(sf2.Stars))
+			}
+
+			for i := range sf1.Stars {
+				if sf1.Stars[i].X != sf2.Stars[i].X || sf1.Stars[i].Y != sf2.Stars[i].Y {
+					t.Errorf("star %d position mismatch for %s", i, genre)
+					break
+				}
+			}
+		})
+	}
+}

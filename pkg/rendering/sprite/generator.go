@@ -891,36 +891,47 @@ func (g *Generator) drawMagicStaff(sprite *Sprite, width, height int, shaft, gem
 func (g *Generator) drawHelmetItem(sprite *Sprite, width, height int, metal, accent color.RGBA, rng *rand.Rand) {
 	centerX := width / 2
 	centerY := height / 2
-
-	// Dome shape
 	domeRadius := width / 3
+
+	g.drawHelmetDome(sprite, centerX, centerY, domeRadius, width, height, metal)
+	g.drawHelmetBrim(sprite, centerX, centerY, width, height, metal)
+	g.drawHelmetStripe(sprite, centerX, centerY, domeRadius, width, height, accent)
+}
+
+// drawHelmetDome draws the dome (top half of circle) of the helmet.
+func (g *Generator) drawHelmetDome(sprite *Sprite, centerX, centerY, domeRadius, width, height int, metal color.RGBA) {
 	for dy := -domeRadius; dy <= 0; dy++ {
 		for dx := -domeRadius; dx <= domeRadius; dx++ {
 			if dx*dx+dy*dy <= domeRadius*domeRadius {
-				x := centerX + dx
-				y := centerY + dy
+				x, y := centerX+dx, centerY+dy
 				if x >= 0 && x < width && y >= 0 && y < height {
 					sprite.SetPixel(x, y, metal)
 				}
 			}
 		}
 	}
+}
 
-	// Brim
+// drawHelmetBrim draws the horizontal brim of the helmet.
+func (g *Generator) drawHelmetBrim(sprite *Sprite, centerX, centerY, width, height int, metal color.RGBA) {
 	brimY := centerY
 	brimWidth := width * 2 / 5
 	for x := centerX - brimWidth; x <= centerX+brimWidth; x++ {
-		if x >= 0 && x < width && brimY < height {
-			sprite.SetPixel(x, brimY, metal)
+		if x >= 0 && x < width {
+			if brimY < height {
+				sprite.SetPixel(x, brimY, metal)
+			}
 			if brimY+1 < height {
 				sprite.SetPixel(x, brimY+1, metal)
 			}
 		}
 	}
+}
 
-	// Decorative stripe
+// drawHelmetStripe draws a decorative stripe across the dome.
+func (g *Generator) drawHelmetStripe(sprite *Sprite, centerX, centerY, domeRadius, width, height int, accent color.RGBA) {
+	y := centerY - domeRadius/2
 	for x := centerX - domeRadius/2; x <= centerX+domeRadius/2; x++ {
-		y := centerY - domeRadius/2
 		if x >= 0 && x < width && y >= 0 && y < height {
 			sprite.SetPixel(x, y, accent)
 		}
@@ -983,39 +994,46 @@ func (g *Generator) drawShield(sprite *Sprite, width, height int, face, rim colo
 // drawArmor draws an armor/chestplate sprite.
 func (g *Generator) drawArmor(sprite *Sprite, width, height int, main, trim color.RGBA, rng *rand.Rand) {
 	centerX := width / 2
+	g.drawArmorTorso(sprite, centerX, width, height, main)
+	g.drawArmorShoulderPads(sprite, centerX, width, height, trim)
+}
 
-	// Torso shape
+// drawArmorTorso draws the main torso shape with an hourglass silhouette.
+func (g *Generator) drawArmorTorso(sprite *Sprite, centerX, width, height int, main color.RGBA) {
 	for y := height / 6; y < height*4/5; y++ {
 		progress := float64(y-height/6) / float64(height*3/5)
-		// Hourglass shape
-		var bodyWidth int
-		if progress < 0.5 {
-			bodyWidth = int(float64(width/3) * (1.0 - progress*0.3))
-		} else {
-			bodyWidth = int(float64(width/3) * (0.85 + (progress-0.5)*0.3))
-		}
+		bodyWidth := g.calculateArmorBodyWidth(progress, width)
 		for x := centerX - bodyWidth; x <= centerX+bodyWidth; x++ {
 			if x >= 0 && x < width {
 				sprite.SetPixel(x, y, main)
 			}
 		}
 	}
+}
 
-	// Shoulder pads
-	shoulderY := height / 6
-	for dx := -width / 3; dx <= -width/6; dx++ {
-		x := centerX + dx
-		for dy := 0; dy < height/8; dy++ {
-			if x >= 0 && x < width && shoulderY+dy < height {
-				sprite.SetPixel(x, shoulderY+dy, trim)
-			}
-		}
+// calculateArmorBodyWidth returns the torso width at a given vertical progress.
+func (g *Generator) calculateArmorBodyWidth(progress float64, width int) int {
+	if progress < 0.5 {
+		return int(float64(width/3) * (1.0 - progress*0.3))
 	}
-	for dx := width / 6; dx <= width/3; dx++ {
+	return int(float64(width/3) * (0.85 + (progress-0.5)*0.3))
+}
+
+// drawArmorShoulderPads draws shoulder pads on both sides.
+func (g *Generator) drawArmorShoulderPads(sprite *Sprite, centerX, width, height int, trim color.RGBA) {
+	shoulderY := height / 6
+	padHeight := height / 8
+	g.drawShoulderPad(sprite, centerX, -width/3, -width/6, shoulderY, padHeight, width, height, trim)
+	g.drawShoulderPad(sprite, centerX, width/6, width/3, shoulderY, padHeight, width, height, trim)
+}
+
+// drawShoulderPad draws a single shoulder pad region.
+func (g *Generator) drawShoulderPad(sprite *Sprite, centerX, dxStart, dxEnd, shoulderY, padHeight, width, height int, c color.RGBA) {
+	for dx := dxStart; dx <= dxEnd; dx++ {
 		x := centerX + dx
-		for dy := 0; dy < height/8; dy++ {
+		for dy := 0; dy < padHeight; dy++ {
 			if x >= 0 && x < width && shoulderY+dy < height {
-				sprite.SetPixel(x, shoulderY+dy, trim)
+				sprite.SetPixel(x, shoulderY+dy, c)
 			}
 		}
 	}
@@ -1117,45 +1135,39 @@ func (g *Generator) drawBarrel(sprite *Sprite, width, height int, wood, band col
 // drawDoor draws a door sprite.
 func (g *Generator) drawDoor(sprite *Sprite, width, height int, wood, metal color.RGBA, rng *rand.Rand) {
 	margin := width / 10
+	g.drawDoorFrame(sprite, margin, width, height, wood)
+	g.drawDoorPanels(sprite, margin, width, height, wood)
+	g.drawDoorHandle(sprite, width, height, metal)
+}
 
-	// Door frame
+// drawDoorFrame fills the main door frame.
+func (g *Generator) drawDoorFrame(sprite *Sprite, margin, width, height int, wood color.RGBA) {
 	for y := 0; y < height; y++ {
 		for x := margin; x < width-margin; x++ {
 			sprite.SetPixel(x, y, wood)
 		}
 	}
+}
 
-	// Panels (darker indentations)
-	panelColor := color.RGBA{
-		R: uint8(float64(wood.R) * 0.7),
-		G: uint8(float64(wood.G) * 0.7),
-		B: uint8(float64(wood.B) * 0.7),
-		A: wood.A,
-	}
+// drawDoorPanels draws the two indented panels on the door.
+func (g *Generator) drawDoorPanels(sprite *Sprite, margin, width, height int, wood color.RGBA) {
+	panelColor := darkenColor(wood, 0.7)
 	panelMargin := width / 6
-	panelTop1 := height / 8
-	panelBottom1 := height / 3
-	panelTop2 := height * 2 / 5
-	panelBottom2 := height * 4 / 5
-	for y := panelTop1; y < panelBottom1; y++ {
-		for x := panelMargin; x < width-panelMargin; x++ {
-			sprite.SetPixel(x, y, panelColor)
-		}
-	}
-	for y := panelTop2; y < panelBottom2; y++ {
-		for x := panelMargin; x < width-panelMargin; x++ {
-			sprite.SetPixel(x, y, panelColor)
-		}
-	}
 
-	// Door handle
+	// Upper panel
+	g.fillRect(sprite, panelMargin, height/8, width-panelMargin, height/3, panelColor)
+	// Lower panel
+	g.fillRect(sprite, panelMargin, height*2/5, width-panelMargin, height*4/5, panelColor)
+}
+
+// drawDoorHandle draws the metal handle on the door.
+func (g *Generator) drawDoorHandle(sprite *Sprite, width, height int, metal color.RGBA) {
 	handleX := width * 3 / 4
 	handleY := height / 2
 	handleSize := width / 12
 	for dy := -handleSize; dy <= handleSize; dy++ {
 		for dx := -handleSize / 2; dx <= handleSize/2; dx++ {
-			x := handleX + dx
-			y := handleY + dy
+			x, y := handleX+dx, handleY+dy
 			if x >= 0 && x < width && y >= 0 && y < height {
 				sprite.SetPixel(x, y, metal)
 			}
@@ -1163,26 +1175,51 @@ func (g *Generator) drawDoor(sprite *Sprite, width, height int, wood, metal colo
 	}
 }
 
+// darkenColor returns a darkened version of the color.
+func darkenColor(c color.RGBA, factor float64) color.RGBA {
+	return color.RGBA{
+		R: uint8(float64(c.R) * factor),
+		G: uint8(float64(c.G) * factor),
+		B: uint8(float64(c.B) * factor),
+		A: c.A,
+	}
+}
+
+// fillRect fills a rectangular region with a color.
+func (g *Generator) fillRect(sprite *Sprite, x1, y1, x2, y2 int, c color.RGBA) {
+	for y := y1; y < y2; y++ {
+		for x := x1; x < x2; x++ {
+			sprite.SetPixel(x, y, c)
+		}
+	}
+}
+
 // drawLever draws a lever/switch sprite.
 func (g *Generator) drawLever(sprite *Sprite, width, height int, metal, base color.RGBA, rng *rand.Rand) {
 	centerX := width / 2
-
-	// Base plate
 	baseTop := height * 2 / 3
+	leverTop := height / 6
+
+	g.drawLeverBasePlate(sprite, baseTop, width, height, base)
+	g.drawLeverArm(sprite, centerX, leverTop, baseTop, width, metal)
+	g.drawLeverHandle(sprite, centerX, leverTop, width, height, metal)
+}
+
+// drawLeverBasePlate draws the base plate of the lever.
+func (g *Generator) drawLeverBasePlate(sprite *Sprite, baseTop, width, height int, base color.RGBA) {
 	baseMargin := width / 4
 	for y := baseTop; y < height-2; y++ {
 		for x := baseMargin; x < width-baseMargin; x++ {
 			sprite.SetPixel(x, y, base)
 		}
 	}
+}
 
-	// Lever arm (diagonal)
-	leverBottom := baseTop
-	leverTop := height / 6
+// drawLeverArm draws the diagonal lever arm.
+func (g *Generator) drawLeverArm(sprite *Sprite, centerX, leverTop, leverBottom, width int, metal color.RGBA) {
 	leverWidth := width / 10
 	for y := leverTop; y < leverBottom; y++ {
 		progress := float64(y-leverTop) / float64(leverBottom-leverTop)
-		// Angled to the right
 		offsetX := int(progress * float64(width/4))
 		for dx := -leverWidth; dx <= leverWidth; dx++ {
 			x := centerX + offsetX + dx
@@ -1191,18 +1228,22 @@ func (g *Generator) drawLever(sprite *Sprite, width, height int, metal, base col
 			}
 		}
 	}
+}
 
-	// Handle ball at top
+// drawLeverHandle draws the ball handle at the top of the lever.
+func (g *Generator) drawLeverHandle(sprite *Sprite, centerX, leverTop, width, height int, metal color.RGBA) {
 	handleRadius := width / 8
-	handleX := centerX
-	handleY := leverTop
-	for dy := -handleRadius; dy <= handleRadius; dy++ {
-		for dx := -handleRadius; dx <= handleRadius; dx++ {
-			if dx*dx+dy*dy <= handleRadius*handleRadius {
-				x := handleX + dx
-				y := handleY + dy
-				if x >= 0 && x < width && y >= 0 && y < height {
-					sprite.SetPixel(x, y, metal)
+	g.drawFilledCircleInBounds(sprite, centerX, leverTop, handleRadius, width, height, metal)
+}
+
+// drawFilledCircleInBounds draws a filled circle with bounds checking.
+func (g *Generator) drawFilledCircleInBounds(sprite *Sprite, cx, cy, radius, maxW, maxH int, c color.RGBA) {
+	for dy := -radius; dy <= radius; dy++ {
+		for dx := -radius; dx <= radius; dx++ {
+			if dx*dx+dy*dy <= radius*radius {
+				x, y := cx+dx, cy+dy
+				if x >= 0 && x < maxW && y >= 0 && y < maxH {
+					sprite.SetPixel(x, y, c)
 				}
 			}
 		}

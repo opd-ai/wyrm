@@ -128,12 +128,33 @@ func (s *PhysicsSystem) updateLinear(phys *components.PhysicsBody, pos *componen
 // updateLinearWithCollision handles linear physics with barrier collision checking.
 // This is the enhanced version that checks for wall/barrier collisions for pushable objects.
 func (s *PhysicsSystem) updateLinearWithCollision(w *ecs.World, entity ecs.Entity, phys *components.PhysicsBody, pos *components.Position, barriers []ecs.Entity, dt float64) {
+	s.applyGravityAndDamping(phys, dt)
+	s.clampAndThresholdVelocities(phys)
+
+	// Calculate new position
+	oldX, oldY := pos.X, pos.Y
+	newX := pos.X + phys.VelocityX*dt
+	newY := pos.Y + phys.VelocityY*dt
+	newZ := pos.Z + phys.VelocityZ*dt
+
+	// Check barrier collisions for pushable objects
+	if phys.IsPushable && len(barriers) > 0 {
+		newX, newY = s.resolveBarrierCollisions(w, entity, oldX, oldY, newX, newY, phys.CollisionRadius, barriers)
+	}
+
+	// Update position and handle ground collision
+	pos.X, pos.Y, pos.Z = newX, newY, newZ
+	s.handleGroundCollision(phys, pos)
+}
+
+// applyGravityAndDamping applies gravity, friction, air resistance, and push speed limits.
+func (s *PhysicsSystem) applyGravityAndDamping(phys *components.PhysicsBody, dt float64) {
 	// Apply gravity if not grounded
 	if !phys.Grounded && phys.Mass > 0 {
 		phys.VelocityZ -= s.Gravity * dt
 	}
 
-	// Apply friction to horizontal movement
+	// Apply friction to horizontal movement when grounded
 	if phys.Grounded && phys.Friction > 0 {
 		frictionFactor := 1.0 - phys.Friction*dt*10
 		if frictionFactor < 0 {
@@ -143,7 +164,7 @@ func (s *PhysicsSystem) updateLinearWithCollision(w *ecs.World, entity ecs.Entit
 		phys.VelocityY *= frictionFactor
 	}
 
-	// Apply air resistance to all velocities when not grounded
+	// Apply air resistance when not grounded
 	if !phys.Grounded {
 		airResistance := 0.98
 		phys.VelocityX *= airResistance
@@ -155,8 +176,10 @@ func (s *PhysicsSystem) updateLinearWithCollision(w *ecs.World, entity ecs.Entit
 		phys.VelocityX = clampVelocity(phys.VelocityX, s.MaxPushSpeed)
 		phys.VelocityY = clampVelocity(phys.VelocityY, s.MaxPushSpeed)
 	}
+}
 
-	// Clamp velocities to max
+// clampAndThresholdVelocities clamps velocities to max and zeros out small values.
+func (s *PhysicsSystem) clampAndThresholdVelocities(phys *components.PhysicsBody) {
 	phys.VelocityX = clampVelocity(phys.VelocityX, s.MaxVelocity)
 	phys.VelocityY = clampVelocity(phys.VelocityY, s.MaxVelocity)
 	phys.VelocityZ = clampVelocity(phys.VelocityZ, s.MaxVelocity)
@@ -171,24 +194,10 @@ func (s *PhysicsSystem) updateLinearWithCollision(w *ecs.World, entity ecs.Entit
 	if math.Abs(phys.VelocityZ) < s.MinVelocityThreshold {
 		phys.VelocityZ = 0
 	}
+}
 
-	// Calculate new position
-	oldX, oldY := pos.X, pos.Y
-	newX := pos.X + phys.VelocityX*dt
-	newY := pos.Y + phys.VelocityY*dt
-	newZ := pos.Z + phys.VelocityZ*dt
-
-	// Check barrier collisions for pushable objects
-	if phys.IsPushable && len(barriers) > 0 {
-		newX, newY = s.resolveBarrierCollisions(w, entity, oldX, oldY, newX, newY, phys.CollisionRadius, barriers)
-	}
-
-	// Update position
-	pos.X = newX
-	pos.Y = newY
-	pos.Z = newZ
-
-	// Ground collision (simple floor at Z=0)
+// handleGroundCollision handles collision with the ground plane at Z=0.
+func (s *PhysicsSystem) handleGroundCollision(phys *components.PhysicsBody, pos *components.Position) {
 	if pos.Z < 0 {
 		pos.Z = 0
 		if phys.Bounciness > 0 && math.Abs(phys.VelocityZ) > 0.5 {

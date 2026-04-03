@@ -302,14 +302,17 @@ func formatQuestID(questID string) string {
 
 // handleInput processes keyboard/mouse input for the quest UI.
 func (q *QuestUI) handleInput() {
-	// Navigate quest list
+	q.handleNavigationInput()
+	q.handleTrackingInput()
+	q.handleMouseInput()
+}
+
+// handleNavigationInput processes up/down navigation through the quest list.
+func (q *QuestUI) handleNavigationInput() {
 	if inpututil.IsKeyJustPressed(ebiten.KeyUp) || inpututil.IsKeyJustPressed(ebiten.KeyW) {
 		q.selectedQuestIdx--
 		if q.selectedQuestIdx < 0 {
-			q.selectedQuestIdx = len(q.quests) - 1
-			if q.selectedQuestIdx < 0 {
-				q.selectedQuestIdx = 0
-			}
+			q.selectedQuestIdx = max(len(q.quests)-1, 0)
 		}
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyDown) || inpututil.IsKeyJustPressed(ebiten.KeyS) {
@@ -318,20 +321,26 @@ func (q *QuestUI) handleInput() {
 			q.selectedQuestIdx = 0
 		}
 	}
+}
 
-	// Track quest
-	if inpututil.IsKeyJustPressed(ebiten.KeyT) || inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
-		if q.selectedQuestIdx >= 0 && q.selectedQuestIdx < len(q.quests) {
-			quest := q.quests[q.selectedQuestIdx]
-			if q.trackedQuestID == quest.ID {
-				q.trackedQuestID = "" // Untrack
-			} else {
-				q.trackedQuestID = quest.ID
-			}
-		}
+// handleTrackingInput processes quest tracking toggle.
+func (q *QuestUI) handleTrackingInput() {
+	if !inpututil.IsKeyJustPressed(ebiten.KeyT) && !inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+		return
 	}
+	if q.selectedQuestIdx < 0 || q.selectedQuestIdx >= len(q.quests) {
+		return
+	}
+	quest := q.quests[q.selectedQuestIdx]
+	if q.trackedQuestID == quest.ID {
+		q.trackedQuestID = "" // Untrack
+	} else {
+		q.trackedQuestID = quest.ID
+	}
+}
 
-	// Handle mouse click on quest list
+// handleMouseInput processes mouse clicks on the quest UI.
+func (q *QuestUI) handleMouseInput() {
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		mx, my := ebiten.CursorPosition()
 		q.handleMouseClick(mx, my)

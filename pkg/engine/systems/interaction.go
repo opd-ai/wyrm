@@ -92,55 +92,47 @@ func (s *InteractionSystem) forEachInteractable(w *ecs.World, fn func(info inter
 
 // updateProximityHighlights updates highlight states for entities near the player.
 func (s *InteractionSystem) updateProximityHighlights(w *ecs.World) {
-	// Get player position
 	playerPos := s.getPlayerPosition(w)
 	if playerPos == nil {
 		return
 	}
 
-	// Iterate all environment objects
-	for _, e := range w.Entities("EnvironmentObject", "Position") {
-		envComp, ok := w.GetComponent(e, "EnvironmentObject")
-		if !ok {
-			continue
-		}
-		envObj := envComp.(*components.EnvironmentObject)
+	s.forEachInteractable(w, func(info interactableEntityInfo) {
+		s.updateEntityHighlight(info, playerPos)
+	})
+}
 
-		// Skip non-interactable objects
-		if !envObj.CanInteract() {
-			if envObj.HighlightState != 0 {
-				envObj.HighlightState = 0
-			}
-			continue
-		}
+// updateEntityHighlight updates the highlight state for a single entity.
+func (s *InteractionSystem) updateEntityHighlight(info interactableEntityInfo, playerPos *components.Position) {
+	dist := s.distanceBetween(playerPos, info.Position)
+	interactionRange := s.getEffectiveRange(info.EnvObj.InteractionRange)
+	info.EnvObj.HighlightState = s.calculateHighlightState(info.Entity, dist, interactionRange)
+}
 
-		posComp, ok := w.GetComponent(e, "Position")
-		if !ok {
-			continue
-		}
-		pos := posComp.(*components.Position)
-
-		// Calculate distance to player
-		dist := s.distanceBetween(playerPos, pos)
-
-		// Determine interaction range
-		interactionRange := envObj.InteractionRange
-		if interactionRange <= 0 {
-			interactionRange = s.DefaultInteractionRange
-		}
-
-		// Update highlight based on proximity
-		if e == s.CurrentTarget && s.CurrentTargetValid {
-			// Targeted entities get highest highlight
-			envObj.HighlightState = 2 // Targeted
-		} else if dist <= interactionRange {
-			// In range gets medium highlight
-			envObj.HighlightState = 1 // InRange
-		} else {
-			// Out of range, no highlight
-			envObj.HighlightState = 0
-		}
+// getEffectiveRange returns the interaction range, using default if zero.
+func (s *InteractionSystem) getEffectiveRange(specifiedRange float64) float64 {
+	if specifiedRange <= 0 {
+		return s.DefaultInteractionRange
 	}
+	return specifiedRange
+}
+
+// calculateHighlightState determines highlight level based on targeting and distance.
+func (s *InteractionSystem) calculateHighlightState(entity ecs.Entity, dist, interactionRange float64) int {
+	if entity == s.CurrentTarget && s.CurrentTargetValid {
+		return 2 // Targeted
+	}
+	if dist <= interactionRange {
+		return 1 // InRange
+	}
+	return 0 // None
+}
+
+// targetCandidate holds info about a potential targeting candidate.
+type targetCandidate struct {
+	entity   ecs.Entity
+	distance float64
+	angle    float64
 }
 
 // updateTargeting finds the entity the player is looking at.
@@ -148,59 +140,55 @@ func (s *InteractionSystem) updateTargeting(w *ecs.World) {
 	s.CurrentTargetValid = false
 	s.CurrentTarget = 0
 
-	// Get player position and look direction
 	playerPos := s.getPlayerPosition(w)
 	playerLook := s.getPlayerLookDirection(w)
 	if playerPos == nil || playerLook == nil {
 		return
 	}
 
-	var bestTarget ecs.Entity
-	bestDistance := s.MaxTargetDistance + 1
-	bestAngle := s.TargetingTolerance + 1
-
-	// Check all interactable entities
-	for _, e := range w.Entities("EnvironmentObject", "Position") {
-		envComp, ok := w.GetComponent(e, "EnvironmentObject")
-		if !ok {
-			continue
-		}
-		envObj := envComp.(*components.EnvironmentObject)
-
-		if !envObj.CanInteract() {
-			continue
-		}
-
-		posComp, ok := w.GetComponent(e, "Position")
-		if !ok {
-			continue
-		}
-		pos := posComp.(*components.Position)
-
-		// Calculate distance
-		dist := s.distanceBetween(playerPos, pos)
-		if dist > s.MaxTargetDistance || dist <= 0.1 {
-			continue
-		}
-
-		// Calculate angle to entity
-		angle := s.angleTo(playerPos, pos, playerLook)
-		if angle > s.TargetingTolerance {
-			continue
-		}
-
-		// Prefer closer entities, with angle as tiebreaker
-		if dist < bestDistance || (dist == bestDistance && angle < bestAngle) {
-			bestTarget = e
-			bestDistance = dist
-			bestAngle = angle
-		}
-	}
-
-	if bestTarget != 0 {
-		s.CurrentTarget = bestTarget
+	best := s.findBestTarget(w, playerPos, playerLook)
+	if best.entity != 0 {
+		s.CurrentTarget = best.entity
 		s.CurrentTargetValid = true
 	}
+}
+
+// findBestTarget finds the best targeting candidate among interactable entities.
+func (s *InteractionSystem) findBestTarget(w *ecs.World, playerPos, playerLook *components.Position) targetCandidate {
+	best := targetCandidate{
+		distance: s.MaxTargetDistance + 1,
+		angle:    s.TargetingTolerance + 1,
+	}
+
+	s.forEachInteractable(w, func(info interactableEntityInfo) {
+		candidate := s.evaluateTargetCandidate(info, playerPos, playerLook)
+		if candidate.entity != 0 && s.isBetterTarget(candidate, best) {
+			best = candidate
+		}
+	})
+
+	return best
+}
+
+// evaluateTargetCandidate checks if an entity qualifies as a target candidate.
+func (s *InteractionSystem) evaluateTargetCandidate(info interactableEntityInfo, playerPos, playerLook *components.Position) targetCandidate {
+	dist := s.distanceBetween(playerPos, info.Position)
+	if dist > s.MaxTargetDistance || dist <= 0.1 {
+		return targetCandidate{}
+	}
+
+	angle := s.angleTo(playerPos, info.Position, playerLook)
+	if angle > s.TargetingTolerance {
+		return targetCandidate{}
+	}
+
+	return targetCandidate{entity: info.Entity, distance: dist, angle: angle}
+}
+
+// isBetterTarget returns true if candidate is a better target than current best.
+func (s *InteractionSystem) isBetterTarget(candidate, best targetCandidate) bool {
+	return candidate.distance < best.distance ||
+		(candidate.distance == best.distance && candidate.angle < best.angle)
 }
 
 // processInteractions handles pending interaction requests.

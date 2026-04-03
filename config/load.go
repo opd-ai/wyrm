@@ -20,6 +20,7 @@ type Config struct {
 	KeyBindings   KeyBindingsConfig   `mapstructure:"keybindings"`
 	Mouse         MouseConfig         `mapstructure:"mouse"`
 	Debug         DebugConfig         `mapstructure:"debug"`
+	RenderQuality RenderQualityConfig `mapstructure:"render_quality"`
 	Genre         string              `mapstructure:"genre"`
 }
 
@@ -42,6 +43,9 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if err := c.validateDebug(); err != nil {
+		return err
+	}
+	if err := c.validateRenderQuality(); err != nil {
 		return err
 	}
 	return c.validateMouse()
@@ -104,6 +108,36 @@ func (c *Config) validateDebug() error {
 	return nil
 }
 
+// validateRenderQuality checks render quality configuration values.
+func (c *Config) validateRenderQuality() error {
+	level := c.RenderQuality.Level
+	if level != QualityHigh && level != QualityMedium && level != QualityLow && level != QualityAuto {
+		return fmt.Errorf("config: render_quality.level must be high, medium, low, or auto, got %s", level)
+	}
+	if c.RenderQuality.TargetFrameTime <= 0 {
+		return fmt.Errorf("config: render_quality.target_frame_time must be positive, got %f", c.RenderQuality.TargetFrameTime)
+	}
+	if c.RenderQuality.DegradationThreshold <= 0 {
+		return fmt.Errorf("config: render_quality.degradation_threshold must be positive, got %f", c.RenderQuality.DegradationThreshold)
+	}
+	if c.RenderQuality.RecoveryThreshold < 0 {
+		return fmt.Errorf("config: render_quality.recovery_threshold cannot be negative, got %f", c.RenderQuality.RecoveryThreshold)
+	}
+	if c.RenderQuality.ParticleCount < 0 {
+		return fmt.Errorf("config: render_quality.particle_count cannot be negative, got %d", c.RenderQuality.ParticleCount)
+	}
+	if c.RenderQuality.BarrierDetailLevel < 0 || c.RenderQuality.BarrierDetailLevel > 2 {
+		return fmt.Errorf("config: render_quality.barrier_detail_level must be 0-2, got %d", c.RenderQuality.BarrierDetailLevel)
+	}
+	if c.RenderQuality.DrawDistance <= 0 {
+		return fmt.Errorf("config: render_quality.draw_distance must be positive, got %f", c.RenderQuality.DrawDistance)
+	}
+	if c.RenderQuality.TextureQuality <= 0 {
+		return fmt.Errorf("config: render_quality.texture_quality must be positive, got %f", c.RenderQuality.TextureQuality)
+	}
+	return nil
+}
+
 // validateMouse checks mouse configuration values.
 func (c *Config) validateMouse() error {
 	if c.Mouse.Sensitivity < 0 {
@@ -133,6 +167,97 @@ type DebugConfig struct {
 	ShowFrameTime    bool `mapstructure:"show_frame_time"`
 	ShowMemStats     bool `mapstructure:"show_mem_stats"`
 	ShowEntityCount  bool `mapstructure:"show_entity_count"`
+}
+
+// QualityLevel represents predefined render quality levels.
+type QualityLevel string
+
+const (
+	QualityHigh   QualityLevel = "high"
+	QualityMedium QualityLevel = "medium"
+	QualityLow    QualityLevel = "low"
+	QualityAuto   QualityLevel = "auto"
+)
+
+// RenderQualityConfig holds rendering quality settings.
+type RenderQualityConfig struct {
+	// Level is the current quality tier (high, medium, low, auto).
+	Level QualityLevel `mapstructure:"level"`
+	// AutoDetect enables automatic quality detection at startup.
+	AutoDetect bool `mapstructure:"auto_detect"`
+	// AdaptiveQuality enables runtime quality adjustments based on frame time.
+	AdaptiveQuality bool `mapstructure:"adaptive_quality"`
+	// TargetFrameTime is the target frame time in milliseconds (e.g., 16.67 for 60 FPS).
+	TargetFrameTime float64 `mapstructure:"target_frame_time"`
+	// DegradationThreshold is the frame time (ms) above which quality is reduced.
+	DegradationThreshold float64 `mapstructure:"degradation_threshold"`
+	// RecoveryThreshold is the frame time (ms) below which quality can be restored.
+	RecoveryThreshold float64 `mapstructure:"recovery_threshold"`
+	// ParticleCount is the maximum number of particles (scaled by quality tier).
+	ParticleCount int `mapstructure:"particle_count"`
+	// NormalMapsEnabled enables normal map rendering.
+	NormalMapsEnabled bool `mapstructure:"normal_maps_enabled"`
+	// BarrierDetailLevel is the detail level for barrier sprites (0-2).
+	BarrierDetailLevel int `mapstructure:"barrier_detail_level"`
+	// ShadowsEnabled enables shadow rendering.
+	ShadowsEnabled bool `mapstructure:"shadows_enabled"`
+	// ReflectionsEnabled enables reflection rendering.
+	ReflectionsEnabled bool `mapstructure:"reflections_enabled"`
+	// DrawDistance is the maximum render distance in world units.
+	DrawDistance float64 `mapstructure:"draw_distance"`
+	// TextureQuality is the texture resolution multiplier (0.5, 1.0, 2.0).
+	TextureQuality float64 `mapstructure:"texture_quality"`
+}
+
+// GetEffectiveQuality returns the quality settings for a given level.
+func (c *RenderQualityConfig) GetEffectiveQuality(level QualityLevel) RenderQualityConfig {
+	switch level {
+	case QualityHigh:
+		return RenderQualityConfig{
+			Level:              QualityHigh,
+			ParticleCount:      1000,
+			NormalMapsEnabled:  true,
+			BarrierDetailLevel: 2,
+			ShadowsEnabled:     true,
+			ReflectionsEnabled: true,
+			DrawDistance:       100.0,
+			TextureQuality:     1.0,
+		}
+	case QualityMedium:
+		return RenderQualityConfig{
+			Level:              QualityMedium,
+			ParticleCount:      500,
+			NormalMapsEnabled:  true,
+			BarrierDetailLevel: 1,
+			ShadowsEnabled:     true,
+			ReflectionsEnabled: false,
+			DrawDistance:       75.0,
+			TextureQuality:     1.0,
+		}
+	case QualityLow:
+		return RenderQualityConfig{
+			Level:              QualityLow,
+			ParticleCount:      200,
+			NormalMapsEnabled:  false,
+			BarrierDetailLevel: 0,
+			ShadowsEnabled:     false,
+			ReflectionsEnabled: false,
+			DrawDistance:       50.0,
+			TextureQuality:     0.5,
+		}
+	default:
+		return *c
+	}
+}
+
+// ShouldDegrade returns true if quality should be reduced based on frame time.
+func (c *RenderQualityConfig) ShouldDegrade(frameTimeMs float64) bool {
+	return c.AdaptiveQuality && frameTimeMs > c.DegradationThreshold
+}
+
+// ShouldRecover returns true if quality can be restored based on frame time.
+func (c *RenderQualityConfig) ShouldRecover(frameTimeMs float64) bool {
+	return c.AdaptiveQuality && frameTimeMs < c.RecoveryThreshold
 }
 
 // WindowConfig holds display settings.
@@ -471,6 +596,21 @@ func setDefaults() {
 	viper.SetDefault("debug.show_frame_time", false)
 	viper.SetDefault("debug.show_mem_stats", false)
 	viper.SetDefault("debug.show_entity_count", false)
+
+	// Render quality defaults
+	viper.SetDefault("render_quality.level", "auto")
+	viper.SetDefault("render_quality.auto_detect", true)
+	viper.SetDefault("render_quality.adaptive_quality", true)
+	viper.SetDefault("render_quality.target_frame_time", 16.67) // 60 FPS
+	viper.SetDefault("render_quality.degradation_threshold", 25.0)
+	viper.SetDefault("render_quality.recovery_threshold", 12.0)
+	viper.SetDefault("render_quality.particle_count", 500)
+	viper.SetDefault("render_quality.normal_maps_enabled", true)
+	viper.SetDefault("render_quality.barrier_detail_level", 1)
+	viper.SetDefault("render_quality.shadows_enabled", true)
+	viper.SetDefault("render_quality.reflections_enabled", false)
+	viper.SetDefault("render_quality.draw_distance", 75.0)
+	viper.SetDefault("render_quality.texture_quality", 1.0)
 
 	viper.SetDefault("genre", "fantasy")
 }

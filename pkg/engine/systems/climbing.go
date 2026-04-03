@@ -86,45 +86,65 @@ func (s *ClimbableSystem) updateCooldowns(dt float64) {
 // updateActiveClimbs progresses active climb animations.
 func (s *ClimbableSystem) updateActiveClimbs(w *ecs.World, dt float64) {
 	toRemove := []ecs.Entity{}
-	completedClimbs := make(map[ecs.Entity]ecs.Entity) // climber -> barrier
+	completedClimbs := make(map[ecs.Entity]ecs.Entity)
 
 	for entity, state := range s.ActiveClimbs {
-		posComp, ok := w.GetComponent(entity, "Position")
-		if !ok {
+		pos := s.getEntityPosition(w, entity)
+		if pos == nil {
 			toRemove = append(toRemove, entity)
 			continue
 		}
 
-		pos := posComp.(*components.Position)
-
-		// Update progress
-		state.Progress += dt / s.ClimbDuration
-		if state.Progress >= 1.0 {
-			state.Progress = 1.0
-		}
-
-		// Calculate current Z based on phase and progress
-		if state.Phase == 0 {
-			// Ascending phase: interpolate from StartZ to PeakZ
-			pos.Z = lerp(state.StartZ, state.PeakZ, smoothStep(state.Progress))
-			if state.Progress >= 1.0 {
-				// Transition to descending phase
-				state.Phase = 1
-				state.Progress = 0.0
-			}
-		} else {
-			// Descending phase: interpolate from PeakZ to EndZ
-			pos.Z = lerp(state.PeakZ, state.EndZ, smoothStep(state.Progress))
-			if state.Progress >= 1.0 {
-				// Climb complete
-				pos.Z = state.EndZ
-				toRemove = append(toRemove, entity)
-				completedClimbs[entity] = state.BarrierEntity
-			}
+		s.advanceClimbProgress(state, dt)
+		completed := s.updateClimbPosition(state, pos)
+		if completed {
+			toRemove = append(toRemove, entity)
+			completedClimbs[entity] = state.BarrierEntity
 		}
 	}
 
-	// Clean up completed climbs and add cooldowns
+	s.cleanupCompletedClimbs(toRemove, completedClimbs)
+}
+
+// getEntityPosition retrieves the Position component for an entity.
+func (s *ClimbableSystem) getEntityPosition(w *ecs.World, entity ecs.Entity) *components.Position {
+	posComp, ok := w.GetComponent(entity, "Position")
+	if !ok {
+		return nil
+	}
+	return posComp.(*components.Position)
+}
+
+// advanceClimbProgress updates the progress timer for a climb state.
+func (s *ClimbableSystem) advanceClimbProgress(state *ClimbState, dt float64) {
+	state.Progress += dt / s.ClimbDuration
+	if state.Progress >= 1.0 {
+		state.Progress = 1.0
+	}
+}
+
+// updateClimbPosition updates position based on climb phase and returns true if completed.
+func (s *ClimbableSystem) updateClimbPosition(state *ClimbState, pos *components.Position) bool {
+	if state.Phase == 0 {
+		// Ascending phase
+		pos.Z = lerp(state.StartZ, state.PeakZ, smoothStep(state.Progress))
+		if state.Progress >= 1.0 {
+			state.Phase = 1
+			state.Progress = 0.0
+		}
+		return false
+	}
+	// Descending phase
+	pos.Z = lerp(state.PeakZ, state.EndZ, smoothStep(state.Progress))
+	if state.Progress >= 1.0 {
+		pos.Z = state.EndZ
+		return true
+	}
+	return false
+}
+
+// cleanupCompletedClimbs removes completed climbs and adds cooldowns.
+func (s *ClimbableSystem) cleanupCompletedClimbs(toRemove []ecs.Entity, completedClimbs map[ecs.Entity]ecs.Entity) {
 	for _, entity := range toRemove {
 		if barrierEntity, ok := completedClimbs[entity]; ok && barrierEntity != 0 {
 			if s.RecentClimbs[entity] == nil {

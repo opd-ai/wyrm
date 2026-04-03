@@ -1612,3 +1612,95 @@ func TestSelectBarrierSpawnTerrainFiltering(t *testing.T) {
 func newSeededRNG(seed int64) *rand.Rand {
 	return rand.New(rand.NewSource(seed))
 }
+
+// TestDeterministicBarrierSpawn validates that the same seed produces identical barrier spawns.
+// This is a critical requirement for networked multiplayer - all clients must generate
+// the same world content from the same seed.
+func TestDeterministicBarrierSpawn(t *testing.T) {
+	seed := int64(42424242)
+	genre := "fantasy"
+	size := 32
+
+	// Generate barriers twice with the same parameters
+	c1 := NewChunkWithBarriers(0, 0, size, seed, genre)
+	c2 := NewChunkWithBarriers(0, 0, size, seed, genre)
+
+	// Extract barrier spawns
+	barriers1 := make([]DetailSpawn, 0)
+	barriers2 := make([]DetailSpawn, 0)
+
+	for _, spawn := range c1.DetailSpawns {
+		if spawn.IsBarrier() {
+			barriers1 = append(barriers1, spawn)
+		}
+	}
+	for _, spawn := range c2.DetailSpawns {
+		if spawn.IsBarrier() {
+			barriers2 = append(barriers2, spawn)
+		}
+	}
+
+	// Same number of barriers
+	if len(barriers1) != len(barriers2) {
+		t.Fatalf("barrier count mismatch: %d vs %d", len(barriers1), len(barriers2))
+	}
+
+	// Same positions, shapes, and materials
+	for i := range barriers1 {
+		b1, b2 := barriers1[i], barriers2[i]
+
+		if b1.LocalX != b2.LocalX || b1.LocalY != b2.LocalY {
+			t.Errorf("barrier %d position mismatch: (%f,%f) vs (%f,%f)",
+				i, b1.LocalX, b1.LocalY, b2.LocalX, b2.LocalY)
+		}
+
+		if b1.Type != b2.Type {
+			t.Errorf("barrier %d type mismatch: %d vs %d", i, b1.Type, b2.Type)
+		}
+
+		if b1.Scale != b2.Scale {
+			t.Errorf("barrier %d scale mismatch: %f vs %f", i, b1.Scale, b2.Scale)
+		}
+
+		if b1.BarrierData != nil && b2.BarrierData != nil {
+			if b1.BarrierData.ShapeType != b2.BarrierData.ShapeType {
+				t.Errorf("barrier %d shape type mismatch: %s vs %s",
+					i, b1.BarrierData.ShapeType, b2.BarrierData.ShapeType)
+			}
+			if b1.BarrierData.MaterialID != b2.BarrierData.MaterialID {
+				t.Errorf("barrier %d material mismatch: %d vs %d",
+					i, b1.BarrierData.MaterialID, b2.BarrierData.MaterialID)
+			}
+			if b1.BarrierData.Height != b2.BarrierData.Height {
+				t.Errorf("barrier %d height mismatch: %f vs %f",
+					i, b1.BarrierData.Height, b2.BarrierData.Height)
+			}
+		} else if (b1.BarrierData == nil) != (b2.BarrierData == nil) {
+			t.Errorf("barrier %d: BarrierData presence mismatch", i)
+		}
+	}
+
+	// Different seed should produce different barriers
+	c3 := NewChunkWithBarriers(0, 0, size, seed+1, genre)
+	barriers3 := make([]DetailSpawn, 0)
+	for _, spawn := range c3.DetailSpawns {
+		if spawn.IsBarrier() {
+			barriers3 = append(barriers3, spawn)
+		}
+	}
+
+	// Either count differs or at least one position differs
+	if len(barriers1) == len(barriers3) && len(barriers1) > 0 {
+		allSame := true
+		for i := range barriers1 {
+			if barriers1[i].LocalX != barriers3[i].LocalX ||
+				barriers1[i].LocalY != barriers3[i].LocalY {
+				allSame = false
+				break
+			}
+		}
+		if allSame {
+			t.Error("different seeds should produce different barrier layouts")
+		}
+	}
+}

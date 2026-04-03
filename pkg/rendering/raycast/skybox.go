@@ -589,61 +589,69 @@ func (sf *StarField) generateStars() {
 	}
 }
 
-// getStarColor returns a star color based on genre and random value.
-func (sf *StarField) getStarColor(rand, brightness float64) color.RGBA {
-	// Base white with slight color variation
-	var r, g, b uint8
+// starColorEntry defines a threshold and color for genre-based star coloring.
+type starColorEntry struct {
+	threshold float64
+	r, g, b   uint8
+}
 
-	switch sf.Genre {
-	case "sci-fi":
-		// Blue-white stars
-		if rand < 0.3 {
-			r, g, b = 200, 220, 255 // Blue
-		} else if rand < 0.6 {
-			r, g, b = 255, 255, 255 // White
-		} else {
-			r, g, b = 180, 255, 220 // Cyan-ish
-		}
-	case "horror":
-		// Dim, cold stars
-		if rand < 0.5 {
-			r, g, b = 180, 180, 200 // Cold white
-		} else {
-			r, g, b = 200, 150, 150 // Dim reddish
-		}
-	case "cyberpunk":
-		// Neon-tinted stars (light pollution effect)
-		if rand < 0.4 {
-			r, g, b = 255, 200, 255 // Pink-ish
-		} else if rand < 0.7 {
-			r, g, b = 200, 255, 255 // Cyan
-		} else {
-			r, g, b = 255, 255, 200 // Yellow
-		}
-	case "post-apocalyptic":
-		// Orange-tinted (dust in atmosphere)
-		if rand < 0.6 {
-			r, g, b = 255, 230, 200 // Warm white
-		} else {
-			r, g, b = 255, 200, 150 // Orange-ish
-		}
-	default: // fantasy
-		// Classic star colors
-		if rand < 0.4 {
-			r, g, b = 255, 255, 255 // White
-		} else if rand < 0.7 {
-			r, g, b = 255, 255, 220 // Warm white
-		} else {
-			r, g, b = 220, 230, 255 // Blue-ish
+// genreStarColors maps genre to a list of color entries with probability thresholds.
+var genreStarColors = map[string][]starColorEntry{
+	"sci-fi": {
+		{0.3, 200, 220, 255}, // Blue
+		{0.6, 255, 255, 255}, // White
+		{1.0, 180, 255, 220}, // Cyan-ish
+	},
+	"horror": {
+		{0.5, 180, 180, 200}, // Cold white
+		{1.0, 200, 150, 150}, // Dim reddish
+	},
+	"cyberpunk": {
+		{0.4, 255, 200, 255}, // Pink-ish
+		{0.7, 200, 255, 255}, // Cyan
+		{1.0, 255, 255, 200}, // Yellow
+	},
+	"post-apocalyptic": {
+		{0.6, 255, 230, 200}, // Warm white
+		{1.0, 255, 200, 150}, // Orange-ish
+	},
+	"fantasy": {
+		{0.4, 255, 255, 255}, // White
+		{0.7, 255, 255, 220}, // Warm white
+		{1.0, 220, 230, 255}, // Blue-ish
+	},
+}
+
+// getStarColor returns a star color based on genre and random value.
+func (sf *StarField) getStarColor(randVal, brightness float64) color.RGBA {
+	r, g, b := sf.selectGenreStarColor(randVal)
+	return applyStarBrightness(r, g, b, brightness)
+}
+
+// selectGenreStarColor picks a base color based on genre and a random value.
+func (sf *StarField) selectGenreStarColor(randVal float64) (uint8, uint8, uint8) {
+	colors, ok := genreStarColors[sf.Genre]
+	if !ok {
+		colors = genreStarColors["fantasy"]
+	}
+	for _, entry := range colors {
+		if randVal < entry.threshold {
+			return entry.r, entry.g, entry.b
 		}
 	}
+	// Fallback to last entry
+	last := colors[len(colors)-1]
+	return last.r, last.g, last.b
+}
 
-	// Apply brightness
-	br := uint8(float64(r) * brightness)
-	bg := uint8(float64(g) * brightness)
-	bb := uint8(float64(b) * brightness)
-
-	return color.RGBA{R: br, G: bg, B: bb, A: 255}
+// applyStarBrightness applies brightness scaling to star color components.
+func applyStarBrightness(r, g, b uint8, brightness float64) color.RGBA {
+	return color.RGBA{
+		R: uint8(float64(r) * brightness),
+		G: uint8(float64(g) * brightness),
+		B: uint8(float64(b) * brightness),
+		A: 255,
+	}
 }
 
 // GetStarColorAt returns the star contribution at the given sky position.

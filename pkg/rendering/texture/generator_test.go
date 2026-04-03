@@ -1764,3 +1764,115 @@ func BenchmarkGetRustyMetalPalette(b *testing.B) {
 		_ = GetRustyMetalPalette("post-apocalyptic", 0.7)
 	}
 }
+
+// TestDeterministicMaterialGeneration validates that the same seed produces identical textures.
+// This is critical for networked multiplayer - all clients must render identical visuals.
+func TestDeterministicMaterialGeneration(t *testing.T) {
+	seed := int64(98765432)
+	genre := "cyberpunk"
+	width, height := 64, 64
+
+	// Generate textures twice with the same parameters
+	tex1 := GenerateWithSeed(width, height, seed, genre)
+	tex2 := GenerateWithSeed(width, height, seed, genre)
+
+	if tex1 == nil || tex2 == nil {
+		t.Fatal("GenerateWithSeed returned nil")
+	}
+
+	// Dimensions must match
+	if tex1.Width != tex2.Width || tex1.Height != tex2.Height {
+		t.Fatalf("dimensions mismatch: %dx%d vs %dx%d",
+			tex1.Width, tex1.Height, tex2.Width, tex2.Height)
+	}
+
+	// Pixel count must match
+	if len(tex1.Pixels) != len(tex2.Pixels) {
+		t.Fatalf("pixel count mismatch: %d vs %d", len(tex1.Pixels), len(tex2.Pixels))
+	}
+
+	// Every pixel must be identical
+	for i := range tex1.Pixels {
+		if tex1.Pixels[i] != tex2.Pixels[i] {
+			t.Errorf("pixel %d mismatch: %v vs %v", i, tex1.Pixels[i], tex2.Pixels[i])
+			break // Stop at first mismatch to avoid flooding output
+		}
+	}
+
+	// Different seed should produce different texture
+	tex3 := GenerateWithSeed(width, height, seed+1, genre)
+	if tex3 == nil {
+		t.Fatal("GenerateWithSeed returned nil for different seed")
+	}
+
+	// At least one pixel should be different
+	allSame := true
+	for i := range tex1.Pixels {
+		if tex1.Pixels[i] != tex3.Pixels[i] {
+			allSame = false
+			break
+		}
+	}
+	if allSame {
+		t.Error("different seeds should produce different textures")
+	}
+}
+
+// TestDeterministicNormalMapGeneration validates normal maps are deterministic.
+func TestDeterministicNormalMapGeneration(t *testing.T) {
+	seed := int64(11223344)
+	genre := "horror"
+	width, height := 32, 32
+
+	// Generate textures with normal maps
+	tex1 := GenerateWithSeed(width, height, seed, genre)
+	tex2 := GenerateWithSeed(width, height, seed, genre)
+
+	// Normal maps may be nil if not enabled for this generator variant
+	if tex1.NormalMap != nil && tex2.NormalMap != nil {
+		if len(tex1.NormalMap) != len(tex2.NormalMap) {
+			t.Fatalf("normal map length mismatch: %d vs %d",
+				len(tex1.NormalMap), len(tex2.NormalMap))
+		}
+
+		for i := range tex1.NormalMap {
+			if tex1.NormalMap[i] != tex2.NormalMap[i] {
+				t.Errorf("normal map pixel %d mismatch: %v vs %v",
+					i, tex1.NormalMap[i], tex2.NormalMap[i])
+				break
+			}
+		}
+	}
+}
+
+// TestDeterministicMaterialTextureGeneration tests material-based texture generation.
+func TestDeterministicMaterialTextureGeneration(t *testing.T) {
+	seed := int64(55667788)
+	genres := []string{"fantasy", "sci-fi", "horror", "cyberpunk", "post-apocalyptic"}
+	materials := []MaterialID{MaterialStone, MaterialWood, MaterialMetal, MaterialGlass}
+
+	for _, genre := range genres {
+		for _, mat := range materials {
+			t.Run(genre+"_"+string(rune(mat)), func(t *testing.T) {
+				tex1 := GenerateForMaterial(64, 64, mat, seed, genre)
+				tex2 := GenerateForMaterial(64, 64, mat, seed, genre)
+
+				if tex1 == nil || tex2 == nil {
+					t.Skip("GenerateForMaterial returned nil")
+				}
+
+				if len(tex1.Pixels) != len(tex2.Pixels) {
+					t.Fatalf("pixel count mismatch: %d vs %d",
+						len(tex1.Pixels), len(tex2.Pixels))
+				}
+
+				for i := range tex1.Pixels {
+					if tex1.Pixels[i] != tex2.Pixels[i] {
+						t.Errorf("pixel %d mismatch for %v/%s", i, mat, genre)
+						break
+					}
+				}
+			})
+		}
+	}
+}
