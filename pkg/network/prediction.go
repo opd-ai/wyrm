@@ -2,6 +2,7 @@
 package network
 
 import (
+	"math"
 	"sync"
 	"time"
 )
@@ -137,7 +138,7 @@ func NewClientPredictor() *ClientPredictor {
 	return &ClientPredictor{
 		pendingInputs:      make([]PredictedInput, 0, 256), // Increased for high-latency support
 		moveSpeed:          5.0,                            // Units per second
-		turnSpeed:          90.0,                           // Degrees per second
+		turnSpeed:          math.Pi / 2,                    // Radians per second (~90 degrees)
 		rttAlpha:           0.125,
 		latencyMode:        LatencyModeNormal,
 		predictionWindow:   NormalPredictionWindow,
@@ -179,43 +180,18 @@ func (cp *ClientPredictor) RecordInput(input *PlayerInput, dt float32) uint32 {
 }
 
 // applyInput updates predicted state based on input.
+// Angles are in radians throughout for consistency with client and server.
 func (cp *ClientPredictor) applyInput(input *PlayerInput, dt float32) {
 	// Apply turning
 	cp.predictedAngle += input.Turn * cp.turnSpeed * dt
 
 	// Apply movement (in the direction we're facing)
-	forwardRad := float32(cp.predictedAngle) * (3.14159265 / 180.0)
-	cp.predictedPosition.X += input.MoveForward * cp.moveSpeed * dt * float32(cos(float64(forwardRad)))
-	cp.predictedPosition.Z += input.MoveForward * cp.moveSpeed * dt * float32(sin(float64(forwardRad)))
-	cp.predictedPosition.X += input.MoveRight * cp.moveSpeed * dt * float32(sin(float64(forwardRad)))
-	cp.predictedPosition.Z -= input.MoveRight * cp.moveSpeed * dt * float32(cos(float64(forwardRad)))
-}
-
-// cos calculates cosine for float64.
-func cos(x float64) float64 {
-	// Simple approximation using Taylor series
-	x = mod(x, 6.28318530718)
-	if x > 3.14159265359 {
-		x -= 6.28318530718
-	}
-	x2 := x * x
-	return 1 - x2/2 + x2*x2/24 - x2*x2*x2/720
-}
-
-// sin calculates sine for float64.
-func sin(x float64) float64 {
-	return cos(x - 1.5707963268)
-}
-
-// mod performs modulo for float64.
-func mod(a, b float64) float64 {
-	for a >= b {
-		a -= b
-	}
-	for a < 0 {
-		a += b
-	}
-	return a
+	// Use standard library math functions for accuracy
+	forwardRad := float64(cp.predictedAngle)
+	cp.predictedPosition.X += input.MoveForward * cp.moveSpeed * dt * float32(math.Cos(forwardRad))
+	cp.predictedPosition.Z += input.MoveForward * cp.moveSpeed * dt * float32(math.Sin(forwardRad))
+	cp.predictedPosition.X += input.MoveRight * cp.moveSpeed * dt * float32(math.Sin(forwardRad))
+	cp.predictedPosition.Z -= input.MoveRight * cp.moveSpeed * dt * float32(math.Cos(forwardRad))
 }
 
 // Reconcile handles server state updates and replays un-acknowledged inputs.
