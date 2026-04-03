@@ -23,6 +23,7 @@ Generated: 2026-04-03
   3. Observe desynchronization between predicted and server-confirmed positions
 - **Root Cause**: Reinventing `math.Cos`/`math.Sin`/`math.Mod` with inferior approximations instead of using the standard library.
 - **Suggested Fix**: Replace `cos()`, `sin()`, `mod()` with `math.Cos()`, `math.Sin()`, `math.Mod()`.
+- [ ] **Resolved**
 
 ### [C-002] Operator Precedence Bug in Coup System Guard Clause
 - **Location**: `pkg/engine/systems/faction_coup.go:395`
@@ -34,6 +35,7 @@ Generated: 2026-04-03
   2. Currently safe due to short-circuit, but fragile
 - **Root Cause**: Missing explicit parentheses around compound boolean expressions.
 - **Suggested Fix**: Add parentheses: `if !exists || (coup.State != CoupStatePlotting && coup.State != CoupStateActive)`.
+- [ ] **Resolved**
 
 ### [C-003] Division by Zero in Sprite Texture Coordinate Calculation
 - **Location**: `pkg/rendering/raycast/draw.go:127`
@@ -45,6 +47,7 @@ Generated: 2026-04-03
   2. When `ScreenSpriteWidth` rounds to 0, the division panics
 - **Root Cause**: No guard against zero denominator before integer division.
 - **Suggested Fix**: Add `if ctx.ScreenSpriteWidth == 0 { return 0 }` guard before the division. Similarly check `ctx.ScreenSpriteHeight` at line 137.
+- [ ] **Resolved**
 
 ## High Priority Issues
 
@@ -55,6 +58,7 @@ Generated: 2026-04-03
 - **Impact**: Runtime panic (`concurrent map read and map write`) under concurrent access, crashing the server.
 - **Root Cause**: No mutex protection on shared map state.
 - **Suggested Fix**: Add a `sync.RWMutex` to `FactionCoupSystem`. Use `RLock` in read-only methods (`GetCoup`, `GetCoupHistory`, `GetAllActiveCoups`) and `Lock` in mutating methods (`StartCoup`, `Update`, `finalizeCoup`).
+- [ ] **Resolved**
 
 ### [H-002] Vehicle Combat Cooldown Logic Is Inverted
 - **Location**: `pkg/engine/systems/vehicle_combat.go:128-130`
@@ -63,6 +67,7 @@ Generated: 2026-04-03
 - **Impact**: Newly equipped or first-use weapons fail to fire until `LastFired` accumulates past `cooldown` through system updates. Players experience "dead" weapons on first equip.
 - **Root Cause**: `LastFired` is initialized to 0 instead of a value >= cooldown (e.g., `math.MaxFloat64` or initializing to `cooldown` value).
 - **Suggested Fix**: Initialize `weapon.LastFired = cooldown` when weapons are created, or change the guard to `if weapon.LastFired < cooldown && weapon.LastFired > 0`.
+- [ ] **Resolved**
 
 ### [H-003] Auto-Save Creates Unbounded Goroutines Without Rate Limiting
 - **Location**: `cmd/server/main.go:602-612`
@@ -71,6 +76,7 @@ Generated: 2026-04-03
 - **Impact**: Under heavy load or slow disk, multiple concurrent goroutines snapshot and save simultaneously, causing memory pressure (multiple full world snapshots) and potential file corruption from concurrent writes.
 - **Root Cause**: No guard against concurrent auto-save operations.
 - **Suggested Fix**: Add a `sync.Mutex` or `atomic.Bool` flag (`saving`) to skip the auto-save if one is already in progress.
+- [ ] **Resolved**
 
 ### [H-004] Network Server Spawns Goroutine Per Client Input
 - **Location**: `pkg/network/server.go:359-360`
@@ -79,6 +85,7 @@ Generated: 2026-04-03
 - **Impact**: Goroutine churn increases GC pressure and scheduler overhead. While Go handles many goroutines, this pattern is wasteful — a per-client send channel with a dedicated writer goroutine would be more efficient.
 - **Root Cause**: Using goroutine-per-message instead of goroutine-per-connection pattern.
 - **Suggested Fix**: Use a buffered channel per connection with a dedicated sender goroutine, rather than spawning a goroutine per input message.
+- [ ] **Resolved**
 
 ### [H-005] Lag Compensator Has TOCTOU Race on Entity History
 - **Location**: `pkg/network/lagcomp.go:179-182`
@@ -87,6 +94,7 @@ Generated: 2026-04-03
 - **Impact**: Potential data race or stale hit results in lag-compensated combat.
 - **Root Cause**: Lock scope is too narrow — should hold the read lock through the `GetAtTimeWithLimit` call.
 - **Suggested Fix**: Extend the `RLock` scope to cover the `GetAtTimeWithLimit` call, or ensure `StateHistory` is independently thread-safe.
+- [ ] **Resolved**
 
 ### [H-006] Framebuffer Modified in Draw() Then Re-uploaded
 - **Location**: `cmd/client/main.go:1287-1321, 1331-1354`
@@ -95,6 +103,7 @@ Generated: 2026-04-03
 - **Impact**: NPC sprites and post-processing effects are briefly visible then overwritten by the combat flash framebuffer upload. During damage flash, NPCs disappear for one frame.
 - **Root Cause**: Double `WritePixels()` to the same screen in a single Draw call. The combat flash should be applied as a semi-transparent overlay using `DrawImage` with `ColorScale`, not by re-uploading the raw framebuffer.
 - **Suggested Fix**: Apply combat flash as an overlay image with alpha blending using `screen.DrawImage()` instead of modifying and re-uploading the framebuffer.
+- [ ] **Resolved**
 
 ### [H-007] Client-Side Prediction Uses Degrees While Client Uses Radians
 - **Location**: `pkg/network/prediction.go:187` vs `cmd/client/main.go:975-988`
@@ -103,6 +112,7 @@ Generated: 2026-04-03
 - **Impact**: Client-side prediction moves in completely wrong directions compared to actual server movement, causing severe rubber-banding when server corrections arrive.
 - **Root Cause**: Mismatch between angle units (degrees vs. radians) across subsystems.
 - **Suggested Fix**: Standardize on radians throughout. Remove the degree-to-radian conversion in `prediction.go:187` and use `math.Cos`/`math.Sin` directly.
+- [ ] **Resolved**
 
 ## Medium Priority Issues
 
@@ -113,6 +123,7 @@ Generated: 2026-04-03
 - **Impact**: Gradual memory leak proportional to server uptime and faction activity.
 - **Root Cause**: No maximum history size or eviction policy.
 - **Suggested Fix**: Add a history limit (e.g., 50 per faction) and trim like the `TradingSystem` does at line 432-434.
+- [ ] **Resolved**
 
 ### [M-002] DialogHistory in DialogConsequenceSystem Grows Without Bound
 - **Location**: `pkg/engine/systems/dialog_consequence.go:364`
@@ -121,6 +132,7 @@ Generated: 2026-04-03
 - **Impact**: Memory grows proportional to total NPC conversations. With 200+ NPCs and long play sessions, this accumulates significantly.
 - **Root Cause**: No trimming of dialog history.
 - **Suggested Fix**: Add a maximum dialog history size per entity (e.g., 100 entries) with FIFO eviction.
+- [ ] **Resolved**
 
 ### [M-003] Dead Code — `updateLinear` Method Never Called
 - **Location**: `pkg/engine/systems/physics.go:71-126`
@@ -129,6 +141,7 @@ Generated: 2026-04-03
 - **Impact**: Maintenance burden — developers may modify `updateLinear()` thinking it affects gameplay.
 - **Root Cause**: Method was superseded by `updateLinearWithCollision()` but not removed.
 - **Suggested Fix**: Remove `updateLinear()` or document it as an internal helper if it serves a purpose.
+- [ ] **Resolved**
 
 ### [M-004] Business Logic in ECS Components Violates Architecture
 - **Location**: `pkg/engine/components/definitions.go:57-74, 97-115`
@@ -137,6 +150,7 @@ Generated: 2026-04-03
 - **Impact**: Violates the project's stated ECS discipline. Makes it harder to move logic to systems later. Creates coupling between component definitions and business rules.
 - **Root Cause**: Convenience methods added directly to components rather than in systems.
 - **Suggested Fix**: Move `GetMembership`/`GetRank`/`IsMember` logic into `FactionRankSystem`. Move `ContainsPoint` into a spatial query utility or the `FactionPoliticsSystem`.
+- [ ] **Resolved**
 
 ### [M-005] Sentinel Values for Chunk Coordinates
 - **Location**: `cmd/client/main.go:1753-1754`
@@ -145,6 +159,7 @@ Generated: 2026-04-03
 - **Impact**: If a player spawns at or near chunk (-999, -999), the initial map build is skipped because the sentinel matches the actual position.
 - **Root Cause**: Using magic numbers instead of an explicit `needsRebuild` boolean flag.
 - **Suggested Fix**: Add a `chunkMapInitialized bool` field to `Game` and check it instead of relying on sentinel coordinates.
+- [ ] **Resolved**
 
 ### [M-006] Mouse Smoothing Accumulates State Between Frames Incorrectly
 - **Location**: `cmd/client/main.go:1161-1167`
@@ -153,6 +168,7 @@ Generated: 2026-04-03
 - **Impact**: Very slow residual camera drift when the mouse is still. With high smoothing factor values (>1.0 due to missing validation), camera behavior becomes erratic.
 - **Root Cause**: No dead-zone threshold to zero out small smoothed deltas.
 - **Suggested Fix**: Add a dead-zone: `if math.Abs(g.smoothedDeltaX) < 0.001 { g.smoothedDeltaX = 0 }`. Validate smoothing factor is in [0, 1].
+- [ ] **Resolved**
 
 ### [M-007] Turn Input Sends Hardcoded Values Instead of Delta-Time Scaled
 - **Location**: `cmd/client/main.go:1065-1073`
@@ -161,6 +177,7 @@ Generated: 2026-04-03
 - **Impact**: Players with higher frame rates send more turn inputs per second, rotating faster than players with lower frame rates.
 - **Root Cause**: Turn input should represent desired angular velocity (scaled by dt), not raw per-frame delta.
 - **Suggested Fix**: Return `±1.0` and let the server scale by its tick rate, or scale by `dt` before sending.
+- [ ] **Resolved**
 
 ### [M-008] Strafe and Interaction Share Key E
 - **Location**: `cmd/client/main.go:999, 318`
@@ -169,6 +186,7 @@ Generated: 2026-04-03
 - **Impact**: Player strafes right every time they interact with an NPC/item, causing unintended movement during dialog or pickups.
 - **Root Cause**: Key binding conflict — same physical key mapped to two actions.
 - **Suggested Fix**: Separate the bindings. Use a dedicated interaction key or consume the input after interaction handling.
+- [ ] **Resolved**
 
 ## Low Priority Issues
 
@@ -178,6 +196,7 @@ Generated: 2026-04-03
 - **Description**: The `Game` struct declares `particleBuffer []byte` and `particleBufferSize int` but they are never assigned or read anywhere in the codebase.
 - **Impact**: Minor dead code. No runtime effect.
 - **Suggested Fix**: Remove the unused fields or implement particle buffer optimization.
+- [ ] **Resolved**
 
 ### [L-002] Layout() Returns Dynamic Dimensions — Renderer Not Resized
 - **Location**: `cmd/client/main.go:1637-1640`
@@ -186,6 +205,7 @@ Generated: 2026-04-03
 - **Impact**: If the window is resized, `Layout()` returns new dimensions but the renderer still draws at the original resolution. The framebuffer upload via `WritePixels` may cause artifacts or panics if the screen size no longer matches the framebuffer size.
 - **Root Cause**: Renderer dimensions are fixed at initialization and not updated on resize.
 - **Suggested Fix**: Either return fixed dimensions from `Layout()` (matching renderer), or implement renderer resize support.
+- [ ] **Resolved**
 
 ### [L-003] Degree-to-Radian Uses Hardcoded Pi Constant
 - **Location**: `pkg/network/prediction.go:187`
@@ -193,6 +213,7 @@ Generated: 2026-04-03
 - **Description**: Uses `3.14159265 / 180.0` instead of `math.Pi / 180.0`. The hardcoded value has only 8 decimal places vs `math.Pi`'s 15.
 - **Impact**: Minor precision loss in angle calculations.
 - **Suggested Fix**: Use `math.Pi` from the standard library.
+- [ ] **Resolved**
 
 ### [L-004] `pprof` Imported Unconditionally
 - **Location**: `cmd/client/main.go:11`
@@ -200,6 +221,7 @@ Generated: 2026-04-03
 - **Description**: `_ "net/http/pprof"` is imported with a blank identifier, registering pprof HTTP handlers in the default mux even when profiling is disabled. The profile server is only started conditionally (line 1649), but the handlers are always registered.
 - **Impact**: Minor: pprof routes exist in the default HTTP mux even when not used. Not a security risk since no default HTTP server is started unless profiling is enabled.
 - **Suggested Fix**: Move the import inside a build-tagged file (e.g., `//go:build debug`).
+- [ ] **Resolved**
 
 ## Performance Optimization Opportunities
 
@@ -209,6 +231,7 @@ Generated: 2026-04-03
 - **Current Impact**: Post-processing effects iterate pixel-by-pixel using `image.RGBAAt()` which involves bounds checks per call.
 - **Optimization**: Access the `Pix` slice directly (e.g., `img.Pix[offset:offset+4]`) to bypass per-pixel bounds checking.
 - **Expected Improvement**: 20-40% speedup for post-processing passes based on typical Go image benchmarks.
+- [ ] **Resolved**
 
 ### [P-002] Replace Custom `mod()` Loop with `math.Mod`
 - **Location**: `pkg/network/prediction.go:210-219`
@@ -216,6 +239,7 @@ Generated: 2026-04-03
 - **Current Impact**: `mod()` uses iterative subtraction, which is O(n) where n = a/b. For very large accumulated angles, this becomes a hot loop.
 - **Optimization**: Replace with `math.Mod(a, b)` which is O(1).
 - **Expected Improvement**: Eliminates potential frame stalls from large angle accumulation.
+- [ ] **Resolved**
 
 ### [P-003] Goroutine-Per-Message Pattern in Network Server
 - **Location**: `pkg/network/server.go:359-360`
@@ -223,6 +247,7 @@ Generated: 2026-04-03
 - **Current Impact**: Creates ~60 goroutines/second/client for world state sends.
 - **Optimization**: Use a per-connection buffered channel with a single dedicated sender goroutine.
 - **Expected Improvement**: Reduces goroutine creation overhead and GC pressure. Estimated 50%+ reduction in scheduler overhead for network I/O.
+- [ ] **Resolved**
 
 ### [P-004] World Map Fully Rebuilt on Chunk Transition
 - **Location**: `cmd/client/main.go:816-843`
@@ -230,6 +255,7 @@ Generated: 2026-04-03
 - **Current Impact**: `rebuildWorldMap()` allocates a fresh `[][]int` grid (48×48) with 48 inner slice allocations every time the player crosses a chunk boundary.
 - **Optimization**: Pre-allocate the world map once and reuse the buffer. Shift existing data and only generate the new edge chunks.
 - **Expected Improvement**: Eliminates 49 allocations per chunk transition. Reduces GC pressure during movement.
+- [ ] **Resolved**
 
 ### [P-005] `syncSkyboxWithWorld()` Iterates All Entities Every Frame
 - **Location**: `cmd/client/main.go:526-551`
@@ -237,6 +263,7 @@ Generated: 2026-04-03
 - **Current Impact**: Calls `g.world.Entities("Weather")` and `g.world.Entities("WorldClock")` every frame to find singleton entities. Each call scans all entities.
 - **Optimization**: Cache references to the weather and clock entities at creation time, or use a dedicated singleton lookup method.
 - **Expected Improvement**: Eliminates O(n) entity scans per frame for what should be O(1) singleton lookups.
+- [ ] **Resolved**
 
 ## Code Quality Observations
 
@@ -245,30 +272,35 @@ Generated: 2026-04-03
 - **Category**: Code Quality
 - **Issue**: `gatherTurnInput()` returns hardcoded `0.05` and `-0.05` without a named constant. The meaning of this value (radians per frame? per second?) is unclear.
 - **Suggestion**: Define a constant like `keyboardTurnRate = 0.05` with a comment explaining units.
+- [ ] **Resolved**
 
 ### [Q-002] Inconsistent Angle Units Across Codebase
 - **Location**: `pkg/network/prediction.go:187` (degrees), `cmd/client/main.go:975` (radians), `pkg/network/server.go:348` (radians)
 - **Category**: Code Quality
 - **Issue**: The network prediction system assumes angles in degrees while the client and server use radians. This inconsistency makes it difficult to reason about angle-related code.
 - **Suggestion**: Standardize all angle representations to radians throughout the codebase. Document the convention in the project's coding guidelines.
+- [ ] **Resolved**
 
 ### [Q-003] Large `Game` Struct With 40+ Fields
 - **Location**: `cmd/client/main.go:62-146`
 - **Category**: Code Quality
 - **Issue**: The `Game` struct has 40+ fields spanning rendering, audio, input, UI, networking, and state. This makes it a God Object that is difficult to test, extend, and reason about.
 - **Suggestion**: Extract subsystem groups into dedicated structs (e.g., `RenderState`, `AudioState`, `UIState`, `NetworkState`).
+- [ ] **Resolved**
 
 ### [Q-004] Multiple Input Checking Paths for Same Actions
 - **Location**: `cmd/client/main.go:967-990` (processMovementInput), `1043-1061` (gatherMovementForward/Strafe), `1065-1073` (gatherTurnInput)
 - **Category**: Code Quality
 - **Issue**: Movement input is checked in two separate code paths: once for local application (processMovementInput) and once for network sending (gatherMovement*). The logic is duplicated and could diverge, causing local/remote inconsistency.
 - **Suggestion**: Unify input gathering into a single `PlayerInputState` struct produced once per frame, then consumed by both local application and network sending.
+- [ ] **Resolved**
 
 ### [Q-005] Missing `initUIBuffers` Guard for Window Resize
 - **Location**: `cmd/client/main.go:556-579`
 - **Category**: Code Quality
 - **Issue**: `initUIBuffers()` pre-allocates fixed-size images (e.g., minimap 64×64, bars 150×16) but these are never re-created if the window resolution changes. With a responsive `Layout()`, the UI elements may be incorrectly sized.
 - **Suggestion**: Either make UI buffer sizes relative to screen dimensions and re-create on resize, or fix `Layout()` to return constant dimensions.
+- [ ] **Resolved**
 
 ## Recommendations by Priority
 
