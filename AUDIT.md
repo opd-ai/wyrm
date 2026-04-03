@@ -273,7 +273,6 @@ Generated: 2026-04-03
 - **Issue**: `gatherTurnInput()` returns hardcoded `0.05` and `-0.05` without a named constant. The meaning of this value (radians per frame? per second?) is unclear.
 - **Suggestion**: Define a constant like `keyboardTurnRate = 0.05` with a comment explaining units.
 - [x] **Resolved** (Fixed as part of M-007 - now returns ±1.0 with documented behavior)
-- [ ] **Resolved**
 
 ### [Q-002] Inconsistent Angle Units Across Codebase
 - **Location**: `pkg/network/prediction.go:187` (degrees), `cmd/client/main.go:975` (radians), `pkg/network/server.go:348` (radians)

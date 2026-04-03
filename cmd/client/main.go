@@ -9,7 +9,6 @@ import (
 	"image/color"
 	"log"
 	"math"
-	_ "net/http/pprof"
 	"runtime"
 
 	"github.com/hajimehoshi/ebiten/v2"
