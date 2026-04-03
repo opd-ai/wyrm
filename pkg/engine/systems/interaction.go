@@ -154,7 +154,7 @@ func (s *InteractionSystem) updateTargeting(w *ecs.World) {
 }
 
 // findBestTarget finds the best targeting candidate among interactable entities.
-func (s *InteractionSystem) findBestTarget(w *ecs.World, playerPos, playerLook *components.Position) targetCandidate {
+func (s *InteractionSystem) findBestTarget(w *ecs.World, playerPos *components.Position, playerLook []float64) targetCandidate {
 	best := targetCandidate{
 		distance: s.MaxTargetDistance + 1,
 		angle:    s.TargetingTolerance + 1,
@@ -171,7 +171,7 @@ func (s *InteractionSystem) findBestTarget(w *ecs.World, playerPos, playerLook *
 }
 
 // evaluateTargetCandidate checks if an entity qualifies as a target candidate.
-func (s *InteractionSystem) evaluateTargetCandidate(info interactableEntityInfo, playerPos, playerLook *components.Position) targetCandidate {
+func (s *InteractionSystem) evaluateTargetCandidate(info interactableEntityInfo, playerPos *components.Position, playerLook []float64) targetCandidate {
 	dist := s.distanceBetween(playerPos, info.Position)
 	if dist > s.MaxTargetDistance || dist <= 0.1 {
 		return targetCandidate{}
