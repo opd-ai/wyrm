@@ -197,7 +197,7 @@ Generated: 2026-04-03
 - **Description**: The `Game` struct declares `particleBuffer []byte` and `particleBufferSize int` but they are never assigned or read anywhere in the codebase.
 - **Impact**: Minor dead code. No runtime effect.
 - **Suggested Fix**: Remove the unused fields or implement particle buffer optimization.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [L-002] Layout() Returns Dynamic Dimensions — Renderer Not Resized
 - **Location**: `cmd/client/main.go:1637-1640`
@@ -206,7 +206,7 @@ Generated: 2026-04-03
 - **Impact**: If the window is resized, `Layout()` returns new dimensions but the renderer still draws at the original resolution. The framebuffer upload via `WritePixels` may cause artifacts or panics if the screen size no longer matches the framebuffer size.
 - **Root Cause**: Renderer dimensions are fixed at initialization and not updated on resize.
 - **Suggested Fix**: Either return fixed dimensions from `Layout()` (matching renderer), or implement renderer resize support.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [L-003] Degree-to-Radian Uses Hardcoded Pi Constant
 - **Location**: `pkg/network/prediction.go:187`
@@ -214,7 +214,7 @@ Generated: 2026-04-03
 - **Description**: Uses `3.14159265 / 180.0` instead of `math.Pi / 180.0`. The hardcoded value has only 8 decimal places vs `math.Pi`'s 15.
 - **Impact**: Minor precision loss in angle calculations.
 - **Suggested Fix**: Use `math.Pi` from the standard library.
-- [ ] **Resolved**
+- [x] **Resolved** (Fixed as part of C-001 - degree conversion removed, angles are now radians throughout)
 
 ### [L-004] `pprof` Imported Unconditionally
 - **Location**: `cmd/client/main.go:11`
@@ -240,7 +240,7 @@ Generated: 2026-04-03
 - **Current Impact**: `mod()` uses iterative subtraction, which is O(n) where n = a/b. For very large accumulated angles, this becomes a hot loop.
 - **Optimization**: Replace with `math.Mod(a, b)` which is O(1).
 - **Expected Improvement**: Eliminates potential frame stalls from large angle accumulation.
-- [ ] **Resolved**
+- [x] **Resolved** (Fixed as part of C-001 - custom mod() removed, math.Mod used)
 
 ### [P-003] Goroutine-Per-Message Pattern in Network Server
 - **Location**: `pkg/network/server.go:359-360`
@@ -273,6 +273,7 @@ Generated: 2026-04-03
 - **Category**: Code Quality
 - **Issue**: `gatherTurnInput()` returns hardcoded `0.05` and `-0.05` without a named constant. The meaning of this value (radians per frame? per second?) is unclear.
 - **Suggestion**: Define a constant like `keyboardTurnRate = 0.05` with a comment explaining units.
+- [x] **Resolved** (Fixed as part of M-007 - now returns ±1.0 with documented behavior)
 - [ ] **Resolved**
 
 ### [Q-002] Inconsistent Angle Units Across Codebase
@@ -280,7 +281,7 @@ Generated: 2026-04-03
 - **Category**: Code Quality
 - **Issue**: The network prediction system assumes angles in degrees while the client and server use radians. This inconsistency makes it difficult to reason about angle-related code.
 - **Suggestion**: Standardize all angle representations to radians throughout the codebase. Document the convention in the project's coding guidelines.
-- [ ] **Resolved**
+- [x] **Resolved** (Fixed as part of C-001/H-007 - all systems now use radians)
 
 ### [Q-003] Large `Game` Struct With 40+ Fields
 - **Location**: `cmd/client/main.go:62-146`

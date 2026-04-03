@@ -96,9 +96,6 @@ type Game struct {
 	spriteCache      *sprite.SpriteCache
 	textureCache     map[string]*texture.Texture
 	subtitleSystem   *subtitles.SubtitleSystem
-	// Pre-allocated rendering buffers (Phase 2 optimization)
-	particleBuffer     []byte // Pre-allocated buffer for particle rendering
-	particleBufferSize int    // Current buffer size for reallocation check
 	// Pre-allocated UI rendering images
 	minimapImage    *ebiten.Image // Pre-allocated minimap image
 	minimapPixels   []byte        // Pixel buffer for minimap
@@ -1625,9 +1622,10 @@ func (g *Game) drawInteractionPrompt(screen *ebiten.Image) {
 }
 
 // Layout returns the game's logical screen dimensions.
+// Returns fixed dimensions matching the renderer's initialized size to prevent
+// framebuffer/screen size mismatch on window resize.
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	// Use actual window dimensions for responsive layout
-	return outsideWidth, outsideHeight
+	return g.cfg.Window.Width, g.cfg.Window.Height
 }
 
 func main() {
