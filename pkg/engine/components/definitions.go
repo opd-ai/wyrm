@@ -1,6 +1,8 @@
 // Package components defines all ECS component data types.
 package components
 
+import "github.com/opd-ai/wyrm/pkg/geom"
+
 // Position represents a 3D location and orientation in the world.
 type Position struct {
 	X, Y, Z float64
@@ -95,22 +97,18 @@ type Point2D struct {
 }
 
 // ContainsPoint checks if a point is inside the territory polygon using ray casting.
+// Delegates to geom.PointInPolygon for the actual algorithm.
 func (f *FactionTerritory) ContainsPoint(x, y float64) bool {
 	if len(f.Vertices) < 3 {
 		return false
 	}
-	inside := false
-	n := len(f.Vertices)
-	j := n - 1
-	for i := 0; i < n; i++ {
-		xi, yi := f.Vertices[i].X, f.Vertices[i].Y
-		xj, yj := f.Vertices[j].X, f.Vertices[j].Y
-		if ((yi > y) != (yj > y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi) {
-			inside = !inside
-		}
-		j = i
+	// Convert []Point2D to flat []float64 slice for geom.PointInPolygon
+	flat := make([]float64, len(f.Vertices)*2)
+	for i, v := range f.Vertices {
+		flat[i*2] = v.X
+		flat[i*2+1] = v.Y
 	}
-	return inside
+	return geom.PointInPolygon(x, y, flat)
 }
 
 // Schedule represents an NPC's daily activity schedule.
