@@ -4,10 +4,8 @@
 package main
 
 import (
-	"math"
 	"time"
 
-	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 	"github.com/opd-ai/wyrm/pkg/engine/systems"
 	"github.com/opd-ai/wyrm/pkg/input"
@@ -80,59 +78,22 @@ func (cm *CombatManager) Update(world *ecs.World, dt float64) {}
 
 // getEquippedWeaponType returns the type of the player's equipped weapon.
 func (cm *CombatManager) getEquippedWeaponType(world *ecs.World) string {
-	weaponComp, exists := world.GetComponent(cm.playerEntity, "Weapon")
-	if !exists || weaponComp == nil {
-		return "melee"
-	}
-	weapon, ok := weaponComp.(*components.Weapon)
-	if !ok || weapon.WeaponType == "" {
-		return "melee"
-	}
-	return weapon.WeaponType
+	return getEquippedWeaponTypeShared(world, cm.playerEntity)
 }
 
 // getRangedWeaponStats returns damage, speed, and range for the equipped ranged weapon.
 func (cm *CombatManager) getRangedWeaponStats(world *ecs.World) (damage, speed, weaponRange float64) {
-	weaponComp, exists := world.GetComponent(cm.playerEntity, "Weapon")
-	if !exists || weaponComp == nil {
-		return 10.0, 15.0, 20.0
-	}
-	weapon, ok := weaponComp.(*components.Weapon)
-	if !ok {
-		return 10.0, 15.0, 20.0
-	}
-	damage = weapon.Damage
-	if damage <= 0 {
-		damage = 10.0
-	}
-	speed = 15.0
-	weaponRange = weapon.Range
-	if weaponRange <= 0 {
-		weaponRange = 20.0
-	}
-	return damage, speed, weaponRange
+	return getRangedWeaponStatsShared(world, cm.playerEntity)
 }
 
 // canAttack checks if the player can initiate an attack.
 func (cm *CombatManager) canAttack() bool {
-	if cm.isDead || cm.isBlocking {
-		return false
-	}
-	return time.Since(cm.lastAttackTime) >= cm.attackCooldown
+	return canAttackShared(cm.isDead, cm.isBlocking, cm.lastAttackTime, cm.attackCooldown)
 }
 
 // updateAimDirection calculates aim direction from player facing angle.
 func (cm *CombatManager) updateAimDirection(world *ecs.World) {
-	posComp, exists := world.GetComponent(cm.playerEntity, "Position")
-	if !exists || posComp == nil {
-		return
-	}
-	pos, ok := posComp.(*components.Position)
-	if !ok {
-		return
-	}
-	cm.aimDirX = math.Cos(pos.Angle)
-	cm.aimDirY = math.Sin(pos.Angle)
+	cm.aimDirX, cm.aimDirY = updateAimDirectionShared(world, cm.playerEntity)
 }
 
 // GetScreenShakeOffset returns the current screen shake offset (stub).
@@ -176,37 +137,12 @@ func (cm *CombatManager) SetSelectedSpellIndex(index int) {
 
 // getSelectedSpellID returns the spell ID at the selected index (stub).
 func (cm *CombatManager) getSelectedSpellID(world *ecs.World) string {
-	spellBookComp, exists := world.GetComponent(cm.playerEntity, "Spellbook")
-	if !exists || spellBookComp == nil {
-		return ""
-	}
-	spellBook, ok := spellBookComp.(*components.Spellbook)
-	if !ok || len(spellBook.Spells) == 0 {
-		return ""
-	}
-	if spellBook.ActiveSpellID != "" {
-		return spellBook.ActiveSpellID
-	}
-	spellIDs := make([]string, 0, len(spellBook.Spells))
-	for id := range spellBook.Spells {
-		spellIDs = append(spellIDs, id)
-	}
-	idx := cm.selectedSpellIndex
-	if idx < 0 {
-		idx = 0
-	}
-	if idx >= len(spellIDs) {
-		idx = len(spellIDs) - 1
-	}
-	return spellIDs[idx]
+	return getSelectedSpellIDShared(world, cm.playerEntity, cm.selectedSpellIndex)
 }
 
 // canCastSpell checks if player can cast a spell (stub).
 func (cm *CombatManager) canCastSpell() bool {
-	if cm.isDead || cm.isBlocking {
-		return false
-	}
-	return time.Since(cm.lastSpellCastTime) >= 200*time.Millisecond
+	return canCastSpellShared(cm.isDead, cm.isBlocking, cm.lastSpellCastTime)
 }
 
 // IsSneaking returns whether the player is sneaking (stub).
@@ -229,23 +165,12 @@ func (cm *CombatManager) breakStealth(world *ecs.World) {
 
 // getWeaponDamage returns the equipped weapon's damage (stub).
 func (cm *CombatManager) getWeaponDamage(world *ecs.World) float64 {
-	weaponComp, exists := world.GetComponent(cm.playerEntity, "Weapon")
-	if !exists || weaponComp == nil {
-		return 10.0
-	}
-	weapon, ok := weaponComp.(*components.Weapon)
-	if !ok || weapon.Damage <= 0 {
-		return 10.0
-	}
-	return weapon.Damage
+	return getWeaponDamageShared(world, cm.playerEntity)
 }
 
 // canDodge checks if the player can perform a dodge roll (stub).
 func (cm *CombatManager) canDodge() bool {
-	if cm.isDead || cm.isDodging || cm.isBlocking {
-		return false
-	}
-	return time.Since(cm.lastDodgeTime) >= cm.dodgeCooldown
+	return canDodgeShared(cm.isDead, cm.isDodging, cm.isBlocking, cm.lastDodgeTime, cm.dodgeCooldown)
 }
 
 // IsDodging returns whether the player is currently dodging (stub).
@@ -261,11 +186,5 @@ func (cm *CombatManager) GetBlockReduction() float64 {
 
 // CalculateIncomingDamage adjusts damage based on block/dodge state (stub).
 func (cm *CombatManager) CalculateIncomingDamage(baseDamage float64) float64 {
-	if cm.isDodging {
-		return 0
-	}
-	if cm.isBlocking {
-		return baseDamage * (1.0 - cm.blockReduction)
-	}
-	return baseDamage
+	return calculateIncomingDamageShared(baseDamage, cm.isDodging, cm.isBlocking, cm.blockReduction)
 }

@@ -538,48 +538,8 @@ func setDefaults() {
 	viper.SetDefault("difficulty.death_durability_loss", 0.1) // 10% durability
 	viper.SetDefault("difficulty.death_corpse_retrievable", true)
 
-	// Default key bindings
-	viper.SetDefault("keybindings.move_forward", "W")
-	viper.SetDefault("keybindings.move_backward", "S")
-	viper.SetDefault("keybindings.move_left", "A")
-	viper.SetDefault("keybindings.move_right", "D")
-	viper.SetDefault("keybindings.jump", "Space")
-	viper.SetDefault("keybindings.crouch", "ControlLeft")
-	viper.SetDefault("keybindings.sprint", "ShiftLeft")
-
-	viper.SetDefault("keybindings.attack", "MouseButtonLeft")
-	viper.SetDefault("keybindings.block", "MouseButtonRight")
-	viper.SetDefault("keybindings.ability_1", "1")
-	viper.SetDefault("keybindings.ability_2", "2")
-	viper.SetDefault("keybindings.ability_3", "3")
-	viper.SetDefault("keybindings.ability_4", "4")
-	viper.SetDefault("keybindings.quick_heal", "H")
-	viper.SetDefault("keybindings.toggle_weapon", "Tab")
-
-	viper.SetDefault("keybindings.interact", "E")
-	viper.SetDefault("keybindings.pick_up", "F")
-	viper.SetDefault("keybindings.drop_item", "G")
-	viper.SetDefault("keybindings.use_item", "R")
-	viper.SetDefault("keybindings.talk", "T")
-	viper.SetDefault("keybindings.read_sign", "V")
-	viper.SetDefault("keybindings.mount", "X")
-	viper.SetDefault("keybindings.enter_vehicle", "C")
-
-	viper.SetDefault("keybindings.inventory", "I")
-	viper.SetDefault("keybindings.map", "M")
-	viper.SetDefault("keybindings.quest_log", "J")
-	viper.SetDefault("keybindings.character_sheet", "K")
-	viper.SetDefault("keybindings.skill_tree", "P")
-	viper.SetDefault("keybindings.crafting", "B")
-	viper.SetDefault("keybindings.pause", "Escape")
-	viper.SetDefault("keybindings.quick_save", "F5")
-	viper.SetDefault("keybindings.quick_load", "F9")
-	viper.SetDefault("keybindings.screenshot", "F12")
-	viper.SetDefault("keybindings.toggle_hud", "F1")
-	viper.SetDefault("keybindings.console", "Backquote")
-	viper.SetDefault("keybindings.chat_window", "Enter")
-	viper.SetDefault("keybindings.social_menu", "O")
-	viper.SetDefault("keybindings.trade_window", "Y")
+	// Default key bindings - consolidated via table-driven approach
+	setKeyBindingDefaults()
 
 	// Mouse settings defaults
 	viper.SetDefault("mouse.sensitivity", 0.5)
@@ -613,6 +573,60 @@ func setDefaults() {
 	viper.SetDefault("render_quality.texture_quality", 1.0)
 
 	viper.SetDefault("genre", "fantasy")
+}
+
+// defaultKeyBindings defines the default key mappings for all actions.
+// Grouped by category: movement, combat, interaction, UI.
+var defaultKeyBindings = map[string]string{
+	// Movement
+	"move_forward":  "W",
+	"move_backward": "S",
+	"move_left":     "A",
+	"move_right":    "D",
+	"jump":          "Space",
+	"crouch":        "ControlLeft",
+	"sprint":        "ShiftLeft",
+	// Combat
+	"attack":        "MouseButtonLeft",
+	"block":         "MouseButtonRight",
+	"ability_1":     "1",
+	"ability_2":     "2",
+	"ability_3":     "3",
+	"ability_4":     "4",
+	"quick_heal":    "H",
+	"toggle_weapon": "Tab",
+	// Interaction
+	"interact":      "E",
+	"pick_up":       "F",
+	"drop_item":     "G",
+	"use_item":      "R",
+	"talk":          "T",
+	"read_sign":     "V",
+	"mount":         "X",
+	"enter_vehicle": "C",
+	// UI
+	"inventory":       "I",
+	"map":             "M",
+	"quest_log":       "J",
+	"character_sheet": "K",
+	"skill_tree":      "P",
+	"crafting":        "B",
+	"pause":           "Escape",
+	"quick_save":      "F5",
+	"quick_load":      "F9",
+	"screenshot":      "F12",
+	"toggle_hud":      "F1",
+	"console":         "Backquote",
+	"chat_window":     "Enter",
+	"social_menu":     "O",
+	"trade_window":    "Y",
+}
+
+// setKeyBindingDefaults applies all default key bindings to viper.
+func setKeyBindingDefaults() {
+	for action, key := range defaultKeyBindings {
+		viper.SetDefault("keybindings."+action, key)
+	}
 }
 
 // Save writes the current configuration to a file.

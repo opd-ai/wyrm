@@ -61,34 +61,51 @@ func (s *StateSynchronizer) Stop() {
 
 // receiveLoop continuously reads messages from the server.
 func (s *StateSynchronizer) receiveLoop() {
-	// Use ticker for consistent polling interval instead of sleep
 	reconnectTicker := time.NewTicker(100 * time.Millisecond)
 	defer reconnectTicker.Stop()
 
 	for {
-		select {
-		case <-s.stopCh:
+		if s.shouldStopReceiving() {
 			return
-		case <-reconnectTicker.C:
-			if s.client == nil || !s.client.IsConnected() {
-				// Wait for reconnection on next tick
-				continue
-			}
 		}
-
-		// Try to receive a message
-		msgType, msg, err := s.client.ReceiveMessage()
-		if err != nil {
-			log.Printf("receive error: %v", err)
-			// Error recovery handled by next ticker tick
+		if s.waitForConnection(reconnectTicker) {
 			continue
 		}
+		s.receiveAndQueueMessage()
+	}
+}
 
-		select {
-		case s.msgChan <- serverMessage{msgType: msgType, msg: msg}:
-		default:
-			log.Printf("message channel full, dropping message")
-		}
+// shouldStopReceiving checks if the receive loop should terminate.
+func (s *StateSynchronizer) shouldStopReceiving() bool {
+	select {
+	case <-s.stopCh:
+		return true
+	default:
+		return false
+	}
+}
+
+// waitForConnection waits for a valid connection, returning true if should continue loop.
+func (s *StateSynchronizer) waitForConnection(ticker *time.Ticker) bool {
+	if s.client == nil || !s.client.IsConnected() {
+		<-ticker.C
+		return true
+	}
+	return false
+}
+
+// receiveAndQueueMessage reads a message from the server and queues it for processing.
+func (s *StateSynchronizer) receiveAndQueueMessage() {
+	msgType, msg, err := s.client.ReceiveMessage()
+	if err != nil {
+		log.Printf("receive error: %v", err)
+		return
+	}
+
+	select {
+	case s.msgChan <- serverMessage{msgType: msgType, msg: msg}:
+	default:
+		log.Printf("message channel full, dropping message")
 	}
 }
 

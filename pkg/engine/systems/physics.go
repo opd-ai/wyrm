@@ -320,14 +320,9 @@ func resolveBarrierCollision(oldX, oldY, newX, newY, radius float64, barrier *co
 }
 
 // physicsClamp limits a value to [min, max] range.
+// Deprecated: Use clampFloat64 instead.
 func physicsClamp(v, minV, maxV float64) float64 {
-	if v < minV {
-		return minV
-	}
-	if v > maxV {
-		return maxV
-	}
-	return v
+	return clampFloat64(v, minV, maxV)
 }
 
 // updateSwinging handles pendulum-like swinging motion.

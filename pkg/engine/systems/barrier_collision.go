@@ -339,15 +339,9 @@ func (s *BarrierCollisionSystem) closestPointOnSegment(px, py, x1, y1, x2, y2 fl
 }
 
 // barrierClamp clamps a float64 to [min, max].
-// Named to avoid conflict with clampFloat in economy.go
+// Deprecated: Use clampFloat64 instead.
 func barrierClamp(v, minV, maxV float64) float64 {
-	if v < minV {
-		return minV
-	}
-	if v > maxV {
-		return maxV
-	}
-	return v
+	return clampFloat64(v, minV, maxV)
 }
 
 // BarrierDamageSystem handles damage to destructible barriers.

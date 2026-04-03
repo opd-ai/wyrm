@@ -173,10 +173,7 @@ func (cm *CombatManager) isActionPressed(action input.Action) bool {
 
 // canAttack checks if the player can initiate an attack.
 func (cm *CombatManager) canAttack() bool {
-	if cm.isDead || cm.isBlocking {
-		return false
-	}
-	return time.Since(cm.lastAttackTime) >= cm.attackCooldown
+	return canAttackShared(cm.isDead, cm.isBlocking, cm.lastAttackTime, cm.attackCooldown)
 }
 
 // performAttack executes an attack based on equipped weapon type.
@@ -197,15 +194,7 @@ func (cm *CombatManager) performAttack(world *ecs.World) {
 
 // getEquippedWeaponType returns the type of the player's equipped weapon.
 func (cm *CombatManager) getEquippedWeaponType(world *ecs.World) string {
-	weaponComp, exists := world.GetComponent(cm.playerEntity, "Weapon")
-	if !exists || weaponComp == nil {
-		return "melee" // Default to melee if no weapon
-	}
-	weapon, ok := weaponComp.(*components.Weapon)
-	if !ok || weapon.WeaponType == "" {
-		return "melee"
-	}
-	return weapon.WeaponType
+	return getEquippedWeaponTypeShared(world, cm.playerEntity)
 }
 
 // performMeleeAttack executes a melee attack against the nearest target.
@@ -262,18 +251,7 @@ func (cm *CombatManager) performBackstab(world *ecs.World, target ecs.Entity) {
 
 // getWeaponDamage returns the equipped weapon's damage or default.
 func (cm *CombatManager) getWeaponDamage(world *ecs.World) float64 {
-	weaponComp, exists := world.GetComponent(cm.playerEntity, "Weapon")
-	if !exists || weaponComp == nil {
-		return 10.0 // Default damage
-	}
-	weapon, ok := weaponComp.(*components.Weapon)
-	if !ok {
-		return 10.0
-	}
-	if weapon.Damage <= 0 {
-		return 10.0
-	}
-	return weapon.Damage
+	return getWeaponDamageShared(world, cm.playerEntity)
 }
 
 // toggleSneak toggles the player's sneaking state.
@@ -414,24 +392,7 @@ func (cm *CombatManager) performRangedAttack(world *ecs.World) {
 
 // getRangedWeaponStats returns damage, speed, and range for the equipped ranged weapon.
 func (cm *CombatManager) getRangedWeaponStats(world *ecs.World) (damage, speed, weaponRange float64) {
-	weaponComp, exists := world.GetComponent(cm.playerEntity, "Weapon")
-	if !exists || weaponComp == nil {
-		return 10.0, 15.0, 20.0 // Defaults
-	}
-	weapon, ok := weaponComp.(*components.Weapon)
-	if !ok {
-		return 10.0, 15.0, 20.0
-	}
-	damage = weapon.Damage
-	if damage <= 0 {
-		damage = 10.0
-	}
-	speed = 15.0 // Fixed projectile speed
-	weaponRange = weapon.Range
-	if weaponRange <= 0 {
-		weaponRange = 20.0
-	}
-	return damage, speed, weaponRange
+	return getRangedWeaponStatsShared(world, cm.playerEntity)
 }
 
 // updateAimDirection calculates aim direction from player position to screen center.
@@ -514,35 +475,7 @@ func (cm *CombatManager) performMagicAttack(world *ecs.World) {
 
 // getSelectedSpellID returns the spell ID at the selected index from the player's spellbook.
 func (cm *CombatManager) getSelectedSpellID(world *ecs.World) string {
-	spellBookComp, exists := world.GetComponent(cm.playerEntity, "Spellbook")
-	if !exists || spellBookComp == nil {
-		return ""
-	}
-	spellBook, ok := spellBookComp.(*components.Spellbook)
-	if !ok || len(spellBook.Spells) == 0 {
-		return ""
-	}
-
-	// If there's an active spell already selected, use that
-	if spellBook.ActiveSpellID != "" {
-		return spellBook.ActiveSpellID
-	}
-
-	// Convert map to slice for indexed access
-	spellIDs := make([]string, 0, len(spellBook.Spells))
-	for id := range spellBook.Spells {
-		spellIDs = append(spellIDs, id)
-	}
-
-	// Clamp selected index to valid range
-	idx := cm.selectedSpellIndex
-	if idx < 0 {
-		idx = 0
-	}
-	if idx >= len(spellIDs) {
-		idx = len(spellIDs) - 1
-	}
-	return spellIDs[idx]
+	return getSelectedSpellIDShared(world, cm.playerEntity, cm.selectedSpellIndex)
 }
 
 // GetSelectedSpellIndex returns the currently selected spell slot (0-8).
