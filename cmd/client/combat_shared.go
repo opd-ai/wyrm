@@ -212,7 +212,6 @@ func updateAimDirectionShared(world *ecs.World, playerEntity ecs.Entity) (aimDir
 	if !ok {
 		return 0, 1
 	}
-	// Use facing direction
-	facingRad := pos.Facing * (math.Pi / 180.0)
-	return math.Sin(facingRad), -math.Cos(facingRad)
+	// Use Angle field for aim direction (in radians)
+	return math.Cos(pos.Angle), math.Sin(pos.Angle)
 }

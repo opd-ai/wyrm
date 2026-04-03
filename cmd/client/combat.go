@@ -276,10 +276,7 @@ func (cm *CombatManager) IsSneaking() bool {
 
 // canDodge checks if the player can perform a dodge roll.
 func (cm *CombatManager) canDodge() bool {
-	if cm.isDead || cm.isDodging || cm.isBlocking {
-		return false
-	}
-	return time.Since(cm.lastDodgeTime) >= cm.dodgeCooldown
+	return canDodgeShared(cm.isDead, cm.isDodging, cm.isBlocking, cm.lastDodgeTime, cm.dodgeCooldown)
 }
 
 // performDodge initiates a dodge roll with invulnerability frames.
@@ -348,15 +345,7 @@ func (cm *CombatManager) GetBlockReduction() float64 {
 
 // CalculateIncomingDamage adjusts damage based on block/dodge state.
 func (cm *CombatManager) CalculateIncomingDamage(baseDamage float64) float64 {
-	// Dodging = invulnerable
-	if cm.isDodging {
-		return 0
-	}
-	// Blocking = reduced damage
-	if cm.isBlocking {
-		return baseDamage * (1.0 - cm.blockReduction)
-	}
-	return baseDamage
+	return calculateIncomingDamageShared(baseDamage, cm.isDodging, cm.isBlocking, cm.blockReduction)
 }
 
 // performRangedAttack fires a projectile in the aim direction.
@@ -435,11 +424,7 @@ func (cm *CombatManager) handleSpellInput(world *ecs.World) {
 
 // canCastSpell checks if player can cast a spell (not dead, has mana).
 func (cm *CombatManager) canCastSpell() bool {
-	if cm.isDead || cm.isBlocking {
-		return false
-	}
-	// Rate limit spell casting to prevent spam
-	return time.Since(cm.lastSpellCastTime) >= 200*time.Millisecond
+	return canCastSpellShared(cm.isDead, cm.isBlocking, cm.lastSpellCastTime)
 }
 
 // performMagicAttack casts the selected spell toward the aim direction.
