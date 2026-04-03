@@ -78,6 +78,9 @@ type Game struct {
 	worldMap      [][]int // Local world map for collision detection
 	inputManager  *input.Manager
 	paused        bool
+	// Cached singleton entities (avoid O(n) scans each frame)
+	weatherEntity ecs.Entity // Cached weather entity (0 if not found)
+	clockEntity   ecs.Entity // Cached world clock entity (0 if not found)
 	// Game state
 	gameState         GameState
 	characterCreation *CharacterCreation
@@ -522,22 +525,27 @@ func (g *Game) syncSkyboxWithWorld() {
 		return
 	}
 
+	// Lazily cache singleton entities if not yet found
+	if g.weatherEntity == 0 || g.clockEntity == 0 {
+		g.cacheSingletonEntities()
+	}
+
 	skybox := g.renderer.Skybox
 
-	// Find Weather component and sync current weather
-	for _, e := range g.world.Entities("Weather") {
-		weatherComp, ok := g.world.GetComponent(e, "Weather")
-		if ok {
+	// Use cached weather entity (O(1) instead of O(n))
+	if g.weatherEntity != 0 {
+		if weatherComp, ok := g.world.GetComponent(g.weatherEntity, "Weather"); ok {
 			weather := weatherComp.(*components.Weather)
 			skybox.SetWeather(weather.WeatherType, weather.CloudCover)
-			break // Only need one weather entity
+		} else {
+			// Entity no longer has Weather component, clear cache
+			g.weatherEntity = 0
 		}
 	}
 
-	// Find WorldClock and sync time of day
-	for _, e := range g.world.Entities("WorldClock") {
-		clockComp, ok := g.world.GetComponent(e, "WorldClock")
-		if ok {
+	// Use cached clock entity (O(1) instead of O(n))
+	if g.clockEntity != 0 {
+		if clockComp, ok := g.world.GetComponent(g.clockEntity, "WorldClock"); ok {
 			clock := clockComp.(*components.WorldClock)
 			// Convert hour (0-23) to normalized time (0.0-1.0)
 			// 0.0 = midnight, 0.5 = noon
@@ -548,7 +556,32 @@ func (g *Game) syncSkyboxWithWorld() {
 			}
 			timeOfDay := (float64(clock.Hour) + hourFraction) / 24.0
 			skybox.SetTimeOfDay(timeOfDay)
-			break
+		} else {
+			// Entity no longer has WorldClock component, clear cache
+			g.clockEntity = 0
+		}
+	}
+}
+
+// cacheSingletonEntities finds and caches commonly-accessed singleton entities.
+// Call this once during initialization and when entities may have been created.
+func (g *Game) cacheSingletonEntities() {
+	// Cache weather entity if not already cached
+	if g.weatherEntity == 0 {
+		for _, e := range g.world.Entities("Weather") {
+			if _, ok := g.world.GetComponent(e, "Weather"); ok {
+				g.weatherEntity = e
+				break
+			}
+		}
+	}
+	// Cache clock entity if not already cached
+	if g.clockEntity == 0 {
+		for _, e := range g.world.Entities("WorldClock") {
+			if _, ok := g.world.GetComponent(e, "WorldClock"); ok {
+				g.clockEntity = e
+				break
+			}
 		}
 	}
 }
@@ -816,10 +849,21 @@ func (g *Game) updateChunkMap() {
 
 // rebuildWorldMap constructs the local world map from surrounding chunks.
 // Uses LOD system for distant chunks and async generation to avoid frame stutter.
+// Reuses pre-allocated buffer to avoid allocations on chunk transitions.
 func (g *Game) rebuildWorldMap(centerChunkX, centerChunkY int) {
-	worldMap := make([][]int, g.mapSize)
-	for i := range worldMap {
-		worldMap[i] = make([]int, g.mapSize)
+	// Pre-allocate worldMap once if needed, reuse thereafter
+	if g.worldMap == nil || len(g.worldMap) != g.mapSize {
+		g.worldMap = make([][]int, g.mapSize)
+		for i := range g.worldMap {
+			g.worldMap[i] = make([]int, g.mapSize)
+		}
+	} else {
+		// Clear existing map instead of reallocating
+		for i := range g.worldMap {
+			for j := range g.worldMap[i] {
+				g.worldMap[i][j] = 0
+			}
+		}
 	}
 	chunkSize := g.cfg.World.ChunkSize
 
@@ -839,11 +883,10 @@ func (g *Game) rebuildWorldMap(centerChunkX, centerChunkY int) {
 				// Skip chunk on error - player can still move through pending chunks
 				continue
 			}
-			g.sampleLODChunkIntoMap(worldMap, lodChunk, dx, dy, chunkSize)
+			g.sampleLODChunkIntoMap(g.worldMap, lodChunk, dx, dy, chunkSize)
 		}
 	}
-	g.worldMap = worldMap // Store for collision detection
-	g.renderer.SetWorldMapDirect(worldMap)
+	g.renderer.SetWorldMapDirect(g.worldMap)
 }
 
 // sampleLODChunkIntoMap samples an LOD chunk's heightmap into the local world map.

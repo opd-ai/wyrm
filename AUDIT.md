@@ -221,7 +221,7 @@ Generated: 2026-04-03
 - **Description**: `_ "net/http/pprof"` is imported with a blank identifier, registering pprof HTTP handlers in the default mux even when profiling is disabled. The profile server is only started conditionally (line 1649), but the handlers are always registered.
 - **Impact**: Minor: pprof routes exist in the default HTTP mux even when not used. Not a security risk since no default HTTP server is started unless profiling is enabled.
 - **Suggested Fix**: Move the import inside a build-tagged file (e.g., `//go:build debug`).
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ## Performance Optimization Opportunities
 
@@ -231,7 +231,7 @@ Generated: 2026-04-03
 - **Current Impact**: Post-processing effects iterate pixel-by-pixel using `image.RGBAAt()` which involves bounds checks per call.
 - **Optimization**: Access the `Pix` slice directly (e.g., `img.Pix[offset:offset+4]`) to bypass per-pixel bounds checking.
 - **Expected Improvement**: 20-40% speedup for post-processing passes based on typical Go image benchmarks.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [P-002] Replace Custom `mod()` Loop with `math.Mod`
 - **Location**: `pkg/network/prediction.go:210-219`
@@ -255,7 +255,7 @@ Generated: 2026-04-03
 - **Current Impact**: `rebuildWorldMap()` allocates a fresh `[][]int` grid (48×48) with 48 inner slice allocations every time the player crosses a chunk boundary.
 - **Optimization**: Pre-allocate the world map once and reuse the buffer. Shift existing data and only generate the new edge chunks.
 - **Expected Improvement**: Eliminates 49 allocations per chunk transition. Reduces GC pressure during movement.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [P-005] `syncSkyboxWithWorld()` Iterates All Entities Every Frame
 - **Location**: `cmd/client/main.go:526-551`
@@ -263,7 +263,7 @@ Generated: 2026-04-03
 - **Current Impact**: Calls `g.world.Entities("Weather")` and `g.world.Entities("WorldClock")` every frame to find singleton entities. Each call scans all entities.
 - **Optimization**: Cache references to the weather and clock entities at creation time, or use a dedicated singleton lookup method.
 - **Expected Improvement**: Eliminates O(n) entity scans per frame for what should be O(1) singleton lookups.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ## Code Quality Observations
 
@@ -300,7 +300,7 @@ Generated: 2026-04-03
 - **Category**: Code Quality
 - **Issue**: `initUIBuffers()` pre-allocates fixed-size images (e.g., minimap 64×64, bars 150×16) but these are never re-created if the window resolution changes. With a responsive `Layout()`, the UI elements may be incorrectly sized.
 - **Suggestion**: Either make UI buffer sizes relative to screen dimensions and re-create on resize, or fix `Layout()` to return constant dimensions.
-- [ ] **Resolved**
+- [x] **Resolved** (Not an issue: `Layout()` returns constant `cfg.Window.Width/Height`, so window resize is not supported; UI buffers remain correctly sized)
 
 ## Recommendations by Priority
 

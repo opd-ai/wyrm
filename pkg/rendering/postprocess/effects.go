@@ -141,23 +141,37 @@ func (w *WarmColorGrade) Apply(img *image.RGBA) *image.RGBA {
 }
 
 // ApplyTo applies warm color grading to the destination buffer.
+// Uses direct Pix slice access for better performance.
 func (w *WarmColorGrade) ApplyTo(src, dst *image.RGBA) {
 	bounds := src.Bounds()
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			c := src.RGBAAt(x, y)
+	width := bounds.Dx()
+	height := bounds.Dy()
+	srcStride := src.Stride
+	dstStride := dst.Stride
+
+	for y := 0; y < height; y++ {
+		srcRow := y * srcStride
+		dstRow := y * dstStride
+		for x := 0; x < width; x++ {
+			srcOff := srcRow + x*4
+			dstOff := dstRow + x*4
+
+			// Read RGBA directly from Pix slice
+			r := float64(src.Pix[srcOff])
+			g := float64(src.Pix[srcOff+1])
+			b := float64(src.Pix[srcOff+2])
+			a := src.Pix[srcOff+3]
 
 			// Shift toward warm tones
-			r := float64(c.R) + (w.Intensity * 30)
-			g := float64(c.G) + (w.Intensity * 15)
-			b := float64(c.B) - (w.Intensity * 20)
+			r += w.Intensity * 30
+			g += w.Intensity * 15
+			b -= w.Intensity * 20
 
-			dst.SetRGBA(x, y, color.RGBA{
-				R: clampByte(r),
-				G: clampByte(g),
-				B: clampByte(b),
-				A: c.A,
-			})
+			// Write directly to Pix slice
+			dst.Pix[dstOff] = clampByte(r)
+			dst.Pix[dstOff+1] = clampByte(g)
+			dst.Pix[dstOff+2] = clampByte(b)
+			dst.Pix[dstOff+3] = a
 		}
 	}
 }
@@ -180,21 +194,25 @@ func (s *Scanlines) Apply(img *image.RGBA) *image.RGBA {
 }
 
 // ApplyTo adds scanlines to the destination buffer.
+// Uses direct Pix slice access for better performance.
 func (s *Scanlines) ApplyTo(src, dst *image.RGBA) {
 	bounds := src.Bounds()
 	copy(dst.Pix, src.Pix)
 
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+	width := bounds.Dx()
+	height := bounds.Dy()
+	stride := dst.Stride
+	darkFactor := 1.0 - s.Intensity
+
+	for y := 0; y < height; y++ {
 		if y%s.Spacing == 0 {
-			for x := bounds.Min.X; x < bounds.Max.X; x++ {
-				c := dst.RGBAAt(x, y)
-				darkFactor := 1.0 - s.Intensity
-				dst.SetRGBA(x, y, color.RGBA{
-					R: uint8(float64(c.R) * darkFactor),
-					G: uint8(float64(c.G) * darkFactor),
-					B: uint8(float64(c.B) * darkFactor),
-					A: c.A,
-				})
+			rowOff := y * stride
+			for x := 0; x < width; x++ {
+				off := rowOff + x*4
+				dst.Pix[off] = uint8(float64(dst.Pix[off]) * darkFactor)
+				dst.Pix[off+1] = uint8(float64(dst.Pix[off+1]) * darkFactor)
+				dst.Pix[off+2] = uint8(float64(dst.Pix[off+2]) * darkFactor)
+				// Alpha (off+3) remains unchanged
 			}
 		}
 	}
@@ -217,26 +235,35 @@ func (d *Desaturate) Apply(img *image.RGBA) *image.RGBA {
 }
 
 // ApplyTo reduces saturation to the destination buffer.
+// Uses direct Pix slice access for better performance.
 func (d *Desaturate) ApplyTo(src, dst *image.RGBA) {
 	bounds := src.Bounds()
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			c := src.RGBAAt(x, y)
+	width := bounds.Dx()
+	height := bounds.Dy()
+	srcStride := src.Stride
+	dstStride := dst.Stride
+
+	invAmount := 1 - d.Amount
+	for y := 0; y < height; y++ {
+		srcRow := y * srcStride
+		dstRow := y * dstStride
+		for x := 0; x < width; x++ {
+			srcOff := srcRow + x*4
+			dstOff := dstRow + x*4
+
+			r := float64(src.Pix[srcOff])
+			g := float64(src.Pix[srcOff+1])
+			b := float64(src.Pix[srcOff+2])
+			a := src.Pix[srcOff+3]
 
 			// Calculate luminance
-			gray := 0.299*float64(c.R) + 0.587*float64(c.G) + 0.114*float64(c.B)
+			gray := 0.299*r + 0.587*g + 0.114*b
 
 			// Blend between original and grayscale
-			r := float64(c.R)*(1-d.Amount) + gray*d.Amount
-			g := float64(c.G)*(1-d.Amount) + gray*d.Amount
-			b := float64(c.B)*(1-d.Amount) + gray*d.Amount
-
-			dst.SetRGBA(x, y, color.RGBA{
-				R: clampByte(r),
-				G: clampByte(g),
-				B: clampByte(b),
-				A: c.A,
-			})
+			dst.Pix[dstOff] = clampByte(r*invAmount + gray*d.Amount)
+			dst.Pix[dstOff+1] = clampByte(g*invAmount + gray*d.Amount)
+			dst.Pix[dstOff+2] = clampByte(b*invAmount + gray*d.Amount)
+			dst.Pix[dstOff+3] = a
 		}
 	}
 }
@@ -432,28 +459,37 @@ func (s *Sepia) Apply(img *image.RGBA) *image.RGBA {
 }
 
 // ApplyTo adds sepia tone to the destination buffer.
+// Uses direct Pix slice access for better performance.
 func (s *Sepia) ApplyTo(src, dst *image.RGBA) {
 	bounds := src.Bounds()
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			c := src.RGBAAt(x, y)
+	width := bounds.Dx()
+	height := bounds.Dy()
+	srcStride := src.Stride
+	dstStride := dst.Stride
+
+	invIntensity := 1 - s.Intensity
+	for y := 0; y < height; y++ {
+		srcRow := y * srcStride
+		dstRow := y * dstStride
+		for x := 0; x < width; x++ {
+			srcOff := srcRow + x*4
+			dstOff := dstRow + x*4
+
+			r := float64(src.Pix[srcOff])
+			g := float64(src.Pix[srcOff+1])
+			b := float64(src.Pix[srcOff+2])
+			a := src.Pix[srcOff+3]
 
 			// Sepia transformation
-			sepiaR := 0.393*float64(c.R) + 0.769*float64(c.G) + 0.189*float64(c.B)
-			sepiaG := 0.349*float64(c.R) + 0.686*float64(c.G) + 0.168*float64(c.B)
-			sepiaB := 0.272*float64(c.R) + 0.534*float64(c.G) + 0.131*float64(c.B)
+			sepiaR := 0.393*r + 0.769*g + 0.189*b
+			sepiaG := 0.349*r + 0.686*g + 0.168*b
+			sepiaB := 0.272*r + 0.534*g + 0.131*b
 
 			// Blend with original
-			r := float64(c.R)*(1-s.Intensity) + sepiaR*s.Intensity
-			g := float64(c.G)*(1-s.Intensity) + sepiaG*s.Intensity
-			b := float64(c.B)*(1-s.Intensity) + sepiaB*s.Intensity
-
-			dst.SetRGBA(x, y, color.RGBA{
-				R: clampByte(r),
-				G: clampByte(g),
-				B: clampByte(b),
-				A: c.A,
-			})
+			dst.Pix[dstOff] = clampByte(r*invIntensity + sepiaR*s.Intensity)
+			dst.Pix[dstOff+1] = clampByte(g*invIntensity + sepiaG*s.Intensity)
+			dst.Pix[dstOff+2] = clampByte(b*invIntensity + sepiaB*s.Intensity)
+			dst.Pix[dstOff+3] = a
 		}
 	}
 }
@@ -476,30 +512,36 @@ func (f *FilmGrain) Apply(img *image.RGBA) *image.RGBA {
 }
 
 // ApplyTo adds film grain to the destination buffer.
+// Uses direct Pix slice access for better performance.
 func (f *FilmGrain) ApplyTo(src, dst *image.RGBA) {
 	bounds := src.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+	srcStride := src.Stride
+	dstStride := dst.Stride
 
 	// Use deterministic seed based on image dimensions for consistency
 	if f.rng == nil {
-		seed := int64(bounds.Dx()*bounds.Dy() + 42)
+		seed := int64(width*height + 42)
 		f.rng = rand.New(rand.NewSource(seed))
 	}
 
 	noiseRange := f.Amount * 50
 
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			c := src.RGBAAt(x, y)
+	for y := 0; y < height; y++ {
+		srcRow := y * srcStride
+		dstRow := y * dstStride
+		for x := 0; x < width; x++ {
+			srcOff := srcRow + x*4
+			dstOff := dstRow + x*4
 
 			// Add random noise
 			noise := (f.rng.Float64() - 0.5) * noiseRange
 
-			dst.SetRGBA(x, y, color.RGBA{
-				R: clampByte(float64(c.R) + noise),
-				G: clampByte(float64(c.G) + noise),
-				B: clampByte(float64(c.B) + noise),
-				A: c.A,
-			})
+			dst.Pix[dstOff] = clampByte(float64(src.Pix[srcOff]) + noise)
+			dst.Pix[dstOff+1] = clampByte(float64(src.Pix[srcOff+1]) + noise)
+			dst.Pix[dstOff+2] = clampByte(float64(src.Pix[srcOff+2]) + noise)
+			dst.Pix[dstOff+3] = src.Pix[srcOff+3]
 		}
 	}
 }
@@ -521,23 +563,30 @@ func (c *CoolColorGrade) Apply(img *image.RGBA) *image.RGBA {
 }
 
 // ApplyTo applies cool color grading to the destination buffer.
+// Uses direct Pix slice access for better performance.
 func (c *CoolColorGrade) ApplyTo(src, dst *image.RGBA) {
 	bounds := src.Bounds()
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			pixel := src.RGBAAt(x, y)
+	width := bounds.Dx()
+	height := bounds.Dy()
+	srcStride := src.Stride
+	dstStride := dst.Stride
+
+	for y := 0; y < height; y++ {
+		srcRow := y * srcStride
+		dstRow := y * dstStride
+		for x := 0; x < width; x++ {
+			srcOff := srcRow + x*4
+			dstOff := dstRow + x*4
 
 			// Shift toward cool tones
-			r := float64(pixel.R) - (c.Intensity * 25)
-			g := float64(pixel.G) + (c.Intensity * 10)
-			b := float64(pixel.B) + (c.Intensity * 35)
+			r := float64(src.Pix[srcOff]) - (c.Intensity * 25)
+			g := float64(src.Pix[srcOff+1]) + (c.Intensity * 10)
+			b := float64(src.Pix[srcOff+2]) + (c.Intensity * 35)
 
-			dst.SetRGBA(x, y, color.RGBA{
-				R: clampByte(r),
-				G: clampByte(g),
-				B: clampByte(b),
-				A: pixel.A,
-			})
+			dst.Pix[dstOff] = clampByte(r)
+			dst.Pix[dstOff+1] = clampByte(g)
+			dst.Pix[dstOff+2] = clampByte(b)
+			dst.Pix[dstOff+3] = src.Pix[srcOff+3]
 		}
 	}
 }
@@ -559,19 +608,26 @@ func (d *DarkenOverall) Apply(img *image.RGBA) *image.RGBA {
 }
 
 // ApplyTo darkens the image to the destination buffer.
+// Uses direct Pix slice access for better performance.
 func (d *DarkenOverall) ApplyTo(src, dst *image.RGBA) {
 	bounds := src.Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+	srcStride := src.Stride
+	dstStride := dst.Stride
 	factor := 1.0 - d.Amount
 
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			c := src.RGBAAt(x, y)
-			dst.SetRGBA(x, y, color.RGBA{
-				R: uint8(float64(c.R) * factor),
-				G: uint8(float64(c.G) * factor),
-				B: uint8(float64(c.B) * factor),
-				A: c.A,
-			})
+	for y := 0; y < height; y++ {
+		srcRow := y * srcStride
+		dstRow := y * dstStride
+		for x := 0; x < width; x++ {
+			srcOff := srcRow + x*4
+			dstOff := dstRow + x*4
+
+			dst.Pix[dstOff] = uint8(float64(src.Pix[srcOff]) * factor)
+			dst.Pix[dstOff+1] = uint8(float64(src.Pix[srcOff+1]) * factor)
+			dst.Pix[dstOff+2] = uint8(float64(src.Pix[srcOff+2]) * factor)
+			dst.Pix[dstOff+3] = src.Pix[srcOff+3]
 		}
 	}
 }
@@ -593,28 +649,40 @@ func (n *NeonGlow) Apply(img *image.RGBA) *image.RGBA {
 }
 
 // ApplyTo adds neon glow effect to the destination buffer.
+// Uses direct Pix slice access for better performance.
 func (n *NeonGlow) ApplyTo(src, dst *image.RGBA) {
 	bounds := src.Bounds()
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			c := src.RGBAAt(x, y)
+	width := bounds.Dx()
+	height := bounds.Dy()
+	srcStride := src.Stride
+	dstStride := dst.Stride
+
+	for y := 0; y < height; y++ {
+		srcRow := y * srcStride
+		dstRow := y * dstStride
+		for x := 0; x < width; x++ {
+			srcOff := srcRow + x*4
+			dstOff := dstRow + x*4
+
+			r := float64(src.Pix[srcOff])
+			g := float64(src.Pix[srcOff+1])
+			b := float64(src.Pix[srcOff+2])
+			a := src.Pix[srcOff+3]
 
 			// Enhance pinks and cyans (cyberpunk palette)
-			brightness := (float64(c.R) + float64(c.G) + float64(c.B)) / 765.0
+			brightness := (r + g + b) / 765.0
 
 			// Add pink/magenta tint
-			r := float64(c.R) + (n.Intensity * brightness * 40)
+			r += n.Intensity * brightness * 40
 			// Reduce green slightly
-			g := float64(c.G) - (n.Intensity * 15)
+			g -= n.Intensity * 15
 			// Add cyan tint
-			b := float64(c.B) + (n.Intensity * brightness * 30)
+			b += n.Intensity * brightness * 30
 
-			dst.SetRGBA(x, y, color.RGBA{
-				R: clampByte(r),
-				G: clampByte(g),
-				B: clampByte(b),
-				A: c.A,
-			})
+			dst.Pix[dstOff] = clampByte(r)
+			dst.Pix[dstOff+1] = clampByte(g)
+			dst.Pix[dstOff+2] = clampByte(b)
+			dst.Pix[dstOff+3] = a
 		}
 	}
 }
