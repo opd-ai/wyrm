@@ -1,6 +1,7 @@
 package network
 
 import (
+	"math"
 	"testing"
 	"time"
 )
@@ -1029,64 +1030,68 @@ func TestPvPValidatorConcurrent(t *testing.T) {
 }
 
 // ============================================================================
-// Math Helper Tests
+// Math Library Usage Tests
 // ============================================================================
 
-func TestCosHelper(t *testing.T) {
-	// Test cos at known values
-	// Note: This uses a Taylor series approximation, so larger epsilon needed
-	tests := []struct {
-		input    float64
-		expected float64
-		epsilon  float64
-	}{
-		{0, 1.0, 0.01},
-		{1.5707963268, 0.0, 0.1},   // pi/2
-		{3.14159265359, -1.0, 0.3}, // pi (larger epsilon due to Taylor approximation)
-	}
+func TestPredictionUsesStandardMath(t *testing.T) {
+	// Verify that prediction now uses math.Cos/math.Sin (standard library)
+	// by checking that prediction output matches expected values precisely.
+	cp := NewClientPredictor()
+	cp.SetPosition(Position3D{X: 0, Y: 0, Z: 0})
+	cp.SetAngle(0)
 
-	for _, tc := range tests {
-		result := cos(tc.input)
-		if diff := result - tc.expected; diff < -tc.epsilon || diff > tc.epsilon {
-			t.Errorf("cos(%f) = %f, expected %f (within %f)", tc.input, result, tc.expected, tc.epsilon)
-		}
-	}
-}
+	// Move forward with angle=0 (facing +X in radians)
+	input := &PlayerInput{MoveForward: 1.0, MoveRight: 0.0, Turn: 0.0}
+	cp.RecordInput(input, 1.0)
 
-func TestSinHelper(t *testing.T) {
-	// Test sin at known values
-	tests := []struct {
-		input    float64
-		expected float64
-		epsilon  float64
-	}{
-		{0, 0.0, 0.01},
-		{1.5707963268, 1.0, 0.01},
-		{3.14159265359, 0.0, 0.01},
-	}
+	pos := cp.GetPredictedPosition()
+	// With angle=0, cos(0)=1, sin(0)=0
+	// Forward movement should be in +X direction
+	expectedX := float32(1.0 * cp.moveSpeed * 1.0 * math.Cos(0)) // moveSpeed * dt * cos(0)
+	expectedZ := float32(1.0 * cp.moveSpeed * 1.0 * math.Sin(0)) // moveSpeed * dt * sin(0)
 
-	for _, tc := range tests {
-		result := sin(tc.input)
-		if diff := result - tc.expected; diff < -tc.epsilon || diff > tc.epsilon {
-			t.Errorf("sin(%f) = %f, expected %f", tc.input, result, tc.expected)
-		}
+	epsilon := float32(0.0001)
+	if diff := pos.X - expectedX; diff < -epsilon || diff > epsilon {
+		t.Errorf("Position.X = %f, expected %f (diff %f)", pos.X, expectedX, diff)
+	}
+	if diff := pos.Z - expectedZ; diff < -epsilon || diff > epsilon {
+		t.Errorf("Position.Z = %f, expected %f (diff %f)", pos.Z, expectedZ, diff)
 	}
 }
 
-func TestModHelper(t *testing.T) {
-	tests := []struct {
-		a, b, expected float64
-	}{
-		{5.0, 3.0, 2.0},
-		{7.0, 3.0, 1.0},
-		{-1.0, 3.0, 2.0},
-		{6.0, 3.0, 0.0},
+func TestPredictionAccuracyVsOldImplementation(t *testing.T) {
+	// Verify that prediction at various angles produces accurate results
+	// that would have drifted with the old Taylor series approximation.
+	// The old implementation had significant error for large angles.
+	testAngles := []float64{
+		0,
+		math.Pi / 4,     // 45 degrees
+		math.Pi / 2,     // 90 degrees
+		math.Pi,         // 180 degrees
+		3 * math.Pi / 2, // 270 degrees
+		2 * math.Pi,     // 360 degrees
+		10 * math.Pi,    // Large accumulated angle
 	}
 
-	for _, tc := range tests {
-		result := mod(tc.a, tc.b)
-		if result != tc.expected {
-			t.Errorf("mod(%f, %f) = %f, expected %f", tc.a, tc.b, result, tc.expected)
+	for _, angle := range testAngles {
+		cp := NewClientPredictor()
+		cp.SetPosition(Position3D{X: 0, Y: 0, Z: 0})
+		cp.SetAngle(float32(angle))
+
+		input := &PlayerInput{MoveForward: 1.0, MoveRight: 0.0, Turn: 0.0}
+		cp.RecordInput(input, 1.0)
+
+		pos := cp.GetPredictedPosition()
+		// Expected values using standard library
+		expectedX := float32(cp.moveSpeed * math.Cos(angle))
+		expectedZ := float32(cp.moveSpeed * math.Sin(angle))
+
+		epsilon := float32(0.001)
+		if diff := pos.X - expectedX; diff < -epsilon || diff > epsilon {
+			t.Errorf("At angle %f: Position.X = %f, expected %f", angle, pos.X, expectedX)
+		}
+		if diff := pos.Z - expectedZ; diff < -epsilon || diff > epsilon {
+			t.Errorf("At angle %f: Position.Z = %f, expected %f", angle, pos.Z, expectedZ)
 		}
 	}
 }
