@@ -411,80 +411,93 @@ func (q *QuestUI) Draw(screen *ebiten.Image) {
 
 // drawBackground draws the quest UI background panel using batch pixel writes.
 func (q *QuestUI) drawBackground(screen *ebiten.Image, x, y int) {
-	// Initialize panel image if needed
-	if q.panelImage == nil {
-		q.panelImage = ebiten.NewImage(questUIWidth, questUIHeight)
-		q.panelPixels = make([]byte, questUIWidth*questUIHeight*4)
-	}
+	q.initPanelImage()
+	bgColor, borderColor := q.getPanelColors()
 
-	// Safe type assertion to color.RGBA for direct field access
-	bgColor, ok := q.getBackgroundColor().(color.RGBA)
-	if !ok {
-		bgColor = color.RGBA{40, 30, 20, 230} // Default fallback
-	}
-	borderColor, ok := q.getBorderColor().(color.RGBA)
-	if !ok {
-		borderColor = color.RGBA{180, 150, 100, 255} // Default fallback
-	}
+	fillPixelBuffer(q.panelPixels, questUIWidth, questUIHeight, bgColor)
+	q.drawPanelBorders(borderColor)
+	q.drawPanelDivider(borderColor)
 
-	// Fill background
-	for py := 0; py < questUIHeight; py++ {
-		for px := 0; px < questUIWidth; px++ {
-			idx := (py*questUIWidth + px) * 4
-			q.panelPixels[idx] = bgColor.R
-			q.panelPixels[idx+1] = bgColor.G
-			q.panelPixels[idx+2] = bgColor.B
-			q.panelPixels[idx+3] = bgColor.A
-		}
-	}
-
-	// Top and bottom borders
-	for px := 0; px < questUIWidth; px++ {
-		// Top
-		idx := px * 4
-		q.panelPixels[idx] = borderColor.R
-		q.panelPixels[idx+1] = borderColor.G
-		q.panelPixels[idx+2] = borderColor.B
-		q.panelPixels[idx+3] = borderColor.A
-		// Bottom
-		idx = ((questUIHeight-1)*questUIWidth + px) * 4
-		q.panelPixels[idx] = borderColor.R
-		q.panelPixels[idx+1] = borderColor.G
-		q.panelPixels[idx+2] = borderColor.B
-		q.panelPixels[idx+3] = borderColor.A
-	}
-
-	// Left and right borders
-	for py := 0; py < questUIHeight; py++ {
-		// Left
-		idx := (py * questUIWidth) * 4
-		q.panelPixels[idx] = borderColor.R
-		q.panelPixels[idx+1] = borderColor.G
-		q.panelPixels[idx+2] = borderColor.B
-		q.panelPixels[idx+3] = borderColor.A
-		// Right
-		idx = (py*questUIWidth + questUIWidth - 1) * 4
-		q.panelPixels[idx] = borderColor.R
-		q.panelPixels[idx+1] = borderColor.G
-		q.panelPixels[idx+2] = borderColor.B
-		q.panelPixels[idx+3] = borderColor.A
-	}
-
-	// Divider between list and details
-	dividerX := questListWidth + 15
-	for py := 40; py < questUIHeight-30; py++ {
-		idx := (py*questUIWidth + dividerX) * 4
-		q.panelPixels[idx] = borderColor.R
-		q.panelPixels[idx+1] = borderColor.G
-		q.panelPixels[idx+2] = borderColor.B
-		q.panelPixels[idx+3] = borderColor.A
-	}
-
-	// Upload and draw
 	q.panelImage.WritePixels(q.panelPixels)
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Translate(float64(x), float64(y))
 	screen.DrawImage(q.panelImage, op)
+}
+
+// initPanelImage initializes the panel image and pixel buffer if needed.
+func (q *QuestUI) initPanelImage() {
+	if q.panelImage == nil {
+		q.panelImage = ebiten.NewImage(questUIWidth, questUIHeight)
+		q.panelPixels = make([]byte, questUIWidth*questUIHeight*4)
+	}
+}
+
+// getPanelColors returns the background and border colors.
+func (q *QuestUI) getPanelColors() (color.RGBA, color.RGBA) {
+	bgColor, ok := q.getBackgroundColor().(color.RGBA)
+	if !ok {
+		bgColor = color.RGBA{40, 30, 20, 230}
+	}
+	borderColor, ok := q.getBorderColor().(color.RGBA)
+	if !ok {
+		borderColor = color.RGBA{180, 150, 100, 255}
+	}
+	return bgColor, borderColor
+}
+
+// fillPixelBuffer fills the entire pixel buffer with a solid color.
+func fillPixelBuffer(pixels []byte, width, height int, col color.RGBA) {
+	for py := 0; py < height; py++ {
+		for px := 0; px < width; px++ {
+			idx := (py*width + px) * 4
+			pixels[idx] = col.R
+			pixels[idx+1] = col.G
+			pixels[idx+2] = col.B
+			pixels[idx+3] = col.A
+		}
+	}
+}
+
+// drawPanelBorders draws the top, bottom, left, and right borders.
+func (q *QuestUI) drawPanelBorders(col color.RGBA) {
+	drawHorizontalBorder(q.panelPixels, questUIWidth, 0, col)
+	drawHorizontalBorder(q.panelPixels, questUIWidth, questUIHeight-1, col)
+	drawVerticalBorder(q.panelPixels, questUIWidth, questUIHeight, 0, col)
+	drawVerticalBorder(q.panelPixels, questUIWidth, questUIHeight, questUIWidth-1, col)
+}
+
+// drawHorizontalBorder draws a horizontal border line.
+func drawHorizontalBorder(pixels []byte, width, y int, col color.RGBA) {
+	for px := 0; px < width; px++ {
+		idx := (y*width + px) * 4
+		pixels[idx] = col.R
+		pixels[idx+1] = col.G
+		pixels[idx+2] = col.B
+		pixels[idx+3] = col.A
+	}
+}
+
+// drawVerticalBorder draws a vertical border line.
+func drawVerticalBorder(pixels []byte, width, height, x int, col color.RGBA) {
+	for py := 0; py < height; py++ {
+		idx := (py*width + x) * 4
+		pixels[idx] = col.R
+		pixels[idx+1] = col.G
+		pixels[idx+2] = col.B
+		pixels[idx+3] = col.A
+	}
+}
+
+// drawPanelDivider draws the vertical divider between list and details.
+func (q *QuestUI) drawPanelDivider(col color.RGBA) {
+	dividerX := questListWidth + 15
+	for py := 40; py < questUIHeight-30; py++ {
+		idx := (py*questUIWidth + dividerX) * 4
+		q.panelPixels[idx] = col.R
+		q.panelPixels[idx+1] = col.G
+		q.panelPixels[idx+2] = col.B
+		q.panelPixels[idx+3] = col.A
+	}
 }
 
 // drawTitle draws the quest log title.
@@ -506,46 +519,59 @@ func (q *QuestUI) drawQuestList(screen *ebiten.Image, x, y int) {
 	for i, quest := range q.quests {
 		entryY := listY + i*20
 		if entryY > y+questUIHeight-50 {
-			break // Out of space
+			break
 		}
-
-		// Selection highlight using sub-image fill
-		if i == q.selectedQuestIdx {
-			highlightColor := color.RGBA{80, 80, 120, 200}
-			// Pre-allocate highlight bar once, reuse for top and bottom
-			if q.highlightBar == nil || q.highlightBar.Bounds().Dx() != questListWidth {
-				q.highlightBar = ebiten.NewImage(questListWidth, 1)
-			}
-			q.highlightBar.Fill(highlightColor)
-
-			opTop := &ebiten.DrawImageOptions{}
-			opTop.GeoM.Translate(float64(listX), float64(entryY-2))
-			screen.DrawImage(q.highlightBar, opTop)
-
-			opBottom := &ebiten.DrawImageOptions{}
-			opBottom.GeoM.Translate(float64(listX), float64(entryY+14))
-			screen.DrawImage(q.highlightBar, opBottom)
-		}
-
-		// Quest status indicator
-		prefix := "[ ] "
-		if quest.Completed {
-			prefix = "[X] "
-		} else if quest.IsTracked {
-			prefix = "[*] "
-		}
-
-		// Truncate name if too long
-		name := quest.Name
-		maxNameLen := 15
-		if len(name) > maxNameLen {
-			name = name[:maxNameLen-2] + ".."
-		}
-
-		textColor := q.getQuestTextColor(quest)
-		_ = textColor // Would use with custom font rendering
-		ebitenutil.DebugPrintAt(screen, prefix+name, listX, entryY)
+		q.drawQuestEntry(screen, listX, entryY, i, quest)
 	}
+}
+
+// drawQuestEntry draws a single quest entry in the list.
+func (q *QuestUI) drawQuestEntry(screen *ebiten.Image, x, y, index int, quest *questDisplayInfo) {
+	if index == q.selectedQuestIdx {
+		q.drawSelectionHighlight(screen, x, y)
+	}
+
+	prefix := q.getQuestStatusPrefix(quest)
+	name := truncateString(quest.Name, 15)
+	textColor := q.getQuestTextColor(quest)
+	_ = textColor
+	ebitenutil.DebugPrintAt(screen, prefix+name, x, y)
+}
+
+// drawSelectionHighlight draws the highlight bars for the selected quest.
+func (q *QuestUI) drawSelectionHighlight(screen *ebiten.Image, x, y int) {
+	highlightColor := color.RGBA{80, 80, 120, 200}
+	if q.highlightBar == nil || q.highlightBar.Bounds().Dx() != questListWidth {
+		q.highlightBar = ebiten.NewImage(questListWidth, 1)
+	}
+	q.highlightBar.Fill(highlightColor)
+
+	opTop := &ebiten.DrawImageOptions{}
+	opTop.GeoM.Translate(float64(x), float64(y-2))
+	screen.DrawImage(q.highlightBar, opTop)
+
+	opBottom := &ebiten.DrawImageOptions{}
+	opBottom.GeoM.Translate(float64(x), float64(y+14))
+	screen.DrawImage(q.highlightBar, opBottom)
+}
+
+// getQuestStatusPrefix returns the status indicator prefix for a quest.
+func (q *QuestUI) getQuestStatusPrefix(quest *questDisplayInfo) string {
+	if quest.Completed {
+		return "[X] "
+	}
+	if quest.IsTracked {
+		return "[*] "
+	}
+	return "[ ] "
+}
+
+// truncateString truncates a string to maxLen with ".." suffix if needed.
+func truncateString(s string, maxLen int) string {
+	if len(s) > maxLen {
+		return s[:maxLen-2] + ".."
+	}
+	return s
 }
 
 // drawQuestDetails draws the selected quest's details.

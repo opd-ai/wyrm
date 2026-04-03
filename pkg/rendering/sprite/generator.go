@@ -1348,30 +1348,22 @@ func (g *Generator) drawCoin(sprite *Sprite, width, height int, main, shine colo
 	centerY := height / 2
 	radius := min(width, height) / 3
 
-	// Coin circle
-	for dy := -radius; dy <= radius; dy++ {
-		for dx := -radius; dx <= radius; dx++ {
-			if dx*dx+dy*dy <= radius*radius {
-				x := centerX + dx
-				y := centerY + dy
-				if x >= 0 && x < width && y >= 0 && y < height {
-					sprite.SetPixel(x, y, main)
-				}
-			}
-		}
-	}
+	drawFilledCircle(sprite, centerX, centerY, radius, width, height, main)
 
-	// Shine/highlight
 	highlightRadius := radius / 3
 	highlightX := centerX - radius/3
 	highlightY := centerY - radius/3
-	for dy := -highlightRadius; dy <= highlightRadius; dy++ {
-		for dx := -highlightRadius; dx <= highlightRadius; dx++ {
-			if dx*dx+dy*dy <= highlightRadius*highlightRadius {
-				x := highlightX + dx
-				y := highlightY + dy
+	drawFilledCircle(sprite, highlightX, highlightY, highlightRadius, width, height, shine)
+}
+
+// drawFilledCircle draws a filled circle to the sprite with bounds checking.
+func drawFilledCircle(sprite *Sprite, cx, cy, radius, width, height int, col color.RGBA) {
+	for dy := -radius; dy <= radius; dy++ {
+		for dx := -radius; dx <= radius; dx++ {
+			if dx*dx+dy*dy <= radius*radius {
+				x, y := cx+dx, cy+dy
 				if x >= 0 && x < width && y >= 0 && y < height {
-					sprite.SetPixel(x, y, shine)
+					sprite.SetPixel(x, y, col)
 				}
 			}
 		}
@@ -1382,38 +1374,49 @@ func (g *Generator) drawCoin(sprite *Sprite, width, height int, main, shine colo
 func (g *Generator) drawFood(sprite *Sprite, width, height int, main, accent color.RGBA, rng *rand.Rand) {
 	centerX := width / 2
 	centerY := height / 2
-
-	// Generic food item: rounded rectangle (bread-like)
 	foodWidth := width / 3
 	foodHeight := height / 4
 
-	// Top curve
-	for y := centerY - foodHeight; y < centerY; y++ {
-		progress := float64(y-(centerY-foodHeight)) / float64(foodHeight)
-		currentWidth := int(float64(foodWidth) * (0.5 + 0.5*progress))
-		for x := centerX - currentWidth; x <= centerX+currentWidth; x++ {
-			if x >= 0 && x < width && y >= 0 && y < height {
-				sprite.SetPixel(x, y, main)
-			}
-		}
-	}
+	drawFoodTopCurve(sprite, centerX, centerY, foodWidth, foodHeight, width, height, main)
+	drawFoodBottom(sprite, centerX, centerY, foodWidth, foodHeight, width, height, main)
+	drawFoodAccents(sprite, centerX, centerY, foodWidth, foodHeight, width, height, accent, rng)
+}
 
-	// Bottom (flat)
-	for y := centerY; y < centerY+foodHeight/2; y++ {
-		for x := centerX - foodWidth; x <= centerX+foodWidth; x++ {
-			if x >= 0 && x < width && y >= 0 && y < height {
-				sprite.SetPixel(x, y, main)
-			}
-		}
+// drawFoodTopCurve draws the curved top portion of a food sprite.
+func drawFoodTopCurve(sprite *Sprite, cx, cy, fw, fh, width, height int, col color.RGBA) {
+	for y := cy - fh; y < cy; y++ {
+		progress := float64(y-(cy-fh)) / float64(fh)
+		currentWidth := int(float64(fw) * (0.5 + 0.5*progress))
+		drawHorizontalLine(sprite, cx-currentWidth, cx+currentWidth, y, width, height, col)
 	}
+}
 
-	// Accent marks (seeds on bread, etc.)
-	numAccents := 3
-	for i := 0; i < numAccents; i++ {
-		ax := centerX - foodWidth/2 + rng.Intn(foodWidth)
-		ay := centerY - foodHeight/2 + rng.Intn(foodHeight/2)
+// drawFoodBottom draws the flat bottom of a food sprite.
+func drawFoodBottom(sprite *Sprite, cx, cy, fw, fh, width, height int, col color.RGBA) {
+	for y := cy; y < cy+fh/2; y++ {
+		drawHorizontalLine(sprite, cx-fw, cx+fw, y, width, height, col)
+	}
+}
+
+// drawFoodAccents draws accent marks (seeds) on a food sprite.
+func drawFoodAccents(sprite *Sprite, cx, cy, fw, fh, width, height int, col color.RGBA, rng *rand.Rand) {
+	for i := 0; i < 3; i++ {
+		ax := cx - fw/2 + rng.Intn(fw)
+		ay := cy - fh/2 + rng.Intn(fh/2)
 		if ax >= 0 && ax < width && ay >= 0 && ay < height {
-			sprite.SetPixel(ax, ay, accent)
+			sprite.SetPixel(ax, ay, col)
+		}
+	}
+}
+
+// drawHorizontalLine draws a horizontal line with bounds checking.
+func drawHorizontalLine(sprite *Sprite, x1, x2, y, width, height int, col color.RGBA) {
+	if y < 0 || y >= height {
+		return
+	}
+	for x := x1; x <= x2; x++ {
+		if x >= 0 && x < width {
+			sprite.SetPixel(x, y, col)
 		}
 	}
 }

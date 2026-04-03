@@ -69,68 +69,72 @@ func (is *InteractionSystem) Update(world *ecs.World) *InteractionResult {
 
 // findInteractableInRay performs a ray cast to find interactable entities.
 func (is *InteractionSystem) findInteractableInRay(world *ecs.World, playerPos *components.Position) *InteractionResult {
-	// Direction vector from player angle
 	dirX := math.Cos(playerPos.Angle)
 	dirY := math.Sin(playerPos.Angle)
 
 	var closest *InteractionResult
-
-	// Check all entities with Position component
 	for _, entity := range world.Entities("Position") {
 		if entity == is.playerEntity {
 			continue
 		}
-
-		posComp, ok := world.GetComponent(entity, "Position")
-		if !ok {
-			continue
-		}
-		entPos := posComp.(*components.Position)
-
-		// Calculate distance and direction to entity
-		dx := entPos.X - playerPos.X
-		dy := entPos.Y - playerPos.Y
-		distance := math.Sqrt(dx*dx + dy*dy)
-
-		// Skip if too far
-		if distance > is.maxRange {
-			continue
-		}
-
-		// Check if entity is roughly in front of player (dot product check)
-		if distance > 0.1 {
-			normalizedDX := dx / distance
-			normalizedDY := dy / distance
-			dot := dirX*normalizedDX + dirY*normalizedDY
-			if dot < 0.5 { // Roughly 60 degree cone in front
-				continue
-			}
-		}
-
-		// Determine interaction type
-		interactionType := is.getEntityInteractionType(world, entity)
-		if interactionType == InteractionNone {
-			continue
-		}
-
-		// Get entity name and prompt
-		name, prompt := is.getInteractionInfo(world, entity, interactionType)
-
-		result := &InteractionResult{
-			Entity:   entity,
-			Type:     interactionType,
-			Distance: distance,
-			Name:     name,
-			Prompt:   prompt,
-		}
-
-		// Keep the closest interactable
-		if closest == nil || distance < closest.Distance {
+		result := is.checkEntityInteraction(world, entity, playerPos, dirX, dirY)
+		if result != nil && (closest == nil || result.Distance < closest.Distance) {
 			closest = result
 		}
 	}
-
 	return closest
+}
+
+// checkEntityInteraction checks if an entity is interactable from the player's position.
+func (is *InteractionSystem) checkEntityInteraction(world *ecs.World, entity ecs.Entity, playerPos *components.Position, dirX, dirY float64) *InteractionResult {
+	posComp, ok := world.GetComponent(entity, "Position")
+	if !ok {
+		return nil
+	}
+	entPos := posComp.(*components.Position)
+
+	distance := is.calculateDistance(playerPos, entPos)
+	if distance > is.maxRange {
+		return nil
+	}
+
+	if !is.isInFrontCone(playerPos, entPos, dirX, dirY, distance) {
+		return nil
+	}
+
+	interactionType := is.getEntityInteractionType(world, entity)
+	if interactionType == InteractionNone {
+		return nil
+	}
+
+	name, prompt := is.getInteractionInfo(world, entity, interactionType)
+	return &InteractionResult{
+		Entity:   entity,
+		Type:     interactionType,
+		Distance: distance,
+		Name:     name,
+		Prompt:   prompt,
+	}
+}
+
+// calculateDistance returns the Euclidean distance between two positions.
+func (is *InteractionSystem) calculateDistance(from, to *components.Position) float64 {
+	dx := to.X - from.X
+	dy := to.Y - from.Y
+	return math.Sqrt(dx*dx + dy*dy)
+}
+
+// isInFrontCone checks if a target is within a 60-degree cone in front of the player.
+func (is *InteractionSystem) isInFrontCone(playerPos, targetPos *components.Position, dirX, dirY, distance float64) bool {
+	if distance <= 0.1 {
+		return true
+	}
+	dx := targetPos.X - playerPos.X
+	dy := targetPos.Y - playerPos.Y
+	normalizedDX := dx / distance
+	normalizedDY := dy / distance
+	dot := dirX*normalizedDX + dirY*normalizedDY
+	return dot >= 0.5
 }
 
 // getEntityInteractionType determines what kind of interaction an entity supports.

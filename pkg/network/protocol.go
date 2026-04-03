@@ -397,34 +397,50 @@ func (m *EntityUpdate) encodeFields(w io.Writer) error {
 // DecodeEntityUpdate reads an EntityUpdate from a reader.
 func DecodeEntityUpdate(r io.Reader) (*EntityUpdate, error) {
 	m := &EntityUpdate{}
-	if err := binary.Read(r, binary.LittleEndian, &m.ServerTimeMs); err != nil {
-		return nil, fmt.Errorf("decode ServerTimeMs: %w", err)
+	if err := m.decodeHeader(r); err != nil {
+		return nil, err
 	}
-	if err := binary.Read(r, binary.LittleEndian, &m.EntityID); err != nil {
-		return nil, fmt.Errorf("decode EntityID: %w", err)
-	}
-	if err := binary.Read(r, binary.LittleEndian, &m.X); err != nil {
-		return nil, fmt.Errorf("decode X: %w", err)
-	}
-	if err := binary.Read(r, binary.LittleEndian, &m.Y); err != nil {
-		return nil, fmt.Errorf("decode Y: %w", err)
-	}
-	if err := binary.Read(r, binary.LittleEndian, &m.Z); err != nil {
-		return nil, fmt.Errorf("decode Z: %w", err)
-	}
-	if err := binary.Read(r, binary.LittleEndian, &m.Angle); err != nil {
-		return nil, fmt.Errorf("decode Angle: %w", err)
-	}
-	if err := binary.Read(r, binary.LittleEndian, &m.Health); err != nil {
-		return nil, fmt.Errorf("decode Health: %w", err)
-	}
-	if err := binary.Read(r, binary.LittleEndian, &m.Velocity); err != nil {
-		return nil, fmt.Errorf("decode Velocity: %w", err)
-	}
-	if err := binary.Read(r, binary.LittleEndian, &m.State); err != nil {
-		return nil, fmt.Errorf("decode State: %w", err)
+	if err := m.decodeFields(r); err != nil {
+		return nil, err
 	}
 	return m, nil
+}
+
+// decodeHeader reads ServerTimeMs and EntityID from a reader.
+func (m *EntityUpdate) decodeHeader(r io.Reader) error {
+	if err := binary.Read(r, binary.LittleEndian, &m.ServerTimeMs); err != nil {
+		return fmt.Errorf("decode ServerTimeMs: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.EntityID); err != nil {
+		return fmt.Errorf("decode EntityID: %w", err)
+	}
+	return nil
+}
+
+// decodeFields reads position, angle, health, velocity, and state from a reader.
+func (m *EntityUpdate) decodeFields(r io.Reader) error {
+	if err := binary.Read(r, binary.LittleEndian, &m.X); err != nil {
+		return fmt.Errorf("decode X: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.Y); err != nil {
+		return fmt.Errorf("decode Y: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.Z); err != nil {
+		return fmt.Errorf("decode Z: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.Angle); err != nil {
+		return fmt.Errorf("decode Angle: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.Health); err != nil {
+		return fmt.Errorf("decode Health: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.Velocity); err != nil {
+		return fmt.Errorf("decode Velocity: %w", err)
+	}
+	if err := binary.Read(r, binary.LittleEndian, &m.State); err != nil {
+		return fmt.Errorf("decode State: %w", err)
+	}
+	return nil
 }
 
 // ============================================================================

@@ -80,61 +80,85 @@ func SpawnNPC(world *ecs.World, data *NPCData, x, y float64, factionID string) (
 func SpawnNPCWithGenre(world *ecs.World, data *NPCData, x, y float64, factionID, genre string) (ecs.Entity, error) {
 	e := world.CreateEntity()
 
+	if err := addNPCCoreComponents(world, e, data, x, y, factionID); err != nil {
+		return 0, err
+	}
+
+	if err := addNPCSchedule(world, e); err != nil {
+		return 0, err
+	}
+
+	if err := addNPCAppearance(world, e, data, factionID, genre); err != nil {
+		return 0, err
+	}
+
+	return e, nil
+}
+
+// addNPCCoreComponents adds Position, Health, and Faction components.
+func addNPCCoreComponents(world *ecs.World, e ecs.Entity, data *NPCData, x, y float64, factionID string) error {
 	if err := world.AddComponent(e, &components.Position{X: x, Y: y, Z: 0}); err != nil {
-		return 0, fmt.Errorf("failed to add Position: %w", err)
+		return fmt.Errorf("failed to add Position: %w", err)
 	}
-
-	if err := world.AddComponent(e, &components.Health{
-		Current: data.Health,
-		Max:     data.Health,
-	}); err != nil {
-		return 0, fmt.Errorf("failed to add Health: %w", err)
+	if err := world.AddComponent(e, &components.Health{Current: data.Health, Max: data.Health}); err != nil {
+		return fmt.Errorf("failed to add Health: %w", err)
 	}
-
-	if err := world.AddComponent(e, &components.Faction{
-		ID:         factionID,
-		Reputation: 0,
-	}); err != nil {
-		return 0, fmt.Errorf("failed to add Faction: %w", err)
+	if err := world.AddComponent(e, &components.Faction{ID: factionID, Reputation: 0}); err != nil {
+		return fmt.Errorf("failed to add Faction: %w", err)
 	}
+	return nil
+}
 
-	// Add a basic schedule for NPCs
+// addNPCSchedule adds a default daily schedule component.
+func addNPCSchedule(world *ecs.World, e ecs.Entity) error {
 	schedule := &components.Schedule{
 		CurrentActivity: "idle",
-		TimeSlots: map[int]string{
-			0: "sleep", 1: "sleep", 2: "sleep", 3: "sleep",
-			4: "sleep", 5: "sleep", 6: "wake", 7: "eat",
-			8: "work", 9: "work", 10: "work", 11: "work",
-			12: "eat", 13: "work", 14: "work", 15: "work",
-			16: "work", 17: "eat", 18: "socialize", 19: "socialize",
-			20: "socialize", 21: "relax", 22: "sleep", 23: "sleep",
-		},
+		TimeSlots:       defaultNPCSchedule(),
 	}
 	if err := world.AddComponent(e, schedule); err != nil {
-		return 0, fmt.Errorf("failed to add Schedule: %w", err)
+		return fmt.Errorf("failed to add Schedule: %w", err)
 	}
+	return nil
+}
 
-	// Add Appearance component for visual rendering (Task 2D)
-	// Determine NPC category from faction/tags
-	category := "humanoid"
-	bodyPlan := "villager"
-	if contains(data.Tags, "guard") || factionID == "guard" {
-		bodyPlan = "guard"
-	} else if contains(data.Tags, "merchant") {
-		bodyPlan = "merchant"
-	} else if contains(data.Tags, "noble") {
-		bodyPlan = "noble"
+// defaultNPCSchedule returns the default 24-hour schedule for NPCs.
+func defaultNPCSchedule() map[int]string {
+	return map[int]string{
+		0: "sleep", 1: "sleep", 2: "sleep", 3: "sleep",
+		4: "sleep", 5: "sleep", 6: "wake", 7: "eat",
+		8: "work", 9: "work", 10: "work", 11: "work",
+		12: "eat", 13: "work", 14: "work", 15: "work",
+		16: "work", 17: "eat", 18: "socialize", 19: "socialize",
+		20: "socialize", 21: "relax", 22: "sleep", 23: "sleep",
 	}
-	appearance := components.NewAppearance(category, bodyPlan, genre)
+}
+
+// addNPCAppearance adds the Appearance component based on NPC type.
+func addNPCAppearance(world *ecs.World, e ecs.Entity, data *NPCData, factionID, genre string) error {
+	bodyPlan := determineBodyPlan(data.Tags, factionID)
+	appearance := components.NewAppearance("humanoid", bodyPlan, genre)
 	appearance.AnimState = "idle"
 	appearance.AnimFrame = 0
 	appearance.Scale = 1.0
 	appearance.Opacity = 1.0
 	if err := world.AddComponent(e, appearance); err != nil {
-		return 0, fmt.Errorf("failed to add Appearance: %w", err)
+		return fmt.Errorf("failed to add Appearance: %w", err)
 	}
+	return nil
+}
 
-	return e, nil
+// determineBodyPlan selects the body plan based on NPC tags and faction.
+func determineBodyPlan(tags []string, factionID string) string {
+	if contains(tags, "guard") || factionID == "guard" {
+		return "guard"
+	}
+	if contains(tags, "merchant") {
+		return "merchant"
+	}
+	if contains(tags, "noble") {
+		return "noble"
+	}
+	return "villager"
 }
 
 // contains checks if a slice contains a string.

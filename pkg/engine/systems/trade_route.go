@@ -466,35 +466,52 @@ func (s *TradeRouteSystem) processCaravanArrival(w *ecs.World, caravan *TradeCar
 
 // sellCargoAtDestination sells all caravan cargo at destination prices.
 func (s *TradeRouteSystem) sellCargoAtDestination(w *ecs.World, caravan *TradeCaravan, route *TradeRoute) float64 {
-	total := 0.0
+	dest := s.getDestinationPricer(w, route)
+	return s.calculateCargoValue(caravan, route, dest)
+}
+
+// getDestinationPricer returns a price getter interface for the destination, or nil.
+func (s *TradeRouteSystem) getDestinationPricer(w *ecs.World, route *TradeRoute) interface{ GetPrice(string) float64 } {
 	destComp, ok := w.GetComponent(route.DestinationNode, "EconomyNode")
 	if !ok {
-		// Fallback: use base prices with route margin
-		for item, qty := range caravan.Cargo {
-			if price, ok := s.Economy.BasePrices[item]; ok {
-				total += price * route.ProfitMargin * float64(qty)
-			}
-		}
-		return total
+		return nil
 	}
 	dest, ok := destComp.(interface{ GetPrice(string) float64 })
 	if !ok {
-		// Component doesn't support GetPrice - fallback to base prices
-		for item, qty := range caravan.Cargo {
-			if price, ok := s.Economy.BasePrices[item]; ok {
-				total += price * route.ProfitMargin * float64(qty)
-			}
-		}
-		return total
+		return nil
 	}
+	return dest
+}
+
+// calculateCargoValue computes the total value of caravan cargo.
+func (s *TradeRouteSystem) calculateCargoValue(caravan *TradeCaravan, route *TradeRoute, dest interface{ GetPrice(string) float64 }) float64 {
+	total := 0.0
 	for item, qty := range caravan.Cargo {
-		price := dest.GetPrice(item)
-		if price <= 0 {
-			price = s.Economy.BasePrices[item] * route.ProfitMargin
-		}
-		total += price * float64(qty) * (1.0 - caravan.HazardDamage*0.5)
+		price := s.getItemPrice(item, route, dest)
+		total += price * float64(qty) * s.getDamageMultiplier(caravan, dest != nil)
 	}
 	return total
+}
+
+// getItemPrice returns the sale price for an item.
+func (s *TradeRouteSystem) getItemPrice(item string, route *TradeRoute, dest interface{ GetPrice(string) float64 }) float64 {
+	if dest != nil {
+		if price := dest.GetPrice(item); price > 0 {
+			return price
+		}
+	}
+	if basePrice, ok := s.Economy.BasePrices[item]; ok {
+		return basePrice * route.ProfitMargin
+	}
+	return 0
+}
+
+// getDamageMultiplier returns the cargo damage multiplier.
+func (s *TradeRouteSystem) getDamageMultiplier(caravan *TradeCaravan, hasDestPricing bool) float64 {
+	if hasDestPricing {
+		return 1.0 - caravan.HazardDamage*0.5
+	}
+	return 1.0
 }
 
 // recordTrade records trade history for a player.

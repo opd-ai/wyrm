@@ -148,7 +148,7 @@ func (w *WarmColorGrade) ApplyTo(src, dst *image.RGBA) {
 		r = c.R + w.Intensity*30
 		g = c.G + w.Intensity*15
 		b = c.B - w.Intensity*20
-		return
+		return r, g, b
 	})
 }
 
@@ -221,7 +221,7 @@ func (d *Desaturate) ApplyTo(src, dst *image.RGBA) {
 		r = c.R*invAmount + gray*d.Amount
 		g = c.G*invAmount + gray*d.Amount
 		b = c.B*invAmount + gray*d.Amount
-		return
+		return r, g, b
 	})
 }
 
@@ -428,7 +428,7 @@ func (s *Sepia) ApplyTo(src, dst *image.RGBA) {
 		r = c.R*invIntensity + sepiaR*s.Intensity
 		g = c.G*invIntensity + sepiaG*s.Intensity
 		b = c.B*invIntensity + sepiaB*s.Intensity
-		return
+		return r, g, b
 	})
 }
 
@@ -598,7 +598,7 @@ func (n *NeonGlow) ApplyTo(src, dst *image.RGBA) {
 		g = c.G - n.Intensity*15
 		// Add cyan tint
 		b = c.B + n.Intensity*brightness*30
-		return
+		return r, g, b
 	})
 }
 

@@ -643,46 +643,48 @@ func (g *Game) initCrosshairImage(size int) {
 // initSpeechBubbleImage renders the speech bubble once into the pre-allocated image.
 func (g *Game) initSpeechBubbleImage(w, h int) {
 	pixels := make([]byte, w*h*4)
-	bubbleR, bubbleG, bubbleB, bubbleA := byte(255), byte(255), byte(255), byte(200)
-	textR, textG, textB, textA := byte(50), byte(50), byte(50), byte(255)
-
 	centerX, centerY := w/2, h/2
 
-	// Draw bubble background (ellipse approximation)
-	for dy := -8; dy <= 8; dy++ {
-		for dx := -20; dx <= 20; dx++ {
-			if float64(dx*dx)/400+float64(dy*dy)/64 <= 1 {
-				px := centerX + dx
-				py := centerY + dy
-				if px >= 0 && px < w && py >= 0 && py < h {
-					idx := (py*w + px) * 4
-					pixels[idx] = bubbleR
-					pixels[idx+1] = bubbleG
-					pixels[idx+2] = bubbleB
-					pixels[idx+3] = bubbleA
-				}
+	bubbleColor := [4]byte{255, 255, 255, 200}
+	textColor := [4]byte{50, 50, 50, 255}
+
+	drawEllipseToPixels(pixels, w, h, centerX, centerY, 20, 8, bubbleColor)
+	drawDotsToPixels(pixels, w, h, centerX, centerY, textColor)
+
+	g.speechBubbleImg.WritePixels(pixels)
+}
+
+// drawEllipseToPixels draws an ellipse to a pixel buffer.
+func drawEllipseToPixels(pixels []byte, w, h, cx, cy, rx, ry int, col [4]byte) {
+	for dy := -ry; dy <= ry; dy++ {
+		for dx := -rx; dx <= rx; dx++ {
+			if float64(dx*dx)/float64(rx*rx)+float64(dy*dy)/float64(ry*ry) <= 1 {
+				setPixelSafe(pixels, w, h, cx+dx, cy+dy, col)
 			}
 		}
 	}
+}
 
-	// Draw "..." text (three dots)
+// drawDotsToPixels draws three dots ("...") to a pixel buffer.
+func drawDotsToPixels(pixels []byte, w, h, cx, cy int, col [4]byte) {
 	for i := -8; i <= 8; i += 8 {
 		for ddx := 0; ddx < 3; ddx++ {
 			for ddy := 0; ddy < 3; ddy++ {
-				px := centerX + i + ddx - 1
-				py := centerY + ddy - 1
-				if px >= 0 && px < w && py >= 0 && py < h {
-					idx := (py*w + px) * 4
-					pixels[idx] = textR
-					pixels[idx+1] = textG
-					pixels[idx+2] = textB
-					pixels[idx+3] = textA
-				}
+				setPixelSafe(pixels, w, h, cx+i+ddx-1, cy+ddy-1, col)
 			}
 		}
 	}
+}
 
-	g.speechBubbleImg.WritePixels(pixels)
+// setPixelSafe sets a pixel in the buffer with bounds checking.
+func setPixelSafe(pixels []byte, w, h, x, y int, col [4]byte) {
+	if x >= 0 && x < w && y >= 0 && y < h {
+		idx := (y*w + x) * 4
+		pixels[idx] = col[0]
+		pixels[idx+1] = col[1]
+		pixels[idx+2] = col[2]
+		pixels[idx+3] = col[3]
+	}
 }
 
 // updateSubtitles updates the subtitle system for dialog display.

@@ -21,39 +21,54 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 	screenWidth := g.cfg.Window.Width
 	screenHeight := g.cfg.Window.Height
 
-	// Get player components
+	pos, health, mana := g.getPlayerHUDComponents()
+
+	g.drawHealthAndManaBars(screen, screenHeight, health, mana)
+	g.drawStatusText(screen, pos)
+	g.drawMinimap(screen, screenWidth-80, 10, 64)
+	g.drawWantedStatus(screen, screenWidth-80, 80)
+	g.drawCrosshair(screen, screenWidth, screenHeight)
+	g.drawInteractionPrompt(screen)
+	g.drawDebugInfo(screen)
+}
+
+// getPlayerHUDComponents retrieves position, health, and mana components.
+func (g *Game) getPlayerHUDComponents() (*components.Position, *components.Health, *components.Mana) {
+	if g.playerEntity == 0 {
+		return nil, nil, nil
+	}
 	var pos *components.Position
 	var health *components.Health
 	var mana *components.Mana
-	if g.playerEntity != 0 {
-		if comp, ok := g.world.GetComponent(g.playerEntity, "Position"); ok {
-			pos = comp.(*components.Position)
-		}
-		if comp, ok := g.world.GetComponent(g.playerEntity, "Health"); ok {
-			health = comp.(*components.Health)
-		}
-		if comp, ok := g.world.GetComponent(g.playerEntity, "Mana"); ok {
-			mana = comp.(*components.Mana)
-		}
+	if comp, ok := g.world.GetComponent(g.playerEntity, "Position"); ok {
+		pos = comp.(*components.Position)
 	}
+	if comp, ok := g.world.GetComponent(g.playerEntity, "Health"); ok {
+		health = comp.(*components.Health)
+	}
+	if comp, ok := g.world.GetComponent(g.playerEntity, "Mana"); ok {
+		mana = comp.(*components.Mana)
+	}
+	return pos, health, mana
+}
 
-	// Draw health bar (bottom-left)
-	barWidth := 150
-	barHeight := 12
-	barX := 10
+// drawHealthAndManaBars draws the health and mana bars at the bottom-left.
+func (g *Game) drawHealthAndManaBars(screen *ebiten.Image, screenHeight int, health *components.Health, mana *components.Mana) {
+	const barWidth, barHeight, barX = 150, 12, 10
 	barY := screenHeight - 50
+
 	if health != nil {
 		healthPercent := health.Current / health.Max
 		g.drawBar(screen, barX, barY, barWidth, barHeight, healthPercent, 0xCC0000FF, 0x440000FF)
 	}
-
-	// Draw mana bar (below health)
 	if mana != nil {
 		manaPercent := mana.Current / mana.Max
 		g.drawBar(screen, barX, barY+16, barWidth, barHeight, manaPercent, 0x0066CCFF, 0x002244FF)
 	}
+}
 
-	// Draw position and compass (top-left)
+// drawStatusText draws the position and connection status at the top-left.
+func (g *Game) drawStatusText(screen *ebiten.Image, pos *components.Position) {
 	status := "offline"
 	if g.connected {
 		status = "online"
@@ -67,21 +82,6 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 			g.cfg.Genre, status, pos.X, pos.Y, chunkX, chunkY, direction)
 	}
 	ebitenutil.DebugPrint(screen, coordText)
-
-	// Draw minimap (top-right)
-	g.drawMinimap(screen, screenWidth-80, 10, 64)
-
-	// Draw bounty/wanted status (below minimap)
-	g.drawWantedStatus(screen, screenWidth-80, 80)
-
-	// Draw crosshair (center of screen)
-	g.drawCrosshair(screen, screenWidth, screenHeight)
-
-	// Draw interaction prompt (bottom-center)
-	g.drawInteractionPrompt(screen)
-
-	// Draw debug info if enabled
-	g.drawDebugInfo(screen)
 }
 
 // drawCrosshair renders the crosshair at the center of the screen.

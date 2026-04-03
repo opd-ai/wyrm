@@ -191,10 +191,10 @@ Per AUDIT.md [C-001] and [H-007], the client predictor has critical issues:
 
 **Required changes:**
 
-- [ ] Replace `cos()`, `sin()`, `mod()` with `math.Cos`, `math.Sin`, `math.Mod`
-- [ ] Remove degree-to-radian conversion at line 187 (standardize on radians)
-- [ ] Use `math.Pi` instead of hardcoded `3.14159265`
-- [ ] **Validation**: Unit test comparing prediction output to `math.Cos`/`math.Sin` across full angle range; verify ≤0.001 radian drift after 1000 predictions
+- [x] Replace `cos()`, `sin()`, `mod()` with `math.Cos`, `math.Sin`, `math.Mod`
+- [x] Remove degree-to-radian conversion at line 187 (standardize on radians)
+- [x] Use `math.Pi` instead of hardcoded `3.14159265`
+- [x] **Validation**: Unit test comparing prediction output to `math.Cos`/`math.Sin` across full angle range; verify ≤0.001 radian drift after 1000 predictions
 
 ### Priority 2 (CRITICAL): Add Thread Safety to FactionCoupSystem
 
@@ -206,10 +206,10 @@ Per AUDIT.md [H-001], `FactionCoupSystem` has public methods accessing shared ma
 
 **Required changes:**
 
-- [ ] Add `sync.RWMutex` to `FactionCoupSystem` struct
-- [ ] Use `RLock()` in read methods: `GetCoup`, `GetCoupHistory`, `GetAllActiveCoups`
-- [ ] Use `Lock()` in write methods: `StartCoup`, `Update`, `finalizeCoup`
-- [ ] **Validation**: `go test -race ./pkg/engine/systems/...` passes with concurrent coup operations
+- [x] Add `sync.RWMutex` to `FactionCoupSystem` struct
+- [x] Use `RLock()` in read methods: `GetCoup`, `GetCoupHistory`, `GetAllActiveCoups`
+- [x] Use `Lock()` in write methods: `StartCoup`, `Update`, `finalizeCoup`
+- [x] **Validation**: `go test -race ./pkg/engine/systems/...` passes with concurrent coup operations
 
 ### Priority 3 (CRITICAL): Guard Sprite Division by Zero
 
@@ -221,9 +221,9 @@ Per AUDIT.md [C-003], `calculateSpriteTexX()` divides by `ScreenSpriteWidth` wit
 
 **Required changes:**
 
-- [ ] Add `if ctx.ScreenSpriteWidth == 0 { return 0 }` at `pkg/rendering/raycast/draw.go:127`
-- [ ] Add `if ctx.ScreenSpriteHeight == 0 { return 0 }` at line 137
-- [ ] **Validation**: Test with sprite at distance yielding 0 ScreenSpriteWidth; no panic
+- [x] Add `if ctx.ScreenSpriteWidth == 0 { return 0 }` at `pkg/rendering/raycast/draw.go:127`
+- [x] Add `if ctx.ScreenSpriteHeight == 0 { return 0 }` at line 137
+- [x] **Validation**: Test with sprite at distance yielding 0 ScreenSpriteWidth; no panic
 
 ### Priority 4 (HIGH): Extend High-Latency Support to 5000ms
 
@@ -242,12 +242,12 @@ Per GAPS.md §1, current implementation gaps:
 
 **Required changes:**
 
-- [ ] Add tiered RTT thresholds in `pkg/network/prediction.go` constants
-- [ ] Scale prediction window proportionally: `window = RTT × 1.5`
-- [ ] Increase `HistoryBufferSize` to 256 in `pkg/network/lagcomp.go`
-- [ ] Extend `MaxRewindTime` to 2000ms
-- [ ] Add graduated input rate: 60Hz (<200ms), 30Hz (200-800ms), 20Hz (800-2000ms), 10Hz (>2000ms)
-- [ ] **Validation**: Connect client through artificial 5000ms latency; gameplay remains playable (no rubber-banding worse than 2s)
+- [x] Add tiered RTT thresholds in `pkg/network/prediction.go` constants
+- [x] Scale prediction window proportionally: `window = RTT × 1.5`
+- [x] Increase `HistoryBufferSize` to 256 in `pkg/network/lagcomp.go`
+- [x] Extend `MaxRewindTime` to 2000ms
+- [x] Add graduated input rate: 60Hz (<200ms), 30Hz (200-800ms), 20Hz (800-2000ms), 10Hz (>2000ms)
+- [x] **Validation**: Connect client through artificial 5000ms latency; gameplay remains playable (no rubber-banding worse than 2s)
 
 ### Priority 5 (HIGH): Fix Vehicle Weapon Initialization
 
@@ -259,9 +259,9 @@ Per AUDIT.md [H-002], `weapon.LastFired` initializes to 0, failing the `< cooldo
 
 **Required changes:**
 
-- [ ] Initialize `weapon.LastFired = cooldown` when weapons are created at `pkg/engine/systems/vehicle_combat.go`
-- [ ] Or change guard to `if weapon.LastFired < cooldown && weapon.LastFired > 0`
-- [ ] **Validation**: Newly spawned vehicle can fire weapon on first input
+- [x] Initialize `weapon.LastFired = cooldown` when weapons are created at `pkg/engine/systems/vehicle_combat.go`
+- [x] Or change guard to `if weapon.LastFired < cooldown && weapon.LastFired > 0`
+- [x] **Validation**: Newly spawned vehicle can fire weapon on first input
 
 ### Priority 6 (HIGH): Fix E Key Input Conflict
 
@@ -273,9 +273,9 @@ Per AUDIT.md [M-008], `ebiten.KeyE` is mapped to both strafe right (line 999) an
 
 **Required changes:**
 
-- [ ] Change strafe right to `ebiten.KeyD` (standard WASD) or a dedicated key
-- [ ] Or consume input after interaction handling (don't check strafe if interaction occurred)
-- [ ] **Validation**: Press E near interactable; player interacts without moving
+- [x] Change strafe right to `ebiten.KeyD` (standard WASD) or a dedicated key
+- [x] Or consume input after interaction handling (don't check strafe if interaction occurred)
+- [x] **Validation**: Press E near interactable; player interacts without moving
 
 ### Priority 7 (HIGH): Rate-Limit Auto-Save
 
@@ -287,9 +287,9 @@ Per AUDIT.md [H-003], `performAutoSave()` spawns unbounded goroutines.
 
 **Required changes:**
 
-- [ ] Add `sync.Mutex` or `atomic.Bool` flag to `cmd/server/main.go` auto-save
-- [ ] Skip save if previous save is still in progress
-- [ ] **Validation**: Artificially slow disk I/O; only one save runs at a time
+- [x] Add `sync.Mutex` or `atomic.Bool` flag to `cmd/server/main.go` auto-save
+- [x] Skip save if previous save is still in progress
+- [x] **Validation**: Artificially slow disk I/O; only one save runs at a time
 
 ### Priority 8 (MEDIUM): Implement True Delta Compression
 
@@ -301,11 +301,11 @@ Per GAPS.md §2, current `EntityUpdate` sends all fields unconditionally.
 
 **Required changes:**
 
-- [ ] Add field presence bitmask to `EntityUpdate` struct in `pkg/network/protocol.go`
-- [ ] Only encode/decode fields with changed values
-- [ ] Use fixed-point 16.16 for position instead of float32 (saves 4 bytes per axis)
-- [ ] Implement baseline tracking in server (full state every 60 ticks, deltas otherwise)
-- [ ] **Validation**: Network traffic profiling shows ≥50% bandwidth reduction for stationary entities
+- [x] Add field presence bitmask to `EntityUpdate` struct in `pkg/network/protocol.go`
+- [x] Only encode/decode fields with changed values
+- [x] Use fixed-point 16.16 for position instead of float32 (saves 4 bytes per axis)
+- [x] Implement baseline tracking in server (full state every 60 ticks, deltas otherwise)
+- [x] **Validation**: Network traffic profiling shows ≥50% bandwidth reduction for stationary entities
 
 ### Priority 9 (MEDIUM): Add Mutex to Lag Compensator
 
@@ -317,9 +317,9 @@ Per AUDIT.md [H-005], `HitTest()` releases lock before calling `GetAtTimeWithLim
 
 **Required changes:**
 
-- [ ] Extend `RLock` scope in `pkg/network/lagcomp.go:179-182` to cover `GetAtTimeWithLimit` call
-- [ ] Or make `StateHistory` independently thread-safe
-- [ ] **Validation**: `go test -race` passes with concurrent `HitTest` and `RecordState` calls
+- [x] Extend `RLock` scope in `pkg/network/lagcomp.go:179-182` to cover `GetAtTimeWithLimit` call
+- [x] Or make `StateHistory` independently thread-safe
+- [x] **Validation**: `go test -race` passes with concurrent `HitTest` and `RecordState` calls
 
 ### Priority 10 (MEDIUM): Fix Double-WritePixels in Combat Flash
 
@@ -331,9 +331,9 @@ Per AUDIT.md [H-006], `applyCombatVisualFeedback()` re-uploads framebuffer, eras
 
 **Required changes:**
 
-- [ ] Apply combat flash as a semi-transparent overlay using `screen.DrawImage()` with `ColorScale`
-- [ ] Remove second `WritePixels()` call for combat effects
-- [ ] **Validation**: NPCs remain visible during damage flash
+- [x] Apply combat flash as a semi-transparent overlay using `screen.DrawImage()` with `ColorScale`
+- [x] Remove second `WritePixels()` call for combat effects
+- [x] **Validation**: NPCs remain visible during damage flash
 
 ### Priority 11 (MEDIUM): Bound History Data Structures
 
@@ -345,10 +345,10 @@ Per AUDIT.md [M-001, M-002], `CoupHistory` and `DialogHistory` grow without limi
 
 **Required changes:**
 
-- [ ] Add max 50 entries per faction for `CoupHistory`
-- [ ] Add max 100 entries per entity for `DialogHistory`
-- [ ] Implement FIFO eviction when limits are exceeded
-- [ ] **Validation**: Profile memory after 10,000 simulated coups/dialogs; growth is bounded
+- [x] Add max 50 entries per faction for `CoupHistory`
+- [x] Add max 100 entries per entity for `DialogHistory`
+- [x] Implement FIFO eviction when limits are exceeded
+- [x] **Validation**: Profile memory after 10,000 simulated coups/dialogs; growth is bounded
 
 ### Priority 12 (LOW): Fix Mouse Smoothing Dead Zone
 
@@ -360,9 +360,9 @@ Per AUDIT.md [M-006], smoothed mouse delta never fully reaches zero.
 
 **Required changes:**
 
-- [ ] Add dead-zone: `if math.Abs(g.smoothedDeltaX) < 0.001 { g.smoothedDeltaX = 0 }`
-- [ ] Validate config smoothing factor is in [0, 1] range
-- [ ] **Validation**: Mouse stationary for 5 seconds; camera completely still
+- [x] Add dead-zone: `if math.Abs(g.smoothedDeltaX) < 0.001 { g.smoothedDeltaX = 0 }`
+- [x] Validate config smoothing factor is in [0, 1] range
+- [x] **Validation**: Mouse stationary for 5 seconds; camera completely still
 
 ### Priority 13 (LOW): Remove Dead Code
 
@@ -374,9 +374,9 @@ Per AUDIT.md [M-003], `updateLinear()` is never called (55 lines of dead code).
 
 **Required changes:**
 
-- [ ] Remove `updateLinear()` from `pkg/engine/systems/physics.go:71-126`
-- [ ] Remove unused `particleBuffer` and `particleBufferSize` fields from `cmd/client/main.go:98-99`
-- [ ] **Validation**: `go build` succeeds; no remaining references
+- [x] Remove `updateLinear()` from `pkg/engine/systems/physics.go:71-126`
+- [x] Remove unused `particleBuffer` and `particleBufferSize` fields from `cmd/client/main.go:98-99`
+- [x] **Validation**: `go build` succeeds; no remaining references
 
 ### Priority 14 (LOW): Use Per-Connection Send Channel Pattern
 
@@ -388,10 +388,10 @@ Per AUDIT.md [H-004], server spawns goroutine per input message.
 
 **Required changes:**
 
-- [ ] Create buffered channel per connection in `pkg/network/server.go`
-- [ ] Spawn single sender goroutine per connection
-- [ ] Queue world state sends to channel instead of spawning goroutines
-- [ ] **Validation**: With 32 simulated clients at 60Hz input, goroutine count stays under 100 (currently ~2000)
+- [x] Create buffered channel per connection in `pkg/network/server.go`
+- [x] Spawn single sender goroutine per connection
+- [x] Queue world state sends to channel instead of spawning goroutines
+- [x] **Validation**: With 32 simulated clients at 60Hz input, goroutine count stays under 100 (currently ~2000)
 
 ---
 
