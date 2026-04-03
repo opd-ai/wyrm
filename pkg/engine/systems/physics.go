@@ -67,64 +67,6 @@ func (s *PhysicsSystem) Update(w *ecs.World, dt float64) {
 	}
 }
 
-// updateLinear handles linear physics (velocity, friction, gravity).
-func (s *PhysicsSystem) updateLinear(phys *components.PhysicsBody, pos *components.Position, dt float64) {
-	// Apply gravity if not grounded
-	if !phys.Grounded && phys.Mass > 0 {
-		phys.VelocityZ -= s.Gravity * dt
-	}
-
-	// Apply friction to horizontal movement
-	if phys.Grounded && phys.Friction > 0 {
-		frictionFactor := 1.0 - phys.Friction*dt*10 // Scale friction for game feel
-		if frictionFactor < 0 {
-			frictionFactor = 0
-		}
-		phys.VelocityX *= frictionFactor
-		phys.VelocityY *= frictionFactor
-	}
-
-	// Apply air resistance to all velocities when not grounded
-	if !phys.Grounded {
-		airResistance := 0.98
-		phys.VelocityX *= airResistance
-		phys.VelocityY *= airResistance
-	}
-
-	// Clamp velocities
-	phys.VelocityX = clampVelocity(phys.VelocityX, s.MaxVelocity)
-	phys.VelocityY = clampVelocity(phys.VelocityY, s.MaxVelocity)
-	phys.VelocityZ = clampVelocity(phys.VelocityZ, s.MaxVelocity)
-
-	// Zero out small velocities to prevent drift
-	if math.Abs(phys.VelocityX) < s.MinVelocityThreshold {
-		phys.VelocityX = 0
-	}
-	if math.Abs(phys.VelocityY) < s.MinVelocityThreshold {
-		phys.VelocityY = 0
-	}
-	if math.Abs(phys.VelocityZ) < s.MinVelocityThreshold {
-		phys.VelocityZ = 0
-	}
-
-	// Update position
-	pos.X += phys.VelocityX * dt
-	pos.Y += phys.VelocityY * dt
-	pos.Z += phys.VelocityZ * dt
-
-	// Ground collision (simple floor at Z=0)
-	if pos.Z < 0 {
-		pos.Z = 0
-		// Bounce or stop
-		if phys.Bounciness > 0 && math.Abs(phys.VelocityZ) > 0.5 {
-			phys.VelocityZ = -phys.VelocityZ * phys.Bounciness
-		} else {
-			phys.VelocityZ = 0
-			phys.Grounded = true
-		}
-	}
-}
-
 // updateLinearWithCollision handles linear physics with barrier collision checking.
 // This is the enhanced version that checks for wall/barrier collisions for pushable objects.
 func (s *PhysicsSystem) updateLinearWithCollision(w *ecs.World, entity ecs.Entity, phys *components.PhysicsBody, pos *components.Position, barriers []ecs.Entity, dt float64) {

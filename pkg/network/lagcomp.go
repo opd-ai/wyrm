@@ -177,14 +177,6 @@ type HitResult struct {
 // HitTest performs a lag-compensated hit test.
 // Uses latency-aware max rewind time based on the connection's RTT.
 func (lc *LagCompensator) HitTest(shooterID, targetID uint64, shotOrigin, shotDirection Position3D, clientTime time.Time, rtt time.Duration) *HitResult {
-	lc.mu.RLock()
-	targetHistory := lc.entities[targetID]
-	lc.mu.RUnlock()
-
-	if targetHistory == nil {
-		return &HitResult{Hit: false}
-	}
-
 	// Calculate latency-aware max rewind time
 	maxRewind := lc.getMaxRewindForRTT(rtt)
 	rewindTime := clientTime.Add(-rtt / 2)
@@ -194,7 +186,16 @@ func (lc *LagCompensator) HitTest(shooterID, targetID uint64, shotOrigin, shotDi
 		rewindTime = now.Add(-maxRewind)
 	}
 
+	// Hold the read lock for the entire history lookup to prevent TOCTOU race
+	lc.mu.RLock()
+	targetHistory := lc.entities[targetID]
+	if targetHistory == nil {
+		lc.mu.RUnlock()
+		return &HitResult{Hit: false}
+	}
 	targetState := targetHistory.GetAtTimeWithLimit(targetID, rewindTime, maxRewind)
+	lc.mu.RUnlock()
+
 	if targetState == nil {
 		return &HitResult{Hit: false}
 	}

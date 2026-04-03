@@ -25,6 +25,9 @@ const (
 	CoupStateFailed
 )
 
+// maxCoupHistoryPerFaction limits stored coup history to prevent unbounded growth.
+const maxCoupHistoryPerFaction = 50
+
 // FactionCoup represents an active or planned coup within a faction.
 type FactionCoup struct {
 	FactionID       string
@@ -228,8 +231,11 @@ func (s *FactionCoupSystem) calculateResistanceGrowth(w *ecs.World, factionID st
 
 // finalizeCoup handles coup resolution.
 func (s *FactionCoupSystem) finalizeCoup(factionID string, coup *FactionCoup) {
-	// Record in history
+	// Record in history with size limit
 	s.CoupHistory[factionID] = append(s.CoupHistory[factionID], coup)
+	if len(s.CoupHistory[factionID]) > maxCoupHistoryPerFaction {
+		s.CoupHistory[factionID] = s.CoupHistory[factionID][1:]
+	}
 
 	// Remove from active coups
 	delete(s.ActiveCoups, factionID)

@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"image"
+	"image/color"
 	"log"
 	"math"
 	_ "net/http/pprof"
@@ -70,7 +71,8 @@ type Game struct {
 	lodManager    *chunk.LODManager // LOD management for distant terrain optimization
 	lastChunkX    int
 	lastChunkY    int
-	mapSize       int // Size of the local map grid
+	chunkMapInit  bool // Whether the chunk map has been initialized
+	mapSize       int  // Size of the local map grid
 	wallThreshold float64
 	audioEngine   *audio.Engine
 	audioPlayer   *audio.Player
@@ -109,7 +111,8 @@ type Game struct {
 	adaptiveMusic *music.AdaptiveMusic
 	currentRegion ambient.RegionType
 	// Interaction system
-	interactionSys *InteractionSystem
+	interactionSys       *InteractionSystem
+	interactionThisFrame bool // Whether E key was used for interaction this frame
 	// Dialog UI
 	dialogUI *DialogUI
 	// Combat system
@@ -223,8 +226,8 @@ func (g *Game) updateActiveOverlay(dt float64) bool {
 
 // updateGameplay handles all active gameplay updates.
 func (g *Game) updateGameplay(dt float64) {
+	g.handleInteraction() // Check for interaction first to set interactionThisFrame
 	g.handlePlayerInput(dt)
-	g.handleInteraction()
 	g.handleCombat(dt)
 	g.world.Update(dt)
 	g.updateChunkMap()
@@ -306,7 +309,9 @@ func (g *Game) handleCombat(dt float64) {
 }
 
 // handleInteraction checks for and processes entity interactions.
+// Sets interactionThisFrame flag when E key is consumed for interaction.
 func (g *Game) handleInteraction() {
+	g.interactionThisFrame = false // Reset each frame
 	if g.interactionSys == nil {
 		return
 	}
@@ -314,11 +319,12 @@ func (g *Game) handleInteraction() {
 	// Update interaction system to find current target
 	g.interactionSys.Update(g.world)
 
-	// Check if interaction key is pressed
+	// Check if interaction key is pressed and there's a valid target
 	if g.isActionOrKeyPressed(input.ActionInteract, ebiten.KeyE) {
 		target := g.interactionSys.GetCurrentTarget()
 		if target != nil {
 			g.processInteraction(target)
+			g.interactionThisFrame = true // Consume the E key this frame
 		}
 	}
 }
@@ -802,12 +808,13 @@ func (g *Game) updateChunkMap() {
 	// Calculate current chunk coordinates
 	chunkX := int(pos.X) / g.cfg.World.ChunkSize
 	chunkY := int(pos.Y) / g.cfg.World.ChunkSize
-	// Only rebuild map when entering a new chunk
-	if chunkX == g.lastChunkX && chunkY == g.lastChunkY {
+	// Only rebuild map when entering a new chunk or on first run
+	if g.chunkMapInit && chunkX == g.lastChunkX && chunkY == g.lastChunkY {
 		return
 	}
 	g.lastChunkX = chunkX
 	g.lastChunkY = chunkY
+	g.chunkMapInit = true
 	g.rebuildWorldMap(chunkX, chunkY)
 }
 
@@ -1051,23 +1058,26 @@ func (g *Game) gatherMovementForward() float32 {
 }
 
 // gatherMovementStrafe returns strafe input (-1 for left, 1 for right, 0 otherwise).
+// Skips strafe right if E was consumed for interaction this frame.
 func (g *Game) gatherMovementStrafe() float32 {
 	if g.isActionOrKeyPressed(input.ActionStrafeLeft, ebiten.KeyQ) {
 		return -1.0
 	}
-	if g.isActionOrKeyPressed(input.ActionStrafeRight, ebiten.KeyE) {
+	// Don't strafe right on E if it was used for interaction
+	if !g.interactionThisFrame && g.isActionOrKeyPressed(input.ActionStrafeRight, ebiten.KeyE) {
 		return 1.0
 	}
 	return 0
 }
 
 // gatherTurnInput returns turn input from keyboard.
+// Returns ±1.0 representing desired turn direction; server scales by tick rate.
 func (g *Game) gatherTurnInput() float32 {
 	if g.isActionOrKeyPressed(input.ActionMoveLeft, ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyLeft) {
-		return -0.05
+		return -1.0
 	}
 	if g.isActionOrKeyPressed(input.ActionMoveRight, ebiten.KeyD) || ebiten.IsKeyPressed(ebiten.KeyRight) {
-		return 0.05
+		return 1.0
 	}
 	return 0
 }
@@ -1160,8 +1170,21 @@ func (g *Game) applyMouseModifiers(deltaX, deltaY float64) (float64, float64) {
 
 	if g.cfg.Mouse.SmoothingOn {
 		factor := g.cfg.Mouse.SmoothingFactor
+		// Clamp smoothing factor to valid range [0, 1]
+		if factor < 0 {
+			factor = 0
+		} else if factor > 1 {
+			factor = 1
+		}
 		g.smoothedDeltaX = g.smoothedDeltaX*(1-factor) + deltaX*factor
 		g.smoothedDeltaY = g.smoothedDeltaY*(1-factor) + deltaY*factor
+		// Apply dead-zone to prevent phantom drift when mouse is stationary
+		if math.Abs(g.smoothedDeltaX) < 0.001 {
+			g.smoothedDeltaX = 0
+		}
+		if math.Abs(g.smoothedDeltaY) < 0.001 {
+			g.smoothedDeltaY = 0
+		}
 		deltaX = g.smoothedDeltaX
 		deltaY = g.smoothedDeltaY
 	}
@@ -1285,38 +1308,20 @@ func (g *Game) drawUIOverlays(screen *ebiten.Image) {
 }
 
 // applyCombatVisualFeedback applies screen shake and damage flash effects.
-// Uses the renderer's framebuffer to avoid per-pixel GPU calls.
+// Uses DrawRect overlay instead of framebuffer modification to preserve sprites.
 func (g *Game) applyCombatVisualFeedback(screen *ebiten.Image) {
 	if g.combatManager == nil {
 		return
 	}
 
-	// Apply damage flash overlay
+	// Apply damage flash as semi-transparent red overlay
 	flashAlpha := g.combatManager.GetDamageFlashAlpha()
 	if flashAlpha > 0 {
-		framebuffer := g.renderer.GetFramebuffer()
-		if framebuffer == nil {
-			return
-		}
-
-		blendFactor := float64(flashAlpha) / 255.0
-		invBlend := 1.0 - blendFactor
-		flashR := 255.0 * blendFactor // Pre-compute flash color contribution
-
-		// Blend red flash directly into framebuffer
-		for i := 0; i < len(framebuffer); i += 4 {
-			r := float64(framebuffer[i])
-			gr := float64(framebuffer[i+1])
-			b := float64(framebuffer[i+2])
-
-			framebuffer[i] = uint8(r*invBlend + flashR)
-			framebuffer[i+1] = uint8(gr * invBlend)
-			framebuffer[i+2] = uint8(b * invBlend)
-			// Alpha stays at 255
-		}
-
-		// Upload modified framebuffer
-		screen.WritePixels(framebuffer)
+		screenWidth := screen.Bounds().Dx()
+		screenHeight := screen.Bounds().Dy()
+		// Draw red overlay with calculated alpha
+		ebitenutil.DrawRect(screen, 0, 0, float64(screenWidth), float64(screenHeight),
+			color.RGBA{255, 0, 0, uint8(flashAlpha)})
 	}
 }
 
@@ -1329,32 +1334,18 @@ func (g *Game) drawCharacterCreation(screen *ebiten.Image) {
 }
 
 // drawDeathScreen draws the death overlay when the player is dead.
-// Uses the framebuffer for overlay, then falls back to ebitenutil for text.
+// Uses DrawRect for overlay, then ebitenutil for text.
 func (g *Game) drawDeathScreen(screen *ebiten.Image) {
 	if g.combatManager == nil || !g.combatManager.IsDead() {
 		return
 	}
 
-	framebuffer := g.renderer.GetFramebuffer()
-	if framebuffer != nil {
-		// Apply dark overlay directly to framebuffer
-		// alpha = 180/255 ≈ 0.706
-		blendFactor := 180.0 / 255.0
-		invBlend := 1.0 - blendFactor
-
-		for i := 0; i < len(framebuffer); i += 4 {
-			// Blend toward black (R=0, G=0, B=0)
-			framebuffer[i] = uint8(float64(framebuffer[i]) * invBlend)
-			framebuffer[i+1] = uint8(float64(framebuffer[i+1]) * invBlend)
-			framebuffer[i+2] = uint8(float64(framebuffer[i+2]) * invBlend)
-		}
-
-		// Upload modified framebuffer
-		screen.WritePixels(framebuffer)
-	}
-
 	screenWidth := screen.Bounds().Dx()
 	screenHeight := screen.Bounds().Dy()
+
+	// Apply dark overlay using DrawRect (preserves previously drawn content)
+	ebitenutil.DrawRect(screen, 0, 0, float64(screenWidth), float64(screenHeight),
+		color.RGBA{0, 0, 0, 180})
 
 	// Draw death message (using ebitenutil which is GPU-accelerated)
 	respawnTime := g.combatManager.GetTimeUntilRespawn()
@@ -1750,8 +1741,9 @@ func main() {
 		playerEntity:      player,
 		chunkManager:      chunkMgr,
 		lodManager:        lodMgr,
-		lastChunkX:        -999, // Force initial map build
-		lastChunkY:        -999,
+		lastChunkX:        0,
+		lastChunkY:        0,
+		chunkMapInit:      false, // Triggers initial map build on first update
 		mapSize:           localMapSize,
 		wallThreshold:     wallThreshold,
 		audioEngine:       audioEngine,

@@ -94,7 +94,7 @@ Generated: 2026-04-03
 - **Impact**: Potential data race or stale hit results in lag-compensated combat.
 - **Root Cause**: Lock scope is too narrow — should hold the read lock through the `GetAtTimeWithLimit` call.
 - **Suggested Fix**: Extend the `RLock` scope to cover the `GetAtTimeWithLimit` call, or ensure `StateHistory` is independently thread-safe.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [H-006] Framebuffer Modified in Draw() Then Re-uploaded
 - **Location**: `cmd/client/main.go:1287-1321, 1331-1354`
@@ -103,7 +103,7 @@ Generated: 2026-04-03
 - **Impact**: NPC sprites and post-processing effects are briefly visible then overwritten by the combat flash framebuffer upload. During damage flash, NPCs disappear for one frame.
 - **Root Cause**: Double `WritePixels()` to the same screen in a single Draw call. The combat flash should be applied as a semi-transparent overlay using `DrawImage` with `ColorScale`, not by re-uploading the raw framebuffer.
 - **Suggested Fix**: Apply combat flash as an overlay image with alpha blending using `screen.DrawImage()` instead of modifying and re-uploading the framebuffer.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [H-007] Client-Side Prediction Uses Degrees While Client Uses Radians
 - **Location**: `pkg/network/prediction.go:187` vs `cmd/client/main.go:975-988`
@@ -112,7 +112,7 @@ Generated: 2026-04-03
 - **Impact**: Client-side prediction moves in completely wrong directions compared to actual server movement, causing severe rubber-banding when server corrections arrive.
 - **Root Cause**: Mismatch between angle units (degrees vs. radians) across subsystems.
 - **Suggested Fix**: Standardize on radians throughout. Remove the degree-to-radian conversion in `prediction.go:187` and use `math.Cos`/`math.Sin` directly.
-- [ ] **Resolved**
+- [x] **Resolved** (Fixed as part of C-001 - prediction.go now uses radians directly)
 
 ## Medium Priority Issues
 
@@ -123,7 +123,7 @@ Generated: 2026-04-03
 - **Impact**: Gradual memory leak proportional to server uptime and faction activity.
 - **Root Cause**: No maximum history size or eviction policy.
 - **Suggested Fix**: Add a history limit (e.g., 50 per faction) and trim like the `TradingSystem` does at line 432-434.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [M-002] DialogHistory in DialogConsequenceSystem Grows Without Bound
 - **Location**: `pkg/engine/systems/dialog_consequence.go:364`
@@ -132,6 +132,7 @@ Generated: 2026-04-03
 - **Impact**: Memory grows proportional to total NPC conversations. With 200+ NPCs and long play sessions, this accumulates significantly.
 - **Root Cause**: No trimming of dialog history.
 - **Suggested Fix**: Add a maximum dialog history size per entity (e.g., 100 entries) with FIFO eviction.
+- [x] **Resolved**
 - [ ] **Resolved**
 
 ### [M-003] Dead Code — `updateLinear` Method Never Called
@@ -141,7 +142,7 @@ Generated: 2026-04-03
 - **Impact**: Maintenance burden — developers may modify `updateLinear()` thinking it affects gameplay.
 - **Root Cause**: Method was superseded by `updateLinearWithCollision()` but not removed.
 - **Suggested Fix**: Remove `updateLinear()` or document it as an internal helper if it serves a purpose.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [M-004] Business Logic in ECS Components Violates Architecture
 - **Location**: `pkg/engine/components/definitions.go:57-74, 97-115`
@@ -159,7 +160,7 @@ Generated: 2026-04-03
 - **Impact**: If a player spawns at or near chunk (-999, -999), the initial map build is skipped because the sentinel matches the actual position.
 - **Root Cause**: Using magic numbers instead of an explicit `needsRebuild` boolean flag.
 - **Suggested Fix**: Add a `chunkMapInitialized bool` field to `Game` and check it instead of relying on sentinel coordinates.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [M-006] Mouse Smoothing Accumulates State Between Frames Incorrectly
 - **Location**: `cmd/client/main.go:1161-1167`
@@ -168,7 +169,7 @@ Generated: 2026-04-03
 - **Impact**: Very slow residual camera drift when the mouse is still. With high smoothing factor values (>1.0 due to missing validation), camera behavior becomes erratic.
 - **Root Cause**: No dead-zone threshold to zero out small smoothed deltas.
 - **Suggested Fix**: Add a dead-zone: `if math.Abs(g.smoothedDeltaX) < 0.001 { g.smoothedDeltaX = 0 }`. Validate smoothing factor is in [0, 1].
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [M-007] Turn Input Sends Hardcoded Values Instead of Delta-Time Scaled
 - **Location**: `cmd/client/main.go:1065-1073`
@@ -177,7 +178,7 @@ Generated: 2026-04-03
 - **Impact**: Players with higher frame rates send more turn inputs per second, rotating faster than players with lower frame rates.
 - **Root Cause**: Turn input should represent desired angular velocity (scaled by dt), not raw per-frame delta.
 - **Suggested Fix**: Return `±1.0` and let the server scale by its tick rate, or scale by `dt` before sending.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [M-008] Strafe and Interaction Share Key E
 - **Location**: `cmd/client/main.go:999, 318`
@@ -186,7 +187,7 @@ Generated: 2026-04-03
 - **Impact**: Player strafes right every time they interact with an NPC/item, causing unintended movement during dialog or pickups.
 - **Root Cause**: Key binding conflict — same physical key mapped to two actions.
 - **Suggested Fix**: Separate the bindings. Use a dedicated interaction key or consume the input after interaction handling.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ## Low Priority Issues
 

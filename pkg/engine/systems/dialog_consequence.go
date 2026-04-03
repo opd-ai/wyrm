@@ -8,6 +8,9 @@ import (
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 )
 
+// maxDialogHistoryPerEntity limits stored dialog history to prevent unbounded growth.
+const maxDialogHistoryPerEntity = 100
+
 // DialogConsequenceSystem processes dialog choices and applies their effects.
 type DialogConsequenceSystem struct {
 	// PendingConsequences queues consequences to process.
@@ -366,6 +369,10 @@ func recordDialogSelection(state *components.DialogState, player ecs.Entity, opt
 		Text:     option.Text,
 		OptionID: optionID,
 	})
+	// Trim oldest entries if over the limit
+	if len(state.DialogHistory) > maxDialogHistoryPerEntity {
+		state.DialogHistory = state.DialogHistory[1:]
+	}
 	state.CurrentTopicID = option.NextTopicID
 }
 
