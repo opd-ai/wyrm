@@ -11,6 +11,12 @@ import (
 	"time"
 )
 
+// worldStateRequest is sent through a per-connection channel to request world state sends.
+type worldStateRequest struct {
+	playerID uint64
+	ackSeq   uint32
+}
+
 // Server handles incoming client connections and authoritative game state.
 type Server struct {
 	Address       string
@@ -19,8 +25,9 @@ type Server struct {
 	clients       []net.Conn
 	clientPlayers map[net.Conn]uint64 // Connection to player entity ID
 	playerStates  map[uint64]*PlayerState
-	lastAck       map[net.Conn]uint32 // Last acknowledged input sequence per client
-	clientChunks  map[net.Conn][2]int // Last known chunk position per client
+	lastAck       map[net.Conn]uint32                 // Last acknowledged input sequence per client
+	clientChunks  map[net.Conn][2]int                 // Last known chunk position per client
+	clientSend    map[net.Conn]chan worldStateRequest // Per-connection send channel
 	running       bool
 	wg            sync.WaitGroup // Tracks all server goroutines for clean shutdown
 }
@@ -42,6 +49,7 @@ func NewServer(address string) *Server {
 		playerStates:  make(map[uint64]*PlayerState),
 		lastAck:       make(map[net.Conn]uint32),
 		clientChunks:  make(map[net.Conn][2]int),
+		clientSend:    make(map[net.Conn]chan worldStateRequest),
 	}
 }
 
@@ -128,6 +136,9 @@ func (s *Server) registerClient(conn net.Conn) {
 
 	entityID := nextEntityID()
 
+	// Create a buffered send channel for this connection (capacity handles burst)
+	sendCh := make(chan worldStateRequest, 16)
+
 	s.mu.Lock()
 	s.clients = append(s.clients, conn)
 	s.clientPlayers[conn] = entityID
@@ -140,7 +151,13 @@ func (s *Server) registerClient(conn net.Conn) {
 		Health:   100,
 	}
 	s.lastAck[conn] = 0
+	s.clientSend[conn] = sendCh
 	s.mu.Unlock()
+
+	// Start a dedicated sender goroutine for this connection
+	s.wg.Add(1)
+	go s.connectionSender(conn, sendCh)
+
 	log.Printf("client connected: %s (entity %d)", conn.RemoteAddr(), entityID)
 }
 
@@ -160,6 +177,11 @@ func (s *Server) handleClient(conn net.Conn) {
 func (s *Server) cleanupClient(conn net.Conn) {
 	s.mu.Lock()
 	entityID := s.clientPlayers[conn]
+	// Close the send channel to signal the sender goroutine to exit
+	if sendCh, ok := s.clientSend[conn]; ok {
+		close(sendCh)
+		delete(s.clientSend, conn)
+	}
 	delete(s.clientPlayers, conn)
 	delete(s.playerStates, entityID)
 	delete(s.lastAck, conn)
@@ -353,11 +375,16 @@ func (s *Server) handlePlayerInput(conn net.Conn, input *PlayerInput) {
 	// Update last acknowledged sequence
 	s.lastAck[conn] = input.SequenceNum
 
-	// Send acknowledgement with world state (unlocks after this line via defer)
-	// Note: sendWorldState is called after unlock via goroutine to avoid holding lock
-	// Track goroutine in WaitGroup to ensure clean shutdown
-	s.wg.Add(1)
-	go s.sendWorldState(conn, entityID, input.SequenceNum)
+	// Queue world state send via the per-connection channel (non-blocking)
+	// This replaces spawning a goroutine per input, reducing GC pressure
+	sendCh, ok := s.clientSend[conn]
+	if ok {
+		select {
+		case sendCh <- worldStateRequest{playerID: entityID, ackSeq: input.SequenceNum}:
+		default:
+			// Channel full, skip this update (client will catch up)
+		}
+	}
 }
 
 // clampFloat32 clamps a value between min and max.
@@ -371,11 +398,19 @@ func clampFloat32(v, min, max float32) float32 {
 	return v
 }
 
+// connectionSender is a dedicated goroutine for sending world state to a client.
+// It reads from the send channel and processes requests sequentially, eliminating
+// the need to spawn a goroutine per input message.
+func (s *Server) connectionSender(conn net.Conn, sendCh <-chan worldStateRequest) {
+	defer s.wg.Done()
+	for req := range sendCh {
+		s.sendWorldState(conn, req.playerID, req.ackSeq)
+	}
+}
+
 // sendWorldState sends the current world state to a client.
 // Uses RLock for read-only access to player states, reducing lock contention.
 func (s *Server) sendWorldState(conn net.Conn, playerID uint64, ackSeq uint32) {
-	defer s.wg.Done()
-
 	s.mu.RLock()
 	entities := make([]EntityState, 0, len(s.playerStates))
 	for _, ps := range s.playerStates {
@@ -548,6 +583,11 @@ func (s *Server) Stop() error {
 	if s.listener != nil {
 		listenerErr = s.listener.Close()
 		s.listener = nil
+	}
+	// Close all send channels to signal sender goroutines to exit
+	for conn, sendCh := range s.clientSend {
+		close(sendCh)
+		delete(s.clientSend, conn)
 	}
 	// Close all client connections to unblock handleClient goroutines
 	for _, c := range s.clients {

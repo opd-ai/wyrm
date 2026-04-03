@@ -85,7 +85,7 @@ Generated: 2026-04-03
 - **Impact**: Goroutine churn increases GC pressure and scheduler overhead. While Go handles many goroutines, this pattern is wasteful — a per-client send channel with a dedicated writer goroutine would be more efficient.
 - **Root Cause**: Using goroutine-per-message instead of goroutine-per-connection pattern.
 - **Suggested Fix**: Use a buffered channel per connection with a dedicated sender goroutine, rather than spawning a goroutine per input message.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [H-005] Lag Compensator Has TOCTOU Race on Entity History
 - **Location**: `pkg/network/lagcomp.go:179-182`
@@ -133,7 +133,6 @@ Generated: 2026-04-03
 - **Root Cause**: No trimming of dialog history.
 - **Suggested Fix**: Add a maximum dialog history size per entity (e.g., 100 entries) with FIFO eviction.
 - [x] **Resolved**
-- [ ] **Resolved**
 
 ### [M-003] Dead Code — `updateLinear` Method Never Called
 - **Location**: `pkg/engine/systems/physics.go:71-126`
@@ -248,7 +247,7 @@ Generated: 2026-04-03
 - **Current Impact**: Creates ~60 goroutines/second/client for world state sends.
 - **Optimization**: Use a per-connection buffered channel with a single dedicated sender goroutine.
 - **Expected Improvement**: Reduces goroutine creation overhead and GC pressure. Estimated 50%+ reduction in scheduler overhead for network I/O.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [P-004] World Map Fully Rebuilt on Chunk Transition
 - **Location**: `cmd/client/main.go:816-843`
