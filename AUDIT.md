@@ -23,7 +23,7 @@ Generated: 2026-04-03
   3. Observe desynchronization between predicted and server-confirmed positions
 - **Root Cause**: Reinventing `math.Cos`/`math.Sin`/`math.Mod` with inferior approximations instead of using the standard library.
 - **Suggested Fix**: Replace `cos()`, `sin()`, `mod()` with `math.Cos()`, `math.Sin()`, `math.Mod()`.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [C-002] Operator Precedence Bug in Coup System Guard Clause
 - **Location**: `pkg/engine/systems/faction_coup.go:395`
@@ -35,7 +35,7 @@ Generated: 2026-04-03
   2. Currently safe due to short-circuit, but fragile
 - **Root Cause**: Missing explicit parentheses around compound boolean expressions.
 - **Suggested Fix**: Add parentheses: `if !exists || (coup.State != CoupStatePlotting && coup.State != CoupStateActive)`.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [C-003] Division by Zero in Sprite Texture Coordinate Calculation
 - **Location**: `pkg/rendering/raycast/draw.go:127`
@@ -47,7 +47,7 @@ Generated: 2026-04-03
   2. When `ScreenSpriteWidth` rounds to 0, the division panics
 - **Root Cause**: No guard against zero denominator before integer division.
 - **Suggested Fix**: Add `if ctx.ScreenSpriteWidth == 0 { return 0 }` guard before the division. Similarly check `ctx.ScreenSpriteHeight` at line 137.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ## High Priority Issues
 
@@ -58,7 +58,7 @@ Generated: 2026-04-03
 - **Impact**: Runtime panic (`concurrent map read and map write`) under concurrent access, crashing the server.
 - **Root Cause**: No mutex protection on shared map state.
 - **Suggested Fix**: Add a `sync.RWMutex` to `FactionCoupSystem`. Use `RLock` in read-only methods (`GetCoup`, `GetCoupHistory`, `GetAllActiveCoups`) and `Lock` in mutating methods (`StartCoup`, `Update`, `finalizeCoup`).
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [H-002] Vehicle Combat Cooldown Logic Is Inverted
 - **Location**: `pkg/engine/systems/vehicle_combat.go:128-130`
@@ -67,7 +67,7 @@ Generated: 2026-04-03
 - **Impact**: Newly equipped or first-use weapons fail to fire until `LastFired` accumulates past `cooldown` through system updates. Players experience "dead" weapons on first equip.
 - **Root Cause**: `LastFired` is initialized to 0 instead of a value >= cooldown (e.g., `math.MaxFloat64` or initializing to `cooldown` value).
 - **Suggested Fix**: Initialize `weapon.LastFired = cooldown` when weapons are created, or change the guard to `if weapon.LastFired < cooldown && weapon.LastFired > 0`.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [H-003] Auto-Save Creates Unbounded Goroutines Without Rate Limiting
 - **Location**: `cmd/server/main.go:602-612`
@@ -76,7 +76,7 @@ Generated: 2026-04-03
 - **Impact**: Under heavy load or slow disk, multiple concurrent goroutines snapshot and save simultaneously, causing memory pressure (multiple full world snapshots) and potential file corruption from concurrent writes.
 - **Root Cause**: No guard against concurrent auto-save operations.
 - **Suggested Fix**: Add a `sync.Mutex` or `atomic.Bool` flag (`saving`) to skip the auto-save if one is already in progress.
-- [ ] **Resolved**
+- [x] **Resolved**
 
 ### [H-004] Network Server Spawns Goroutine Per Client Input
 - **Location**: `pkg/network/server.go:359-360`

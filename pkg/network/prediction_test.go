@@ -1047,8 +1047,8 @@ func TestPredictionUsesStandardMath(t *testing.T) {
 	pos := cp.GetPredictedPosition()
 	// With angle=0, cos(0)=1, sin(0)=0
 	// Forward movement should be in +X direction
-	expectedX := float32(1.0 * cp.moveSpeed * 1.0 * math.Cos(0)) // moveSpeed * dt * cos(0)
-	expectedZ := float32(1.0 * cp.moveSpeed * 1.0 * math.Sin(0)) // moveSpeed * dt * sin(0)
+	expectedX := float32(float64(cp.moveSpeed) * math.Cos(0)) // moveSpeed * dt * cos(0)
+	expectedZ := float32(float64(cp.moveSpeed) * math.Sin(0)) // moveSpeed * dt * sin(0)
 
 	epsilon := float32(0.0001)
 	if diff := pos.X - expectedX; diff < -epsilon || diff > epsilon {
@@ -1083,8 +1083,8 @@ func TestPredictionAccuracyVsOldImplementation(t *testing.T) {
 
 		pos := cp.GetPredictedPosition()
 		// Expected values using standard library
-		expectedX := float32(cp.moveSpeed * math.Cos(angle))
-		expectedZ := float32(cp.moveSpeed * math.Sin(angle))
+		expectedX := float32(float64(cp.moveSpeed) * math.Cos(angle))
+		expectedZ := float32(float64(cp.moveSpeed) * math.Sin(angle))
 
 		epsilon := float32(0.001)
 		if diff := pos.X - expectedX; diff < -epsilon || diff > epsilon {

@@ -123,12 +123,20 @@ func (r *Renderer) isValidSpriteColumn(screenX int, ctx *SpriteDrawContext) bool
 }
 
 // calculateSpriteTexX computes the texture X coordinate for a screen column.
+// Returns 0 if ScreenSpriteWidth is 0 to prevent division by zero.
 func (r *Renderer) calculateSpriteTexX(screenX int, ctx *SpriteDrawContext) int {
+	if ctx.ScreenSpriteWidth == 0 {
+		return 0
+	}
 	return (screenX - ctx.StartX) * ctx.SpriteWidth / ctx.ScreenSpriteWidth
 }
 
 // drawSpriteColumnPixels renders all pixels in a sprite column.
 func (r *Renderer) drawSpriteColumnPixels(screenX, texX int, ctx *SpriteDrawContext) {
+	// Guard against zero ScreenSpriteHeight to prevent division by zero
+	if ctx.ScreenSpriteHeight == 0 {
+		return
+	}
 	for screenY := ctx.StartY; screenY < ctx.EndY; screenY++ {
 		if screenY < 0 || screenY >= r.Height {
 			continue

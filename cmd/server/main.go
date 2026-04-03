@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -22,6 +23,9 @@ import (
 	"github.com/opd-ai/wyrm/pkg/world/chunk"
 	"github.com/opd-ai/wyrm/pkg/world/persist"
 )
+
+// autoSaveInProgress prevents concurrent auto-save operations
+var autoSaveInProgress atomic.Bool
 
 func main() {
 	cfg, err := config.Load()
@@ -603,8 +607,15 @@ func runServerLoop(world *ecs.World, cfg *config.Config, srv *network.Server, fe
 
 // performAutoSave saves the world state periodically in a background goroutine.
 // This prevents auto-save from blocking the game tick loop.
+// Uses atomic flag to prevent concurrent saves.
 func performAutoSave(world *ecs.World, cfg *config.Config, pm *persist.Persister) {
+	// Skip if save already in progress
+	if !autoSaveInProgress.CompareAndSwap(false, true) {
+		log.Println("auto-save skipped: previous save still in progress")
+		return
+	}
 	go func() {
+		defer autoSaveInProgress.Store(false)
 		log.Println("auto-saving world state...")
 		snapshot := createWorldSnapshot(world, cfg)
 		if err := pm.Save(snapshot); err != nil {

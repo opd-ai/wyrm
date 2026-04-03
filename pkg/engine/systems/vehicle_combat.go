@@ -84,34 +84,41 @@ func (s *VehicleCombatSystem) AddWeapon(entity ecs.Entity, weaponType VehicleWea
 }
 
 // createWeapon creates a weapon with default stats based on type.
+// LastFired is initialized to the cooldown value so the weapon can fire immediately.
 func (s *VehicleCombatSystem) createWeapon(weaponType VehicleWeaponType) *VehicleWeapon {
+	var weapon *VehicleWeapon
 	switch weaponType {
 	case WeaponMachineGun:
-		return &VehicleWeapon{
+		weapon = &VehicleWeapon{
 			Type: WeaponMachineGun, Damage: 5, Range: 150,
 			RateOfFire: 10, AmmoCapacity: 200, AmmoCount: 200, Enabled: true,
 		}
 	case WeaponCannon:
-		return &VehicleWeapon{
+		weapon = &VehicleWeapon{
 			Type: WeaponCannon, Damage: 40, Range: 300,
 			RateOfFire: 0.5, AmmoCapacity: 20, AmmoCount: 20, Enabled: true,
 		}
 	case WeaponMissile:
-		return &VehicleWeapon{
+		weapon = &VehicleWeapon{
 			Type: WeaponMissile, Damage: 80, Range: 500,
 			RateOfFire: 0.2, AmmoCapacity: 4, AmmoCount: 4, Enabled: true,
 		}
 	case WeaponLaser:
-		return &VehicleWeapon{
+		weapon = &VehicleWeapon{
 			Type: WeaponLaser, Damage: 15, Range: 250,
 			RateOfFire: 5, AmmoCapacity: 100, AmmoCount: 100, Enabled: true,
 		}
 	default:
-		return &VehicleWeapon{
+		weapon = &VehicleWeapon{
 			Type: WeaponRam, Damage: 20, Range: 10,
 			RateOfFire: 0.3, AmmoCapacity: -1, AmmoCount: -1, Enabled: true,
 		}
 	}
+	// Initialize LastFired to cooldown so weapon can fire immediately on first use
+	if weapon.RateOfFire > 0 {
+		weapon.LastFired = 1.0 / weapon.RateOfFire
+	}
+	return weapon
 }
 
 // Fire attempts to fire a weapon at a target.

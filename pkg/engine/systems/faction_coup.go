@@ -3,6 +3,7 @@ package systems
 
 import (
 	"math/rand"
+	"sync"
 
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
@@ -40,6 +41,8 @@ type FactionCoup struct {
 
 // FactionCoupSystem manages internal faction coups and leadership changes.
 type FactionCoupSystem struct {
+	// mu protects concurrent access to ActiveCoups and CoupHistory maps
+	mu sync.RWMutex
 	// ActiveCoups maps faction ID to active coup
 	ActiveCoups map[string]*FactionCoup
 	// CoupHistory tracks past coups for narrative
@@ -83,6 +86,8 @@ func NewFactionCoupSystem(rankSystem *FactionRankSystem, politicsSystem *Faction
 
 // Update processes faction coups each tick.
 func (s *FactionCoupSystem) Update(w *ecs.World, dt float64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.processActiveCoups(w, dt)
 	s.checkForNewCoups(w, dt)
 }
@@ -343,6 +348,13 @@ func (s *FactionCoupSystem) getGenreReasons() []string {
 
 // StartCoup begins a coup in a faction.
 func (s *FactionCoupSystem) StartCoup(factionID string, leaderEntity ecs.Entity, instigatorType, reason string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.startCoupLocked(factionID, leaderEntity, instigatorType, reason)
+}
+
+// startCoupLocked is the internal implementation called when lock is already held.
+func (s *FactionCoupSystem) startCoupLocked(factionID string, leaderEntity ecs.Entity, instigatorType, reason string) bool {
 	// Check if coup already exists
 	if _, exists := s.ActiveCoups[factionID]; exists {
 		return false
@@ -381,7 +393,9 @@ func (s *FactionCoupSystem) PlayerStartCoup(w *ecs.World, playerEntity ecs.Entit
 	// Higher rank = higher starting support
 	startingSupport := 0.1 + float64(info.Rank)*0.03
 
-	if s.StartCoup(factionID, playerEntity, "player", "player-led uprising") {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.startCoupLocked(factionID, playerEntity, "player", "player-led uprising") {
 		s.ActiveCoups[factionID].SupportLevel = startingSupport
 		return true
 	}
@@ -391,8 +405,15 @@ func (s *FactionCoupSystem) PlayerStartCoup(w *ecs.World, playerEntity ecs.Entit
 // getActiveCoupWithMembership returns an active coup and player rank if conditions are met.
 // Returns nil coup if: no active coup, coup not in valid state, rank system unavailable, or player not a member.
 func (s *FactionCoupSystem) getActiveCoupWithMembership(w *ecs.World, playerEntity ecs.Entity, factionID string) (*FactionCoup, int) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.getActiveCoupWithMembershipLocked(w, playerEntity, factionID)
+}
+
+// getActiveCoupWithMembershipLocked is called when the lock is already held.
+func (s *FactionCoupSystem) getActiveCoupWithMembershipLocked(w *ecs.World, playerEntity ecs.Entity, factionID string) (*FactionCoup, int) {
 	coup, exists := s.ActiveCoups[factionID]
-	if !exists || coup.State != CoupStatePlotting && coup.State != CoupStateActive {
+	if !exists || (coup.State != CoupStatePlotting && coup.State != CoupStateActive) {
 		return nil, 0
 	}
 	if s.RankSystem == nil {
@@ -407,18 +428,23 @@ func (s *FactionCoupSystem) getActiveCoupWithMembership(w *ecs.World, playerEnti
 
 // SupportCoup allows a player to support an active coup.
 func (s *FactionCoupSystem) SupportCoup(w *ecs.World, playerEntity ecs.Entity, factionID string) bool {
-	return s.adjustCoupLevel(w, playerEntity, factionID, true)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.adjustCoupLevelLocked(w, playerEntity, factionID, true)
 }
 
 // OpposeCoup allows a player to oppose an active coup.
 func (s *FactionCoupSystem) OpposeCoup(w *ecs.World, playerEntity ecs.Entity, factionID string) bool {
-	return s.adjustCoupLevel(w, playerEntity, factionID, false)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.adjustCoupLevelLocked(w, playerEntity, factionID, false)
 }
 
-// adjustCoupLevel modifies either the support or resistance level of a coup based on the
+// adjustCoupLevelLocked modifies either the support or resistance level of a coup based on the
 // player's faction rank. The isSupport parameter determines which level to adjust.
-func (s *FactionCoupSystem) adjustCoupLevel(w *ecs.World, playerEntity ecs.Entity, factionID string, isSupport bool) bool {
-	coup, rank := s.getActiveCoupWithMembership(w, playerEntity, factionID)
+// Caller must hold the mutex.
+func (s *FactionCoupSystem) adjustCoupLevelLocked(w *ecs.World, playerEntity ecs.Entity, factionID string, isSupport bool) bool {
+	coup, rank := s.getActiveCoupWithMembershipLocked(w, playerEntity, factionID)
 	if coup == nil {
 		return false
 	}
@@ -442,16 +468,29 @@ func clampToOne(v float64) float64 {
 
 // GetCoup returns the active coup for a faction, or nil if none.
 func (s *FactionCoupSystem) GetCoup(factionID string) *FactionCoup {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.ActiveCoups[factionID]
 }
 
 // GetCoupHistory returns the coup history for a faction.
 func (s *FactionCoupSystem) GetCoupHistory(factionID string) []*FactionCoup {
-	return s.CoupHistory[factionID]
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	// Return a copy to prevent concurrent modification
+	history := s.CoupHistory[factionID]
+	if history == nil {
+		return nil
+	}
+	result := make([]*FactionCoup, len(history))
+	copy(result, history)
+	return result
 }
 
 // GetAllActiveCoups returns all currently active coups.
 func (s *FactionCoupSystem) GetAllActiveCoups() map[string]*FactionCoup {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	result := make(map[string]*FactionCoup)
 	for k, v := range s.ActiveCoups {
 		result[k] = v
@@ -461,13 +500,17 @@ func (s *FactionCoupSystem) GetAllActiveCoups() map[string]*FactionCoup {
 
 // IsCoupActive checks if a faction has an active coup.
 func (s *FactionCoupSystem) IsCoupActive(factionID string) bool {
-	coup := s.GetCoup(factionID)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	coup := s.ActiveCoups[factionID]
 	return coup != nil && (coup.State == CoupStatePlotting || coup.State == CoupStateActive)
 }
 
 // GetCoupSuccessChance returns the estimated chance of coup success (0-100%).
 func (s *FactionCoupSystem) GetCoupSuccessChance(factionID string) float64 {
-	coup := s.GetCoup(factionID)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	coup := s.ActiveCoups[factionID]
 	if coup == nil {
 		return 0
 	}
