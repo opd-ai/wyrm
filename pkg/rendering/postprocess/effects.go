@@ -141,39 +141,15 @@ func (w *WarmColorGrade) Apply(img *image.RGBA) *image.RGBA {
 }
 
 // ApplyTo applies warm color grading to the destination buffer.
-// Uses direct Pix slice access for better performance.
+// Uses the shared forEachPixel helper for consistent iteration.
 func (w *WarmColorGrade) ApplyTo(src, dst *image.RGBA) {
-	bounds := src.Bounds()
-	width := bounds.Dx()
-	height := bounds.Dy()
-	srcStride := src.Stride
-	dstStride := dst.Stride
-
-	for y := 0; y < height; y++ {
-		srcRow := y * srcStride
-		dstRow := y * dstStride
-		for x := 0; x < width; x++ {
-			srcOff := srcRow + x*4
-			dstOff := dstRow + x*4
-
-			// Read RGBA directly from Pix slice
-			r := float64(src.Pix[srcOff])
-			g := float64(src.Pix[srcOff+1])
-			b := float64(src.Pix[srcOff+2])
-			a := src.Pix[srcOff+3]
-
-			// Shift toward warm tones
-			r += w.Intensity * 30
-			g += w.Intensity * 15
-			b -= w.Intensity * 20
-
-			// Write directly to Pix slice
-			dst.Pix[dstOff] = clampByte(r)
-			dst.Pix[dstOff+1] = clampByte(g)
-			dst.Pix[dstOff+2] = clampByte(b)
-			dst.Pix[dstOff+3] = a
-		}
-	}
+	forEachPixel(src, dst, func(x, y int, c RGBA) (r, g, b float64) {
+		// Shift toward warm tones
+		r = c.R + w.Intensity*30
+		g = c.G + w.Intensity*15
+		b = c.B - w.Intensity*20
+		return
+	})
 }
 
 // Name returns the effect name.
@@ -235,37 +211,18 @@ func (d *Desaturate) Apply(img *image.RGBA) *image.RGBA {
 }
 
 // ApplyTo reduces saturation to the destination buffer.
-// Uses direct Pix slice access for better performance.
+// Uses the shared forEachPixel helper for consistent iteration.
 func (d *Desaturate) ApplyTo(src, dst *image.RGBA) {
-	bounds := src.Bounds()
-	width := bounds.Dx()
-	height := bounds.Dy()
-	srcStride := src.Stride
-	dstStride := dst.Stride
-
 	invAmount := 1 - d.Amount
-	for y := 0; y < height; y++ {
-		srcRow := y * srcStride
-		dstRow := y * dstStride
-		for x := 0; x < width; x++ {
-			srcOff := srcRow + x*4
-			dstOff := dstRow + x*4
-
-			r := float64(src.Pix[srcOff])
-			g := float64(src.Pix[srcOff+1])
-			b := float64(src.Pix[srcOff+2])
-			a := src.Pix[srcOff+3]
-
-			// Calculate luminance
-			gray := 0.299*r + 0.587*g + 0.114*b
-
-			// Blend between original and grayscale
-			dst.Pix[dstOff] = clampByte(r*invAmount + gray*d.Amount)
-			dst.Pix[dstOff+1] = clampByte(g*invAmount + gray*d.Amount)
-			dst.Pix[dstOff+2] = clampByte(b*invAmount + gray*d.Amount)
-			dst.Pix[dstOff+3] = a
-		}
-	}
+	forEachPixel(src, dst, func(x, y int, c RGBA) (r, g, b float64) {
+		// Calculate luminance
+		gray := 0.299*c.R + 0.587*c.G + 0.114*c.B
+		// Blend between original and grayscale
+		r = c.R*invAmount + gray*d.Amount
+		g = c.G*invAmount + gray*d.Amount
+		b = c.B*invAmount + gray*d.Amount
+		return
+	})
 }
 
 // Name returns the effect name.
@@ -459,39 +416,20 @@ func (s *Sepia) Apply(img *image.RGBA) *image.RGBA {
 }
 
 // ApplyTo adds sepia tone to the destination buffer.
-// Uses direct Pix slice access for better performance.
+// Uses the shared forEachPixel helper for consistent iteration.
 func (s *Sepia) ApplyTo(src, dst *image.RGBA) {
-	bounds := src.Bounds()
-	width := bounds.Dx()
-	height := bounds.Dy()
-	srcStride := src.Stride
-	dstStride := dst.Stride
-
 	invIntensity := 1 - s.Intensity
-	for y := 0; y < height; y++ {
-		srcRow := y * srcStride
-		dstRow := y * dstStride
-		for x := 0; x < width; x++ {
-			srcOff := srcRow + x*4
-			dstOff := dstRow + x*4
-
-			r := float64(src.Pix[srcOff])
-			g := float64(src.Pix[srcOff+1])
-			b := float64(src.Pix[srcOff+2])
-			a := src.Pix[srcOff+3]
-
-			// Sepia transformation
-			sepiaR := 0.393*r + 0.769*g + 0.189*b
-			sepiaG := 0.349*r + 0.686*g + 0.168*b
-			sepiaB := 0.272*r + 0.534*g + 0.131*b
-
-			// Blend with original
-			dst.Pix[dstOff] = clampByte(r*invIntensity + sepiaR*s.Intensity)
-			dst.Pix[dstOff+1] = clampByte(g*invIntensity + sepiaG*s.Intensity)
-			dst.Pix[dstOff+2] = clampByte(b*invIntensity + sepiaB*s.Intensity)
-			dst.Pix[dstOff+3] = a
-		}
-	}
+	forEachPixel(src, dst, func(x, y int, c RGBA) (r, g, b float64) {
+		// Sepia transformation
+		sepiaR := 0.393*c.R + 0.769*c.G + 0.189*c.B
+		sepiaG := 0.349*c.R + 0.686*c.G + 0.168*c.B
+		sepiaB := 0.272*c.R + 0.534*c.G + 0.131*c.B
+		// Blend with original
+		r = c.R*invIntensity + sepiaR*s.Intensity
+		g = c.G*invIntensity + sepiaG*s.Intensity
+		b = c.B*invIntensity + sepiaB*s.Intensity
+		return
+	})
 }
 
 // Name returns the effect name.
@@ -649,8 +587,38 @@ func (n *NeonGlow) Apply(img *image.RGBA) *image.RGBA {
 }
 
 // ApplyTo adds neon glow effect to the destination buffer.
-// Uses direct Pix slice access for better performance.
+// Uses the shared forEachPixel helper for consistent iteration.
 func (n *NeonGlow) ApplyTo(src, dst *image.RGBA) {
+	forEachPixel(src, dst, func(x, y int, c RGBA) (r, g, b float64) {
+		// Enhance pinks and cyans (cyberpunk palette)
+		brightness := (c.R + c.G + c.B) / 765.0
+		// Add pink/magenta tint
+		r = c.R + n.Intensity*brightness*40
+		// Reduce green slightly
+		g = c.G - n.Intensity*15
+		// Add cyan tint
+		b = c.B + n.Intensity*brightness*30
+		return
+	})
+}
+
+// Name returns the effect name.
+func (n *NeonGlow) Name() string { return "NeonGlow" }
+
+// RGBA represents pixel color channels as floats for effect processing.
+type RGBA struct {
+	R, G, B float64
+	A       uint8
+}
+
+// PixelTransformFunc transforms a pixel's RGBA values.
+// It receives the pixel coordinates, original RGBA values, and returns transformed RGB.
+// The alpha channel is preserved automatically.
+type PixelTransformFunc func(x, y int, c RGBA) (r, g, b float64)
+
+// forEachPixel iterates over all pixels in src, applies the transform function,
+// and writes results to dst. This is a common pattern used by color effects.
+func forEachPixel(src, dst *image.RGBA, transform PixelTransformFunc) {
 	bounds := src.Bounds()
 	width := bounds.Dx()
 	height := bounds.Dy()
@@ -664,31 +632,22 @@ func (n *NeonGlow) ApplyTo(src, dst *image.RGBA) {
 			srcOff := srcRow + x*4
 			dstOff := dstRow + x*4
 
-			r := float64(src.Pix[srcOff])
-			g := float64(src.Pix[srcOff+1])
-			b := float64(src.Pix[srcOff+2])
-			a := src.Pix[srcOff+3]
+			c := RGBA{
+				R: float64(src.Pix[srcOff]),
+				G: float64(src.Pix[srcOff+1]),
+				B: float64(src.Pix[srcOff+2]),
+				A: src.Pix[srcOff+3],
+			}
 
-			// Enhance pinks and cyans (cyberpunk palette)
-			brightness := (r + g + b) / 765.0
-
-			// Add pink/magenta tint
-			r += n.Intensity * brightness * 40
-			// Reduce green slightly
-			g -= n.Intensity * 15
-			// Add cyan tint
-			b += n.Intensity * brightness * 30
+			r, g, b := transform(x, y, c)
 
 			dst.Pix[dstOff] = clampByte(r)
 			dst.Pix[dstOff+1] = clampByte(g)
 			dst.Pix[dstOff+2] = clampByte(b)
-			dst.Pix[dstOff+3] = a
+			dst.Pix[dstOff+3] = c.A
 		}
 	}
 }
-
-// Name returns the effect name.
-func (n *NeonGlow) Name() string { return "NeonGlow" }
 
 // clampByte clamps a float64 to uint8 range.
 func clampByte(v float64) uint8 {

@@ -188,74 +188,28 @@ func (s *PhysicsSystem) resolveBarrierCollisions(w *ecs.World, entity ecs.Entity
 }
 
 // checkBarrierCollision tests if a point with radius collides with a barrier.
+// Delegates to shared collision helpers.
 func checkBarrierCollision(x, y, radius float64, barrier *components.Barrier, barrierPos *components.Position) bool {
 	switch barrier.Shape.ShapeType {
 	case "cylinder":
-		dx := x - barrierPos.X
-		dy := y - barrierPos.Y
-		distSq := dx*dx + dy*dy
-		combinedRadius := radius + barrier.Shape.Radius
-		return distSq < combinedRadius*combinedRadius
-
+		return checkCylinderCollision(x, y, radius, barrier, barrierPos)
 	case "box":
-		halfW := barrier.Shape.Width / 2
-		halfD := barrier.Shape.Depth / 2
-		closestX := physicsClamp(x, barrierPos.X-halfW, barrierPos.X+halfW)
-		closestY := physicsClamp(y, barrierPos.Y-halfD, barrierPos.Y+halfD)
-		dx := x - closestX
-		dy := y - closestY
-		distSq := dx*dx + dy*dy
-		return distSq < radius*radius
-
+		return checkBoxCollisionAABB(x, y, radius, barrier, barrierPos)
 	default:
-		// Default to cylinder
-		dx := x - barrierPos.X
-		dy := y - barrierPos.Y
-		distSq := dx*dx + dy*dy
-		combinedRadius := radius + barrier.Shape.Radius
-		return distSq < combinedRadius*combinedRadius
+		return checkCylinderCollision(x, y, radius, barrier, barrierPos)
 	}
 }
 
 // resolveBarrierCollision resolves collision by pushing the entity out of the barrier.
+// Delegates to shared collision helpers.
 func resolveBarrierCollision(oldX, oldY, newX, newY, radius float64, barrier *components.Barrier, barrierPos *components.Position) (float64, float64) {
 	switch barrier.Shape.ShapeType {
 	case "cylinder":
-		dx := newX - barrierPos.X
-		dy := newY - barrierPos.Y
-		dist := math.Sqrt(dx*dx + dy*dy)
-
-		if dist == 0 {
-			return oldX, oldY
-		}
-
-		combinedRadius := radius + barrier.Shape.Radius + 0.001
-		resolvedX := barrierPos.X + (dx/dist)*combinedRadius
-		resolvedY := barrierPos.Y + (dy/dist)*combinedRadius
-		return resolvedX, resolvedY
-
+		return resolveCylinderCollisionPush(oldX, oldY, newX, newY, radius, barrier, barrierPos)
 	case "box":
-		halfW := barrier.Shape.Width / 2
-		halfD := barrier.Shape.Depth / 2
-		closestX := physicsClamp(newX, barrierPos.X-halfW, barrierPos.X+halfW)
-		closestY := physicsClamp(newY, barrierPos.Y-halfD, barrierPos.Y+halfD)
-
-		dx := newX - closestX
-		dy := newY - closestY
-		dist := math.Sqrt(dx*dx + dy*dy)
-
-		if dist == 0 {
-			return oldX, oldY
-		}
-
-		pushDist := radius + 0.001 - dist
-		if pushDist > 0 {
-			return newX + (dx/dist)*pushDist, newY + (dy/dist)*pushDist
-		}
-		return newX, newY
-
+		return resolveBoxCollisionPush(oldX, oldY, newX, newY, radius, barrier, barrierPos)
 	default:
-		return resolveBarrierCollision(oldX, oldY, newX, newY, radius, &components.Barrier{
+		return resolveCylinderCollisionPush(oldX, oldY, newX, newY, radius, &components.Barrier{
 			Shape: components.BarrierShape{ShapeType: "cylinder", Radius: barrier.Shape.Radius},
 		}, barrierPos)
 	}

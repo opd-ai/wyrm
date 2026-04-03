@@ -135,23 +135,19 @@ func NewChunk(x, y, size int, seed int64) *Chunk {
 
 // NewChunkWithNoiseType creates a new chunk with the specified noise algorithm.
 func NewChunkWithNoiseType(x, y, size int, seed int64, noiseType noise.NoiseType) *Chunk {
-	heightMap := generateHeightMapWithNoiseType(size, seed, noiseType)
-	elevationMap := generateElevationMapWithNoiseType(size, seed, heightMap, noiseType)
-	biomeMap := generateBiomeMapWorldSpace(x, y, size, seed)
-	terrainTypes := generateTerrainTypes(size, heightMap, elevationMap, biomeMap)
-	detailSpawns := generateDetailSpawns(size, seed, terrainTypes, biomeMap)
-	wallHeights := generateWallHeights(size, heightMap, elevationMap, terrainTypes)
+	base := generateChunkBaseData(x, y, size, seed, noiseType)
+	detailSpawns := generateDetailSpawns(size, seed, base.terrainTypes, base.biomeMap)
 	return &Chunk{
 		X:            x,
 		Y:            y,
 		Size:         size,
 		Seed:         seed,
-		HeightMap:    heightMap,
-		ElevationMap: elevationMap,
-		TerrainTypes: terrainTypes,
-		BiomeMap:     biomeMap,
+		HeightMap:    base.heightMap,
+		ElevationMap: base.elevationMap,
+		TerrainTypes: base.terrainTypes,
+		BiomeMap:     base.biomeMap,
 		DetailSpawns: detailSpawns,
-		WallHeights:  wallHeights,
+		WallHeights:  base.wallHeights,
 	}
 }
 
@@ -163,16 +159,12 @@ func NewChunkWithBarriers(x, y, size int, seed int64, genre string) *Chunk {
 
 // NewChunkWithBarriersAndConfig creates a chunk with detailed barrier spawn configuration.
 func NewChunkWithBarriersAndConfig(x, y, size int, seed int64, noiseType noise.NoiseType, genre string, barrierCfg BarrierSpawnConfig) *Chunk {
-	heightMap := generateHeightMapWithNoiseType(size, seed, noiseType)
-	elevationMap := generateElevationMapWithNoiseType(size, seed, heightMap, noiseType)
-	biomeMap := generateBiomeMapWorldSpace(x, y, size, seed)
-	terrainTypes := generateTerrainTypes(size, heightMap, elevationMap, biomeMap)
-	detailSpawns := generateDetailSpawns(size, seed, terrainTypes, biomeMap)
-	wallHeights := generateWallHeights(size, heightMap, elevationMap, terrainTypes)
+	base := generateChunkBaseData(x, y, size, seed, noiseType)
+	detailSpawns := generateDetailSpawns(size, seed, base.terrainTypes, base.biomeMap)
 
 	// Generate barrier spawns with genre-specific configuration
 	barrierCfg.Genre = genre
-	barrierSpawns := GenerateBarrierSpawns(size, seed, terrainTypes, biomeMap, barrierCfg)
+	barrierSpawns := GenerateBarrierSpawns(size, seed, base.terrainTypes, base.biomeMap, barrierCfg)
 
 	// Combine detail spawns and barrier spawns
 	allSpawns := make([]DetailSpawn, 0, len(detailSpawns)+len(barrierSpawns))
@@ -184,12 +176,38 @@ func NewChunkWithBarriersAndConfig(x, y, size int, seed int64, noiseType noise.N
 		Y:            y,
 		Size:         size,
 		Seed:         seed,
-		HeightMap:    heightMap,
-		ElevationMap: elevationMap,
-		TerrainTypes: terrainTypes,
-		BiomeMap:     biomeMap,
+		HeightMap:    base.heightMap,
+		ElevationMap: base.elevationMap,
+		TerrainTypes: base.terrainTypes,
+		BiomeMap:     base.biomeMap,
 		DetailSpawns: allSpawns,
-		WallHeights:  wallHeights,
+		WallHeights:  base.wallHeights,
+	}
+}
+
+// chunkBaseData holds the intermediate data generated for a chunk.
+type chunkBaseData struct {
+	heightMap    []float64
+	elevationMap []float64
+	terrainTypes []int
+	biomeMap     []float64
+	wallHeights  []float64
+}
+
+// generateChunkBaseData creates the common base data needed for chunk creation.
+// This consolidates the shared generation logic used by multiple chunk constructors.
+func generateChunkBaseData(x, y, size int, seed int64, noiseType noise.NoiseType) *chunkBaseData {
+	heightMap := generateHeightMapWithNoiseType(size, seed, noiseType)
+	elevationMap := generateElevationMapWithNoiseType(size, seed, heightMap, noiseType)
+	biomeMap := generateBiomeMapWorldSpace(x, y, size, seed)
+	terrainTypes := generateTerrainTypes(size, heightMap, elevationMap, biomeMap)
+	wallHeights := generateWallHeights(size, heightMap, elevationMap, terrainTypes)
+	return &chunkBaseData{
+		heightMap:    heightMap,
+		elevationMap: elevationMap,
+		terrainTypes: terrainTypes,
+		biomeMap:     biomeMap,
+		wallHeights:  wallHeights,
 	}
 }
 
