@@ -963,7 +963,7 @@ world.RegisterSystem(&systems.InteractionTargetSystem{})
 - [x] `partial_barrier_test.go` — Alpha blending, gap patterns, transparency rendering
 - [x] `interaction_ray_test.go` — Center-screen ray, object targeting, range checking (in interaction_test.go: 17 tests)
 - [x] `highlight_test.go` — Edge detection, glow rendering (16 tests)
-- [ ] `mouse_input_test.go` — Sensitivity, acceleration, smoothing, pitch clamping
+- [x] `mouse_input_test.go` — Sensitivity, acceleration, smoothing, pitch clamping
 - [x] `barrier_component_test.go` — Component creation, Type() string, flag operations (in types_test.go: Barrier tests)
 - [x] `barrier_system_test.go` — System Update() with mock world, collision resolution (in barrier_collision_test.go + destruction tests)
 
