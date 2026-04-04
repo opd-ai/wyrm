@@ -4,6 +4,7 @@ package chunk
 import (
 	"encoding/binary"
 	"hash/fnv"
+	"log"
 	"math/rand"
 	"sync"
 
@@ -1411,6 +1412,81 @@ func (cm *Manager) createPlaceholderChunk(x, y int) *Chunk {
 		BiomeMap:     biomeMap,
 		DetailSpawns: nil, // No details in placeholder
 	}
+}
+
+// StoreNetworkChunk stores a chunk received from the server into the local cache.
+// The chunk replaces any existing or pending local generation for those coordinates.
+// Network chunks are render-only: detail spawns are omitted because the client seed
+// may differ from the server seed, so authoritative entities come via entity updates.
+func (cm *Manager) StoreNetworkChunk(x, y, size int, heightData []uint16, biomeData []uint8) {
+	key := [2]int{x, y}
+
+	// Validate chunk size matches the manager's expected size to prevent
+	// mixed-size chunks that would break coordinate calculations.
+	if size != cm.ChunkSize {
+		log.Printf("warning: network chunk (%d,%d) size %d != manager ChunkSize %d, skipping",
+			x, y, size, cm.ChunkSize)
+		return
+	}
+
+	// Convert network height data (uint16, scaled by 100) back to float64 heightmap
+	cells := size * size
+	if len(heightData) < cells {
+		log.Printf("warning: incomplete chunk height data for (%d,%d): got %d, expected %d",
+			x, y, len(heightData), cells)
+	}
+	if len(biomeData) < cells {
+		log.Printf("warning: incomplete chunk biome data for (%d,%d): got %d, expected %d",
+			x, y, len(biomeData), cells)
+	}
+	heightMap := make([]float64, cells)
+	elevationMap := make([]float64, cells)
+	biomeMap := make([]float64, cells)
+
+	for i := 0; i < cells && i < len(heightData); i++ {
+		h := float64(heightData[i]) / 100.0
+		heightMap[i] = h
+		// Match the exponential elevation curve used by local generation
+		elevationMap[i] = h * h * MaxElevation
+	}
+
+	for i := 0; i < cells && i < len(biomeData); i++ {
+		biomeMap[i] = float64(biomeData[i]) / 255.0
+	}
+
+	// Use the same terrain classification logic as local generation
+	terrainTypes := make([]int, cells)
+	for row := 0; row < size; row++ {
+		for col := 0; col < size; col++ {
+			idx := row*size + col
+			terrainTypes[idx] = classifyTerrain(col, row, size, heightMap[idx], biomeMap[idx], elevationMap)
+		}
+	}
+
+	// Use the same wall height calculation as local generation
+	wallHeights := generateWallHeights(size, heightMap, elevationMap, terrainTypes)
+
+	c := &Chunk{
+		X:            x,
+		Y:            y,
+		Size:         size,
+		Seed:         mixChunkSeed(cm.Seed, x, y),
+		HeightMap:    heightMap,
+		ElevationMap: elevationMap,
+		TerrainTypes: terrainTypes,
+		BiomeMap:     biomeMap,
+		DetailSpawns: nil, // Network chunks are render-only; authoritative spawns come via entity updates
+		WallHeights:  wallHeights,
+	}
+
+	cm.mu.Lock()
+	cm.loaded[key] = c
+	cm.mu.Unlock()
+
+	// Clear any pending generation request for this chunk
+	cm.pendingMu.Lock()
+	delete(cm.pending, key)
+	cm.pendingMu.Unlock()
 }
 
 // IsChunkPending returns true if a chunk is queued for generation.

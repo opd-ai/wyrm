@@ -71,6 +71,7 @@ type Game struct {
 	lastChunkX    int
 	lastChunkY    int
 	chunkMapInit  bool // Whether the chunk map has been initialized
+	chunksPending bool // Whether the last build had placeholder chunks needing re-evaluation
 	mapSize       int  // Size of the local map grid
 	wallThreshold float64
 	audioEngine   *audio.Engine
@@ -840,7 +841,22 @@ func (g *Game) updateChunkMap() {
 	chunkX := int(pos.X) / g.cfg.World.ChunkSize
 	chunkY := int(pos.Y) / g.cfg.World.ChunkSize
 	// Only rebuild map when entering a new chunk or on first run
-	if g.chunkMapInit && chunkX == g.lastChunkX && chunkY == g.lastChunkY {
+	// Also rebuild when async/network chunks have replaced placeholders
+	needsRebuild := !g.chunkMapInit || chunkX != g.lastChunkX || chunkY != g.lastChunkY
+	if !needsRebuild {
+		// Check if new network chunks arrived from the server
+		if g.stateSync != nil && g.stateSync.HasNewChunks() {
+			needsRebuild = true
+		}
+	}
+	if !needsRebuild && g.chunksPending {
+		// Previous build had placeholder chunks — rebuild to pick up any
+		// chunks that async workers or network have since provided.
+		// This is cheap (48x48 map) and self-limiting: once all chunks
+		// are real, chunksPending becomes false and rebuilds stop.
+		needsRebuild = true
+	}
+	if !needsRebuild {
 		return
 	}
 	g.lastChunkX = chunkX
@@ -874,20 +890,27 @@ func (g *Game) rebuildWorldMap(centerChunkX, centerChunkY int) {
 	viewY := float64(centerChunkY*chunkSize) + float64(chunkSize)/2
 	g.lodManager.SetViewpoint(viewX, viewY)
 
+	chunksPending := false
+
 	// Load 3x3 chunk window using LOD-based selection with async generation
 	for dy := -1; dy <= 1; dy++ {
 		for dx := -1; dx <= 1; dx++ {
 			chunkX := centerChunkX + dx
 			chunkY := centerChunkY + dy
 			// GetChunkLODAsync returns placeholder while chunk generates in background
-			lodChunk, ok := g.lodManager.GetChunkLODAsync(chunkX, chunkY)
-			if !ok || lodChunk == nil {
+			lodChunk, isReal := g.lodManager.GetChunkLODAsync(chunkX, chunkY)
+			if lodChunk == nil {
 				// Skip chunk on error - player can still move through pending chunks
+				chunksPending = true
 				continue
+			}
+			if !isReal {
+				chunksPending = true
 			}
 			g.sampleLODChunkIntoMap(g.worldMap, lodChunk, dx, dy, chunkSize)
 		}
 	}
+	g.chunksPending = chunksPending
 	g.renderer.SetWorldMapDirect(g.worldMap)
 }
 
@@ -1820,7 +1843,7 @@ func main() {
 
 	// Initialize state synchronization if connected to server
 	if connected {
-		game.stateSync = NewStateSynchronizer(client, world, player)
+		game.stateSync = NewStateSynchronizer(client, world, player, chunkMgr, lodMgr)
 		game.stateSync.Start()
 	}
 
