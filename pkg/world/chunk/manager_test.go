@@ -1704,3 +1704,102 @@ func TestDeterministicBarrierSpawn(t *testing.T) {
 		}
 	}
 }
+
+func TestStoreNetworkChunk(t *testing.T) {
+	const chunkSize = 16
+	cm := NewManager(chunkSize, 42)
+
+	// Build a known height/biome payload.
+	cells := chunkSize * chunkSize
+	heights := make([]uint16, cells)
+	biomes := make([]uint8, cells)
+	for i := 0; i < cells; i++ {
+		// Heights span 0..90 (encoded as h*100 → 0..9000)
+		h := float64(i) / float64(cells-1) * 0.9
+		heights[i] = uint16(h * 100)
+		biomes[i] = uint8(float64(i) / float64(cells-1) * 255)
+	}
+
+	cm.StoreNetworkChunk(3, 7, chunkSize, heights, biomes)
+
+	// Chunk should now be loaded.
+	if !cm.IsChunkLoaded(3, 7) {
+		t.Fatal("expected chunk (3,7) to be loaded after StoreNetworkChunk")
+	}
+
+	c, isReal := cm.GetChunkOrPlaceholder(3, 7)
+	if !isReal {
+		t.Fatal("expected real chunk, got placeholder")
+	}
+	if c.Size != chunkSize {
+		t.Errorf("expected Size=%d, got %d", chunkSize, c.Size)
+	}
+	if len(c.HeightMap) != cells {
+		t.Fatalf("expected HeightMap len %d, got %d", cells, len(c.HeightMap))
+	}
+	if len(c.ElevationMap) != cells {
+		t.Fatalf("expected ElevationMap len %d, got %d", cells, len(c.ElevationMap))
+	}
+	if len(c.TerrainTypes) != cells {
+		t.Fatalf("expected TerrainTypes len %d, got %d", cells, len(c.TerrainTypes))
+	}
+	if len(c.WallHeights) != cells {
+		t.Fatalf("expected WallHeights len %d, got %d", cells, len(c.WallHeights))
+	}
+	if c.DetailSpawns != nil {
+		t.Errorf("expected nil DetailSpawns for network chunk, got %d spawns", len(c.DetailSpawns))
+	}
+
+	// Verify elevation uses the h*h*MaxElevation curve.
+	for i := 0; i < cells; i++ {
+		h := c.HeightMap[i]
+		expectedElev := h * h * MaxElevation
+		if diff := c.ElevationMap[i] - expectedElev; diff > 0.01 || diff < -0.01 {
+			t.Errorf("cell %d: elevation %.4f, expected %.4f (h=%.4f)", i, c.ElevationMap[i], expectedElev, h)
+			break
+		}
+	}
+
+	// Verify wall heights are within valid range.
+	for i := 0; i < cells; i++ {
+		wh := c.WallHeights[i]
+		if wh < MinWallHeight {
+			t.Errorf("cell %d: wall height %.4f < MinWallHeight %.4f", i, wh, MinWallHeight)
+			break
+		}
+		if wh > MaxWallHeightMultiplier {
+			t.Errorf("cell %d: wall height %.4f > MaxWallHeightMultiplier %.4f", i, wh, MaxWallHeightMultiplier)
+			break
+		}
+	}
+}
+
+func TestStoreNetworkChunkSizeMismatch(t *testing.T) {
+	cm := NewManager(16, 42)
+
+	// Attempt to store a chunk with wrong size — should be rejected.
+	cm.StoreNetworkChunk(0, 0, 32, make([]uint16, 32*32), make([]uint8, 32*32))
+
+	if cm.IsChunkLoaded(0, 0) {
+		t.Error("expected chunk to be rejected when size != ChunkSize")
+	}
+}
+
+func TestStoreNetworkChunkIncompleteData(t *testing.T) {
+	const chunkSize = 16
+	cm := NewManager(chunkSize, 42)
+
+	// Store with incomplete data — should still store without panic.
+	cm.StoreNetworkChunk(1, 1, chunkSize, make([]uint16, 10), make([]uint8, 10))
+
+	if !cm.IsChunkLoaded(1, 1) {
+		t.Fatal("expected chunk to be loaded even with incomplete data")
+	}
+
+	c, _ := cm.GetChunkOrPlaceholder(1, 1)
+	// Remaining cells should be zero-initialized.
+	cells := chunkSize * chunkSize
+	if len(c.HeightMap) != cells {
+		t.Errorf("expected HeightMap len %d, got %d", cells, len(c.HeightMap))
+	}
+}

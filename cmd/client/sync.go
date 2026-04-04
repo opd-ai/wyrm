@@ -28,9 +28,10 @@ type StateSynchronizer struct {
 	lastServerTime uint32
 
 	// Chunk management for network-received terrain
-	chunkManager *chunk.Manager
-	lodManager   *chunk.LODManager
-	chunkDirty   bool // true when new chunk data arrived and world map needs rebuild
+	chunkManager   *chunk.Manager
+	lodManager     *chunk.LODManager
+	chunkDirty     bool // true when new chunk data arrived and world map needs rebuild
+	chunksReceived int  // count of chunks received (for throttled logging)
 
 	// Receive channel for async message processing
 	msgChan chan serverMessage
@@ -333,9 +334,14 @@ func (s *StateSynchronizer) handleChunkData(cd *network.ChunkData) {
 	// Mark that new chunk data has arrived and world map needs rebuild
 	s.mu.Lock()
 	s.chunkDirty = true
+	s.chunksReceived++
+	count := s.chunksReceived
 	s.mu.Unlock()
 
-	log.Printf("stored chunk data for (%d, %d), size %d", x, y, size)
+	// Throttle logging: log the first chunk and then every 10th chunk
+	if count == 1 || count%10 == 0 {
+		log.Printf("chunk streaming: received %d chunks (latest: %d,%d)", count, x, y)
+	}
 }
 
 // HasNewChunks returns true and resets the flag if new chunk data arrived from the server.
