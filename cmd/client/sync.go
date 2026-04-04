@@ -11,6 +11,7 @@ import (
 	"github.com/opd-ai/wyrm/pkg/engine/components"
 	"github.com/opd-ai/wyrm/pkg/engine/ecs"
 	"github.com/opd-ai/wyrm/pkg/network"
+	"github.com/opd-ai/wyrm/pkg/world/chunk"
 )
 
 // StateSynchronizer handles synchronization of game state between client and server.
@@ -26,6 +27,11 @@ type StateSynchronizer struct {
 	pendingInputs  []*network.PlayerInput
 	lastServerTime uint32
 
+	// Chunk management for network-received terrain
+	chunkManager *chunk.Manager
+	lodManager   *chunk.LODManager
+	chunkDirty   bool // true when new chunk data arrived and world map needs rebuild
+
 	// Receive channel for async message processing
 	msgChan chan serverMessage
 	stopCh  chan struct{}
@@ -38,12 +44,14 @@ type serverMessage struct {
 }
 
 // NewStateSynchronizer creates a new state synchronizer.
-func NewStateSynchronizer(client *network.Client, world *ecs.World, playerEntity ecs.Entity) *StateSynchronizer {
+func NewStateSynchronizer(client *network.Client, world *ecs.World, playerEntity ecs.Entity, chunkMgr *chunk.Manager, lodMgr *chunk.LODManager) *StateSynchronizer {
 	return &StateSynchronizer{
 		client:        client,
 		world:         world,
 		playerEntity:  playerEntity,
 		remoteEntites: make(map[uint64]ecs.Entity),
+		chunkManager:  chunkMgr,
+		lodManager:    lodMgr,
 		msgChan:       make(chan serverMessage, 100),
 		stopCh:        make(chan struct{}),
 	}
@@ -304,11 +312,40 @@ func sinDegrees(angle float64) float64 {
 }
 
 // handleChunkData processes chunk terrain data from server.
-func (s *StateSynchronizer) handleChunkData(chunk *network.ChunkData) {
-	// Store chunk data for terrain rendering
-	// This would update the local chunk manager with server-provided terrain
-	log.Printf("received chunk data for (%d, %d), size %d",
-		chunk.ChunkX, chunk.ChunkY, chunk.ChunkSize)
+func (s *StateSynchronizer) handleChunkData(cd *network.ChunkData) {
+	if s.chunkManager == nil {
+		return
+	}
+
+	x := int(cd.ChunkX)
+	y := int(cd.ChunkY)
+	size := int(cd.ChunkSize)
+
+	// Store the network chunk data into the local chunk manager
+	s.chunkManager.StoreNetworkChunk(x, y, size, cd.HeightData, cd.BiomeData)
+
+	// Invalidate LOD cache so it regenerates from the new data
+	if s.lodManager != nil {
+		s.lodManager.InvalidateChunk(x, y)
+	}
+
+	// Mark that new chunk data has arrived and world map needs rebuild
+	s.mu.Lock()
+	s.chunkDirty = true
+	s.mu.Unlock()
+
+	log.Printf("stored chunk data for (%d, %d), size %d", x, y, size)
+}
+
+// HasNewChunks returns true and resets the flag if new chunk data arrived from the server.
+func (s *StateSynchronizer) HasNewChunks() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.chunkDirty {
+		s.chunkDirty = false
+		return true
+	}
+	return false
 }
 
 // handlePong processes a pong response for latency measurement.

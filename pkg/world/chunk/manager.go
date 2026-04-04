@@ -1413,6 +1413,70 @@ func (cm *Manager) createPlaceholderChunk(x, y int) *Chunk {
 	}
 }
 
+// StoreNetworkChunk stores a chunk received from the server into the local cache.
+// The chunk replaces any existing or pending local generation for those coordinates.
+func (cm *Manager) StoreNetworkChunk(x, y, size int, heightData []uint16, biomeData []uint8) {
+	key := [2]int{x, y}
+
+	// Convert network height data (uint16, scaled by 100) back to float64 heightmap
+	cells := size * size
+	heightMap := make([]float64, cells)
+	elevationMap := make([]float64, cells)
+	terrainTypes := make([]int, cells)
+	biomeMap := make([]float64, cells)
+	wallHeights := make([]float64, cells)
+
+	for i := 0; i < cells && i < len(heightData); i++ {
+		h := float64(heightData[i]) / 100.0
+		heightMap[i] = h
+		elevationMap[i] = h * MaxElevation
+
+		// Classify terrain type from height
+		switch {
+		case h < WaterLevel:
+			terrainTypes[i] = TerrainWater
+		case h < ValleyThreshold:
+			terrainTypes[i] = TerrainValley
+		case h < HillThreshold:
+			terrainTypes[i] = TerrainFlat
+		case h < PeakThreshold:
+			terrainTypes[i] = TerrainHill
+		default:
+			terrainTypes[i] = TerrainPeak
+		}
+
+		// Default wall height from terrain height
+		wallHeights[i] = h
+	}
+
+	for i := 0; i < cells && i < len(biomeData); i++ {
+		biomeMap[i] = float64(biomeData[i]) / 255.0
+	}
+
+	chunkSeed := mixChunkSeed(cm.Seed, x, y)
+	c := &Chunk{
+		X:            x,
+		Y:            y,
+		Size:         size,
+		Seed:         chunkSeed,
+		HeightMap:    heightMap,
+		ElevationMap: elevationMap,
+		TerrainTypes: terrainTypes,
+		BiomeMap:     biomeMap,
+		DetailSpawns: generateDetailSpawns(size, chunkSeed, terrainTypes, biomeMap),
+		WallHeights:  wallHeights,
+	}
+
+	cm.mu.Lock()
+	cm.loaded[key] = c
+	cm.mu.Unlock()
+
+	// Clear any pending generation request for this chunk
+	cm.pendingMu.Lock()
+	delete(cm.pending, key)
+	cm.pendingMu.Unlock()
+}
+
 // IsChunkPending returns true if a chunk is queued for generation.
 func (cm *Manager) IsChunkPending(x, y int) bool {
 	cm.pendingMu.Lock()
