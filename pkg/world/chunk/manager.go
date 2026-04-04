@@ -4,6 +4,7 @@ package chunk
 import (
 	"encoding/binary"
 	"hash/fnv"
+	"log"
 	"math/rand"
 	"sync"
 
@@ -1420,6 +1421,14 @@ func (cm *Manager) StoreNetworkChunk(x, y, size int, heightData []uint16, biomeD
 
 	// Convert network height data (uint16, scaled by 100) back to float64 heightmap
 	cells := size * size
+	if len(heightData) < cells {
+		log.Printf("warning: incomplete chunk height data for (%d,%d): got %d, expected %d",
+			x, y, len(heightData), cells)
+	}
+	if len(biomeData) < cells {
+		log.Printf("warning: incomplete chunk biome data for (%d,%d): got %d, expected %d",
+			x, y, len(biomeData), cells)
+	}
 	heightMap := make([]float64, cells)
 	elevationMap := make([]float64, cells)
 	terrainTypes := make([]int, cells)

@@ -314,6 +314,7 @@ func sinDegrees(angle float64) float64 {
 // handleChunkData processes chunk terrain data from server.
 func (s *StateSynchronizer) handleChunkData(cd *network.ChunkData) {
 	if s.chunkManager == nil {
+		log.Printf("warning: received chunk data but chunk manager not available")
 		return
 	}
 

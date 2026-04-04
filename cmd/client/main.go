@@ -850,8 +850,10 @@ func (g *Game) updateChunkMap() {
 		}
 	}
 	if !needsRebuild && g.chunksPending {
-		// Previous build had placeholder chunks — re-evaluate in case
-		// async workers or network have provided real chunks since then
+		// Previous build had placeholder chunks — rebuild to pick up any
+		// chunks that async workers or network have since provided.
+		// This is cheap (48x48 map) and self-limiting: once all chunks
+		// are real, chunksPending becomes false and rebuilds stop.
 		needsRebuild = true
 	}
 	if !needsRebuild {
