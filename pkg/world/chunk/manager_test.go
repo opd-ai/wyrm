@@ -1,6 +1,7 @@
 package chunk
 
 import (
+	"math"
 	"math/rand"
 	"testing"
 )
@@ -1751,10 +1752,11 @@ func TestStoreNetworkChunk(t *testing.T) {
 	}
 
 	// Verify elevation uses the h*h*MaxElevation curve.
+	const elevationTolerance = 0.01
 	for i := 0; i < cells; i++ {
 		h := c.HeightMap[i]
 		expectedElev := h * h * MaxElevation
-		if diff := c.ElevationMap[i] - expectedElev; diff > 0.01 || diff < -0.01 {
+		if math.Abs(c.ElevationMap[i]-expectedElev) > elevationTolerance {
 			t.Errorf("cell %d: elevation %.4f, expected %.4f (h=%.4f)", i, c.ElevationMap[i], expectedElev, h)
 			break
 		}

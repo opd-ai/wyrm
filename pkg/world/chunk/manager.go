@@ -1456,10 +1456,10 @@ func (cm *Manager) StoreNetworkChunk(x, y, size int, heightData []uint16, biomeD
 
 	// Use the same terrain classification logic as local generation
 	terrainTypes := make([]int, cells)
-	for y := 0; y < size; y++ {
-		for x := 0; x < size; x++ {
-			idx := y*size + x
-			terrainTypes[idx] = classifyTerrain(x, y, size, heightMap[idx], biomeMap[idx], elevationMap)
+	for row := 0; row < size; row++ {
+		for col := 0; col < size; col++ {
+			idx := row*size + col
+			terrainTypes[idx] = classifyTerrain(col, row, size, heightMap[idx], biomeMap[idx], elevationMap)
 		}
 	}
 
