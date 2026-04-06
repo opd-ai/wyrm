@@ -3,23 +3,20 @@
 ## Critical Issues (Blocks Playability)
 
 ### Rendering Pipeline
-- [ ] **Renderer nil WorldMap causes panic in raycasting** - Location: `pkg/rendering/raycast/renderer.go:782` - Impact: `isValidMapPosition()` accesses `len(r.WorldMap)` without nil check; if `WorldMap` is nil (before first chunk loads), any call to `performDDA()` at line 770 panics with nil pointer dereference, crashing the game on first frame
-- [ ] **SetWorldMapDirect skips WorldMapCells for empty maps** - Location: `pkg/rendering/raycast/renderer.go:974-979` - Impact: If an empty (but non-nil) world map is passed where `len(worldMap) > 0` but `len(worldMap[0]) == 0`, `WorldMapCells` is not initialized; subsequent `GetMapCell()` calls at line 800+ will access nil `WorldMapCells`, causing panics during wall rendering
+- [ ] **Renderer renders blank world when no chunk data has been received** - Location: `pkg/rendering/raycast/renderer.go:782` - Impact: `NewRendererWithGenre()` initializes `WorldMap` to a small non-nil default, so `isValidMapPosition()` safely returns false via `len(r.WorldMap)` (which is 0-safe on nil slices). However, before the first real chunk arrives, the renderer draws against this minimal default map, producing a blank/empty world with no walls. Not a crash, but a confusing first-frame experience. Consider showing a loading indicator or placeholder geometry until chunk data populates the map
+- [ ] **SetWorldMapDirect leaves WorldMapCells stale when map is empty** - Location: `pkg/rendering/raycast/renderer.go:974-979` - Impact: When an empty `worldMap` is passed, `SetWorldMapDirect()` skips rebuilding `WorldMapCells` instead of clearing or regenerating it. This leaves `WorldMapCells` out of sync with `WorldMap`, so later `GetMapCell()` and raycasting logic can read stale cell data and render/collide against a previous map. Fix by explicitly clearing `WorldMapCells` when `worldMap` is empty, or by always regenerating `WorldMapCells` to match `WorldMap`
 - [ ] **Framebuffer fixed at init size, no resize handling** - Location: `pkg/rendering/raycast/renderer.go:580` - Impact: Framebuffer allocated as `width*height*4` bytes at construction; if `Layout()` returns dimensions different from renderer initialization (e.g., window resize), `WritePixels` in `draw.go:20` will panic on buffer size mismatch
 
-### Quest UI - Notification Timer Bug
-- [ ] **Quest notifications never expire due to value-copy iteration** - Location: `cmd/client/quest_ui.go:120-129` - Impact: `updateNotifications()` iterates notifications by value (`for _, n := range`), decrements the copy's timer, then appends the copy. Since `n` is a copy, the original timer is never decremented. Notifications accumulate on screen indefinitely, eventually obscuring gameplay
-
-### Dialog UI - Vocabulary Array Bounds
-- [ ] **Dialog greeting panics if vocabulary Greetings array is empty** - Location: `cmd/client/dialog_ui.go:341` - Impact: `generateGreeting()` accesses `vocab.Greetings[0]` unconditionally before checking length at line 342. If a genre vocabulary returns empty Greetings, this is an index-out-of-bounds panic. Similarly `vocab.Affirmatives[0]` at line 385 and `vocab.Farewells[0]` at line 433
-
-### Faction UI - No Upper Bound on Selection
-- [ ] **Faction UI selection index unbounded — can exceed faction count** - Location: `cmd/client/faction_ui.go:82-84` - Impact: `selectedFaction++` on KeyDown has no upper bound check in `Update()`; the clamp only happens in `Draw()` at line 178-185. Between Update and Draw, an out-of-bounds `selectedFaction` is used for `adjustScroll()`, and if Draw isn't called (e.g., overlay stacking), the index stays invalid
+### Faction UI - Selection State Can Drift Out of Range
+- [ ] **Faction UI selection index is only clamped in Draw, allowing invalid state between frames** - Location: `cmd/client/faction_ui.go:82-84` - Impact: `selectedFaction++` on KeyDown has no upper bound check in `Update()`; the clamp only happens later in `Draw()` at line 178-185. `adjustScroll()` itself only does arithmetic, so this is not an immediate out-of-bounds access there, but it does allow `selectedFaction` to drift beyond the available faction count between `Update()` and `Draw()` or across overlay transitions. That leaves the UI in an inconsistent state until rendering occurs and can cause bad scroll/selection behavior or later out-of-range access when code indexes using the stale selection. Clamp in `Update()` as well as `Draw()` to keep selection state valid at all times
 
 ### Crafting UI - Recipe Selection Unbounded
-- [ ] **Crafting recipe selection has no upper bound** - Location: `cmd/client/crafting_ui.go:84-86` - Impact: `selectedRecipe++` on KeyDown has no max bound relative to available recipes. When `selectedRecipe` exceeds `len(recipes)` in `Draw()` at line 288, the guard prevents crash, but the UI shows no selection highlight and the user cannot craft — effectively locking the crafting system
+- [ ] **Crafting recipe selection has no upper bound** - Location: `cmd/client/crafting_ui.go:84-86` - Impact: `selectedRecipe++` on KeyDown has no max bound relative to available recipes. When `selectedRecipe` exceeds the valid range, `Draw()` and `startCraft()` guard against out-of-range access, so this does not hard-lock or crash the crafting system; instead the UI can become desynced/blank with no valid selection highlight and crafting temporarily unavailable until the player navigates back into range. Clamp `selectedRecipe` to `len(recipes)-1` in `Update()` to keep selection state valid and avoid the confusing UX
 
 ## High Priority (Degrades Experience)
+
+### Defensive Hardening
+- [ ] **Dialog greeting accesses vocab arrays without empty-check (future-proofing)** - Location: `cmd/client/dialog_ui.go:341` - Impact: `generateGreeting()` accesses `vocab.Greetings[0]` unconditionally before checking length at line 342. Currently all 5 genre vocabularies in `pkg/dialog/system.go` have non-empty `Greetings`, `Affirmatives`, and `Farewells` arrays, and `GetVocabulary()` falls back to fantasy for unknown genres, so this is not a present crash. However, if a future genre or dynamic vocabulary override provides empty arrays, this becomes an index-out-of-bounds panic. Add `len()` guards before indexing for defensive safety
 
 ### Input Handling
 - [ ] **Dialog UI uses custom debounce with global mutable state** - Location: `cmd/client/dialog_ui.go:186-193` - Impact: `lastKeyState` is a package-level mutable map, not synchronized. While Ebiten calls Update() single-threaded, this pattern shadows `inpututil.IsKeyJustPressed()` which is the correct Ebiten idiom. The custom implementation loses key events if multiple keys are pressed in the same frame, making dialog option selection unreliable
@@ -66,9 +63,9 @@
 ## Resolution Notes
 
 ### Dependencies Between Fixes
-1. **Renderer nil WorldMap** must be fixed before any gameplay testing — it's the most likely first-frame crash
-2. **Quest notification timer** fix is independent and simple (change loop to use index: `for i := range q.notifications { q.notifications[i].Timer -= dt }`)
-3. **Dialog vocabulary bounds** fix should verify all 5 genre vocabularies in `pkg/dialog/` have non-empty arrays
+1. **Renderer blank world** is cosmetic but confusing — consider adding a loading indicator before real chunk data arrives
+2. **SetWorldMapDirect stale cells** should be fixed to always keep WorldMap and WorldMapCells in sync
+3. **Dialog vocabulary bounds** is future-proofing — verify all 5 genre vocabularies in `pkg/dialog/` have non-empty arrays (currently they do) and add `len()` guards for safety
 4. **Combat system duplication** (CombatManager private instances vs ECS-registered instances) is a design issue that affects all combat — fixing this properly requires deciding on single ownership
 5. **Post-processing double-upload** and **particle double-upload** should be fixed together by restructuring the draw pipeline to: ClearFramebuffer → drawSky → drawFloorCeiling → drawWalls → applyPostProcessing → drawParticles → single WritePixels → drawSprites → drawHUD
 6. **Audio 2-second silence** needs a proper audio loop or continuous generation system
@@ -82,4 +79,4 @@
 - The codebase is well-structured with clean separation between UI, ECS, rendering, and networking
 - Most issues are boundary conditions (nil checks, bounds checks) rather than fundamental design flaws
 - The dual CombatSystem instance problem (local in CombatManager + registered in ECS) is the most architecturally significant issue
-- The quest notification timer bug is a classic Go range-loop value-copy mistake
+- The stale WorldMapCells issue in SetWorldMapDirect is a data-sync bug that could cause subtle rendering glitches
